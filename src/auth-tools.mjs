@@ -47,18 +47,6 @@ export function registerAuthTools(server, authManager) {
     }
   });
 
-  server.tool('test-login', {}, async () => {
-    const result = await authManager.testLogin();
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result),
-        },
-      ],
-    };
-  });
-
   server.tool('verify-login', {}, async () => {
     const testResult = await authManager.testLogin();
 

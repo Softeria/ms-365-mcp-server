@@ -132,7 +132,7 @@ Options:
 
 - `--login`: Force login using device code flow and verify Graph API access
 - `--logout`: Log out and clear saved credentials
-- `--test-login`: Test current authentication and verify Graph API access without starting the server
+- `--verify-login`: Test current authentication and verify Graph API access without starting the server
 - `-v`: Enable verbose logging
 
 ### Authentication
@@ -155,14 +155,14 @@ Both methods trigger the device code flow authentication, but they handle the UI
 - CLI version displays the instructions directly in the terminal
 - MCP tool version returns the instructions as data that can be shown in the client UI
 
-You can verify your authentication status with the `--test-login` flag, which will check if your token can successfully
+You can verify your authentication status with the `--verify-login` flag, which will check if your token can successfully
 fetch user data from Microsoft Graph API:
 
 ```bash
-npx @softeria/ms-365-mcp-server --test-login
+npx @softeria/ms-365-mcp-server --verify-login
 ```
 
-Both `--login` and `--test-login` will return a JSON response that includes your basic user information from Microsoft
+Both `--login` and `--verify-login` will return a JSON response that includes your basic user information from Microsoft
 Graph API if authentication is successful:
 
 ```json
@@ -187,7 +187,6 @@ This server provides several MCP tools for interacting with Microsoft 365 servic
 - `login`: Start a new login process with Microsoft (returns login URL and code)
 - `verify-login`: Check if login was completed successfully and verify Graph API access
 - `logout`: Log out of Microsoft and clear credentials
-- `test-login`: Test current authentication status and verify Graph API access
 
 #### Files/OneDrive Tools
 
