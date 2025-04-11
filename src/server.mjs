@@ -1,11 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import logger, { enableConsoleLogging } from './logger.mjs';
-import { registerExcelTools } from './excel-tools.mjs';
 import { registerAuthTools } from './auth-tools.mjs';
-import { registerFilesTools } from './files-tools.mjs';
-import { registerCalendarTools } from './calendar-tools.mjs';
-import { registerMailTools } from './mail-tools.mjs';
+import { registerDynamicTools } from './dynamic-tools.mjs';
 import GraphClient from './graph-client.mjs';
 
 class MicrosoftGraphServer {
@@ -23,10 +20,7 @@ class MicrosoftGraphServer {
     });
 
     registerAuthTools(this.server, this.authManager);
-    registerFilesTools(this.server, this.graphClient);
-    registerExcelTools(this.server, this.graphClient);
-    registerCalendarTools(this.server, this.graphClient);
-    registerMailTools(this.server, this.graphClient);
+    await registerDynamicTools(this.server, this.graphClient);
   }
 
   async start() {
