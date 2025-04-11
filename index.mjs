@@ -21,8 +21,8 @@ async function main() {
       process.exit(0);
     }
 
-    if (args.testLogin) {
-      logger.info('Testing login...');
+    if (args.verifyLogin) {
+      logger.info('Verifying login...');
       const result = await authManager.testLogin();
       console.log(JSON.stringify(result));
       process.exit(0);
