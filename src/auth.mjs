@@ -111,7 +111,7 @@ class AuthManager {
       deviceCodeCallback: (response) => {
         const text = ['\n', response.message, '\n'].join('');
         if (hack) {
-          hack(text + 'After login run the "test login" command');
+          hack(text + 'After login run the "verify login" command');
         } else {
           console.log(text);
         }
