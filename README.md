@@ -37,7 +37,7 @@ To add this MCP server to Claude Desktop:
 2. Go to Settings > MCPs
 3. Click "Add MCP"
 4. Set the following configuration:
-    - Name: `ms` (or any name you prefer)
+    - Name: `ms365` (or any name you prefer)
     - Command: `npx @softeria/ms-365-mcp-server`
     - Click "Add"
 
@@ -47,7 +47,7 @@ find it by going to Settings > Developer > Edit Config. Add this to your configu
 ```json
 {
   "mcpServers": {
-    "ms": {
+    "ms365": {
       "command": "npx",
       "args": [
         "-y",
@@ -60,9 +60,11 @@ find it by going to Settings > Developer > Edit Config. Add this to your configu
 
 ### Using Claude Code CLI
 
-Claude Code CLI integration is available but configuration methods may vary based on the current version. Please refer
-to the [official Claude Code documentation](https://github.com/anthropics/claude-code) for the most up-to-date
-instructions on adding MCP servers.
+You can add the server to Claude Code CLI using this command:
+
+```bash
+claude mcp add ms365 -- npx -y @softeria/ms-365-mcp-server
+```
 
 For other Claude interfaces that support MCPs, please refer to their respective documentation for the correct
 integration method.
