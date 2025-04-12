@@ -69,6 +69,59 @@ function processParameter(parameter) {
   return schema;
 }
 
+export const TARGET_ENDPOINTS = [
+  {
+    pathPattern: '/me/messages',
+    method: 'get',
+    toolName: 'list-mail-messages',
+  },
+  {
+    pathPattern: '/me/mailFolders',
+    method: 'get',
+    toolName: 'list-mail-folders',
+  },
+  {
+    pathPattern: '/me/mailFolders/{mailFolder-id}/messages',
+    method: 'get',
+    toolName: 'list-mail-folder-messages',
+  },
+  {
+    pathPattern: '/me/messages/{message-id}',
+    method: 'get',
+    toolName: 'get-mail-message',
+  },
+  {
+    pathPattern: '/me/events',
+    method: 'get',
+    toolName: 'list-calendar-events',
+  },
+  {
+    pathPattern: '/me/events/{event-id}',
+    method: 'get',
+    toolName: 'get-calendar-event',
+  },
+  {
+    pathPattern: '/me/events',
+    method: 'post',
+    toolName: 'create-calendar-event',
+  },
+  {
+    pathPattern: '/me/events/{event-id}',
+    method: 'patch',
+    toolName: 'update-calendar-event',
+  },
+  {
+    pathPattern: '/me/events/{event-id}',
+    method: 'delete',
+    toolName: 'delete-calendar-event',
+  },
+  {
+    pathPattern: '/me/calendarView',
+    method: 'get',
+    toolName: 'get-calendar-view',
+  },
+];
+
 export async function registerDynamicTools(server, graphClient) {
   try {
     logger.info('Loading OpenAPI spec...');
@@ -77,30 +130,7 @@ export async function registerDynamicTools(server, graphClient) {
 
     logger.info('Generating dynamic tools from OpenAPI spec...');
 
-    const targetEndpoints = [
-      {
-        pathPattern: '/me/messages',
-        method: 'get',
-        toolName: 'list-mail-messages',
-      },
-      {
-        pathPattern: '/me/mailFolders',
-        method: 'get',
-        toolName: 'list-mail-folders',
-      },
-      {
-        pathPattern: '/me/mailFolders/{mailFolder-id}/messages',
-        method: 'get',
-        toolName: 'list-mail-folder-messages',
-      },
-      {
-        pathPattern: '/me/messages/{message-id}',
-        method: 'get',
-        toolName: 'get-mail-message',
-      },
-    ];
-
-    for (const endpoint of targetEndpoints) {
+    for (const endpoint of TARGET_ENDPOINTS) {
       const path = openapi.paths[endpoint.pathPattern];
 
       if (!path) {
@@ -136,6 +166,18 @@ export async function registerDynamicTools(server, graphClient) {
           }
         });
       }
+      
+      if (['post', 'put', 'patch'].includes(endpoint.method) && operation.requestBody) {
+        const contentType = operation.requestBody.content?.['application/json'] ||
+                           operation.requestBody.content?.['*/*'] ||
+                           {};
+        
+        if (contentType.schema) {
+          paramsSchema.body = z.object({}).passthrough().describe(
+            operation.requestBody.description || 'Request body'
+          );
+        }
+      }
 
       const handler = async (params) => {
         let url = endpoint.pathPattern;
@@ -162,7 +204,7 @@ export async function registerDynamicTools(server, graphClient) {
             }
           });
         }
-
+        
         if (queryParams.length > 0) {
           url += '?' + queryParams.join('&');
         }
@@ -170,6 +212,10 @@ export async function registerDynamicTools(server, graphClient) {
         const options = {
           method: endpoint.method.toUpperCase(),
         };
+
+        if (['post', 'put', 'patch'].includes(endpoint.method.toLowerCase()) && params.body) {
+          options.body = JSON.stringify(params.body);
+        }
 
         return graphClient.graphRequest(url, options);
       };
