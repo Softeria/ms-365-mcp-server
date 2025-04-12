@@ -4,26 +4,15 @@ Microsoft 365 MCP Server
 
 A Model Context Protocol (MCP) server for interacting with Microsoft 365 services through the Graph API.
 
-[![Build Status](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml/badge.svg)](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml)
 [![npm version](https://img.shields.io/npm/v/@softeria/ms-365-mcp-server.svg)](https://www.npmjs.com/package/@softeria/ms-365-mcp-server)
-
-## Quick Start Example
-
-Login and test authentication in Claude Desktop:
-
-![MS 365 MCP Server login example in Claude Desktop](https://github.com/user-attachments/assets/936d16bc-b3e1-437b-b3f1-03c54874a816)
 
 ## Features
 
 - Authentication using Microsoft Authentication Library (MSAL)
-- Excel file operations:
-    - Update cell values
-    - Create and manage charts
-    - Format cells
-    - Sort data
-    - Create tables
-    - Read cell values
-    - List worksheets
+- Excel file operations
+- Calendar event management
+- Mail operations
+- OneDrive file management
 - Built on the Model Context Protocol
 
 ## Installation
@@ -31,6 +20,12 @@ Login and test authentication in Claude Desktop:
 ```bash
 npx @softeria/ms-365-mcp-server
 ```
+
+## Quick Start Example
+
+Login and test authentication in Claude Desktop:
+
+![MS 365 MCP Server login example in Claude Desktop](https://github.com/user-attachments/assets/936d16bc-b3e1-437b-b3f1-03c54874a816)
 
 ## Integration with Claude
 
@@ -71,54 +66,6 @@ instructions on adding MCP servers.
 
 For other Claude interfaces that support MCPs, please refer to their respective documentation for the correct
 integration method.
-
-## Development
-
-### Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/softeria-eu/ms-365-mcp-server.git
-cd ms-365-mcp-server
-
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-```
-
-### GitHub Actions
-
-This repository uses GitHub Actions for continuous integration and deployment:
-
-- **Build Workflow**: Runs on all pushes to main and pull requests. Verifies the project builds successfully and passes
-  all tests.
-- **Publish Workflow**: Automatically publishes to npm when a new GitHub release is created.
-
-### Release Process
-
-To create a new release:
-
-```bash
-# Default (patch version): 0.1.11 -> 0.1.12
-npm run release
-
-# Minor version: 0.1.11 -> 0.2.0
-npm run release minor
-
-# Major version: 0.1.11 -> 1.0.0
-npm run release major
-```
-
-This script will:
-
-1. Run tests to verify everything works
-2. Bump the version number according to the specified type (patch by default)
-3. Commit the version changes
-4. Push to GitHub
-5. Create a GitHub release
-6. Trigger the publishing workflow to publish to npm
 
 ## Usage
 
@@ -180,77 +127,62 @@ Authentication tokens are cached securely in your system's credential store with
 
 ### MCP Tools
 
-This server provides several MCP tools for interacting with Microsoft 365 services:
+This server provides several MCP tools for interacting with Microsoft 365 services, including:
 
-#### Authentication Tools
+- Authentication (login, logout)
+- Files/OneDrive management
+- Excel operations
+- Calendar management
+- Mail operations
 
-- `login`: Start a new login process with Microsoft (returns login URL and code)
-- `verify-login`: Check if login was completed successfully and verify Graph API access
-- `logout`: Log out of Microsoft and clear credentials
+For a complete list of available tools and their parameters, use an MCP-enabled Claude interface and explore the available tools.
 
-#### Files/OneDrive Tools
+## For Developers
 
-- `list-files`: List files and folders in a specified path
-- `get-file`: Get details of a specific file
-- `create-folder`: Create a new folder
-- `delete-item`: Delete a file or folder
-- `copy-item`: Copy a file or folder to a new location
-- `move-item`: Move a file or folder to a new location
-- `rename-item`: Rename a file or folder
-- `search-files`: Search for files matching a query
-- `get-shared-items`: Get a list of items shared with you
-- `create-sharing-link`: Create a sharing link for a file or folder
-- `get-file-content`: Get the content of a file
+### Setup
 
-#### Excel Tools
+```bash
+# Clone the repository
+git clone https://github.com/softeria-eu/ms-365-mcp-server.git
+cd ms-365-mcp-server
 
-All Excel tools require a `filePath` parameter to specify which Excel file to operate on. You can use the Files tools to
-find and manage your Excel files.
+# Install dependencies
+npm install
 
-- `update-excel`: Update cell values in an Excel worksheet
-- `create-chart`: Create a chart in an Excel worksheet
-- `format-range`: Apply formatting to a range of cells
-- `sort-range`: Sort a range of cells
-- `create-table`: Create a table from a range of cells
-- `get-range`: Get values from a range of cells
-- `list-worksheets`: List all worksheets in the workbook
-- `close-session`: Close the session for a specific Excel file
-- `close-all-sessions`: Close all active Excel sessions
-- `delete-chart`: Delete a chart from a worksheet
-- `get-charts`: Get all charts in a worksheet
+# Run tests
+npm test
+```
 
-Example workflow:
+### GitHub Actions
 
-1. Use `list-files` to find Excel files in your OneDrive
-2. Use `list-worksheets` with the file path to see available worksheets
-3. Use `get-range` to retrieve data from the Excel file
-4. Use other Excel tools to manipulate the file as needed
+This repository uses GitHub Actions for continuous integration and deployment:
 
-#### Calendar Tools
+- **Build Workflow**: Runs on all pushes to main and pull requests. Verifies the project builds successfully and passes
+  all tests.
+- **Publish Workflow**: Automatically publishes to npm when a new GitHub release is created.
 
-Tools for working with Outlook calendars.
+[![Build Status](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml/badge.svg)](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml)
 
-- `list-calendars`: List all calendars
-- `get-default-calendar`: Get information about the default calendar
-- `list-events`: List events from a calendar with optional filtering, sorting, and date ranges
-- `get-detailed-events`: Get events with expanded properties and options to include body, attendees, extensions, etc.
-- `get-event`: Get detailed information about a specific calendar event
-- `create-event`: Create a new calendar event with comprehensive options (sensitivity, importance, free/busy status,
-  optional attendees, reminders, online meetings, categories)
-- `create-recurring-event`: Create recurring events (daily, weekly, monthly, yearly) with the same comprehensive options
-  and flexible recurrence patterns
-- `update-event`: Update an existing calendar event
-- `delete-event`: Delete a calendar event
-- `accept-event`: Accept a calendar meeting invitation
-- `decline-event`: Decline a calendar meeting invitation
-- `tentatively-accept-event`: Tentatively accept a calendar meeting invitation
-- `find-meeting-times`: Find available meeting times for a set of attendees
-- `get-schedules`: Get availability information for multiple users or resource rooms
+### Release Process
 
-#### Mail Tools
+To create a new release:
 
-Tools for working with Outlook email.
+```bash
+# Default (patch version): 0.1.11 -> 0.1.12
+npm run release
 
-- `list-messages`: List emails from any mail folder with powerful filtering, searching, and sorting options
-- `get-message`: Get detailed information about a specific email message with options to include attachments and other
-  metadata
+# Minor version: 0.1.11 -> 0.2.0
+npm run release minor
+
+# Major version: 0.1.11 -> 1.0.0
+npm run release major
+```
+
+This script will:
+
+1. Run tests to verify everything works
+2. Bump the version number according to the specified type (patch by default)
+3. Commit the version changes
+4. Push to GitHub
+5. Create a GitHub release
+6. Trigger the publishing workflow to publish to npm
