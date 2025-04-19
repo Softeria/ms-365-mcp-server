@@ -28,6 +28,11 @@ Login and test authentication in Claude Desktop:
 
 ![MS 365 MCP Server login example in Claude Desktop](https://github.com/user-attachments/assets/936d16bc-b3e1-437b-b3f1-03c54874a816)
 
+## Examples
+
+![Image](https://github.com/user-attachments/assets/1a296afb-48ed-42b0-9e7c-e685d5d1784c)
+
+
 ## Integration with Claude
 
 ### Claude Desktop
