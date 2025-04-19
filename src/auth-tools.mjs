@@ -1,12 +1,12 @@
+import { z } from 'zod';
+
 export function registerAuthTools(server, authManager) {
   server.tool(
     'login',
     {
-      force: {
-        type: 'boolean',
-        description: 'Force a new login even if already logged in',
-        default: false,
-      },
+      force: z.boolean()
+        .default(false)
+        .describe('Force a new login even if already logged in'),
     },
     async ({ force }) => {
       try {
@@ -51,7 +51,7 @@ export function registerAuthTools(server, authManager) {
     }
   );
 
-  server.tool('logout', {}, async () => {
+  server.tool('logout', z.object({}).strict(), async () => {
     try {
       await authManager.logout();
       return {
@@ -74,7 +74,7 @@ export function registerAuthTools(server, authManager) {
     }
   });
 
-  server.tool('verify-login', {}, async () => {
+  server.tool('verify-login', z.object({}).strict(), async () => {
     const testResult = await authManager.testLogin();
 
     return {

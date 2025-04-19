@@ -1,4 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+// Mock Zod
+vi.mock('zod', () => {
+  const mockZod = {
+    boolean: () => ({
+      default: () => ({
+        describe: () => 'mocked-zod-boolean'
+      })
+    }),
+    object: () => ({
+      strict: () => 'mocked-zod-object'
+    })
+  };
+  return { z: mockZod };
+});
+
 import { registerAuthTools } from '../src/auth-tools.mjs';
 
 describe('Auth Tools', () => {
