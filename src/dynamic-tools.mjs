@@ -62,31 +62,34 @@ export const TARGET_ENDPOINTS = [
   },
 
   {
-    pathPattern: '/workbook/worksheets/{id}/charts/add',
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{id}/charts/add',
     method: 'post',
     toolName: 'create-chart',
     isExcelOp: true,
   },
   {
-    pathPattern: "/workbook/worksheets/{id}/range(address='{address}')/format",
+    pathPattern:
+      "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format",
     method: 'patch',
     toolName: 'format-range',
     isExcelOp: true,
   },
   {
-    pathPattern: "/workbook/worksheets/{id}/range(address='{address}')/sort/apply",
-    method: 'post',
+    pathPattern:
+      '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort',
+    method: 'patch',
     toolName: 'sort-range',
     isExcelOp: true,
   },
   {
-    pathPattern: "/workbook/worksheets/{id}/range(address='{address}')",
+    pathPattern:
+      "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
     method: 'get',
     toolName: 'get-range',
     isExcelOp: true,
   },
   {
-    pathPattern: '/workbook/worksheets',
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets',
     method: 'get',
     toolName: 'list-worksheets',
     isExcelOp: true,
