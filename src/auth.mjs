@@ -19,10 +19,7 @@ const DEFAULT_CONFIG = {
 
 const DEFAULT_SCOPES = [
   'Files.ReadWrite',
-  'Files.ReadWrite.All',
-  'Sites.ReadWrite.All',
   'User.Read',
-  'User.ReadBasic.All',
   'Calendars.Read',
   'Calendars.ReadWrite',
   'Mail.Read',

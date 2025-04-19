@@ -3,6 +3,33 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 
+try {
+  const currentBranch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+  if (currentBranch !== 'main') {
+    console.error(
+      `Error: You must be on the 'main' branch to create a release. Current branch: ${currentBranch}`
+    );
+    process.exit(1);
+  }
+} catch (error) {
+  console.error('Failed to determine current git branch:', error.message);
+  process.exit(1);
+}
+
+try {
+  const changes = execSync('git status --porcelain').toString();
+  if (changes.length > 0) {
+    console.error(
+      'Error: You have uncommitted changes. Please commit or stash them before creating a release.'
+    );
+    console.error(changes);
+    process.exit(1);
+  }
+} catch (error) {
+  console.error('Failed to check git status:', error.message);
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
 const releaseType = args[0] || 'patch';
 
