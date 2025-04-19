@@ -53,6 +53,13 @@ vi.mock('../src/logger.mjs', () => ({
   },
 }));
 
+// Mock param-mapper module
+vi.mock('../src/param-mapper.mjs', () => ({
+  createFriendlyParamName: (name) => name.startsWith('$') ? name.substring(1) : name,
+  registerParamMapping: vi.fn(),
+  getOriginalParamName: vi.fn(),
+}));
+
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { mapToZodType, buildRequestUrl } from '../src/openapi-helpers.mjs';
@@ -167,11 +174,12 @@ describe('OpenAPI Helpers', () => {
 
     it('should handle array parameters', () => {
       const baseUrl = '/test/path';
-      const params = { $select: ['name', 'email'] };
+      const params = { select: ['name', 'email'] };
       const pathParams = [];
       const queryParamDefs = [{ name: '$select', in: 'query' }];
+      const toolName = 'test-tool';
 
-      const result = buildRequestUrl(baseUrl, params, pathParams, queryParamDefs);
+      const result = buildRequestUrl(baseUrl, params, pathParams, queryParamDefs, toolName);
 
       expect(result).toBe('/test/path?$select=name,email');
     });

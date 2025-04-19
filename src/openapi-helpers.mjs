@@ -4,6 +4,7 @@ import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import logger from './logger.mjs';
+import { createFriendlyParamName, registerParamMapping, getOriginalParamName } from './param-mapper.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,7 +116,9 @@ export function buildParameterSchemas(endpoint, operation) {
     operation.parameters.forEach((param) => {
       if (param.in === 'query') {
         if (!pathParams.includes(`{${param.name}}`)) {
-          paramsSchema[param.name] = processParameter(param);
+          const friendlyName = createFriendlyParamName(param.name);
+          registerParamMapping(endpoint.toolName, friendlyName, param.name);
+          paramsSchema[friendlyName] = processParameter(param);
         }
       }
     });
@@ -146,7 +149,7 @@ export function buildParameterSchemas(endpoint, operation) {
   return paramsSchema;
 }
 
-export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs) {
+export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs, toolName) {
   let url = baseUrl;
 
   pathParams.forEach((param) => {
@@ -162,15 +165,15 @@ export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs) {
 
   if (queryParamDefs) {
     queryParamDefs.forEach((param) => {
-      if (param.in === 'query' && params[param.name] !== undefined) {
-        if (param.name.startsWith('$')) {
-          if (Array.isArray(params[param.name])) {
-            queryParams.push(`${param.name}=${params[param.name].join(',')}`);
+      if (param.in === 'query') {
+        const friendlyName = createFriendlyParamName(param.name);
+        
+        if (params[friendlyName] !== undefined) {
+          if (Array.isArray(params[friendlyName])) {
+            queryParams.push(`${param.name}=${params[friendlyName].join(',')}`);
           } else {
-            queryParams.push(`${param.name}=${encodeURIComponent(params[param.name])}`);
+            queryParams.push(`${param.name}=${encodeURIComponent(params[friendlyName])}`);
           }
-        } else {
-          queryParams.push(`${param.name}=${encodeURIComponent(params[param.name])}`);
         }
       }
     });

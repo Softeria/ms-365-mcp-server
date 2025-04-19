@@ -5,6 +5,7 @@ import {
   findPathAndOperation,
   buildParameterSchemas,
   buildRequestUrl,
+  isMethodWithBody,
 } from './openapi-helpers.mjs';
 
 export const TARGET_ENDPOINTS = [
@@ -133,7 +134,13 @@ export async function registerDynamicTools(server, graphClient) {
           options.excelFile = params.filePath;
         }
 
-        const url = buildRequestUrl(endpoint.pathPattern, params, pathParams, operation.parameters);
+        const url = buildRequestUrl(
+          endpoint.pathPattern,
+          params,
+          pathParams,
+          operation.parameters,
+          endpoint.toolName
+        );
 
         if (isMethodWithBody(endpoint.method.toLowerCase()) && params.body) {
           options.body = JSON.stringify(params.body);
