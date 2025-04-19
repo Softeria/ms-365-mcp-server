@@ -40,4 +40,3 @@ execSync(`gh release create v${version} --title 'v${version}' --notes 'Version $
 });
 
 console.log(`Release v${version} created successfully!`);
-// GitHub Actions workflow will handle the npm publish automatically

@@ -13,6 +13,7 @@ A Model Context Protocol (MCP) server for interacting with Microsoft 365 service
 - Calendar event management
 - Mail operations
 - OneDrive file management
+- Dynamic tools powered by Microsoft Graph OpenAPI specification
 - Built on the Model Context Protocol
 
 ## Installation
@@ -37,9 +38,9 @@ To add this MCP server to Claude Desktop:
 2. Go to Settings > MCPs
 3. Click "Add MCP"
 4. Set the following configuration:
-    - Name: `ms365` (or any name you prefer)
-    - Command: `npx @softeria/ms-365-mcp-server`
-    - Click "Add"
+   - Name: `ms365` (or any name you prefer)
+   - Command: `npx @softeria/ms-365-mcp-server`
+   - Click "Add"
 
 Alternatively, you can edit Claude Desktop's configuration file directly. The location varies by platform, but you can
 find it by going to Settings > Developer > Edit Config. Add this to your configuration file:
@@ -49,10 +50,7 @@ find it by going to Settings > Developer > Edit Config. Add this to your configu
   "mcpServers": {
     "ms365": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@softeria/ms-365-mcp-server"
-      ]
+      "args": ["-y", "@softeria/ms-365-mcp-server"]
     }
   }
 }
@@ -89,15 +87,17 @@ Options:
 **Important:** You must authenticate before using the MCP server. There are two ways to authenticate:
 
 1. Running the server with the `--login` flag:
+
    ```bash
    npx @softeria/ms-365-mcp-server --login
    ```
+
    This will display the login URL and code in the terminal.
 
 2. When using Claude Code or other MCP clients, use the login tools:
-    - First use the `login` tool, which will return the login URL and code
-    - Visit the URL and enter the code in your browser
-    - Then use the `verify-login` tool to check if the login was successful
+   - First use the `login` tool, which will return the login URL and code
+   - Visit the URL and enter the code in your browser
+   - Then use the `verify-login` tool to check if the login was successful
 
 Both methods trigger the device code flow authentication, but they handle the UI interaction differently:
 
@@ -133,7 +133,12 @@ This server provides several MCP tools for interacting with Microsoft 365 servic
 
 - Authentication (login, logout)
 - Files/OneDrive management
-- Excel operations
+- Excel operations:
+  - List worksheets
+  - Get cell range values
+  - Format cell ranges
+  - Sort data
+  - Create charts
 - Calendar management
 - Mail operations
 
@@ -153,6 +158,17 @@ npm install
 
 # Run tests
 npm test
+```
+
+### OpenAPI Integration
+
+This project uses the Microsoft Graph OpenAPI specification to dynamically generate MCP tools. During installation, the OpenAPI specification is automatically downloaded from Microsoft Graph's GitHub repository.
+
+To manually download the latest OpenAPI spec:
+
+```bash
+# Download the latest OpenAPI spec from Microsoft Graph
+npm run download-openapi
 ```
 
 ### GitHub Actions

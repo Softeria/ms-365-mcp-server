@@ -15,7 +15,7 @@
     "release": "node bin/release.mjs",
     "download-openapi": "node bin/download-openapi.mjs",
     "inspect": "npx @modelcontextprotocol/inspector node index.mjs",
-    "postinstall": "node bin/download-openapi.mjs"
+    "postinstall": "npm run download-openapi"
   },
   "keywords": [
     "microsoft",
