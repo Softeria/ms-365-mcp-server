@@ -61,14 +61,15 @@ export const TARGET_ENDPOINTS = [
   },
 
   {
-    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{id}/charts/add',
+    pathPattern:
+      '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add',
     method: 'post',
     toolName: 'create-chart',
     isExcelOp: true,
   },
   {
     pathPattern:
-      "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format",
+      '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format',
     method: 'patch',
     toolName: 'format-range',
     isExcelOp: true,
