@@ -55,7 +55,7 @@ vi.mock('../src/logger.mjs', () => ({
 
 // Mock param-mapper module
 vi.mock('../src/param-mapper.mjs', () => ({
-  createFriendlyParamName: (name) => name.startsWith('$') ? name.substring(1) : name,
+  createFriendlyParamName: (name) => (name.startsWith('$') ? name.substring(1) : name),
   registerParamMapping: vi.fn(),
   getOriginalParamName: vi.fn(),
 }));
@@ -179,9 +179,32 @@ describe('OpenAPI Helpers', () => {
       const queryParamDefs = [{ name: '$select', in: 'query' }];
       const toolName = 'test-tool';
 
-      const result = buildRequestUrl(baseUrl, params, pathParams, queryParamDefs, toolName);
+      const result = buildRequestUrl(baseUrl, params, pathParams, queryParamDefs);
 
       expect(result).toBe('/test/path?$select=name,email');
+    });
+
+    it('should map friendly parameter names to original names with $ prefix', () => {
+      const baseUrl = '/test/path';
+      const params = {
+        select: 'name,email',
+        filter: "contains(displayName, 'test')",
+        orderby: 'displayName',
+      };
+      const pathParams = [];
+      const queryParamDefs = [
+        { name: '$select', in: 'query' },
+        { name: '$filter', in: 'query' },
+        { name: '$orderby', in: 'query' },
+      ];
+      const toolName = 'test-tool';
+
+      const result = buildRequestUrl(baseUrl, params, pathParams, queryParamDefs);
+
+      // URL should contain original parameter names with $ prefix
+      expect(result).toContain('$select=');
+      expect(result).toContain('$filter=');
+      expect(result).toContain('$orderby=');
     });
   });
 });

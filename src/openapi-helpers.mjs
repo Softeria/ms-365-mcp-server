@@ -4,7 +4,7 @@ import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import logger from './logger.mjs';
-import { createFriendlyParamName, registerParamMapping, getOriginalParamName } from './param-mapper.mjs';
+import { createFriendlyParamName, registerParamMapping } from './param-mapper.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,7 +149,7 @@ export function buildParameterSchemas(endpoint, operation) {
   return paramsSchema;
 }
 
-export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs, toolName) {
+export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs) {
   let url = baseUrl;
 
   pathParams.forEach((param) => {
@@ -167,7 +167,7 @@ export function buildRequestUrl(baseUrl, params, pathParams, queryParamDefs, too
     queryParamDefs.forEach((param) => {
       if (param.in === 'query') {
         const friendlyName = createFriendlyParamName(param.name);
-        
+
         if (params[friendlyName] !== undefined) {
           if (Array.isArray(params[friendlyName])) {
             queryParams.push(`${param.name}=${params[friendlyName].join(',')}`);

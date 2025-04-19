@@ -1,11 +1,10 @@
-import { z } from 'zod';
 import logger from './logger.mjs';
 import {
-  loadOpenApiSpec,
-  findPathAndOperation,
   buildParameterSchemas,
   buildRequestUrl,
+  findPathAndOperation,
   isMethodWithBody,
+  loadOpenApiSpec,
 } from './openapi-helpers.mjs';
 
 export const TARGET_ENDPOINTS = [
@@ -137,13 +136,7 @@ export async function registerDynamicTools(server, graphClient) {
           options.excelFile = params.filePath;
         }
 
-        const url = buildRequestUrl(
-          endpoint.pathPattern,
-          params,
-          pathParams,
-          operation.parameters,
-          endpoint.toolName
-        );
+        const url = buildRequestUrl(endpoint.pathPattern, params, pathParams, operation.parameters);
 
         if (isMethodWithBody(endpoint.method.toLowerCase()) && params.body) {
           options.body = JSON.stringify(params.body);
