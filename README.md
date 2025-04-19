@@ -95,9 +95,11 @@ Options:
    This will display the login URL and code in the terminal.
 
 2. When using Claude Code or other MCP clients, use the login tools:
-   - First use the `login` tool, which will return the login URL and code
+   - First use the `login` tool, which will automatically check if you're already logged in
+   - If not already logged in, it will return the login URL and code
    - Visit the URL and enter the code in your browser
    - Then use the `verify-login` tool to check if the login was successful
+   - To force a new login even if already authenticated, use the `login` tool with `force: true`
 
 Both methods trigger the device code flow authentication, but they handle the UI interaction differently:
 
