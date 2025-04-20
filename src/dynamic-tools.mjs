@@ -28,7 +28,6 @@ export const TARGET_ENDPOINTS = [
     method: 'get',
     toolName: 'get-mail-message',
   },
-
   {
     pathPattern: '/me/events',
     method: 'get',
@@ -59,7 +58,51 @@ export const TARGET_ENDPOINTS = [
     method: 'get',
     toolName: 'get-calendar-view',
   },
-
+  {
+    pathPattern: '/users/{user-id}/drive',
+    method: 'get',
+    toolName: 'get-user-drive',
+  },
+  {
+    pathPattern: '/drives',
+    method: 'get',
+    toolName: 'list-drives',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/root',
+    method: 'get',
+    toolName: 'get-drive-root-item',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/root',
+    method: 'get',
+    toolName: 'get-root-folder',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children',
+    method: 'get',
+    toolName: 'list-folder-files',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children',
+    method: 'post',
+    toolName: 'create-item-in-folder',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content',
+    method: 'get',
+    toolName: 'download-file-content',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+    method: 'delete',
+    toolName: 'delete-file',
+  },
+  {
+    pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+    method: 'patch',
+    toolName: 'update-file-metadata',
+  },
   {
     pathPattern:
       '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add',
@@ -113,6 +156,19 @@ export async function registerDynamicTools(server, graphClient) {
 
       const paramsSchema = buildParameterSchemas(endpoint, operation);
 
+      if (endpoint.hasCustomParams) {
+        if (endpoint.toolName === 'upload-file') {
+          paramsSchema.content = z.string().describe('File content to upload');
+          paramsSchema.contentType = z
+            .string()
+            .optional()
+            .describe('Content type of the file (e.g., "application/pdf", "image/jpeg")');
+        } else if (endpoint.toolName === 'create-folder') {
+          paramsSchema.name = z.string().describe('Name of the folder to create');
+          paramsSchema.description = z.string().optional().describe('Description of the folder');
+        }
+      }
+
       const pathParams = endpoint.pathPattern.match(/\{([^}]+)}/g) || [];
 
       const handler = async (params) => {
@@ -137,9 +193,28 @@ export async function registerDynamicTools(server, graphClient) {
           options.excelFile = params.filePath;
         }
 
+        if (endpoint.toolName === 'download-file') {
+          options.rawResponse = true;
+        }
+
         const url = buildRequestUrl(endpoint.pathPattern, params, pathParams, operation.parameters);
 
-        if (isMethodWithBody(endpoint.method.toLowerCase()) && params.body) {
+        if (endpoint.toolName === 'upload-file' && params.content) {
+          options.body = params.content;
+          options.headers = {
+            'Content-Type': params.contentType || 'application/octet-stream',
+          };
+        } else if (endpoint.toolName === 'create-folder' && params.name) {
+          options.body = JSON.stringify({
+            name: params.name,
+            folder: {},
+            '@microsoft.graph.conflictBehavior': 'rename',
+            ...(params.description && { description: params.description }),
+          });
+          options.headers = {
+            'Content-Type': 'application/json',
+          };
+        } else if (isMethodWithBody(endpoint.method.toLowerCase()) && params.body) {
           options.body = JSON.stringify(params.body);
         }
 
