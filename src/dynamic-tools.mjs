@@ -6,6 +6,31 @@ import {
   isMethodWithBody,
   loadOpenApiSpec,
 } from './openapi-helpers.mjs';
+import { z } from 'zod';
+
+/**
+ * Validates all endpoints in TARGET_ENDPOINTS against the OpenAPI spec.
+ * Returns an array of endpoints that don't exist in the spec.
+ *
+ * @returns {Array} Array of missing endpoints
+ */
+export function validateEndpoints() {
+  const openapi = loadOpenApiSpec();
+  const missingEndpoints = [];
+
+  for (const endpoint of TARGET_ENDPOINTS) {
+    const result = findPathAndOperation(openapi, endpoint.pathPattern, endpoint.method);
+    if (!result) {
+      missingEndpoints.push({
+        toolName: endpoint.toolName,
+        pathPattern: endpoint.pathPattern,
+        method: endpoint.method,
+      });
+    }
+  }
+
+  return missingEndpoints;
+}
 
 export const TARGET_ENDPOINTS = [
   {
@@ -143,6 +168,16 @@ export async function registerDynamicTools(server, graphClient) {
   try {
     const openapi = loadOpenApiSpec();
     logger.info('Generating dynamic tools from OpenAPI spec...');
+
+    const missingEndpoints = validateEndpoints();
+    if (missingEndpoints.length > 0) {
+      logger.warn('Some endpoints are missing from the OpenAPI spec:');
+      missingEndpoints.forEach((endpoint) => {
+        logger.warn(
+          `- Tool: ${endpoint.toolName}, Path: ${endpoint.pathPattern}, Method: ${endpoint.method}`
+        );
+      });
+    }
 
     for (const endpoint of TARGET_ENDPOINTS) {
       const result = findPathAndOperation(openapi, endpoint.pathPattern, endpoint.method);
