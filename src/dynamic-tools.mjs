@@ -54,6 +54,17 @@ export const TARGET_ENDPOINTS = [
     toolName: 'get-mail-message',
   },
   {
+    pathPattern: '/me/messages',
+    method: 'post',
+    toolName: 'send-mail',
+  },
+  {
+    pathPattern: '/me/messages/{message-id}',
+    method: 'delete',
+    toolName: 'delete-mail-message',
+  },
+
+  {
     pathPattern: '/me/events',
     method: 'get',
     toolName: 'list-calendar-events',
@@ -83,6 +94,12 @@ export const TARGET_ENDPOINTS = [
     method: 'get',
     toolName: 'get-calendar-view',
   },
+  {
+    pathPattern: '/me/calendars',
+    method: 'get',
+    toolName: 'list-calendars',
+  },
+
   {
     pathPattern: '/users/{user-id}/drive',
     method: 'get',
@@ -128,6 +145,7 @@ export const TARGET_ENDPOINTS = [
     method: 'patch',
     toolName: 'update-file-metadata',
   },
+
   {
     pathPattern:
       '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add',
@@ -162,9 +180,216 @@ export const TARGET_ENDPOINTS = [
     toolName: 'list-worksheets',
     isExcelOp: true,
   },
+
+  {
+    pathPattern: '/me/joinedTeams',
+    method: 'get',
+    toolName: 'list-joined-teams',
+  },
+  {
+    pathPattern: '/teams/{team-id}',
+    method: 'get',
+    toolName: 'get-team',
+  },
+  {
+    pathPattern: '/teams/{team-id}/channels',
+    method: 'get',
+    toolName: 'list-team-channels',
+  },
+  {
+    pathPattern: '/teams/{team-id}/channels/{channel-id}',
+    method: 'get',
+    toolName: 'get-channel',
+  },
+  {
+    pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
+    method: 'get',
+    toolName: 'list-channel-messages',
+  },
+  {
+    pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
+    method: 'post',
+    toolName: 'send-channel-message',
+  },
+  {
+    pathPattern: '/me/chats',
+    method: 'get',
+    toolName: 'list-chats',
+  },
+  {
+    pathPattern: '/me/chats/{chat-id}/messages',
+    method: 'get',
+    toolName: 'list-chat-messages',
+  },
+  {
+    pathPattern: '/me/chats/{chat-id}/messages',
+    method: 'post',
+    toolName: 'send-chat-message',
+  },
+
+  {
+    pathPattern: '/me/onenote/notebooks',
+    method: 'get',
+    toolName: 'list-notebooks',
+  },
+  {
+    pathPattern: '/me/onenote/notebooks/{notebook-id}/sections',
+    method: 'get',
+    toolName: 'list-notebook-sections',
+  },
+  {
+    pathPattern: '/me/onenote/notebooks/{notebook-id}/sections/{onenoteSection-id}/pages',
+    method: 'get',
+    toolName: 'list-section-pages',
+  },
+  {
+    pathPattern: '/me/onenote/pages/{onenotePage-id}/content',
+    method: 'get',
+    toolName: 'get-page-content',
+  },
+  {
+    pathPattern: '/me/onenote/pages',
+    method: 'post',
+    toolName: 'create-page',
+  },
+
+  {
+    pathPattern: '/me/todo/lists',
+    method: 'get',
+    toolName: 'list-task-lists',
+  },
+  {
+    pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
+    method: 'get',
+    toolName: 'list-tasks',
+  },
+  {
+    pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
+    method: 'get',
+    toolName: 'get-task',
+  },
+  {
+    pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
+    method: 'post',
+    toolName: 'create-task',
+  },
+  {
+    pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
+    method: 'patch',
+    toolName: 'update-task',
+  },
+  {
+    pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
+    method: 'delete',
+    toolName: 'delete-task',
+  },
+
+  {
+    pathPattern: '/me/planner/tasks',
+    method: 'get',
+    toolName: 'list-planner-tasks',
+  },
+  {
+    pathPattern: '/planner/plans/{plannerPlan-id}',
+    method: 'get',
+    toolName: 'get-plan',
+  },
+  {
+    pathPattern: '/planner/plans/{plannerPlan-id}/tasks',
+    method: 'get',
+    toolName: 'list-plan-tasks',
+  },
+  {
+    pathPattern: '/planner/tasks/{plannerTask-id}',
+    method: 'get',
+    toolName: 'get-planner-task',
+  },
+  {
+    pathPattern: '/planner/tasks',
+    method: 'post',
+    toolName: 'create-planner-task',
+  },
+
+  {
+    pathPattern: '/sites',
+    method: 'get',
+    toolName: 'list-sites',
+  },
+  {
+    pathPattern: '/sites/{site-id}',
+    method: 'get',
+    toolName: 'get-site',
+  },
+  {
+    pathPattern: '/sites/{site-id}/lists',
+    method: 'get',
+    toolName: 'list-site-lists',
+  },
+  {
+    pathPattern: '/sites/{site-id}/lists/{list-id}/items',
+    method: 'get',
+    toolName: 'list-items',
+  },
+
+  {
+    pathPattern: '/me/contacts',
+    method: 'get',
+    toolName: 'list-contacts',
+  },
+  {
+    pathPattern: '/me/contacts/{contact-id}',
+    method: 'get',
+    toolName: 'get-contact',
+  },
+  {
+    pathPattern: '/me/contacts',
+    method: 'post',
+    toolName: 'create-contact',
+  },
+  {
+    pathPattern: '/me/contacts/{contact-id}',
+    method: 'patch',
+    toolName: 'update-contact',
+  },
+  {
+    pathPattern: '/me/contacts/{contact-id}',
+    method: 'delete',
+    toolName: 'delete-contact',
+  },
+
+  {
+    pathPattern: '/me',
+    method: 'get',
+    toolName: 'get-current-user',
+  },
+  {
+    pathPattern: '/users',
+    method: 'get',
+    toolName: 'list-users',
+  },
+  {
+    pathPattern: '/users/{user-id}',
+    method: 'get',
+    toolName: 'get-user',
+  },
+  {
+    pathPattern: '/groups',
+    method: 'get',
+    toolName: 'list-groups',
+  },
+  {
+    pathPattern: '/groups/{group-id}',
+    method: 'get',
+    toolName: 'get-group',
+  },
+  {
+    pathPattern: '/groups/{group-id}/members',
+    method: 'get',
+    toolName: 'list-group-members',
+  },
 ];
 
-export async function registerDynamicTools(server, graphClient) {
+export async function registerDynamicTools() {
   try {
     const openapi = loadOpenApiSpec();
     logger.info('Generating dynamic tools from OpenAPI spec...');
