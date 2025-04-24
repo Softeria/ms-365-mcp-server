@@ -389,7 +389,7 @@ export const TARGET_ENDPOINTS = [
   },
 ];
 
-export async function registerDynamicTools() {
+export async function registerDynamicTools(server, graphClient) {
   try {
     const openapi = loadOpenApiSpec();
     logger.info('Generating dynamic tools from OpenAPI spec...');
