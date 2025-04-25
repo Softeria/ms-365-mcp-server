@@ -40,5 +40,9 @@
   "devDependencies": {
     "prettier": "^3.5.3",
     "vitest": "^3.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/softeria/ms-365-mcp-server.git"
   }
 }

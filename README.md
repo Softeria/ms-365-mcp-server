@@ -157,7 +157,7 @@ For a complete list of available tools and their parameters, use an MCP-enabled 
 
 ```bash
 # Clone the repository
-git clone https://github.com/softeria-eu/ms-365-mcp-server.git
+git clone https://github.com/softeria/ms-365-mcp-server.git
 cd ms-365-mcp-server
 
 # Install dependencies
@@ -186,7 +186,7 @@ This repository uses GitHub Actions for continuous integration and deployment:
   all tests.
 - **Publish Workflow**: Automatically publishes to npm when a new GitHub release is created.
 
-[![Build Status](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml/badge.svg)](https://github.com/softeria-eu/ms-365-mcp-server/actions/workflows/build.yml)
+[![Build Status](https://github.com/softeria/ms-365-mcp-server/actions/workflows/build.yml/badge.svg)](https://github.com/softeria/ms-365-mcp-server/actions/workflows/build.yml)
 
 ### Release Process
 
