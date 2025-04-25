@@ -37,113 +37,129 @@ export const TARGET_ENDPOINTS = [
     pathPattern: '/me/messages',
     method: 'get',
     toolName: 'list-mail-messages',
+    scopes: ['Mail.Read'],
   },
   {
     pathPattern: '/me/mailFolders',
     method: 'get',
     toolName: 'list-mail-folders',
+    scopes: ['Mail.Read'],
   },
   {
     pathPattern: '/me/mailFolders/{mailFolder-id}/messages',
     method: 'get',
     toolName: 'list-mail-folder-messages',
+    scopes: ['Mail.Read'],
   },
   {
     pathPattern: '/me/messages/{message-id}',
     method: 'get',
     toolName: 'get-mail-message',
+    scopes: ['Mail.Read'],
   },
   {
     pathPattern: '/me/messages',
     method: 'post',
     toolName: 'send-mail',
+    scopes: ['Mail.Send'],
   },
   {
     pathPattern: '/me/messages/{message-id}',
     method: 'delete',
     toolName: 'delete-mail-message',
+    scopes: ['Mail.ReadWrite'],
   },
 
   {
     pathPattern: '/me/events',
     method: 'get',
     toolName: 'list-calendar-events',
+    scopes: ['Calendars.Read'],
   },
   {
     pathPattern: '/me/events/{event-id}',
     method: 'get',
     toolName: 'get-calendar-event',
+    scopes: ['Calendars.Read'],
   },
   {
     pathPattern: '/me/events',
     method: 'post',
     toolName: 'create-calendar-event',
+    scopes: ['Calendars.ReadWrite'],
   },
   {
     pathPattern: '/me/events/{event-id}',
     method: 'patch',
     toolName: 'update-calendar-event',
+    scopes: ['Calendars.ReadWrite'],
   },
   {
     pathPattern: '/me/events/{event-id}',
     method: 'delete',
     toolName: 'delete-calendar-event',
+    scopes: ['Calendars.ReadWrite'],
   },
   {
     pathPattern: '/me/calendarView',
     method: 'get',
     toolName: 'get-calendar-view',
+    scopes: ['Calendars.Read'],
   },
   {
     pathPattern: '/me/calendars',
     method: 'get',
     toolName: 'list-calendars',
+    scopes: ['Calendars.Read'],
   },
 
-  {
-    pathPattern: '/users/{user-id}/drive',
-    method: 'get',
-    toolName: 'get-user-drive',
-  },
   {
     pathPattern: '/drives',
     method: 'get',
     toolName: 'list-drives',
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/root',
     method: 'get',
     toolName: 'get-drive-root-item',
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/root',
     method: 'get',
     toolName: 'get-root-folder',
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children',
     method: 'get',
     toolName: 'list-folder-files',
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children',
     method: 'post',
     toolName: 'create-item-in-folder',
+    scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content',
     method: 'get',
     toolName: 'download-file-content',
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
     method: 'delete',
     toolName: 'delete-file',
+    scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
     method: 'patch',
     toolName: 'update-file-metadata',
+    scopes: ['Files.ReadWrite'],
   },
 
   {
@@ -152,6 +168,7 @@ export const TARGET_ENDPOINTS = [
     method: 'post',
     toolName: 'create-chart',
     isExcelOp: true,
+    scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern:
@@ -159,6 +176,7 @@ export const TARGET_ENDPOINTS = [
     method: 'patch',
     toolName: 'format-range',
     isExcelOp: true,
+    scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern:
@@ -166,6 +184,7 @@ export const TARGET_ENDPOINTS = [
     method: 'patch',
     toolName: 'sort-range',
     isExcelOp: true,
+    scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern:
@@ -173,219 +192,255 @@ export const TARGET_ENDPOINTS = [
     method: 'get',
     toolName: 'get-range',
     isExcelOp: true,
+    scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets',
     method: 'get',
     toolName: 'list-worksheets',
     isExcelOp: true,
+    scopes: ['Files.Read'],
   },
 
   {
     pathPattern: '/me/joinedTeams',
     method: 'get',
     toolName: 'list-joined-teams',
+    scopes: ['Team.ReadBasic'],
   },
   {
     pathPattern: '/teams/{team-id}',
     method: 'get',
     toolName: 'get-team',
+    scopes: ['Team.ReadBasic'],
   },
   {
     pathPattern: '/teams/{team-id}/channels',
     method: 'get',
     toolName: 'list-team-channels',
+    scopes: ['Channel.ReadBasic'],
   },
   {
     pathPattern: '/teams/{team-id}/channels/{channel-id}',
     method: 'get',
     toolName: 'get-channel',
+    scopes: ['Channel.ReadBasic'],
   },
   {
     pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
     method: 'get',
     toolName: 'list-channel-messages',
+    scopes: ['ChannelMessage.Read'],
   },
   {
     pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
     method: 'post',
     toolName: 'send-channel-message',
+    scopes: ['ChannelMessage.Send'],
   },
   {
     pathPattern: '/me/chats',
     method: 'get',
     toolName: 'list-chats',
+    scopes: ['Chat.Read'],
   },
   {
     pathPattern: '/me/chats/{chat-id}/messages',
     method: 'get',
     toolName: 'list-chat-messages',
+    scopes: ['Chat.Read'],
   },
   {
     pathPattern: '/me/chats/{chat-id}/messages',
     method: 'post',
     toolName: 'send-chat-message',
+    scopes: ['Chat.ReadWrite'],
   },
 
   {
     pathPattern: '/me/onenote/notebooks',
     method: 'get',
     toolName: 'list-notebooks',
+    scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/notebooks/{notebook-id}/sections',
     method: 'get',
     toolName: 'list-notebook-sections',
+    scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/notebooks/{notebook-id}/sections/{onenoteSection-id}/pages',
     method: 'get',
     toolName: 'list-section-pages',
+    scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/pages/{onenotePage-id}/content',
     method: 'get',
     toolName: 'get-page-content',
+    scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/pages',
     method: 'post',
     toolName: 'create-page',
+    scopes: ['Notes.Create'],
   },
 
   {
     pathPattern: '/me/todo/lists',
     method: 'get',
     toolName: 'list-task-lists',
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
     method: 'get',
     toolName: 'list-tasks',
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'get',
     toolName: 'get-task',
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
     method: 'post',
     toolName: 'create-task',
+    scopes: ['Tasks.ReadWrite'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'patch',
     toolName: 'update-task',
+    scopes: ['Tasks.ReadWrite'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'delete',
     toolName: 'delete-task',
+    scopes: ['Tasks.ReadWrite'],
   },
 
   {
     pathPattern: '/me/planner/tasks',
     method: 'get',
     toolName: 'list-planner-tasks',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/planner/plans/{plannerPlan-id}',
     method: 'get',
     toolName: 'get-plan',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/planner/plans/{plannerPlan-id}/tasks',
     method: 'get',
     toolName: 'list-plan-tasks',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/planner/tasks/{plannerTask-id}',
     method: 'get',
     toolName: 'get-planner-task',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/planner/tasks',
     method: 'post',
     toolName: 'create-planner-task',
+    scopes: ['Group.ReadWrite'],
   },
 
   {
     pathPattern: '/sites',
     method: 'get',
     toolName: 'list-sites',
+    scopes: ['Sites.Read'],
   },
   {
     pathPattern: '/sites/{site-id}',
     method: 'get',
     toolName: 'get-site',
+    scopes: ['Sites.Read'],
   },
   {
     pathPattern: '/sites/{site-id}/lists',
     method: 'get',
     toolName: 'list-site-lists',
+    scopes: ['Sites.Read'],
   },
   {
     pathPattern: '/sites/{site-id}/lists/{list-id}/items',
     method: 'get',
     toolName: 'list-items',
+    scopes: ['Sites.Read'],
   },
 
   {
     pathPattern: '/me/contacts',
     method: 'get',
     toolName: 'list-contacts',
+    scopes: ['Contacts.Read'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'get',
     toolName: 'get-contact',
+    scopes: ['Contacts.Read'],
   },
   {
     pathPattern: '/me/contacts',
     method: 'post',
     toolName: 'create-contact',
+    scopes: ['Contacts.ReadWrite'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'patch',
     toolName: 'update-contact',
+    scopes: ['Contacts.ReadWrite'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'delete',
     toolName: 'delete-contact',
+    scopes: ['Contacts.ReadWrite'],
   },
 
   {
     pathPattern: '/me',
     method: 'get',
     toolName: 'get-current-user',
+    scopes: ['User.Read'],
   },
   {
     pathPattern: '/users',
     method: 'get',
     toolName: 'list-users',
-  },
-  {
-    pathPattern: '/users/{user-id}',
-    method: 'get',
-    toolName: 'get-user',
+    scopes: ['User.ReadBasic'],
   },
   {
     pathPattern: '/groups',
     method: 'get',
     toolName: 'list-groups',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/groups/{group-id}',
     method: 'get',
     toolName: 'get-group',
+    scopes: ['Group.Read'],
   },
   {
     pathPattern: '/groups/{group-id}/members',
     method: 'get',
     toolName: 'list-group-members',
+    scopes: ['Group.Read'],
   },
 ];
 
