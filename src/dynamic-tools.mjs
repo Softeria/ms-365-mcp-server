@@ -146,19 +146,19 @@ export const TARGET_ENDPOINTS = [
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content',
     method: 'get',
-    toolName: 'download-file-content',
+    toolName: 'download-onedrive-file-content',
     scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
     method: 'delete',
-    toolName: 'delete-file',
+    toolName: 'delete-onedrive-file',
     scopes: ['Files.ReadWrite'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
     method: 'patch',
-    toolName: 'update-file-metadata',
+    toolName: 'update-onedrive-file-metadata',
     scopes: ['Files.ReadWrite'],
   },
 
@@ -166,7 +166,7 @@ export const TARGET_ENDPOINTS = [
     pathPattern:
       '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add',
     method: 'post',
-    toolName: 'create-chart',
+    toolName: 'create-excel-chart',
     isExcelOp: true,
     scopes: ['Files.ReadWrite'],
   },
@@ -174,7 +174,7 @@ export const TARGET_ENDPOINTS = [
     pathPattern:
       '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format',
     method: 'patch',
-    toolName: 'format-range',
+    toolName: 'format-excel-range',
     isExcelOp: true,
     scopes: ['Files.ReadWrite'],
   },
@@ -182,7 +182,7 @@ export const TARGET_ENDPOINTS = [
     pathPattern:
       '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort',
     method: 'patch',
-    toolName: 'sort-range',
+    toolName: 'sort-excel-range',
     isExcelOp: true,
     scopes: ['Files.ReadWrite'],
   },
@@ -190,14 +190,14 @@ export const TARGET_ENDPOINTS = [
     pathPattern:
       "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
     method: 'get',
-    toolName: 'get-range',
+    toolName: 'get-excel-range',
     isExcelOp: true,
     scopes: ['Files.Read'],
   },
   {
     pathPattern: '/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets',
     method: 'get',
-    toolName: 'list-worksheets',
+    toolName: 'list-excel-worksheets',
     isExcelOp: true,
     scopes: ['Files.Read'],
   },
@@ -205,68 +205,68 @@ export const TARGET_ENDPOINTS = [
   {
     pathPattern: '/me/onenote/notebooks',
     method: 'get',
-    toolName: 'list-notebooks',
+    toolName: 'list-onenote-notebooks',
     scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/notebooks/{notebook-id}/sections',
     method: 'get',
-    toolName: 'list-notebook-sections',
+    toolName: 'list-onenote-notebook-sections',
     scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/notebooks/{notebook-id}/sections/{onenoteSection-id}/pages',
     method: 'get',
-    toolName: 'list-section-pages',
+    toolName: 'list-onenote-section-pages',
     scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/pages/{onenotePage-id}/content',
     method: 'get',
-    toolName: 'get-page-content',
+    toolName: 'get-onenote-page-content',
     scopes: ['Notes.Read'],
   },
   {
     pathPattern: '/me/onenote/pages',
     method: 'post',
-    toolName: 'create-page',
+    toolName: 'create-onenote-page',
     scopes: ['Notes.Create'],
   },
 
   {
     pathPattern: '/me/todo/lists',
     method: 'get',
-    toolName: 'list-task-lists',
+    toolName: 'list-todo-task-lists',
     scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
     method: 'get',
-    toolName: 'list-tasks',
+    toolName: 'list-todo-tasks',
     scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'get',
-    toolName: 'get-task',
+    toolName: 'get-todo-task',
     scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks',
     method: 'post',
-    toolName: 'create-task',
+    toolName: 'create-todo-task',
     scopes: ['Tasks.ReadWrite'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'patch',
-    toolName: 'update-task',
+    toolName: 'update-todo-task',
     scopes: ['Tasks.ReadWrite'],
   },
   {
     pathPattern: '/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}',
     method: 'delete',
-    toolName: 'delete-task',
+    toolName: 'delete-todo-task',
     scopes: ['Tasks.ReadWrite'],
   },
 
@@ -279,7 +279,7 @@ export const TARGET_ENDPOINTS = [
   {
     pathPattern: '/planner/plans/{plannerPlan-id}',
     method: 'get',
-    toolName: 'get-plan',
+    toolName: 'get-planner-plan',
     scopes: ['Group.Read'],
   },
   {
@@ -304,31 +304,31 @@ export const TARGET_ENDPOINTS = [
   {
     pathPattern: '/me/contacts',
     method: 'get',
-    toolName: 'list-contacts',
+    toolName: 'list-outlook-contacts',
     scopes: ['Contacts.Read'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'get',
-    toolName: 'get-contact',
+    toolName: 'get-outlook-contact',
     scopes: ['Contacts.Read'],
   },
   {
     pathPattern: '/me/contacts',
     method: 'post',
-    toolName: 'create-contact',
+    toolName: 'create-outlook-contact',
     scopes: ['Contacts.ReadWrite'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'patch',
-    toolName: 'update-contact',
+    toolName: 'update-outlook-contact',
     scopes: ['Contacts.ReadWrite'],
   },
   {
     pathPattern: '/me/contacts/{contact-id}',
     method: 'delete',
-    toolName: 'delete-contact',
+    toolName: 'delete-outlook-contact',
     scopes: ['Contacts.ReadWrite'],
   },
 
@@ -387,13 +387,13 @@ export async function registerDynamicTools(server, graphClient) {
       const paramsSchema = buildParameterSchemas(endpoint, operation);
 
       if (endpoint.hasCustomParams) {
-        if (endpoint.toolName === 'upload-file') {
+        if (endpoint.toolName === 'upload-onedrive-file') {
           paramsSchema.content = z.string().describe('File content to upload');
           paramsSchema.contentType = z
             .string()
             .optional()
             .describe('Content type of the file (e.g., "application/pdf", "image/jpeg")');
-        } else if (endpoint.toolName === 'create-folder') {
+        } else if (endpoint.toolName === 'create-onedrive-folder') {
           paramsSchema.name = z.string().describe('Name of the folder to create');
           paramsSchema.description = z.string().optional().describe('Description of the folder');
         }
@@ -423,13 +423,13 @@ export async function registerDynamicTools(server, graphClient) {
           options.excelFile = params.filePath;
         }
 
-        if (endpoint.toolName === 'download-file') {
+        if (endpoint.toolName === 'download-onedrive-file-content') {
           options.rawResponse = true;
         }
 
         const url = buildRequestUrl(endpoint.pathPattern, params, pathParams, operation.parameters);
 
-        if (endpoint.toolName === 'upload-file' && params.content) {
+        if (endpoint.toolName === 'upload-onedrive-file' && params.content) {
           options.body = params.content;
           options.headers = {
             'Content-Type': params.contentType || 'application/octet-stream',
