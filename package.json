@@ -1,6 +1,6 @@
 {
   "name": "@softeria/ms-365-mcp-server",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Microsoft 365 MCP Server",
   "type": "module",
   "main": "index.mjs",
@@ -40,5 +40,9 @@
   "devDependencies": {
     "prettier": "^3.5.3",
     "vitest": "^3.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/softeria/ms-365-mcp-server.git"
   }
 }
