@@ -274,31 +274,31 @@ export const TARGET_ENDPOINTS = [
     pathPattern: '/me/planner/tasks',
     method: 'get',
     toolName: 'list-planner-tasks',
-    scopes: ['Group.Read'],
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/planner/plans/{plannerPlan-id}',
     method: 'get',
     toolName: 'get-planner-plan',
-    scopes: ['Group.Read'],
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/planner/plans/{plannerPlan-id}/tasks',
     method: 'get',
     toolName: 'list-plan-tasks',
-    scopes: ['Group.Read'],
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/planner/tasks/{plannerTask-id}',
     method: 'get',
     toolName: 'get-planner-task',
-    scopes: ['Group.Read'],
+    scopes: ['Tasks.Read'],
   },
   {
     pathPattern: '/planner/tasks',
     method: 'post',
     toolName: 'create-planner-task',
-    scopes: ['Group.ReadWrite'],
+    scopes: ['Tasks.ReadWrite'],
   },
 
   {
@@ -337,25 +337,6 @@ export const TARGET_ENDPOINTS = [
     method: 'get',
     toolName: 'get-current-user',
     scopes: ['User.Read'],
-  },
-
-  {
-    pathPattern: '/groups',
-    method: 'get',
-    toolName: 'list-groups',
-    scopes: ['Group.Read'],
-  },
-  {
-    pathPattern: '/groups/{group-id}',
-    method: 'get',
-    toolName: 'get-group',
-    scopes: ['Group.Read'],
-  },
-  {
-    pathPattern: '/groups/{group-id}/members',
-    method: 'get',
-    toolName: 'list-group-members',
-    scopes: ['Group.Read'],
   },
 ];
 
