@@ -203,61 +203,6 @@ export const TARGET_ENDPOINTS = [
   },
 
   {
-    pathPattern: '/me/joinedTeams',
-    method: 'get',
-    toolName: 'list-joined-teams',
-    scopes: ['Team.ReadBasic'],
-  },
-  {
-    pathPattern: '/teams/{team-id}',
-    method: 'get',
-    toolName: 'get-team',
-    scopes: ['Team.ReadBasic'],
-  },
-  {
-    pathPattern: '/teams/{team-id}/channels',
-    method: 'get',
-    toolName: 'list-team-channels',
-    scopes: ['Channel.ReadBasic'],
-  },
-  {
-    pathPattern: '/teams/{team-id}/channels/{channel-id}',
-    method: 'get',
-    toolName: 'get-channel',
-    scopes: ['Channel.ReadBasic'],
-  },
-  {
-    pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
-    method: 'get',
-    toolName: 'list-channel-messages',
-    scopes: ['ChannelMessage.Read'],
-  },
-  {
-    pathPattern: '/teams/{team-id}/channels/{channel-id}/messages',
-    method: 'post',
-    toolName: 'send-channel-message',
-    scopes: ['ChannelMessage.Send'],
-  },
-  {
-    pathPattern: '/me/chats',
-    method: 'get',
-    toolName: 'list-chats',
-    scopes: ['Chat.Read'],
-  },
-  {
-    pathPattern: '/me/chats/{chat-id}/messages',
-    method: 'get',
-    toolName: 'list-chat-messages',
-    scopes: ['Chat.Read'],
-  },
-  {
-    pathPattern: '/me/chats/{chat-id}/messages',
-    method: 'post',
-    toolName: 'send-chat-message',
-    scopes: ['Chat.ReadWrite'],
-  },
-
-  {
     pathPattern: '/me/onenote/notebooks',
     method: 'get',
     toolName: 'list-notebooks',
@@ -357,31 +302,6 @@ export const TARGET_ENDPOINTS = [
   },
 
   {
-    pathPattern: '/sites',
-    method: 'get',
-    toolName: 'list-sites',
-    scopes: ['Sites.Read'],
-  },
-  {
-    pathPattern: '/sites/{site-id}',
-    method: 'get',
-    toolName: 'get-site',
-    scopes: ['Sites.Read'],
-  },
-  {
-    pathPattern: '/sites/{site-id}/lists',
-    method: 'get',
-    toolName: 'list-site-lists',
-    scopes: ['Sites.Read'],
-  },
-  {
-    pathPattern: '/sites/{site-id}/lists/{list-id}/items',
-    method: 'get',
-    toolName: 'list-items',
-    scopes: ['Sites.Read'],
-  },
-
-  {
     pathPattern: '/me/contacts',
     method: 'get',
     toolName: 'list-contacts',
@@ -418,12 +338,7 @@ export const TARGET_ENDPOINTS = [
     toolName: 'get-current-user',
     scopes: ['User.Read'],
   },
-  {
-    pathPattern: '/users',
-    method: 'get',
-    toolName: 'list-users',
-    scopes: ['User.ReadBasic'],
-  },
+
   {
     pathPattern: '/groups',
     method: 'get',
