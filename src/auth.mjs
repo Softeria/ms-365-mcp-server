@@ -18,16 +18,27 @@ const DEFAULT_CONFIG = {
   },
 };
 
-/**
- * Builds a set of unique scopes from TARGET_ENDPOINTS
- * @returns {string[]} Array of unique scopes
- */
+const SCOPE_HIERARCHY = {
+  'Mail.ReadWrite': ['Mail.Read', 'Mail.Send'],
+  'Calendars.ReadWrite': ['Calendars.Read'],
+  'Files.ReadWrite': ['Files.Read'],
+  'Tasks.ReadWrite': ['Tasks.Read'],
+  'Contacts.ReadWrite': ['Contacts.Read'],
+};
+
 function buildScopesFromEndpoints() {
   const scopesSet = new Set();
 
   TARGET_ENDPOINTS.forEach((endpoint) => {
     if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
       endpoint.scopes.forEach((scope) => scopesSet.add(scope));
+    }
+  });
+
+  Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
+    if (lowerScopes.every((scope) => scopesSet.has(scope))) {
+      lowerScopes.forEach((scope) => scopesSet.delete(scope));
+      scopesSet.add(higherScope);
     }
   });
 
