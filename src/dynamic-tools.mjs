@@ -6,7 +6,6 @@ import {
   isMethodWithBody,
   loadOpenApiSpec,
 } from './openapi-helpers.mjs';
-import { z } from 'zod';
 
 /**
  * Validates all endpoints in TARGET_ENDPOINTS against the OpenAPI spec.
@@ -366,19 +365,6 @@ export async function registerDynamicTools(server, graphClient) {
       );
 
       const paramsSchema = buildParameterSchemas(endpoint, operation);
-
-      if (endpoint.hasCustomParams) {
-        if (endpoint.toolName === 'upload-onedrive-file') {
-          paramsSchema.content = z.string().describe('File content to upload');
-          paramsSchema.contentType = z
-            .string()
-            .optional()
-            .describe('Content type of the file (e.g., "application/pdf", "image/jpeg")');
-        } else if (endpoint.toolName === 'create-onedrive-folder') {
-          paramsSchema.name = z.string().describe('Name of the folder to create');
-          paramsSchema.description = z.string().optional().describe('Description of the folder');
-        }
-      }
 
       const pathParams = endpoint.pathPattern.match(/\{([^}]+)}/g) || [];
 
