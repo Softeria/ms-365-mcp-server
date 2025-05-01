@@ -15,7 +15,7 @@ export function loadOpenApiSpec() {
   try {
     logger.info('Loading OpenAPI spec...');
     const openapiContent = fs.readFileSync(OPENAPI_PATH, 'utf8');
-    return yaml.load(openapiContent);
+    return yaml.load(openapiContent, {});
   } catch (error) {
     logger.error('Error loading OpenAPI spec:', error);
     throw error;
