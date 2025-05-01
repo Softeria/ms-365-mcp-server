@@ -29,7 +29,7 @@ A Model Context Protocol (MCP) server for interacting with Microsoft 365 service
 
 Test login in Claude Desktop:
 
-![Login example](![Image](https://github.com/user-attachments/assets/e457884f-c98a-4186-9e6f-eb323ec24e0a)
+![Login example](https://github.com/user-attachments/assets/e457884f-c98a-4186-9e6f-eb323ec24e0a)
 
 ## Examples
 
@@ -74,7 +74,6 @@ integration method.
     - Call the `login` tool (auto-checks existing token)
     - If needed, get URL+code, visit in browser
     - Use `verify-login` tool to confirm
-    -
 2. **Optional CLI login**:
    ```bash
    npx @softeria/ms-365-mcp-server --login
