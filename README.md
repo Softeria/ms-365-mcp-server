@@ -17,13 +17,11 @@ A Model Context Protocol (MCP) server for interacting with Microsoft 365 service
 - Calendar event management
 - Mail operations
 - OneDrive file management
-- Microsoft Teams integration
 - OneNote notebooks and pages
 - To Do tasks and task lists
 - Planner plans and tasks
-- SharePoint sites and lists
 - Outlook contacts
-- User and group management
+- User management
 - Dynamic tools powered by Microsoft Graph OpenAPI spec
 - Built on the Model Context Protocol
 
@@ -81,17 +79,9 @@ integration method.
    ```bash
    npx @softeria/ms-365-mcp-server --login
    ```
-   Follow the URL and code prompt in terminal.
+   Follow the URL and code prompt in the terminal.
 
 Tokens are cached securely in your OS credential store (fallback to file).
-
-## Tools
-
-- **Authentication:** `login`, `logout`, `verify-login`
-- **Excel:** list worksheets, get/set ranges, format, sort, chart
-- **Calendar:** list/create/update/delete events
-- **Mail:** send, read, delete messages
-- **OneDrive:** upload, download, list files
 
 ## License
 
