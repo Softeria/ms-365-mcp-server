@@ -23,6 +23,9 @@ export function loadOpenApiSpec() {
 }
 
 const typeJoinHack = (types) => {
+  types = types.filter(
+    (type) => type && (!(type instanceof z.ZodObject) || Object.keys(type.shape).length > 0)
+  );
   if (types.length === 0) {
     return z.object({}).passthrough();
   }
