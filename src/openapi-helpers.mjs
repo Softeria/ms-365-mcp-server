@@ -27,26 +27,16 @@ export function mapToZodType(schema, openapi, refCache = {}) {
 
   if (schema.$ref) {
     const refName = schema.$ref.split('/').pop();
-    if (refName.toLowerCase().includes('string')) return z.string();
-    if (refName.toLowerCase().includes('int') || refName.toLowerCase().includes('number'))
-      return z.number();
-    if (refName.toLowerCase().includes('boolean')) return z.boolean();
-    if (refName.toLowerCase().includes('date')) return z.string();
-    if (refName.toLowerCase().includes('object')) return z.object({}).passthrough();
-    if (refName.toLowerCase().includes('array')) return z.array(z.any());
-
     const schemaRefParent = openapi?.components?.schemas?.[refName];
     const schemaRefs = schemaRefParent.allOf || [schemaRefParent];
     const schemaRef = schemaRefs.find((ref) => ref.type);
     if (schemaRef) {
       if (refCache[refName]) {
-        return refCache[refName];
+        // Avoid circular reference by simply not
+        return z.object({}).passthrough();
       }
-      // Avoid circular reference by simply not
-      refCache[refName] = z.object({}).passthrough();
-      const res = mapToZodType(schemaRef, openapi, refCache);
-      refCache[refName] = res;
-      return res;
+      refCache[refName] = true;
+      return mapToZodType(schemaRef, openapi, refCache);
     } else {
       return z.object({}).passthrough();
     }
@@ -85,8 +75,8 @@ export function mapToZodType(schema, openapi, refCache = {}) {
   }
 }
 
-export function processParameter(parameter, openapi, refCache = {}) {
-  const zodSchema = mapToZodType(parameter.schema, openapi, refCache);
+export function processParameter(parameter, openapi) {
+  const zodSchema = mapToZodType(parameter.schema, openapi);
 
   let schema = parameter.description ? zodSchema.describe(parameter.description) : zodSchema;
 
@@ -121,8 +111,6 @@ export function isMethodWithBody(method) {
 
 export function buildParameterSchemas(endpoint, operation, openapi) {
   const paramsSchema = {};
-  const refCache = {};
-
   const pathParams = endpoint.pathPattern.match(/\{([^}]+)}/g) || [];
   pathParams.forEach((param) => {
     const paramName = param.slice(1, -1);
@@ -135,7 +123,7 @@ export function buildParameterSchemas(endpoint, operation, openapi) {
         if (!pathParams.includes(`{${param.name}}`)) {
           const friendlyName = createFriendlyParamName(param.name);
           registerParamMapping(endpoint.toolName, friendlyName, param.name);
-          paramsSchema[friendlyName] = processParameter(param, openapi, refCache);
+          paramsSchema[friendlyName] = processParameter(param, openapi);
         }
       }
     }
@@ -148,7 +136,7 @@ export function buildParameterSchemas(endpoint, operation, openapi) {
       {};
 
     if (contentType.schema) {
-      return mapToZodType(contentType.schema, openapi, refCache).shape;
+      return mapToZodType(contentType.schema, openapi).shape;
     }
   }
 

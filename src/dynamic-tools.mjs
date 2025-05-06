@@ -330,7 +330,6 @@ export const TARGET_ENDPOINTS = [
     toolName: 'delete-outlook-contact',
     scopes: ['Contacts.ReadWrite'],
   },
-
   {
     pathPattern: '/me',
     method: 'get',
@@ -411,8 +410,8 @@ export async function registerDynamicTools(server, graphClient) {
           options.headers = {
             'Content-Type': 'application/json',
           };
-        } else if (isMethodWithBody(endpoint.method.toLowerCase()) && params.body) {
-          options.body = JSON.stringify(params.body);
+        } else if (isMethodWithBody(endpoint.method.toLowerCase()) && params) {
+          options.body = JSON.stringify(params);
         }
 
         return graphClient.graphRequest(url, options);
