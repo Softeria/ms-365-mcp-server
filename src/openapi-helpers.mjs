@@ -22,7 +22,7 @@ export function loadOpenApiSpec() {
   }
 }
 
-export function mapToZodType(schema) {
+export function mapToZodType(schema, openapi, refCache = {}) {
   if (!schema) return z.any();
 
   if (schema.$ref) {
@@ -35,7 +35,21 @@ export function mapToZodType(schema) {
     if (refName.toLowerCase().includes('object')) return z.object({}).passthrough();
     if (refName.toLowerCase().includes('array')) return z.array(z.any());
 
-    return z.object({}).passthrough();
+    const schemaRefParent = openapi?.components?.schemas?.[refName];
+    const schemaRefs = schemaRefParent.allOf || [schemaRefParent];
+    const schemaRef = schemaRefs.find((ref) => ref.type);
+    if (schemaRef) {
+      if (refCache[refName]) {
+        return refCache[refName];
+      }
+      // Avoid circular reference by simply not
+      refCache[refName] = z.object({}).passthrough();
+      const res = mapToZodType(schemaRef, openapi, refCache);
+      refCache[refName] = res;
+      return res;
+    } else {
+      return z.object({}).passthrough();
+    }
   }
 
   switch (schema.type) {
@@ -50,18 +64,20 @@ export function mapToZodType(schema) {
     case 'boolean':
       return z.boolean();
     case 'array':
-      return z.array(mapToZodType(schema.items || {}));
+      return z.array(mapToZodType(schema.items || {}, openapi, refCache));
     case 'object':
       const properties = schema.properties || {};
       const shape = {};
 
-      Object.entries(properties).forEach(([key, prop]) => {
-        shape[key] = mapToZodType(prop);
+      const props = Object.entries(properties).filter(([key]) => !key.startsWith('@odata'));
+
+      for (const [key, prop] of props) {
+        shape[key] = mapToZodType(prop, openapi, refCache);
         if (schema.required && schema.required.includes(key)) {
         } else {
           shape[key] = shape[key].optional();
         }
-      });
+      }
 
       return z.object(shape).passthrough();
     default:
@@ -69,8 +85,8 @@ export function mapToZodType(schema) {
   }
 }
 
-export function processParameter(parameter) {
-  const zodSchema = mapToZodType(parameter.schema);
+export function processParameter(parameter, openapi, refCache = {}) {
+  const zodSchema = mapToZodType(parameter.schema, openapi, refCache);
 
   let schema = parameter.description ? zodSchema.describe(parameter.description) : zodSchema;
 
@@ -103,8 +119,9 @@ export function isMethodWithBody(method) {
   return ['post', 'put', 'patch'].includes(method);
 }
 
-export function buildParameterSchemas(endpoint, operation) {
+export function buildParameterSchemas(endpoint, operation, openapi) {
   const paramsSchema = {};
+  const refCache = {};
 
   const pathParams = endpoint.pathPattern.match(/\{([^}]+)}/g) || [];
   pathParams.forEach((param) => {
@@ -113,15 +130,15 @@ export function buildParameterSchemas(endpoint, operation) {
   });
 
   if (operation.parameters) {
-    operation.parameters.forEach((param) => {
+    for (const param of operation.parameters) {
       if (param.in === 'query') {
         if (!pathParams.includes(`{${param.name}}`)) {
           const friendlyName = createFriendlyParamName(param.name);
           registerParamMapping(endpoint.toolName, friendlyName, param.name);
-          paramsSchema[friendlyName] = processParameter(param);
+          paramsSchema[friendlyName] = processParameter(param, openapi, refCache);
         }
       }
-    });
+    }
   }
 
   if (isMethodWithBody(endpoint.method) && operation.requestBody) {
@@ -131,10 +148,7 @@ export function buildParameterSchemas(endpoint, operation) {
       {};
 
     if (contentType.schema) {
-      paramsSchema.body = z
-        .object({})
-        .passthrough()
-        .describe(operation.requestBody.description || 'Request body');
+      return mapToZodType(contentType.schema, openapi, refCache).shape;
     }
   }
 

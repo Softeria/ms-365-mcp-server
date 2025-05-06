@@ -364,7 +364,7 @@ export async function registerDynamicTools(server, graphClient) {
         `Creating tool ${endpoint.toolName} for ${endpoint.method.toUpperCase()} ${endpoint.pathPattern}`
       );
 
-      const paramsSchema = buildParameterSchemas(endpoint, operation);
+      const paramsSchema = buildParameterSchemas(endpoint, operation, openapi);
 
       const pathParams = endpoint.pathPattern.match(/\{([^}]+)}/g) || [];
 
