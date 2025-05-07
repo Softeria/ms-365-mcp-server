@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import logger from './logger.mjs';
-import { TARGET_ENDPOINTS } from './dynamic-tools.mjs';
 
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
@@ -28,12 +27,6 @@ const SCOPE_HIERARCHY = {
 
 function buildScopesFromEndpoints() {
   const scopesSet = new Set();
-
-  TARGET_ENDPOINTS.forEach((endpoint) => {
-    if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
-      endpoint.scopes.forEach((scope) => scopesSet.add(scope));
-    }
-  });
 
   Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
     if (lowerScopes.every((scope) => scopesSet.has(scope))) {
