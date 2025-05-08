@@ -1,4 +1,13 @@
-const endpoins = [
+interface Endpoint {
+  pathPattern: string;
+  method: string;
+  toolName: string;
+  scopes: string[];
+  isExcelOp?: boolean;
+  hasCustomParams?: boolean;
+}
+
+const endpoints: Endpoint[] = [
   {
     pathPattern: '/me/messages',
     method: 'get',
@@ -305,3 +314,5 @@ const endpoins = [
     scopes: ['User.Read'],
   },
 ];
+
+export default endpoints;

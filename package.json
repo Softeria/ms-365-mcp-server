@@ -3,19 +3,18 @@
   "version": "0.3.5",
   "description": "Microsoft 365 MCP Server",
   "type": "module",
-  "main": "index.mjs",
+  "main": "dist/index.js",
   "bin": {
-    "ms-365-mcp-server": "index.mjs"
+    "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
+    "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node index.mjs",
-    "format": "prettier --write \"**/*.{js,mjs,json,md}\"",
-    "release": "node bin/release.mjs",
-    "download-openapi": "node bin/download-openapi.mjs",
-    "inspect": "npx @modelcontextprotocol/inspector node index.mjs",
-    "postinstall": "npm run download-openapi"
+    "dev": "tsx src/index.ts",
+    "format": "prettier --write \"**/*.{ts,mts,js,mjs,json,md}\"",
+    "release": "ts-node --esm bin/release.mts",
+    "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts"
   },
   "keywords": [
     "microsoft",
@@ -38,7 +37,11 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.15.15",
     "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   },
   "repository": {

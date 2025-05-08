@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import AuthManager from './auth.js';
 
-export function registerAuthTools(server, authManager) {
+export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
   server.tool(
     'login',
     {
@@ -16,7 +18,7 @@ export function registerAuthTools(server, authManager) {
                 {
                   type: 'text',
                   text: JSON.stringify({
-                    message: 'Already logged in',
+                    status: 'Already logged in',
                     ...loginStatus,
                   }),
                 },
@@ -25,7 +27,7 @@ export function registerAuthTools(server, authManager) {
           }
         }
 
-        const text = await new Promise((r) => {
+        const text = await new Promise<string>((r) => {
           authManager.acquireTokenByDeviceCode(r);
         });
         return {
@@ -41,7 +43,7 @@ export function registerAuthTools(server, authManager) {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ error: `Authentication failed: ${error.message}` }),
+              text: JSON.stringify({ error: `Authentication failed: ${(error as Error).message}` }),
             },
           ],
         };

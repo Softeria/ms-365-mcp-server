@@ -19,7 +19,15 @@ program
   .option('--logout', 'Log out and clear saved credentials')
   .option('--verify-login', 'Verify login without starting the server');
 
-export function parseArgs() {
+export interface CommandOptions {
+  v?: boolean;
+  login?: boolean;
+  logout?: boolean;
+  verifyLogin?: boolean;
+  [key: string]: any;
+}
+
+export function parseArgs(): CommandOptions {
   program.parse();
   return program.opts();
 }

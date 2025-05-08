@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { parseArgs } from './src/cli.mjs';
-import logger from './src/logger.mjs';
-import AuthManager from './src/auth.mjs';
-import MicrosoftGraphServer from './src/server.mjs';
-import { version } from './src/version.mjs';
+import { parseArgs } from './cli.js';
+import logger from './logger.js';
+import AuthManager from './auth.js';
+import MicrosoftGraphServer from './server.js';
+import { version } from './version.js';
 
-async function main() {
+async function main(): Promise<void> {
   try {
     const args = parseArgs();
 

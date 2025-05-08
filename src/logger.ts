@@ -31,7 +31,7 @@ const logger = winston.createLogger({
   ],
 });
 
-export const enableConsoleLogging = () => {
+export const enableConsoleLogging = (): void => {
   logger.add(
     new winston.transports.Console({
       format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
