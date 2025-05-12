@@ -2,10 +2,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerDynamicTools } from './dynamic-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager from './auth.js';
 import type { CommandOptions } from './cli.ts';
+import { mcpTools } from './generated/mcp-tools.js';
 
 class MicrosoftGraphServer {
   private authManager: AuthManager;
@@ -27,7 +27,17 @@ class MicrosoftGraphServer {
     });
 
     registerAuthTools(this.server, this.authManager);
-    await registerDynamicTools(this.server, this.graphClient);
+
+    for (const tool of Object.values(mcpTools)) {
+      this.server.tool(tool.name, tool.description, tool.inputSchema, (params: any) => {
+        const { method, path } = tool.parameters as { method: string; path: string };
+        const options = {
+          method: method.toUpperCase(),
+          body: params,
+        };
+        return this.graphClient.graphRequest(path, options);
+      });
+    }
   }
 
   async start(): Promise<void> {
