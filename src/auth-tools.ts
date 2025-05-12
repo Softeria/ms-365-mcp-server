@@ -74,7 +74,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     }
   });
 
-  server.tool('verify-login', {}, async () => {
+  server.tool('verify-login', async () => {
     const testResult = await authManager.testLogin();
 
     return {
