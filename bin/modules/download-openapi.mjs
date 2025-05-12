@@ -1,22 +1,11 @@
-/**
- * Module for downloading the Microsoft Graph API OpenAPI specification
- */
-
 import fs from 'fs';
 
-/**
- * Downloads the Microsoft Graph API OpenAPI specification if it doesn't exist
- *
- * @param {string} targetDir - The directory to save the OpenAPI spec
- * @param {string} targetFile - Path to save the OpenAPI spec
- * @param {string} openapiUrl - URL to download the OpenAPI spec from
- * @param {boolean} forceDownload - Force download even if file exists
- * @returns {Promise<boolean>} - Whether a download was performed
- */
+const DEFAULT_OPENAPI_URL = 'https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/refs/heads/master/openapi/v1.0/openapi.yaml';
+
 export async function downloadGraphOpenAPI(
   targetDir,
   targetFile,
-  openapiUrl,
+  openapiUrl = DEFAULT_OPENAPI_URL,
   forceDownload = false
 ) {
   if (!fs.existsSync(targetDir)) {
