@@ -112,11 +112,14 @@ class GraphClient {
       }
 
       const headers: Record<string, string> = {
+        ...options.headers,
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         ...(sessionId && { 'workbook-session-id': sessionId }),
-        ...options.headers,
       };
+      delete options.headers;
+
+      logger.info(` ** Making request to ${url} with options: ${JSON.stringify(options)}`);
 
       const response = await fetch(url, {
         headers,

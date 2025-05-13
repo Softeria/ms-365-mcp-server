@@ -15,25 +15,60 @@ export function registerGraphTools(server: McpServer, graphClient: GraphClient):
       (params: any) => {
         logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
         try {
-          if (Array.isArray(params)) {
-            for (const parameter of params) {
-              // We need a hack since MCP won't support $ in parameter names
-              parameter.name = parameter.name.replace(/__/g, '$');
+          logger.info(`params: ${JSON.stringify(params)}`);
+
+          const parameterDefinitions = tool.parameters || [];
+
+          let path = tool.path;
+          const queryParams: Record<string, string> = {};
+          const headers: Record<string, string> = {};
+          let body: any = null;
+          for (let [paramName, paramValue] of Object.entries(params)) {
+            const fixedParamName = paramName.replace(/__/g, '$');
+            const paramDef = parameterDefinitions.find((p) => p.name === paramName);
+
+            if (paramDef) {
+              switch (paramDef.type) {
+                case 'Path':
+                  path = path.replace(`{${paramName}}`, encodeURIComponent(paramValue as string));
+                  break;
+
+                case 'Query':
+                  queryParams[fixedParamName] = `${paramValue}`;
+                  break;
+
+                case 'Body':
+                  body = paramValue;
+                  break;
+
+                case 'Header':
+                  headers[fixedParamName] = `${paramValue}`;
+                  break;
+              }
+            } else if (paramName === 'body') {
+              body = paramValue;
+              logger.info(`Set legacy body param: ${JSON.stringify(body)}`);
             }
-          } else {
-            params = [params];
           }
 
-          let body = params?.find((p: any) => p.body)?.body;
-          if (body?.body) body = body.body;
+          if (Object.keys(queryParams).length > 0) {
+            const queryString = Object.entries(queryParams)
+              .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+              .join('&');
+            path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
+          }
 
           const options: any = {
             method: tool.method.toUpperCase(),
+            headers,
           };
-          if (options.method !== 'GET') {
-            options.body = body ? JSON.stringify(body) : JSON.stringify(params);
+
+          if (options.method !== 'GET' && body) {
+            options.body = JSON.stringify(body);
           }
-          return graphClient.graphRequest(tool.path, options);
+
+          logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
+          return graphClient.graphRequest(path, options);
         } catch (error) {
           logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
           return {
