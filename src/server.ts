@@ -37,11 +37,40 @@ class MicrosoftGraphServer {
           return o;
         }, {}) ?? {},
         (params: any) => {
-          const options = {
-            method: tool.method.toUpperCase(),
-            body: params,
-          };
-          return this.graphClient.graphRequest(tool.path, options);
+          logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+          try {
+            if (Array.isArray(params)) {
+              for (const parameter of params) {
+                // We need a hack since MCP won't support $ in parameter names
+                parameter.name = parameter.name.replace(/__/g, '$');
+              }
+            } else {
+              params = [params];
+            }
+
+            let body = params?.find((p: any) => p.body)?.body;
+            if (body?.body) body = body.body;
+
+            const options: any = {
+              method: tool.method.toUpperCase(),
+            };
+            if (options.method !== 'GET') {
+              options.body = body ? JSON.stringify(body) : JSON.stringify(params);
+            }
+            return this.graphClient.graphRequest(tool.path, options);
+          } catch (error) {
+            logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: `Error in tool ${tool.alias}: ${(error as Error).message}`,
+                  }),
+                },
+              ],
+            };
+          }
         }
       );
     }

@@ -74,6 +74,7 @@ class GraphClient {
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
+      logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
       let accessToken = await this.authManager.getToken();
 
       let url: string;
@@ -116,12 +117,6 @@ class GraphClient {
         ...(sessionId && { 'workbook-session-id': sessionId }),
         ...options.headers,
       };
-
-      if (options.body) {
-        let body = options.body as any;
-        body = body.body || body;
-        options.body = JSON.stringify(body);
-      }
 
       const response = await fetch(url, {
         headers,
