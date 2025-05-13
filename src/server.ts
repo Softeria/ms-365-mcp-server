@@ -29,14 +29,21 @@ class MicrosoftGraphServer {
     registerAuthTools(this.server, this.authManager);
 
     for (const tool of api.endpoints) {
-      this.server.tool(tool.name, tool.description, tool.inputSchema, (params: any) => {
-        const { method, path } = tool.parameters as { method: string; path: string };
-        const options = {
-          method: method.toUpperCase(),
-          body: params,
-        };
-        return this.graphClient.graphRequest(path, options);
-      });
+      this.server.tool(
+        tool.alias,
+        tool.description ?? '',
+        tool.parameters?.reduce((o: any, param) => {
+          o[param.name] = param.schema;
+          return o;
+        }, {}) ?? {},
+        (params: any) => {
+          const options = {
+            method: tool.method.toUpperCase(),
+            body: params,
+          };
+          return this.graphClient.graphRequest(tool.path, options);
+        }
+      );
     }
   }
 

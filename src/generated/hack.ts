@@ -1,25 +1,15 @@
-import { z } from 'zod';
+import { Endpoint } from './endpoint-types.js';
 
-/**
- * Simplified version of Zodios makeApi function
- * Just returns the endpoints array for our own use
- */
-export function makeApi(endpoints: any[]) {
+export function makeApi(endpoints: Endpoint[]) {
   return endpoints;
 }
 
-/**
- * Mock Zodios class that won't be used in our implementation
- */
 export class Zodios {
+  endpoints: Endpoint[];
+
   constructor(baseUrlOrEndpoints: any, endpoints?: any, options?: any) {
-    // This is just a stub class
+    this.endpoints = baseUrlOrEndpoints;
   }
 }
 
-/**
- * Stub for ZodiosOptions type
- */
-export type ZodiosOptions = {
-  // Add any options you might need
-};
+export type ZodiosOptions = {};

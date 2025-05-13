@@ -117,6 +117,12 @@ class GraphClient {
         ...options.headers,
       };
 
+      if (options.body) {
+        let body = options.body as any;
+        body = body.body || body;
+        options.body = JSON.stringify(body);
+      }
+
       const response = await fetch(url, {
         headers,
         ...options,
