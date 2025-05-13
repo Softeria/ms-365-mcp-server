@@ -13,10 +13,9 @@ const openapiDir = path.join(rootDir, 'openapi');
 const srcDir = path.join(rootDir, 'src');
 
 const openapiFile = path.join(openapiDir, 'openapi.yaml');
+const openapiTrimmedFile = path.join(openapiDir, 'openapi-trimmed.yaml');
 const endpointsFile = path.join(srcDir, 'endpoints.json');
-const simplifiedOpenapiJsonFile = path.join(openapiDir, 'openapi-simplified.json');
 
-// Output paths for generated files
 const generatedDir = path.join(srcDir, 'generated');
 
 const args = process.argv.slice(2);
@@ -42,12 +41,12 @@ async function main() {
     }
 
     console.log('\n🔧 Step 2: Creating simplified OpenAPI specification');
-    createAndSaveSimplifiedOpenAPI(endpointsFile, simplifiedOpenapiJsonFile, openapiFile);
+    createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, openapiTrimmedFile);
     console.log('✅ Successfully created simplified OpenAPI specification');
 
-    console.log('\n🚀 Step 3: Generating Zod schemas and MCP tool mappings');
-    generateMcpTools(simplifiedOpenapiJsonFile, generatedDir);
-    console.log('✅ Successfully generated Zod schemas and MCP tool mappings');
+    console.log('\n🚀 Step 3: Generating client code using openapi-zod-client');
+    generateMcpTools(null, generatedDir);
+    console.log('✅ Successfully generated client code');
   } catch (error) {
     console.error('\n❌ Error processing OpenAPI specification:', error.message);
     process.exit(1);

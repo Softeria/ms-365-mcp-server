@@ -141,5 +141,3 @@ dist
 .token-cache.json
 
 openapi
-
-**/.claude/settings.local.json

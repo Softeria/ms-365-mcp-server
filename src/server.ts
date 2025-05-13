@@ -5,7 +5,7 @@ import { registerAuthTools } from './auth-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager from './auth.js';
 import type { CommandOptions } from './cli.ts';
-import { mcpTools } from './generated/mcp-tools.js';
+import { api } from './generated/client.js';
 
 class MicrosoftGraphServer {
   private authManager: AuthManager;
@@ -28,7 +28,7 @@ class MicrosoftGraphServer {
 
     registerAuthTools(this.server, this.authManager);
 
-    for (const tool of Object.values(mcpTools)) {
+    for (const tool of api.endpoints) {
       this.server.tool(tool.name, tool.description, tool.inputSchema, (params: any) => {
         const { method, path } = tool.parameters as { method: string; path: string };
         const options = {
