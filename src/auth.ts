@@ -7,7 +7,7 @@ import fs from 'fs';
 import logger from './logger.js';
 
 const endpoints = await import('./endpoints.json', {
-  assert: { type: 'json' },
+  with: { type: 'json' },
 });
 
 const SERVICE_NAME = 'ms-365-mcp-server';
