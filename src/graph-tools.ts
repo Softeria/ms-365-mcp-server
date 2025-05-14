@@ -30,7 +30,8 @@ export function registerGraphTools(server: McpServer, graphClient: GraphClient):
             if (paramDef) {
               switch (paramDef.type) {
                 case 'Path':
-                  path = path.replace(`{${paramName}}`, encodeURIComponent(paramValue as string));
+                  path = path.replace(`{${paramName}}`, encodeURIComponent(paramValue as string))
+                       .replace(`:${paramName}`, encodeURIComponent(paramValue as string));
                   break;
 
                 case 'Query':
