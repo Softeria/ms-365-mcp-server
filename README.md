@@ -1,6 +1,6 @@
 # ms-365-mcp-server
 
-![npm version](https://img.shields.io/npm/v/@softeria/ms-365-mcp-server.svg) ![build status](https://github.com/softeria/ms-365-mcp-server/actions/workflows/build.yml/badge.svg) ![license](https://img.shields.io/badge/license-MIT-blue.svg)
+[![npm version](https://img.shields.io/npm/v/@softeria/ms-365-mcp-server.svg)](https://www.npmjs.com/package/@softeria/ms-365-mcp-server) [![build status](https://github.com/softeria/ms-365-mcp-server/actions/workflows/build.yml/badge.svg)](https://github.com/softeria/ms-365-mcp-server/actions/workflows/build.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/softeria/ms-365-mcp-server/blob/main/LICENSE)
 
 Microsoft 365 MCP Server
 
