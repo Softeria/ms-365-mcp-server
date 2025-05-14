@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "outDir": "dist",
     "rootDir": "src",
-    "strict": true
+    "strict": true,
+    "resolveJsonModule": true
   }
 }

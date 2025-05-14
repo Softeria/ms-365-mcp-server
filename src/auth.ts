@@ -6,6 +6,10 @@ import path from 'path';
 import fs from 'fs';
 import logger from './logger.js';
 
+const endpoints = await import('./endpoints.json', {
+  assert: { type: 'json' },
+});
+
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
 const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +36,12 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
 
 function buildScopesFromEndpoints(): string[] {
   const scopesSet = new Set<string>();
+
+  endpoints.default.forEach((endpoint) => {
+    if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
+      endpoint.scopes.forEach((scope) => scopesSet.add(scope));
+    }
+  });
 
   Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
     if (lowerScopes.every((scope) => scopesSet.has(scope))) {
