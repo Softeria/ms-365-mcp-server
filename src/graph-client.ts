@@ -12,12 +12,18 @@ interface GraphRequestOptions {
 }
 
 interface ContentItem {
-  type: string;
+  type: 'text';
   text: string;
+
+  [key: string]: unknown;
 }
 
 interface McpResponse {
   content: ContentItem[];
+  _meta?: Record<string, unknown>;
+  isError?: boolean;
+
+  [key: string]: unknown;
 }
 
 class GraphClient {
@@ -170,6 +176,7 @@ class GraphClient {
       logger.error(`Error in Graph API request: ${error}`);
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+        isError: true,
       };
     }
   }
@@ -294,6 +301,7 @@ class GraphClient {
             text: JSON.stringify({ error: `Failed to close session for ${filePath}` }),
           },
         ],
+        isError: true,
       };
     }
   }
