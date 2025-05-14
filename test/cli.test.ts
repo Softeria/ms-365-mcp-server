@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseArgs } from '../src/cli.mjs';
+import { parseArgs } from '../src/cli.js';
 
 vi.mock('commander', () => {
   const mockCommand = {
@@ -16,7 +16,7 @@ vi.mock('commander', () => {
   };
 });
 
-vi.mock('../auth.mjs', () => {
+vi.mock('../src/auth.js', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       getToken: vi.fn().mockResolvedValue('mock-token'),

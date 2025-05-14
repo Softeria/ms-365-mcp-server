@@ -5,7 +5,7 @@ global.fetch = vi.fn();
 describe('Graph API Functions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch.mockImplementation(async () => ({
+    (global.fetch as jest.Mock).mockImplementation(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ value: 'test data' }),
@@ -18,7 +18,7 @@ describe('Graph API Functions', () => {
   });
 
   describe('createSession', () => {
-    async function createSession(filePath, token) {
+    async function createSession(filePath: string, token: string): Promise<string | null> {
       try {
         const response = await fetch(
           `https://graph.microsoft.com/v1.0/me/drive/root:${filePath}:/workbook/createSession`,
@@ -44,7 +44,7 @@ describe('Graph API Functions', () => {
     }
 
     it('should create a session successfully', async () => {
-      global.fetch.mockImplementationOnce(async () => ({
+      (global.fetch as jest.Mock).mockImplementationOnce(async () => ({
         ok: true,
         status: 200,
         json: async () => ({ id: 'session-123' }),
@@ -65,7 +65,7 @@ describe('Graph API Functions', () => {
     });
 
     it('should return null if session creation fails', async () => {
-      global.fetch.mockImplementationOnce(async () => ({
+      (global.fetch as jest.Mock).mockImplementationOnce(async () => ({
         ok: false,
         status: 400,
         text: async () => 'Bad request',
@@ -77,7 +77,7 @@ describe('Graph API Functions', () => {
     });
 
     it('should return null if an error is thrown', async () => {
-      global.fetch.mockImplementationOnce(() => {
+      (global.fetch as jest.Mock).mockImplementationOnce(() => {
         throw new Error('Network error');
       });
 
