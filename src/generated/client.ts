@@ -22883,38 +22883,6 @@ const endpoints = makeApi([
     ],
   },
   {
-    method: 'patch',
-    path: '/drives/:driveId/items/:driveItemId',
-    alias: 'update-onedrive-file-metadata',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        description: `New navigation property values`,
-        type: 'Body',
-        schema: microsoft_graph_driveItem,
-      },
-    ],
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Success`,
-        schema: microsoft_graph_driveItem,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
-  {
     method: 'delete',
     path: '/drives/:driveId/items/:driveItemId',
     alias: 'delete-onedrive-file',
@@ -22994,38 +22962,6 @@ const endpoints = makeApi([
         status: NaN,
         description: `Retrieved collection`,
         schema: microsoft_graph_driveItemCollectionResponse,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
-  {
-    method: 'post',
-    path: '/drives/:driveId/items/:driveItemId/children',
-    alias: 'create-item-in-folder',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        description: `New navigation property`,
-        type: 'Body',
-        schema: microsoft_graph_driveItem,
-      },
-    ],
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Created navigation property.`,
-        schema: microsoft_graph_driveItem,
       },
       {
         status: NaN,

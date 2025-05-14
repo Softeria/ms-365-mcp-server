@@ -136,14 +136,6 @@
     ]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
-    "method": "post",
-    "toolName": "create-item-in-folder",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
@@ -155,14 +147,6 @@
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
-  },
-  {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
-    "method": "patch",
-    "toolName": "update-onedrive-file-metadata",
     "scopes": [
       "Files.ReadWrite"
     ]
