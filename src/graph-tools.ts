@@ -58,9 +58,17 @@ interface CallToolResult {
   [key: string]: unknown;
 }
 
-export function registerGraphTools(server: McpServer, graphClient: GraphClient): void {
+export function registerGraphTools(
+  server: McpServer,
+  graphClient: GraphClient,
+  readOnly: boolean = false
+): void {
   for (const tool of api.endpoints) {
-    // Create a zod schema for the parameters
+    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+      logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
+      continue;
+    }
+
     const paramSchema: Record<string, any> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {

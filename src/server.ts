@@ -27,7 +27,7 @@ class MicrosoftGraphServer {
     });
 
     registerAuthTools(this.server, this.authManager);
-    registerGraphTools(this.server, this.graphClient);
+    registerGraphTools(this.server, this.graphClient, this.options.readOnly);
   }
 
   async start(): Promise<void> {
@@ -36,6 +36,9 @@ class MicrosoftGraphServer {
     }
 
     logger.info('Microsoft 365 MCP Server starting...');
+    if (this.options.readOnly) {
+      logger.info('Server running in READ-ONLY mode. Write operations are disabled.');
+    }
 
     const transport = new StdioServerTransport();
     await this.server!.connect(transport);

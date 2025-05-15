@@ -17,17 +17,26 @@ program
   .option('-v', 'Enable verbose logging')
   .option('--login', 'Login using device code flow')
   .option('--logout', 'Log out and clear saved credentials')
-  .option('--verify-login', 'Verify login without starting the server');
+  .option('--verify-login', 'Verify login without starting the server')
+  .option('--read-only', 'Start server in read-only mode, disabling write operations');
 
 export interface CommandOptions {
   v?: boolean;
   login?: boolean;
   logout?: boolean;
   verifyLogin?: boolean;
+  readOnly?: boolean;
+
   [key: string]: any;
 }
 
 export function parseArgs(): CommandOptions {
   program.parse();
-  return program.opts();
+  const options = program.opts();
+
+  if (process.env.READ_ONLY === 'true' || process.env.READ_ONLY === '1') {
+    options.readOnly = true;
+  }
+
+  return options;
 }
