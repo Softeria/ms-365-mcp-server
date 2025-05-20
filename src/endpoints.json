@@ -104,7 +104,7 @@
     ]
   },
   {
-    "pathPattern": "/drives",
+    "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
     "scopes": [
