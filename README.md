@@ -82,6 +82,31 @@ integration method.
 
 Tokens are cached securely in your OS credential store (fallback to file).
 
+## CLI Options
+
+The following options can be used when running ms-365-mcp-server directly from the command line:
+
+```
+--login           Login using device code flow
+--logout          Log out and clear saved credentials
+--verify-login    Verify login without starting the server
+```
+
+### Server Options
+
+When running as an MCP server, the following options can be used:
+
+```
+-v                Enable verbose logging
+--read-only       Start server in read-only mode, disabling write operations
+```
+
+Environment variables:
+
+- `READ_ONLY=true|1`: Alternative to --read-only flag
+- `LOG_LEVEL`: Set logging level (default: 'info')
+- `SILENT=true`: Disable console output
+
 ## License
 
 MIT © 2025 Softeria
