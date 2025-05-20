@@ -14,7 +14,8 @@
     "dev": "tsx src/index.ts",
     "format": "prettier --write \"**/*.{ts,mts,js,mjs,json,md}\"",
     "release": "ts-node --esm bin/release.mts",
-    "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts"
+    "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "microsoft",

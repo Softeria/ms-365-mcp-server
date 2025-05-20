@@ -21,9 +21,6 @@ A Model Context Protocol (MCP) server for interacting with Microsoft 365 service
 - To Do tasks and task lists
 - Planner plans and tasks
 - Outlook contacts
-- User management
-- Dynamic tools powered by Microsoft Graph OpenAPI spec
-- Built on the Model Context Protocol
 
 ## Quick Start Example
 

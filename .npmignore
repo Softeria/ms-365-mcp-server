@@ -1,0 +1,25 @@
+# Source TypeScript files
+src/**/*.ts
+!src/generated/endpoint-types.ts
+!src/generated/hack.ts
+!src/generated/README.md
+
+# Development directories
+test/
+openapi/
+demo/
+demo-prod/
+
+# IDE and configuration files
+.github/
+.vscode/
+.idea/
+tsconfig.json
+.prettierrc
+vitest.config.js
+
+# Misc
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
