@@ -1,5 +1,5 @@
-import { PublicClientApplication } from '@azure/msal-node';
 import type { Configuration } from '@azure/msal-node';
+import { PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -168,6 +168,7 @@ class AuthManager {
 
     try {
       logger.info('Requesting device code...');
+      logger.info(`Scopes are: ${this.scopes.join(', ')}`);
       const response = await this.msalApp.acquireTokenByDeviceCode(deviceCodeRequest);
       logger.info('Device code login successful');
       this.accessToken = response?.accessToken || null;
