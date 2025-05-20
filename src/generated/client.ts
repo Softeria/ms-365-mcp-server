@@ -7226,6 +7226,39 @@ type microsoft_graph_termStore_term = microsoft_graph_entity &
     set: (microsoft_graph_termStore_set | {}) | Array<microsoft_graph_termStore_set | {}>;
   }>;
 
+const microsoft_graph_ODataErrors_ErrorDetails = z
+  .object({ code: z.string(), message: z.string(), target: z.string().nullish() })
+  .passthrough();
+const microsoft_graph_ODataErrors_InnerError = z
+  .object({
+    'request-id': z.string().describe('Request Id as tracked internally by the service').nullable(),
+    'client-request-id': z
+      .string()
+      .describe('Client request Id as sent by the client application.')
+      .nullable(),
+    date: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('Date when the error occured.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_ODataErrors_MainError = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+    target: z.string().nullish(),
+    details: z.array(microsoft_graph_ODataErrors_ErrorDetails).optional(),
+    innerError: microsoft_graph_ODataErrors_InnerError.optional(),
+  })
+  .passthrough();
+const microsoft_graph_ODataErrors_ODataError = z
+  .object({ error: microsoft_graph_ODataErrors_MainError })
+  .passthrough();
 const BaseCollectionPaginationCountResponse = z
   .object({ '@odata.count': z.number().int().nullable(), '@odata.nextLink': z.string().nullable() })
   .partial()
@@ -9933,7 +9966,11 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           .string()
           .describe("The preview of the message associated with the event. It's in text format.")
           .nullable(),
-        cancelledOccurrences: z.array(z.string()),
+        cancelledOccurrences: z
+          .array(z.string())
+          .describe(
+            'Contains occurrenceId property values of canceled instances in a recurring series, if the event is the series master. Instances in a recurring series that are canceled are called canceled occurences.Returned only on $select in a Get operation which specifies the ID (seriesMasterId property value) of a series master event.'
+          ),
         end: z
           .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
           .describe(
@@ -10101,14 +10138,18 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
         calendar: z
           .union([microsoft_graph_calendar, z.object({}).partial().passthrough()])
           .describe('The calendar that contains the event. Navigation property. Read-only.'),
-        exceptionOccurrences: z.array(microsoft_graph_event),
+        exceptionOccurrences: z
+          .array(microsoft_graph_event)
+          .describe(
+            "Contains the id property values of the event instances that are exceptions in a recurring series.Exceptions can differ from other occurrences in a recurring series, such as the subject, start or end times, or attendees. Exceptions don't include canceled occurrences.Returned only on $select and $expand in a GET operation that specifies the ID (seriesMasterId property value) of a series master event."
+          ),
         extensions: z
           .array(microsoft_graph_extension)
           .describe('The collection of open extensions defined for the event. Nullable.'),
         instances: z
           .array(microsoft_graph_event)
           .describe(
-            "The occurrences of a recurring series, if the event is a series master. This property includes occurrences that are part of the recurrence pattern, and exceptions modified, but doesn't include occurrences cancelled from the series. Navigation property. Read-only. Nullable."
+            "The occurrences of a recurring series, if the event is a series master. This property includes occurrences that are part of the recurrence pattern, and exceptions modified, but doesn't include occurrences canceled from the series. Navigation property. Read-only. Nullable."
           ),
         multiValueExtendedProperties: z
           .array(microsoft_graph_multiValueLegacyExtendedProperty)
@@ -10370,6 +10411,1273 @@ const microsoft_graph_conversation = microsoft_graph_entity.and(
     })
     .partial()
     .passthrough()
+);
+const microsoft_graph_storagePlanInformation = z
+  .object({
+    upgradeAvailable: z
+      .boolean()
+      .describe('Indicates whether there are higher storage quota plans available. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_quota = z
+  .object({
+    deleted: z
+      .number()
+      .describe('Total space consumed by files in the recycle bin, in bytes. Read-only.')
+      .nullable(),
+    remaining: z
+      .number()
+      .describe('Total space remaining before reaching the capacity limit, in bytes. Read-only.')
+      .nullable(),
+    state: z
+      .string()
+      .describe('Enumeration value that indicates the state of the storage space. Read-only.')
+      .nullable(),
+    storagePlanInformation: z
+      .union([microsoft_graph_storagePlanInformation, z.object({}).partial().passthrough()])
+      .describe("Information about the drive's storage quota plans. Only in Personal OneDrive."),
+    total: z.number().describe('Total allowed storage space, in bytes. Read-only.').nullable(),
+    used: z.number().describe('Total space used, in bytes. Read-only.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_systemFacet = z.object({}).partial().passthrough();
+const microsoft_graph_listInfo = z
+  .object({
+    contentTypesEnabled: z
+      .boolean()
+      .describe('If true, indicates that content types are enabled for this list.')
+      .nullable(),
+    hidden: z
+      .boolean()
+      .describe(
+        "If true, indicates that the list isn't normally visible in the SharePoint user experience."
+      )
+      .nullable(),
+    template: z
+      .string()
+      .describe(
+        'An enumerated value that represents the base list template used in creating the list. Possible values include documentLibrary, genericList, task, survey, announcements, contacts, and more.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_booleanColumn = z.object({}).partial().passthrough();
+const microsoft_graph_calculatedColumn = z
+  .object({
+    format: z
+      .string()
+      .describe(
+        'For dateTime output types, the format of the value. Possible values are: dateOnly or dateTime.'
+      )
+      .nullable(),
+    formula: z
+      .string()
+      .describe('The formula used to compute the value for this column.')
+      .nullable(),
+    outputType: z
+      .string()
+      .describe(
+        'The output type used to format values in this column. Possible values are: boolean, currency, dateTime, number, or text.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_choiceColumn = z
+  .object({
+    allowTextEntry: z
+      .boolean()
+      .describe("If true, allows custom values that aren't in the configured choices.")
+      .nullable(),
+    choices: z
+      .array(z.string().nullable())
+      .describe('The list of values available for this column.'),
+    displayAs: z
+      .string()
+      .describe(
+        'How the choices are to be presented in the UX. Must be one of checkBoxes, dropDownMenu, or radioButtons'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_contentApprovalStatusColumn = z.object({}).partial().passthrough();
+const microsoft_graph_currencyColumn = z
+  .object({
+    locale: z
+      .string()
+      .describe('Specifies the locale from which to infer the currency symbol.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_dateTimeColumn = z
+  .object({
+    displayAs: z
+      .string()
+      .describe(
+        'How the value should be presented in the UX. Must be one of default, friendly, or standard. See below for more details. If unspecified, treated as default.'
+      )
+      .nullable(),
+    format: z
+      .string()
+      .describe(
+        'Indicates whether the value should be presented as a date only or a date and time. Must be one of dateOnly or dateTime'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_defaultColumnValue = z
+  .object({
+    formula: z
+      .string()
+      .describe('The formula used to compute the default value for the column.')
+      .nullable(),
+    value: z
+      .string()
+      .describe('The direct value to use as the default value for the column.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_geolocationColumn = z.object({}).partial().passthrough();
+const microsoft_graph_hyperlinkOrPictureColumn = z
+  .object({
+    isPicture: z
+      .boolean()
+      .describe(
+        'Specifies whether the display format used for URL columns is an image or a hyperlink.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_lookupColumn = z
+  .object({
+    allowMultipleValues: z
+      .boolean()
+      .describe('Indicates whether multiple values can be selected from the source.')
+      .nullable(),
+    allowUnlimitedLength: z
+      .boolean()
+      .describe(
+        'Indicates whether values in the column should be able to exceed the standard limit of 255 characters.'
+      )
+      .nullable(),
+    columnName: z.string().describe('The name of the lookup source column.').nullable(),
+    listId: z.string().describe('The unique identifier of the lookup source list.').nullable(),
+    primaryLookupColumnId: z
+      .string()
+      .describe(
+        'If specified, this column is a secondary lookup, pulling an additional field from the list item looked up by the primary lookup. Use the list item looked up by the primary as the source for the column named here.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_numberColumn = z
+  .object({
+    decimalPlaces: z
+      .string()
+      .describe(
+        'How many decimal places to display. See below for information about the possible values.'
+      )
+      .nullable(),
+    displayAs: z
+      .string()
+      .describe(
+        'How the value should be presented in the UX. Must be one of number or percentage. If unspecified, treated as number.'
+      )
+      .nullable(),
+    maximum: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The maximum permitted value.'),
+    minimum: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The minimum permitted value.'),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_personOrGroupColumn = z
+  .object({
+    allowMultipleSelection: z
+      .boolean()
+      .describe('Indicates whether multiple values can be selected from the source.')
+      .nullable(),
+    chooseFromType: z
+      .string()
+      .describe(
+        'Whether to allow selection of people only, or people and groups. Must be one of peopleAndGroups or peopleOnly.'
+      )
+      .nullable(),
+    displayAs: z
+      .string()
+      .describe('How to display the information about the person or group chosen. See below.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_contentTypeInfo = z
+  .object({
+    id: z.string().describe('The ID of the content type.').nullable(),
+    name: z.string().describe('The name of the content type.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_termStore_localizedDescription = z
+  .object({
+    description: z.string().describe('The description in the localized language.').nullable(),
+    languageTag: z.string().describe('The language tag for the label.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_termStore_localizedLabel = z
+  .object({
+    isDefault: z.boolean().describe('Indicates whether the label is the default label.').nullable(),
+    languageTag: z.string().describe('The language tag for the label.').nullable(),
+    name: z.string().describe('The name of the label.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_keyValue = z
+  .object({
+    key: z.string().describe('Key for the key-value pair.').nullable(),
+    value: z.string().describe('Value for the key-value pair.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_termStore_relationType = z.enum(['pin', 'reuse', 'unknownFutureValue']);
+const microsoft_graph_termStore_localizedName = z
+  .object({
+    languageTag: z.string().describe('The language tag for the label.').nullable(),
+    name: z.string().describe('The name in the localized language.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_termStore_termGroupScope = z.enum([
+  'global',
+  'system',
+  'siteCollection',
+  'unknownFutureValue',
+]);
+const microsoft_graph_termStore_group: z.ZodType<microsoft_graph_termStore_group> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        createdDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Date and time of the group creation. Read-only.')
+          .nullable(),
+        description: z
+          .string()
+          .describe('Description that gives details on the term usage.')
+          .nullable(),
+        displayName: z.string().describe('Name of the group.').nullable(),
+        parentSiteId: z.string().describe('ID of the parent site of this group.').nullable(),
+        scope: z
+          .union([microsoft_graph_termStore_termGroupScope, z.object({}).partial().passthrough()])
+          .describe(
+            'Returns the type of the group. Possible values are: global, system, and siteCollection.'
+          ),
+        sets: z
+          .array(microsoft_graph_termStore_set)
+          .describe('All sets under the group in a term [store].'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_termStore_set: z.ZodType<microsoft_graph_termStore_set> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        createdDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Date and time of set creation. Read-only.')
+          .nullable(),
+        description: z
+          .string()
+          .describe('Description that gives details on the term usage.')
+          .nullable(),
+        localizedNames: z
+          .array(microsoft_graph_termStore_localizedName)
+          .describe('Name of the set for each languageTag.'),
+        properties: z.array(microsoft_graph_keyValue).describe('Custom properties for the set.'),
+        children: z
+          .array(microsoft_graph_termStore_term)
+          .describe('Children terms of set in term [store].'),
+        parentGroup: microsoft_graph_termStore_group,
+        relations: z
+          .array(microsoft_graph_termStore_relation)
+          .describe('Indicates which terms have been pinned or reused directly under the set.'),
+        terms: z.array(microsoft_graph_termStore_term).describe('All the terms under the set.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_termStore_relation: z.ZodType<microsoft_graph_termStore_relation> = z.lazy(
+  () =>
+    microsoft_graph_entity.and(
+      z
+        .object({
+          relationship: z
+            .union([microsoft_graph_termStore_relationType, z.object({}).partial().passthrough()])
+            .describe('The type of relation. Possible values are: pin, reuse.'),
+          fromTerm: z
+            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
+            .describe(
+              'The from [term] of the relation. The term from which the relationship is defined. A null value would indicate the relation is directly with the [set].'
+            ),
+          set: z
+            .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
+            .describe('The [set] in which the relation is relevant.'),
+          toTerm: z
+            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
+            .describe(
+              'The to [term] of the relation. The term to which the relationship is defined.'
+            ),
+        })
+        .partial()
+        .passthrough()
+    )
+);
+const microsoft_graph_termStore_term: z.ZodType<microsoft_graph_termStore_term> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        createdDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Date and time of term creation. Read-only.')
+          .nullable(),
+        descriptions: z
+          .array(microsoft_graph_termStore_localizedDescription)
+          .describe('Description about term that is dependent on the languageTag.'),
+        labels: z
+          .array(microsoft_graph_termStore_localizedLabel)
+          .describe('Label metadata for a term.'),
+        lastModifiedDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Last date and time of term modification. Read-only.')
+          .nullable(),
+        properties: z
+          .array(microsoft_graph_keyValue)
+          .describe('Collection of properties on the term.'),
+        children: z.array(microsoft_graph_termStore_term).describe('Children of current term.'),
+        relations: z
+          .array(microsoft_graph_termStore_relation)
+          .describe(
+            'To indicate which terms are related to the current term as either pinned or reused.'
+          ),
+        set: z
+          .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
+          .describe('The [set] in which the term is created.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_termColumn = z
+  .object({
+    allowMultipleValues: z
+      .boolean()
+      .describe('Specifies whether the column allows more than one value.')
+      .nullable(),
+    showFullyQualifiedName: z
+      .boolean()
+      .describe('Specifies whether to display the entire term path or only the term label.')
+      .nullable(),
+    parentTerm: z.union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()]),
+    termSet: z.union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()]),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_textColumn = z
+  .object({
+    allowMultipleLines: z.boolean().describe('Whether to allow multiple lines of text.').nullable(),
+    appendChangesToExistingText: z
+      .boolean()
+      .describe('Whether updates to this column should replace existing text, or append to it.')
+      .nullable(),
+    linesForEditing: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The size of the text box.')
+      .nullable(),
+    maxLength: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The maximum number of characters for the value.')
+      .nullable(),
+    textType: z
+      .string()
+      .describe('The type of text being stored. Must be one of plain or richText')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_thumbnailColumn = z.object({}).partial().passthrough();
+const microsoft_graph_columnTypes = z.enum([
+  'note',
+  'text',
+  'choice',
+  'multichoice',
+  'number',
+  'currency',
+  'dateTime',
+  'lookup',
+  'boolean',
+  'user',
+  'url',
+  'calculated',
+  'location',
+  'geolocation',
+  'term',
+  'multiterm',
+  'thumbnail',
+  'approvalStatus',
+  'unknownFutureValue',
+]);
+const microsoft_graph_displayNameLocalization = z
+  .object({
+    displayName: z
+      .string()
+      .describe(
+        'If present, the value of this field contains the displayName string that has been set for the language present in the languageTag field.'
+      )
+      .nullable(),
+    languageTag: z
+      .string()
+      .describe(
+        'Provides the language culture-code and friendly name of the language that the displayName field has been provided in.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_columnValidation = z
+  .object({
+    defaultLanguage: z
+      .string()
+      .describe('Default BCP 47 language tag for the description.')
+      .nullable(),
+    descriptions: z
+      .array(microsoft_graph_displayNameLocalization)
+      .describe(
+        "Localized messages that explain what is needed for this column's value to be considered valid. User will be prompted with this message if validation fails."
+      ),
+    formula: z
+      .string()
+      .describe(
+        'The formula to validate column value. For examples, see Examples of common formulas in lists.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefinition> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        boolean: z
+          .union([microsoft_graph_booleanColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores Boolean values.'),
+        calculated: z
+          .union([microsoft_graph_calculatedColumn, z.object({}).partial().passthrough()])
+          .describe("This column's data is calculated based on other columns."),
+        choice: z
+          .union([microsoft_graph_choiceColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores data from a list of choices.'),
+        columnGroup: z
+          .string()
+          .describe(
+            'For site columns, the name of the group this column belongs to. Helps organize related columns.'
+          )
+          .nullable(),
+        contentApprovalStatus: z
+          .union([
+            microsoft_graph_contentApprovalStatusColumn,
+            z.object({}).partial().passthrough(),
+          ])
+          .describe('This column stores content approval status.'),
+        currency: z
+          .union([microsoft_graph_currencyColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores currency values.'),
+        dateTime: z
+          .union([microsoft_graph_dateTimeColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores DateTime values.'),
+        defaultValue: z
+          .union([microsoft_graph_defaultColumnValue, z.object({}).partial().passthrough()])
+          .describe('The default value for this column.'),
+        description: z.string().describe('The user-facing description of the column.').nullable(),
+        displayName: z.string().describe('The user-facing name of the column.').nullable(),
+        enforceUniqueValues: z
+          .boolean()
+          .describe('If true, no two list items may have the same value for this column.')
+          .nullable(),
+        geolocation: z
+          .union([microsoft_graph_geolocationColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores a geolocation.'),
+        hidden: z
+          .boolean()
+          .describe('Specifies whether the column is displayed in the user interface.')
+          .nullable(),
+        hyperlinkOrPicture: z
+          .union([microsoft_graph_hyperlinkOrPictureColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores hyperlink or picture values.'),
+        indexed: z
+          .boolean()
+          .describe('Specifies whether the column values can be used for sorting and searching.')
+          .nullable(),
+        isDeletable: z
+          .boolean()
+          .describe('Indicates whether this column can be deleted.')
+          .nullable(),
+        isReorderable: z
+          .boolean()
+          .describe('Indicates whether values in the column can be reordered. Read-only.')
+          .nullable(),
+        isSealed: z.boolean().describe('Specifies whether the column can be changed.').nullable(),
+        lookup: z
+          .union([microsoft_graph_lookupColumn, z.object({}).partial().passthrough()])
+          .describe("This column's data is looked up from another source in the site."),
+        name: z
+          .string()
+          .describe(
+            'The API-facing name of the column as it appears in the fields on a listItem. For the user-facing name, see displayName.'
+          )
+          .nullable(),
+        number: z
+          .union([microsoft_graph_numberColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores number values.'),
+        personOrGroup: z
+          .union([microsoft_graph_personOrGroupColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores Person or Group values.'),
+        propagateChanges: z
+          .boolean()
+          .describe(
+            "If 'true', changes to this column will be propagated to lists that implement the column."
+          )
+          .nullable(),
+        readOnly: z
+          .boolean()
+          .describe('Specifies whether the column values can be modified.')
+          .nullable(),
+        required: z
+          .boolean()
+          .describe("Specifies whether the column value isn't optional.")
+          .nullable(),
+        sourceContentType: z
+          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+          .describe(
+            'ContentType from which this column is inherited from. Present only in contentTypes columns response. Read-only.'
+          ),
+        term: z
+          .union([microsoft_graph_termColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores taxonomy terms.'),
+        text: z
+          .union([microsoft_graph_textColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores text values.'),
+        thumbnail: z
+          .union([microsoft_graph_thumbnailColumn, z.object({}).partial().passthrough()])
+          .describe('This column stores thumbnail values.'),
+        type: z
+          .union([microsoft_graph_columnTypes, z.object({}).partial().passthrough()])
+          .describe('For site columns, the type of column. Read-only.'),
+        validation: z
+          .union([microsoft_graph_columnValidation, z.object({}).partial().passthrough()])
+          .describe('This column stores validation formula and message for the column.'),
+        sourceColumn: z
+          .union([microsoft_graph_columnDefinition, z.object({}).partial().passthrough()])
+          .describe('The source column for the content type column.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_documentSetContent = z
+  .object({
+    contentType: z
+      .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+      .describe('Content type information of the file.'),
+    fileName: z
+      .string()
+      .describe(
+        'Name of the file in resource folder that should be added as a default content or a template in the document set.'
+      )
+      .nullable(),
+    folderName: z
+      .string()
+      .describe(
+        'Folder name in which the file will be placed when a new document set is created in the library.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_documentSet = z
+  .object({
+    allowedContentTypes: z
+      .array(microsoft_graph_contentTypeInfo)
+      .describe('Content types allowed in document set.'),
+    defaultContents: z
+      .array(microsoft_graph_documentSetContent)
+      .describe('Default contents of document set.'),
+    propagateWelcomePageChanges: z
+      .boolean()
+      .describe('Specifies whether to push welcome page changes to inherited content types.')
+      .nullable(),
+    shouldPrefixNameToFile: z
+      .boolean()
+      .describe('Indicates whether to add the name of the document set to each file name.')
+      .nullable(),
+    welcomePageUrl: z.string().describe('Welcome page absolute URL.').nullable(),
+    sharedColumns: z.array(microsoft_graph_columnDefinition),
+    welcomePageColumns: z.array(microsoft_graph_columnDefinition),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_contentTypeOrder = z
+  .object({
+    default: z.boolean().describe('Indicates whether this is the default content type').nullable(),
+    position: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Specifies the position in which the content type appears in the selection UI.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_columnLink = microsoft_graph_entity.and(
+  z
+    .object({
+      name: z.string().describe('The name of the column  in this content type.').nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        associatedHubsUrls: z
+          .array(z.string().nullable())
+          .describe(
+            'List of canonical URLs for hub sites with which this content type is associated to. This will contain all hub sites where this content type is queued to be enforced or is already enforced. Enforcing a content type means that the content type is applied to the lists in the enforced sites.'
+          ),
+        description: z.string().describe('The descriptive text for the item.').nullable(),
+        documentSet: z
+          .union([microsoft_graph_documentSet, z.object({}).partial().passthrough()])
+          .describe('Document Set metadata.'),
+        documentTemplate: z
+          .union([microsoft_graph_documentSetContent, z.object({}).partial().passthrough()])
+          .describe(
+            'Document template metadata. To make sure that documents have consistent content across a site and its subsites, you can associate a Word, Excel, or PowerPoint template with a site content type.'
+          ),
+        group: z
+          .string()
+          .describe(
+            'The name of the group this content type belongs to. Helps organize related content types.'
+          )
+          .nullable(),
+        hidden: z
+          .boolean()
+          .describe("Indicates whether the content type is hidden in the list's 'New' menu.")
+          .nullable(),
+        inheritedFrom: z
+          .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+          .describe(
+            'If this content type is inherited from another scope (like a site), provides a reference to the item where the content type is defined.'
+          ),
+        isBuiltIn: z
+          .boolean()
+          .describe('Specifies if a content type is a built-in content type.')
+          .nullable(),
+        name: z.string().describe('The name of the content type.').nullable(),
+        order: z
+          .union([microsoft_graph_contentTypeOrder, z.object({}).partial().passthrough()])
+          .describe('Specifies the order in which the content type appears in the selection UI.'),
+        parentId: z.string().describe('The unique identifier of the content type.').nullable(),
+        propagateChanges: z
+          .boolean()
+          .describe(
+            'If true, any changes made to the content type are pushed to inherited content types and lists that implement the content type.'
+          )
+          .nullable(),
+        readOnly: z
+          .boolean()
+          .describe(
+            "If true, the content type can't be modified unless this value is first set to false."
+          )
+          .nullable(),
+        sealed: z
+          .boolean()
+          .describe(
+            "If true, the content type can't be modified by users or through push-down operations. Only site collection administrators can seal or unseal content types."
+          )
+          .nullable(),
+        base: z
+          .union([microsoft_graph_contentType, z.object({}).partial().passthrough()])
+          .describe('Parent contentType from which this content type is derived.'),
+        baseTypes: z
+          .array(microsoft_graph_contentType)
+          .describe('The collection of content types that are ancestors of this content type.'),
+        columnLinks: z
+          .array(microsoft_graph_columnLink)
+          .describe('The collection of columns that are required by this content type.'),
+        columnPositions: z
+          .array(microsoft_graph_columnDefinition)
+          .describe('Column order information in a content type.'),
+        columns: z
+          .array(microsoft_graph_columnDefinition)
+          .describe('The collection of column definitions for this content type.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_itemActionStat = z
+  .object({
+    actionCount: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The number of times the action took place. Read-only.')
+      .nullable(),
+    actorCount: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The number of distinct actors that performed the action. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_incompleteData = z
+  .object({
+    missingDataBeforeDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('The service does not have source data before the specified time.')
+      .nullable(),
+    wasThrottled: z
+      .boolean()
+      .describe('Some data was not recorded due to excessive activity.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_accessAction = z.object({}).partial().passthrough();
+const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        access: z
+          .union([microsoft_graph_accessAction, z.object({}).partial().passthrough()])
+          .describe('An item was accessed.'),
+        activityDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Details about when the activity took place. Read-only.')
+          .nullable(),
+        actor: z
+          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .describe('Identity of who performed the action. Read-only.'),
+        driveItem: z
+          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .describe('Exposes the driveItem that was the target of this activity.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivityStat> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        access: z
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .describe('Statistics about the access actions in this interval. Read-only.'),
+        create: z
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .describe('Statistics about the create actions in this interval. Read-only.'),
+        delete: z
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .describe('Statistics about the delete actions in this interval. Read-only.'),
+        edit: z
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .describe('Statistics about the edit actions in this interval. Read-only.'),
+        endDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('When the interval ends. Read-only.')
+          .nullable(),
+        incompleteData: z
+          .union([microsoft_graph_incompleteData, z.object({}).partial().passthrough()])
+          .describe(
+            'Indicates that the statistics in this interval are based on incomplete data. Read-only.'
+          ),
+        isTrending: z
+          .boolean()
+          .describe("Indicates whether the item is 'trending.' Read-only.")
+          .nullable(),
+        move: z
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .describe('Statistics about the move actions in this interval. Read-only.'),
+        startDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('When the interval starts. Read-only.')
+          .nullable(),
+        activities: z
+          .array(microsoft_graph_itemActivity)
+          .describe('Exposes the itemActivities represented in this itemActivityStat resource.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_itemAnalytics: z.ZodType<microsoft_graph_itemAnalytics> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        allTime: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().passthrough()]),
+        itemActivityStats: z.array(microsoft_graph_itemActivityStat),
+        lastSevenDays: z.union([
+          microsoft_graph_itemActivityStat,
+          z.object({}).partial().passthrough(),
+        ]),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_publicationFacet = z
+  .object({
+    checkedOutBy: z
+      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .describe('The user who checked out the file.'),
+    level: z
+      .string()
+      .describe(
+        'The state of publication for this document. Either published or checkout. Read-only.'
+      )
+      .nullable(),
+    versionId: z
+      .string()
+      .describe(
+        'The unique identifier for the version that is visible to the current caller. Read-only.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_baseItemVersion = microsoft_graph_entity.and(
+  z
+    .object({
+      lastModifiedBy: z
+        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .describe('Identity of the user which last modified the version. Read-only.'),
+      lastModifiedDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe('Date and time the version was last modified. Read-only.')
+        .nullable(),
+      publication: z
+        .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+        .describe('Indicates the publication status of this particular version. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_fieldValueSet = microsoft_graph_entity.and(
+  z.object({}).partial().passthrough()
+);
+const microsoft_graph_listItemVersion = microsoft_graph_baseItemVersion.and(
+  z
+    .object({
+      fields: z
+        .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
+        .describe('A collection of the fields and values for this version of the list item.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_documentSetVersionItem = z
+  .object({
+    itemId: z.string().describe('The unique identifier for the item.').nullable(),
+    title: z.string().describe('The title of the item.').nullable(),
+    versionId: z.string().describe('The version ID of the item.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_documentSetVersion = microsoft_graph_listItemVersion.and(
+  z
+    .object({
+      comment: z.string().describe('Comment about the captured version.').nullable(),
+      createdBy: z
+        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .describe('User who captured the version.'),
+      createdDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe('Date and time when this version was created.')
+        .nullable(),
+      items: z
+        .array(microsoft_graph_documentSetVersionItem)
+        .describe('Items within the document set that are captured as part of this version.'),
+      shouldCaptureMinorVersion: z
+        .boolean()
+        .describe(
+          'If true, minor versions of items are also captured; otherwise, only major versions are captured. The default value is false.'
+        )
+        .nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() =>
+  microsoft_graph_baseItem.and(
+    z
+      .object({
+        contentType: z
+          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+          .describe('The content type of this list item'),
+        sharepointIds: z
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
+        analytics: z
+          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
+          .describe('Analytics about the view activities that took place on this item.'),
+        documentSetVersions: z
+          .array(microsoft_graph_documentSetVersion)
+          .describe('Version information for a document set version created by a user.'),
+        driveItem: z
+          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .describe(
+            'For document libraries, the driveItem relationship exposes the listItem as a driveItem'
+          ),
+        fields: z
+          .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
+          .describe('The values of the columns set on this list item.'),
+        versions: z
+          .array(microsoft_graph_listItemVersion)
+          .describe('The list of previous versions of the list item.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_longRunningOperationStatus = z.enum([
+  'notStarted',
+  'running',
+  'succeeded',
+  'failed',
+  'unknownFutureValue',
+]);
+const microsoft_graph_longRunningOperation = microsoft_graph_entity.and(
+  z
+    .object({
+      createdDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          'The start time of the operation. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
+        )
+        .nullable(),
+      lastActionDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          'The time of the last action in the operation. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
+        )
+        .nullable(),
+      resourceLocation: z
+        .string()
+        .describe('URI of the resource that the operation is performed on.')
+        .nullable(),
+      status: z
+        .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().passthrough()])
+        .describe(
+          'The status of the operation. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue.'
+        ),
+      statusDetail: z.string().describe('Details about the status of the operation.').nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_publicErrorDetail = z
+  .object({
+    code: z.string().describe('The error code.').nullable(),
+    message: z.string().describe('The error message.').nullable(),
+    target: z.string().describe('The target of the error.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_publicInnerError = z
+  .object({
+    code: z.string().describe('The error code.').nullable(),
+    details: z.array(microsoft_graph_publicErrorDetail).describe('A collection of error details.'),
+    message: z.string().describe('The error message.').nullable(),
+    target: z.string().describe('The target of the error.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_publicError = z
+  .object({
+    code: z.string().describe('Represents the error code.').nullable(),
+    details: z.array(microsoft_graph_publicErrorDetail).describe('Details of the error.'),
+    innerError: z
+      .union([microsoft_graph_publicInnerError, z.object({}).partial().passthrough()])
+      .describe('Details of the inner error.'),
+    message: z.string().describe('A non-localized message for the developer.').nullable(),
+    target: z.string().describe('The target of the error.').nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_richLongRunningOperation = microsoft_graph_longRunningOperation.and(
+  z
+    .object({
+      error: z
+        .union([microsoft_graph_publicError, z.object({}).partial().passthrough()])
+        .describe('Error that caused the operation to fail.'),
+      percentageComplete: z
+        .number()
+        .gte(-2147483648)
+        .lte(2147483647)
+        .describe('A value between 0 and 100 that indicates the progress of the operation.')
+        .nullable(),
+      resourceId: z.string().describe('The unique identifier for the result.').nullable(),
+      type: z.string().describe('The type of the operation.').nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_subscription = microsoft_graph_entity.and(
+  z
+    .object({
+      applicationId: z
+        .string()
+        .describe(
+          'Optional. Identifier of the application used to create the subscription. Read-only.'
+        )
+        .nullable(),
+      changeType: z
+        .string()
+        .describe(
+          'Required. Indicates the type of change in the subscribed resource that raises a change notification. The supported values are: created, updated, deleted. Multiple values can be combined using a comma-separated list. Note:  Drive root item and list change notifications support only the updated changeType. User and group change notifications support updated and deleted changeType. Use updated to receive notifications when user or group is created, updated, or soft deleted. Use deleted to receive notifications when user or group is permanently deleted.'
+        ),
+      clientState: z
+        .string()
+        .describe(
+          'Optional. Specifies the value of the clientState property sent by the service in each change notification. The maximum length is 128 characters. The client can check that the change notification came from the service by comparing the value of the clientState property sent with the subscription with the value of the clientState property received with each change notification.'
+        )
+        .nullable(),
+      creatorId: z
+        .string()
+        .describe(
+          'Optional. Identifier of the user or service principal that created the subscription. If the app used delegated permissions to create the subscription, this field contains the ID of the signed-in user the app called on behalf of. If the app used application permissions, this field contains the ID of the service principal corresponding to the app. Read-only.'
+        )
+        .nullable(),
+      encryptionCertificate: z
+        .string()
+        .describe(
+          'Optional. A base64-encoded representation of a certificate with a public key used to encrypt resource data in change notifications. Optional but required when includeResourceData is true.'
+        )
+        .nullable(),
+      encryptionCertificateId: z
+        .string()
+        .describe(
+          'Optional. A custom app-provided identifier to help identify the certificate needed to decrypt resource data.'
+        )
+        .nullable(),
+      expirationDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          'Required. Specifies the date and time when the webhook subscription expires. The time is in UTC, and can be an amount of time from subscription creation that varies for the resource subscribed to. For the maximum supported subscription length of time, see Subscription lifetime.'
+        ),
+      includeResourceData: z
+        .boolean()
+        .describe(
+          'Optional. When set to true, change notifications include resource data (such as content of a chat message).'
+        )
+        .nullable(),
+      latestSupportedTlsVersion: z
+        .string()
+        .describe(
+          'Optional. Specifies the latest version of Transport Layer Security (TLS) that the notification endpoint, specified by notificationUrl, supports. The possible values are: v10, v11, v12, v13. For subscribers whose notification endpoint supports a version lower than the currently recommended version (TLS 1.2), specifying this property by a set timeline allows them to temporarily use their deprecated version of TLS before completing their upgrade to TLS 1.2. For these subscribers, not setting this property per the timeline would result in subscription operations failing. For subscribers whose notification endpoint already supports TLS 1.2, setting this property is optional. In such cases, Microsoft Graph defaults the property to v1_2.'
+        )
+        .nullable(),
+      lifecycleNotificationUrl: z
+        .string()
+        .describe(
+          'Required for Teams resources if  the expirationDateTime value is more than 1 hour from now; optional otherwise. The URL of the endpoint that receives lifecycle notifications, including subscriptionRemoved, reauthorizationRequired, and missed notifications. This URL must make use of the HTTPS protocol. For more information, see Reduce missing subscriptions and change notifications.'
+        )
+        .nullable(),
+      notificationQueryOptions: z
+        .string()
+        .describe(
+          'Optional. OData query options for specifying value for the targeting resource. Clients receive notifications when resource reaches the state matching the query options provided here. With this new property in the subscription creation payload along with all existing properties, Webhooks deliver notifications whenever a resource reaches the desired state mentioned in the notificationQueryOptions property. For example, when the print job is completed or when a print job resource isFetchable property value becomes true etc.  Supported only for Universal Print Service. For more information, see Subscribe to change notifications from cloud printing APIs using Microsoft Graph.'
+        )
+        .nullable(),
+      notificationUrl: z
+        .string()
+        .describe(
+          'Required. The URL of the endpoint that receives the change notifications. This URL must make use of the HTTPS protocol. Any query string parameter included in the notificationUrl property is included in the HTTP POST request when Microsoft Graph sends the change notifications.'
+        ),
+      notificationUrlAppId: z
+        .string()
+        .describe(
+          'Optional. The app ID that the subscription service can use to generate the validation token. The value allows the client to validate the authenticity of the notification received.'
+        )
+        .nullable(),
+      resource: z
+        .string()
+        .describe(
+          "Required. Specifies the resource that is monitored for changes. Don't include the base URL (https://graph.microsoft.com/v1.0/). See the possible resource path values for each supported resource."
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
+  microsoft_graph_baseItem.and(
+    z
+      .object({
+        displayName: z.string().describe('The displayable title of the list.').nullable(),
+        list: z
+          .union([microsoft_graph_listInfo, z.object({}).partial().passthrough()])
+          .describe('Contains more details about the list.'),
+        sharepointIds: z
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
+        system: z
+          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
+          .describe('If present, indicates that the list is system-managed. Read-only.'),
+        columns: z
+          .array(microsoft_graph_columnDefinition)
+          .describe('The collection of field definitions for this list.'),
+        contentTypes: z
+          .array(microsoft_graph_contentType)
+          .describe('The collection of content types present in this list.'),
+        drive: z
+          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
+          .describe(
+            'Allows access to the list as a drive resource with driveItems. Only present on document libraries.'
+          ),
+        items: z.array(microsoft_graph_listItem).describe('All items contained in the list.'),
+        operations: z
+          .array(microsoft_graph_richLongRunningOperation)
+          .describe('The collection of long-running operations on the list.'),
+        subscriptions: z
+          .array(microsoft_graph_subscription)
+          .describe('The set of subscriptions on the list.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
+  microsoft_graph_baseItem.and(
+    z
+      .object({
+        driveType: z
+          .string()
+          .describe(
+            'Describes the type of drive represented by this resource. OneDrive personal drives return personal. OneDrive for Business returns business. SharePoint document libraries return documentLibrary. Read-only.'
+          )
+          .nullable(),
+        owner: z
+          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .describe('Optional. The user account that owns the drive. Read-only.'),
+        quota: z
+          .union([microsoft_graph_quota, z.object({}).partial().passthrough()])
+          .describe("Optional. Information about the drive's storage space quota. Read-only."),
+        sharePointIds: z.union([
+          microsoft_graph_sharepointIds,
+          z.object({}).partial().passthrough(),
+        ]),
+        system: z
+          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
+          .describe("If present, indicates that it's a system-managed drive. Read-only."),
+        bundles: z
+          .array(microsoft_graph_driveItem)
+          .describe(
+            'Collection of bundles (albums and multi-select-shared sets of items). Only in personal OneDrive.'
+          ),
+        following: z
+          .array(microsoft_graph_driveItem)
+          .describe('The list of items the user is following. Only in OneDrive for Business.'),
+        items: z
+          .array(microsoft_graph_driveItem)
+          .describe('All items contained in the drive. Read-only. Nullable.'),
+        list: z
+          .union([microsoft_graph_list, z.object({}).partial().passthrough()])
+          .describe(
+            'For drives in SharePoint, the underlying document library list. Read-only. Nullable.'
+          ),
+        root: z
+          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .describe('The root folder of the drive. Read-only.'),
+        special: z
+          .array(microsoft_graph_driveItem)
+          .describe('Collection of common folders available in OneDrive. Read-only. Nullable.'),
+      })
+      .partial()
+      .passthrough()
+  )
 );
 const microsoft_graph_groupLifecyclePolicy = microsoft_graph_entity.and(
   z
@@ -11211,35 +12519,6 @@ const microsoft_graph_groupSetting = microsoft_graph_entity.and(
     .partial()
     .passthrough()
 );
-const microsoft_graph_publicErrorDetail = z
-  .object({
-    code: z.string().describe('The error code.').nullable(),
-    message: z.string().describe('The error message.').nullable(),
-    target: z.string().describe('The target of the error.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_publicInnerError = z
-  .object({
-    code: z.string().describe('The error code.').nullable(),
-    details: z.array(microsoft_graph_publicErrorDetail).describe('A collection of error details.'),
-    message: z.string().describe('The error message.').nullable(),
-    target: z.string().describe('The target of the error.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_publicError = z
-  .object({
-    code: z.string().describe('Represents the error code.').nullable(),
-    details: z.array(microsoft_graph_publicErrorDetail).describe('Details of the error.'),
-    innerError: z
-      .union([microsoft_graph_publicInnerError, z.object({}).partial().passthrough()])
-      .describe('Details of the inner error.'),
-    message: z.string().describe('A non-localized message for the developer.').nullable(),
-    target: z.string().describe('The target of the error.').nullable(),
-  })
-  .partial()
-  .passthrough();
 const microsoft_graph_root = z.object({}).partial().passthrough();
 const microsoft_graph_siteArchiveStatus = z.enum([
   'recentlyArchived',
@@ -11279,631 +12558,25 @@ const microsoft_graph_siteCollection = z
   })
   .partial()
   .passthrough();
-const microsoft_graph_itemActionStat = z
-  .object({
-    actionCount: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The number of times the action took place. Read-only.')
-      .nullable(),
-    actorCount: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The number of distinct actors that performed the action. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_incompleteData = z
-  .object({
-    missingDataBeforeDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('The service does not have source data before the specified time.')
-      .nullable(),
-    wasThrottled: z
-      .boolean()
-      .describe('Some data was not recorded due to excessive activity.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_accessAction = z.object({}).partial().passthrough();
-const microsoft_graph_audio = z
-  .object({
-    album: z.string().describe('The title of the album for this audio file.').nullable(),
-    albumArtist: z
-      .string()
-      .describe('The artist named on the album for the audio file.')
-      .nullable(),
-    artist: z.string().describe('The performing artist for the audio file.').nullable(),
-    bitrate: z.number().describe('Bitrate expressed in kbps.').nullable(),
-    composers: z.string().describe('The name of the composer of the audio file.').nullable(),
-    copyright: z.string().describe('Copyright information for the audio file.').nullable(),
-    disc: z
-      .number()
-      .gte(-32768)
-      .lte(32767)
-      .describe('The number of the disc this audio file came from.')
-      .nullable(),
-    discCount: z
-      .number()
-      .gte(-32768)
-      .lte(32767)
-      .describe('The total number of discs in this album.')
-      .nullable(),
-    duration: z
-      .number()
-      .describe('Duration of the audio file, expressed in milliseconds')
-      .nullable(),
-    genre: z.string().describe('The genre of this audio file.').nullable(),
-    hasDrm: z
-      .boolean()
-      .describe('Indicates if the file is protected with digital rights management.')
-      .nullable(),
-    isVariableBitrate: z
-      .boolean()
-      .describe('Indicates if the file is encoded with a variable bitrate.')
-      .nullable(),
-    title: z.string().describe('The title of the audio file.').nullable(),
-    track: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The number of the track on the original disc for this audio file.')
-      .nullable(),
-    trackCount: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The total number of tracks on the original disc for this audio file.')
-      .nullable(),
-    year: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The year the audio file was recorded.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_album = z
-  .object({
-    coverImageItemId: z
-      .string()
-      .describe('Unique identifier of the driveItem that is the cover of the album.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_bundle = z
-  .object({
-    album: z
-      .union([microsoft_graph_album, z.object({}).partial().passthrough()])
-      .describe('If the bundle is an album, then the album property is included'),
-    childCount: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Number of children contained immediately within this container.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_deleted = z
-  .object({ state: z.string().describe('Represents the state of the deleted item.').nullable() })
-  .partial()
-  .passthrough();
-const microsoft_graph_hashes = z
-  .object({
-    crc32Hash: z
-      .string()
-      .describe('The CRC32 value of the file (if available). Read-only.')
-      .nullable(),
-    quickXorHash: z
-      .string()
-      .describe(
-        'A proprietary hash of the file that can be used to determine if the contents of the file change (if available). Read-only.'
-      )
-      .nullable(),
-    sha1Hash: z
-      .string()
-      .describe('SHA1 hash for the contents of the file (if available). Read-only.')
-      .nullable(),
-    sha256Hash: z.string().describe("This property isn't supported. Don't use.").nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_file = z
-  .object({
-    hashes: z
-      .union([microsoft_graph_hashes, z.object({}).partial().passthrough()])
-      .describe("Hashes of the file's binary content, if available. Read-only."),
-    mimeType: z
-      .string()
-      .describe(
-        'The MIME type for the file. This is determined by logic on the server and might not be the value provided when the file was uploaded. Read-only.'
-      )
-      .nullable(),
-    processingMetadata: z.boolean().nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_fileSystemInfo = z
-  .object({
-    createdDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('The UTC date and time the file was created on a client.')
-      .nullable(),
-    lastAccessedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe(
-        'The UTC date and time the file was last accessed. Available for the recent file list only.'
-      )
-      .nullable(),
-    lastModifiedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('The UTC date and time the file was last modified on a client.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_folderView = z
-  .object({
-    sortBy: z.string().describe('The method by which the folder should be sorted.').nullable(),
-    sortOrder: z
-      .string()
-      .describe(
-        'If true, indicates that items should be sorted in descending order. Otherwise, items should be sorted ascending.'
-      )
-      .nullable(),
-    viewType: z
-      .string()
-      .describe('The type of view that should be used to represent the folder.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_folder = z
-  .object({
-    childCount: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Number of children contained immediately within this container.')
-      .nullable(),
-    view: z
-      .union([microsoft_graph_folderView, z.object({}).partial().passthrough()])
-      .describe('A collection of properties defining the recommended view for the folder.'),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_image = z
-  .object({
-    height: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Optional. Height of the image, in pixels. Read-only.')
-      .nullable(),
-    width: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Optional. Width of the image, in pixels. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_geoCoordinates = z
-  .object({
-    altitude: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe(
-        'Optional. The altitude (height), in feet,  above sea level for the item. Read-only.'
-      ),
-    latitude: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('Optional. The latitude, in decimal, for the item. Read-only.'),
-    longitude: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('Optional. The longitude, in decimal, for the item. Read-only.'),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_malware = z
-  .object({
-    description: z
-      .string()
-      .describe('Contains the virus details for the malware facet.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_package = z
-  .object({
-    type: z
-      .string()
-      .describe(
-        'A string indicating the type of package. While oneNote is the only currently defined value, you should expect other package types to be returned and handle them accordingly.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_pendingContentUpdate = z
-  .object({
-    queuedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('Date and time the pending binary operation was queued in UTC time. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_pendingOperations = z
-  .object({
-    pendingContentUpdate: z
-      .union([microsoft_graph_pendingContentUpdate, z.object({}).partial().passthrough()])
-      .describe(
-        'A property that indicates that an operation that might update the binary content of a file is pending completion.'
-      ),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_photo = z
-  .object({
-    cameraMake: z.string().describe('Camera manufacturer. Read-only.').nullable(),
-    cameraModel: z.string().describe('Camera model. Read-only.').nullable(),
-    exposureDenominator: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The denominator for the exposure time fraction from the camera. Read-only.'),
-    exposureNumerator: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The numerator for the exposure time fraction from the camera. Read-only.'),
-    fNumber: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The F-stop value from the camera. Read-only.'),
-    focalLength: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The focal length from the camera. Read-only.'),
-    iso: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The ISO value from the camera. Read-only.')
-      .nullable(),
-    orientation: z
-      .number()
-      .gte(-32768)
-      .lte(32767)
-      .describe('The orientation value from the camera. Writable on OneDrive Personal.')
-      .nullable(),
-    takenDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('Represents the date and time the photo was taken. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_publicationFacet = z
-  .object({
-    checkedOutBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-      .describe('The user who checked out the file.'),
-    level: z
-      .string()
-      .describe(
-        'The state of publication for this document. Either published or checkout. Read-only.'
-      )
-      .nullable(),
-    versionId: z
-      .string()
-      .describe(
-        'The unique identifier for the version that is visible to the current caller. Read-only.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_shared = z
-  .object({
-    owner: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-      .describe('The identity of the owner of the shared item. Read-only.'),
-    scope: z
-      .string()
-      .describe(
-        'Indicates the scope of how the item is shared. The possible values are: anonymous, organization, or users. Read-only.'
-      )
-      .nullable(),
-    sharedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-      .describe('The identity of the user who shared the item. Read-only.'),
-    sharedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('The UTC date and time when the item was shared. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_specialFolder = z
-  .object({
-    name: z
-      .string()
-      .describe('The unique identifier for this item in the /drive/special collection')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_video = z
-  .object({
-    audioBitsPerSample: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Number of audio bits per sample.')
-      .nullable(),
-    audioChannels: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Number of audio channels.')
-      .nullable(),
-    audioFormat: z.string().describe('Name of the audio format (AAC, MP3, etc.).').nullable(),
-    audioSamplesPerSecond: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Number of audio samples per second.')
-      .nullable(),
-    bitrate: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Bit rate of the video in bits per second.')
-      .nullable(),
-    duration: z.number().describe('Duration of the file in milliseconds.').nullable(),
-    fourCC: z.string().describe("'Four character code' name of the video format.").nullable(),
-    frameRate: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('Frame rate of the video.'),
-    height: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Height of the video, in pixels.')
-      .nullable(),
-    width: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Width of the video, in pixels.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_remoteItem = z
-  .object({
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-      .describe('Identity of the user, device, and application which created the item. Read-only.'),
-    createdDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('Date and time of item creation. Read-only.')
-      .nullable(),
-    file: z
-      .union([microsoft_graph_file, z.object({}).partial().passthrough()])
-      .describe('Indicates that the remote item is a file. Read-only.'),
-    fileSystemInfo: z
-      .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
-      .describe('Information about the remote item from the local file system. Read-only.'),
-    folder: z
-      .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
-      .describe('Indicates that the remote item is a folder. Read-only.'),
-    id: z
-      .string()
-      .describe('Unique identifier for the remote item in its drive. Read-only.')
-      .nullable(),
-    image: z
-      .union([microsoft_graph_image, z.object({}).partial().passthrough()])
-      .describe('Image metadata, if the item is an image. Read-only.'),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-      .describe(
-        'Identity of the user, device, and application which last modified the item. Read-only.'
-      ),
-    lastModifiedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('Date and time the item was last modified. Read-only.')
-      .nullable(),
-    name: z.string().describe('Optional. Filename of the remote item. Read-only.').nullable(),
-    package: z
-      .union([microsoft_graph_package, z.object({}).partial().passthrough()])
-      .describe(
-        'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
-      ),
-    parentReference: z
-      .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
-      .describe('Properties of the parent of the remote item. Read-only.'),
-    shared: z
-      .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
-      .describe(
-        'Indicates that the item has been shared with others and provides information about the shared state of the item. Read-only.'
-      ),
-    sharepointIds: z
-      .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
-      .describe(
-        'Provides interop between items in OneDrive for Business and SharePoint with the full set of item identifiers. Read-only.'
-      ),
-    size: z.number().describe('Size of the remote item. Read-only.').nullable(),
-    specialFolder: z
-      .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
-      .describe(
-        'If the current item is also available as a special folder, this facet is returned. Read-only.'
-      ),
-    video: z
-      .union([microsoft_graph_video, z.object({}).partial().passthrough()])
-      .describe('Video metadata, if the item is a video. Read-only.'),
-    webDavUrl: z.string().describe('DAV compatible URL for the item.').nullable(),
-    webUrl: z
-      .string()
-      .describe('URL that displays the resource in the browser. Read-only.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_searchResult = z
-  .object({
-    onClickTelemetryUrl: z
-      .string()
-      .describe(
-        'A callback URL that can be used to record telemetry information. The application should issue a GET on this URL if the user interacts with this item to improve the quality of results.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_contentTypeInfo = z
-  .object({
-    id: z.string().describe('The ID of the content type.').nullable(),
-    name: z.string().describe('The name of the content type.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_baseItemVersion = microsoft_graph_entity.and(
-  z
-    .object({
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-        .describe('Identity of the user which last modified the version. Read-only.'),
-      lastModifiedDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe('Date and time the version was last modified. Read-only.')
-        .nullable(),
-      publication: z
-        .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
-        .describe('Indicates the publication status of this particular version. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_fieldValueSet = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
-const microsoft_graph_listItemVersion = microsoft_graph_baseItemVersion.and(
-  z
-    .object({
-      fields: z
-        .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
-        .describe('A collection of the fields and values for this version of the list item.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_documentSetVersionItem = z
-  .object({
-    itemId: z.string().describe('The unique identifier for the item.').nullable(),
-    title: z.string().describe('The title of the item.').nullable(),
-    versionId: z.string().describe('The version ID of the item.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_documentSetVersion = microsoft_graph_listItemVersion.and(
-  z
-    .object({
-      comment: z.string().describe('Comment about the captured version.').nullable(),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-        .describe('User who captured the version.'),
-      createdDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe('Date and time when this version was created.')
-        .nullable(),
-      items: z
-        .array(microsoft_graph_documentSetVersionItem)
-        .describe('Items within the document set that are captured as part of this version.'),
-      shouldCaptureMinorVersion: z
-        .boolean()
-        .describe(
-          'If true, minor versions of items are also captured; otherwise, only major versions are captured. The default value is false.'
-        )
-        .nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() =>
+const microsoft_graph_pageLayoutType = z.enum([
+  'microsoftReserved',
+  'article',
+  'home',
+  'unknownFutureValue',
+]);
+const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.lazy(() =>
   microsoft_graph_baseItem.and(
     z
       .object({
-        contentType: z
-          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
-          .describe('The content type of this list item'),
-        sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
-          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-        analytics: z
-          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
-          .describe('Analytics about the view activities that took place on this item.'),
-        documentSetVersions: z
-          .array(microsoft_graph_documentSetVersion)
-          .describe('Version information for a document set version created by a user.'),
-        driveItem: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+        pageLayout: z
+          .union([microsoft_graph_pageLayoutType, z.object({}).partial().passthrough()])
           .describe(
-            'For document libraries, the driveItem relationship exposes the listItem as a driveItem'
+            'The name of the page layout of the page. The possible values are: microsoftReserved, article, home, unknownFutureValue.'
           ),
-        fields: z
-          .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
-          .describe('The values of the columns set on this list item.'),
-        versions: z
-          .array(microsoft_graph_listItemVersion)
-          .describe('The list of previous versions of the list item.'),
+        publishingState: z
+          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+          .describe('The publishing status and the MM.mm version of the page.'),
+        title: z.string().describe('Title of the sitePage.').nullable(),
       })
       .partial()
       .passthrough()
@@ -12053,2152 +12726,6 @@ const microsoft_graph_permission = microsoft_graph_entity.and(
     })
     .partial()
     .passthrough()
-);
-const microsoft_graph_security_behaviorDuringRetentionPeriod = z.enum([
-  'doNotRetain',
-  'retain',
-  'retainAsRecord',
-  'retainAsRegulatoryRecord',
-  'unknownFutureValue',
-]);
-const microsoft_graph_retentionLabelSettings = z
-  .object({
-    behaviorDuringRetentionPeriod: z
-      .union([
-        microsoft_graph_security_behaviorDuringRetentionPeriod,
-        z.object({}).partial().passthrough(),
-      ])
-      .describe(
-        'Describes the item behavior during retention period. Possible values are: doNotRetain, retain, retainAsRecord, retainAsRegulatoryRecord, unknownFutureValue. Read-only.'
-      ),
-    isContentUpdateAllowed: z
-      .boolean()
-      .describe('Specifies whether updates to document content are allowed. Read-only.')
-      .nullable(),
-    isDeleteAllowed: z
-      .boolean()
-      .describe('Specifies whether the document deletion is allowed. Read-only.')
-      .nullable(),
-    isLabelUpdateAllowed: z
-      .boolean()
-      .describe(
-        "Specifies whether you're allowed to change the retention label on the document. Read-only."
-      )
-      .nullable(),
-    isMetadataUpdateAllowed: z
-      .boolean()
-      .describe(
-        'Specifies whether updates to the item metadata (for example, the Title field) are blocked. Read-only.'
-      )
-      .nullable(),
-    isRecordLocked: z
-      .boolean()
-      .describe('Specifies whether the item is locked. Read-write.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_itemRetentionLabel = microsoft_graph_entity.and(
-  z
-    .object({
-      isLabelAppliedExplicitly: z
-        .boolean()
-        .describe(
-          'Specifies whether the label is applied explicitly on the item. True indicates that the label is applied explicitly; otherwise, the label is inherited from its parent. Read-only.'
-        )
-        .nullable(),
-      labelAppliedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-        .describe('Identity of the user who applied the label. Read-only.'),
-      labelAppliedDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          'The date and time when the label was applied on the item. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z. Read-only.'
-        )
-        .nullable(),
-      name: z.string().describe('The retention label on the document. Read-write.').nullable(),
-      retentionSettings: z
-        .union([microsoft_graph_retentionLabelSettings, z.object({}).partial().passthrough()])
-        .describe('The retention settings enforced on the item. Read-write.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_subscription = microsoft_graph_entity.and(
-  z
-    .object({
-      applicationId: z
-        .string()
-        .describe(
-          'Optional. Identifier of the application used to create the subscription. Read-only.'
-        )
-        .nullable(),
-      changeType: z
-        .string()
-        .describe(
-          'Required. Indicates the type of change in the subscribed resource that raises a change notification. The supported values are: created, updated, deleted. Multiple values can be combined using a comma-separated list. Note:  Drive root item and list change notifications support only the updated changeType. User and group change notifications support updated and deleted changeType. Use updated to receive notifications when user or group is created, updated, or soft deleted. Use deleted to receive notifications when user or group is permanently deleted.'
-        ),
-      clientState: z
-        .string()
-        .describe(
-          'Optional. Specifies the value of the clientState property sent by the service in each change notification. The maximum length is 128 characters. The client can check that the change notification came from the service by comparing the value of the clientState property sent with the subscription with the value of the clientState property received with each change notification.'
-        )
-        .nullable(),
-      creatorId: z
-        .string()
-        .describe(
-          'Optional. Identifier of the user or service principal that created the subscription. If the app used delegated permissions to create the subscription, this field contains the ID of the signed-in user the app called on behalf of. If the app used application permissions, this field contains the ID of the service principal corresponding to the app. Read-only.'
-        )
-        .nullable(),
-      encryptionCertificate: z
-        .string()
-        .describe(
-          'Optional. A base64-encoded representation of a certificate with a public key used to encrypt resource data in change notifications. Optional but required when includeResourceData is true.'
-        )
-        .nullable(),
-      encryptionCertificateId: z
-        .string()
-        .describe(
-          'Optional. A custom app-provided identifier to help identify the certificate needed to decrypt resource data.'
-        )
-        .nullable(),
-      expirationDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          'Required. Specifies the date and time when the webhook subscription expires. The time is in UTC, and can be an amount of time from subscription creation that varies for the resource subscribed to. For the maximum supported subscription length of time, see Subscription lifetime.'
-        ),
-      includeResourceData: z
-        .boolean()
-        .describe(
-          'Optional. When set to true, change notifications include resource data (such as content of a chat message).'
-        )
-        .nullable(),
-      latestSupportedTlsVersion: z
-        .string()
-        .describe(
-          'Optional. Specifies the latest version of Transport Layer Security (TLS) that the notification endpoint, specified by notificationUrl, supports. The possible values are: v10, v11, v12, v13. For subscribers whose notification endpoint supports a version lower than the currently recommended version (TLS 1.2), specifying this property by a set timeline allows them to temporarily use their deprecated version of TLS before completing their upgrade to TLS 1.2. For these subscribers, not setting this property per the timeline would result in subscription operations failing. For subscribers whose notification endpoint already supports TLS 1.2, setting this property is optional. In such cases, Microsoft Graph defaults the property to v1_2.'
-        )
-        .nullable(),
-      lifecycleNotificationUrl: z
-        .string()
-        .describe(
-          'Required for Teams resources if  the expirationDateTime value is more than 1 hour from now; optional otherwise. The URL of the endpoint that receives lifecycle notifications, including subscriptionRemoved, reauthorizationRequired, and missed notifications. This URL must make use of the HTTPS protocol. For more information, see Reduce missing subscriptions and change notifications.'
-        )
-        .nullable(),
-      notificationQueryOptions: z
-        .string()
-        .describe(
-          'Optional. OData query options for specifying value for the targeting resource. Clients receive notifications when resource reaches the state matching the query options provided here. With this new property in the subscription creation payload along with all existing properties, Webhooks deliver notifications whenever a resource reaches the desired state mentioned in the notificationQueryOptions property. For example, when the print job is completed or when a print job resource isFetchable property value becomes true etc.  Supported only for Universal Print Service. For more information, see Subscribe to change notifications from cloud printing APIs using Microsoft Graph.'
-        )
-        .nullable(),
-      notificationUrl: z
-        .string()
-        .describe(
-          'Required. The URL of the endpoint that receives the change notifications. This URL must make use of the HTTPS protocol. Any query string parameter included in the notificationUrl property is included in the HTTP POST request when Microsoft Graph sends the change notifications.'
-        ),
-      notificationUrlAppId: z
-        .string()
-        .describe(
-          'Optional. The app ID that the subscription service can use to generate the validation token. The value allows the client to validate the authenticity of the notification received.'
-        )
-        .nullable(),
-      resource: z
-        .string()
-        .describe(
-          "Required. Specifies the resource that is monitored for changes. Don't include the base URL (https://graph.microsoft.com/v1.0/). See the possible resource path values for each supported resource."
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_thumbnail = z
-  .object({
-    content: z.string().describe('The content stream for the thumbnail.').nullable(),
-    height: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The height of the thumbnail, in pixels.')
-      .nullable(),
-    sourceItemId: z
-      .string()
-      .describe(
-        'The unique identifier of the item that provided the thumbnail. This is only available when a folder thumbnail is requested.'
-      )
-      .nullable(),
-    url: z.string().describe('The URL used to fetch the thumbnail content.').nullable(),
-    width: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The width of the thumbnail, in pixels.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_thumbnailSet = microsoft_graph_entity.and(
-  z
-    .object({
-      large: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
-        .describe('A 1920x1920 scaled thumbnail.'),
-      medium: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
-        .describe('A 176x176 scaled thumbnail.'),
-      small: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
-        .describe('A 48x48 cropped thumbnail.'),
-      source: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
-        .describe(
-          'A custom thumbnail image or the original image used to generate other thumbnails.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_driveItemVersion = microsoft_graph_baseItemVersion.and(
-  z
-    .object({
-      content: z.string().describe('The content stream for this version of the item.').nullable(),
-      size: z
-        .number()
-        .describe('Indicates the size of the content stream for this version of the item.')
-        .nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookApplication = microsoft_graph_entity.and(
-  z
-    .object({
-      calculationMode: z
-        .string()
-        .describe(
-          'Returns the calculation mode used in the workbook. Possible values are: Automatic, AutomaticExceptTables, Manual.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookCommentReply = microsoft_graph_entity.and(
-  z
-    .object({
-      content: z.string().describe('The content of the reply.').nullable(),
-      contentType: z.string().describe('The content type for the reply.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookComment = microsoft_graph_entity.and(
-  z
-    .object({
-      content: z.string().describe('The content of the comment.').nullable(),
-      contentType: z.string().describe('The content type of the comment.'),
-      replies: z
-        .array(microsoft_graph_workbookCommentReply)
-        .describe('The list of replies to the comment. Read-only. Nullable.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookFunctions = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
-const microsoft_graph_workbookChartFont = microsoft_graph_entity.and(
-  z
-    .object({
-      bold: z.boolean().describe('Indicates whether the fond is bold.').nullable(),
-      color: z
-        .string()
-        .describe(
-          'The HTML color code representation of the text color. For example #FF0000 represents Red.'
-        )
-        .nullable(),
-      italic: z.boolean().describe('Indicates whether the fond is italic.').nullable(),
-      name: z.string().describe("The font name. For example 'Calibri'.").nullable(),
-      size: z
-        .union([z.number(), z.string(), ReferenceNumeric])
-        .describe('The size of the font. For example,  11.'),
-      underline: z
-        .string()
-        .describe(
-          'The type of underlining applied to the font. The possible values are: None, Single.'
-        )
-        .nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartLineFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      color: z
-        .string()
-        .describe('The HTML color code that represents the color of lines in the chart.')
-        .nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAxisFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes (font name, font size, color, etc.) for a chart axis element. Read-only.'
-        ),
-      line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
-        .describe('Represents chart line formatting. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartGridlinesFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
-        .describe('Represents chart line formatting. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartGridlines = microsoft_graph_entity.and(
-  z
-    .object({
-      visible: z.boolean().describe('Indicates whether the axis gridlines are visible.'),
-      format: z
-        .union([microsoft_graph_workbookChartGridlinesFormat, z.object({}).partial().passthrough()])
-        .describe('Represents the formatting of chart gridlines. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAxisTitleFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes, such as font name, font size, color, etc. of chart axis title object. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAxisTitle = microsoft_graph_entity.and(
-  z
-    .object({
-      text: z.string().describe('Represents the axis title.').nullable(),
-      visible: z.boolean().describe('A Boolean that specifies the visibility of an axis title.'),
-      format: z
-        .union([microsoft_graph_workbookChartAxisTitleFormat, z.object({}).partial().passthrough()])
-        .describe('Represents the formatting of chart axis title. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAxis = microsoft_graph_entity.and(
-  z
-    .object({
-      majorUnit: z
-        .unknown()
-        .describe(
-          'Represents the interval between two major tick marks. Can be set to a numeric value or an empty string.  The returned value is always a number.'
-        ),
-      maximum: z
-        .unknown()
-        .describe(
-          'Represents the maximum value on the value axis.  Can be set to a numeric value or an empty string (for automatic axis values).  The returned value is always a number.'
-        ),
-      minimum: z
-        .unknown()
-        .describe(
-          'Represents the minimum value on the value axis. Can be set to a numeric value or an empty string (for automatic axis values).  The returned value is always a number.'
-        ),
-      minorUnit: z
-        .unknown()
-        .describe(
-          "Represents the interval between two minor tick marks. 'Can be set to a numeric value or an empty string (for automatic axis values). The returned value is always a number."
-        ),
-      format: z
-        .union([microsoft_graph_workbookChartAxisFormat, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the formatting of a chart object, which includes line and font formatting. Read-only.'
-        ),
-      majorGridlines: z
-        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
-        .describe(
-          'Returns a gridlines object that represents the major gridlines for the specified axis. Read-only.'
-        ),
-      minorGridlines: z
-        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
-        .describe(
-          'Returns a Gridlines object that represents the minor gridlines for the specified axis. Read-only.'
-        ),
-      title: z
-        .union([microsoft_graph_workbookChartAxisTitle, z.object({}).partial().passthrough()])
-        .describe('Represents the axis title. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAxes = microsoft_graph_entity.and(
-  z
-    .object({
-      categoryAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
-        .describe('Represents the category axis in a chart. Read-only.'),
-      seriesAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
-        .describe('Represents the series axis of a 3-dimensional chart. Read-only.'),
-      valueAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
-        .describe('Represents the value axis in an axis. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartFill = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
-const microsoft_graph_workbookChartDataLabelFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe('Represents the fill format of the current chart data label. Read-only.'),
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes (font name, font size, color, etc.) for a chart data label. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartDataLabels = microsoft_graph_entity.and(
-  z
-    .object({
-      position: z
-        .string()
-        .describe(
-          'DataLabelPosition value that represents the position of the data label. The possible values are: None, Center, InsideEnd, InsideBase, OutsideEnd, Left, Right, Top, Bottom, BestFit, Callout.'
-        )
-        .nullable(),
-      separator: z
-        .string()
-        .describe('String that represents the separator used for the data labels on a chart.')
-        .nullable(),
-      showBubbleSize: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label bubble size is visible.')
-        .nullable(),
-      showCategoryName: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label category name is visible.')
-        .nullable(),
-      showLegendKey: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label legend key is visible.')
-        .nullable(),
-      showPercentage: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label percentage is visible.')
-        .nullable(),
-      showSeriesName: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label series name is visible.')
-        .nullable(),
-      showValue: z
-        .boolean()
-        .describe('Boolean value that represents whether the data label value is visible.')
-        .nullable(),
-      format: z
-        .union([microsoft_graph_workbookChartDataLabelFormat, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the format of chart data labels, which includes fill and font formatting. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartAreaFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the fill format of an object, which includes background formatting information. Read-only.'
-        ),
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartLegendFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the fill format of an object, which includes background formating information. Read-only.'
-        ),
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes such as font name, font size, color, etc. of a chart legend. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartLegend = microsoft_graph_entity.and(
-  z
-    .object({
-      overlay: z
-        .boolean()
-        .describe(
-          'Indicates whether the chart legend should overlap with the main body of the chart.'
-        )
-        .nullable(),
-      position: z
-        .string()
-        .describe(
-          'Represents the position of the legend on the chart. The possible values are: Top, Bottom, Left, Right, Corner, Custom.'
-        )
-        .nullable(),
-      visible: z.boolean().describe('Indicates whether the chart legend is visible.'),
-      format: z
-        .union([microsoft_graph_workbookChartLegendFormat, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the formatting of a chart legend, which includes fill and font formatting. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartSeriesFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the fill format of a chart series, which includes background formatting information. Read-only.'
-        ),
-      line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
-        .describe('Represents line formatting. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartPointFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the fill format of a chart, which includes background formatting information. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartPoint = microsoft_graph_entity.and(
-  z
-    .object({
-      value: z.unknown().describe('The value of a chart point. Read-only.'),
-      format: z
-        .union([microsoft_graph_workbookChartPointFormat, z.object({}).partial().passthrough()])
-        .describe('The format properties of the chart point. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartSeries = microsoft_graph_entity.and(
-  z
-    .object({
-      name: z.string().describe('The name of a series in a chart.').nullable(),
-      format: z
-        .union([microsoft_graph_workbookChartSeriesFormat, z.object({}).partial().passthrough()])
-        .describe(
-          'The formatting of a chart series, which includes fill and line formatting. Read-only.'
-        ),
-      points: z
-        .array(microsoft_graph_workbookChartPoint)
-        .describe('A collection of all points in the series. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartTitleFormat = microsoft_graph_entity.and(
-  z
-    .object({
-      fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the fill format of an object, which includes background formatting information. Read-only.'
-        ),
-      font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
-        .describe(
-          'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChartTitle = microsoft_graph_entity.and(
-  z
-    .object({
-      overlay: z
-        .boolean()
-        .describe('Indicates whether the chart title will overlay the chart or not.')
-        .nullable(),
-      text: z.string().describe('The title text of the chart.').nullable(),
-      visible: z.boolean().describe('Indicates whether the chart title is visible.'),
-      format: z
-        .union([microsoft_graph_workbookChartTitleFormat, z.object({}).partial().passthrough()])
-        .describe(
-          'The formatting of a chart title, which includes fill and font formatting. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        height: z
-          .union([z.number(), z.string(), ReferenceNumeric])
-          .describe('Represents the height, in points, of the chart object.'),
-        left: z
-          .union([z.number(), z.string(), ReferenceNumeric])
-          .describe(
-            'The distance, in points, from the left side of the chart to the worksheet origin.'
-          ),
-        name: z.string().describe('Represents the name of a chart object.').nullable(),
-        top: z
-          .union([z.number(), z.string(), ReferenceNumeric])
-          .describe(
-            'Represents the distance, in points, from the top edge of the object to the top of row 1 (on a worksheet) or the top of the chart area (on a chart).'
-          ),
-        width: z
-          .union([z.number(), z.string(), ReferenceNumeric])
-          .describe('Represents the width, in points, of the chart object.'),
-        axes: z
-          .union([microsoft_graph_workbookChartAxes, z.object({}).partial().passthrough()])
-          .describe('Represents chart axes. Read-only.'),
-        dataLabels: z
-          .union([microsoft_graph_workbookChartDataLabels, z.object({}).partial().passthrough()])
-          .describe('Represents the data labels on the chart. Read-only.'),
-        format: z
-          .union([microsoft_graph_workbookChartAreaFormat, z.object({}).partial().passthrough()])
-          .describe('Encapsulates the format properties for the chart area. Read-only.'),
-        legend: z
-          .union([microsoft_graph_workbookChartLegend, z.object({}).partial().passthrough()])
-          .describe('Represents the legend for the chart. Read-only.'),
-        series: z
-          .array(microsoft_graph_workbookChartSeries)
-          .describe(
-            'Represents either a single series or collection of series in the chart. Read-only.'
-          ),
-        title: z
-          .union([microsoft_graph_workbookChartTitle, z.object({}).partial().passthrough()])
-          .describe(
-            'Represents the title of the specified chart, including the text, visibility, position and formatting of the title. Read-only.'
-          ),
-        worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
-          .describe('The worksheet containing the current chart. Read-only.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_workbookPivotTable: z.ZodType<microsoft_graph_workbookPivotTable> = z.lazy(
-  () =>
-    microsoft_graph_entity.and(
-      z
-        .object({
-          name: z.string().describe('The name of the pivot table.').nullable(),
-          worksheet: z
-            .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
-            .describe('The worksheet that contains the current pivot table. Read-only.'),
-        })
-        .partial()
-        .passthrough()
-    )
-);
-const microsoft_graph_workbookWorksheetProtectionOptions = z
-  .object({
-    allowAutoFilter: z
-      .boolean()
-      .describe(
-        'Represents the worksheet protection option of allowing using auto filter feature.'
-      ),
-    allowDeleteColumns: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing deleting columns.'),
-    allowDeleteRows: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing deleting rows.'),
-    allowFormatCells: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting cells.'),
-    allowFormatColumns: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting columns.'),
-    allowFormatRows: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting rows.'),
-    allowInsertColumns: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting columns.'),
-    allowInsertHyperlinks: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting hyperlinks.'),
-    allowInsertRows: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting rows.'),
-    allowPivotTables: z
-      .boolean()
-      .describe(
-        'Represents the worksheet protection option of allowing using pivot table feature.'
-      ),
-    allowSort: z
-      .boolean()
-      .describe('Represents the worksheet protection option of allowing using sort feature.'),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_workbookWorksheetProtection = microsoft_graph_entity.and(
-  z
-    .object({
-      options: z
-        .union([
-          microsoft_graph_workbookWorksheetProtectionOptions,
-          z.object({}).partial().passthrough(),
-        ])
-        .describe('Worksheet protection options. Read-only.'),
-      protected: z.boolean().describe('Indicates whether the worksheet is protected.  Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookIcon = z
-  .object({
-    index: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The index of the icon in the given set.'),
-    set: z
-      .string()
-      .describe(
-        'The set that the icon is part of. The possible values are: Invalid, ThreeArrows, ThreeArrowsGray, ThreeFlags, ThreeTrafficLights1, ThreeTrafficLights2, ThreeSigns, ThreeSymbols, ThreeSymbols2, FourArrows, FourArrowsGray, FourRedToBlack, FourRating, FourTrafficLights, FiveArrows, FiveArrowsGray, FiveRating, FiveQuarters, ThreeStars, ThreeTriangles, FiveBoxes.'
-      ),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_workbookFilterCriteria = z
-  .object({
-    color: z.string().describe('The color applied to the cell.').nullable(),
-    criterion1: z.string().describe('A custom criterion.').nullable(),
-    criterion2: z.string().describe('A custom criterion.').nullable(),
-    dynamicCriteria: z.string().describe('A dynamic formula specified in a custom filter.'),
-    filterOn: z.string().describe('Indicates whether a filter is applied to a column.'),
-    icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
-      .describe('An icon applied to a cell via conditional formatting.'),
-    operator: z.string().describe('An operator in a cell; for example, =, >, <, <=, or <>.'),
-    values: z.unknown().describe('The values that appear in the cell.'),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_workbookFilter = microsoft_graph_entity.and(
-  z
-    .object({
-      criteria: z
-        .union([microsoft_graph_workbookFilterCriteria, z.object({}).partial().passthrough()])
-        .describe('The currently applied filter on the given column. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookTableColumn = microsoft_graph_entity.and(
-  z
-    .object({
-      index: z
-        .number()
-        .gte(-2147483648)
-        .lte(2147483647)
-        .describe(
-          'The index of the column within the columns collection of the table. Zero-indexed. Read-only.'
-        ),
-      name: z.string().describe('The name of the table column.').nullable(),
-      values: z
-        .unknown()
-        .describe(
-          'TRepresents the raw values of the specified range. The data returned could be of type string, number, or a Boolean. Cell that contain an error will return the error string.'
-        ),
-      filter: z
-        .union([microsoft_graph_workbookFilter, z.object({}).partial().passthrough()])
-        .describe('The filter applied to the column. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookTableRow = microsoft_graph_entity.and(
-  z
-    .object({
-      index: z
-        .number()
-        .gte(-2147483648)
-        .lte(2147483647)
-        .describe(
-          'The index of the row within the rows collection of the table. Zero-based. Read-only.'
-        ),
-      values: z
-        .unknown()
-        .describe(
-          'The raw values of the specified range. The data returned could be of type string, number, or a Boolean. Any cell that contain an error will return the error string.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookSortField = z
-  .object({
-    ascending: z
-      .boolean()
-      .describe('Represents whether the sorting is done in an ascending fashion.'),
-    color: z
-      .string()
-      .describe(
-        'Represents the color that is the target of the condition if the sorting is on font or cell color.'
-      )
-      .nullable(),
-    dataOption: z
-      .string()
-      .describe(
-        'Represents additional sorting options for this field. The possible values are: Normal, TextAsNumber.'
-      ),
-    icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
-      .describe(
-        "Represents the icon that is the target of the condition if the sorting is on the cell's icon."
-      ),
-    key: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe(
-        'Represents the column (or row, depending on the sort orientation) that the condition is on. Represented as an offset from the first column (or row).'
-      ),
-    sortOn: z
-      .string()
-      .describe(
-        'Represents the type of sorting of this condition. The possible values are: Value, CellColor, FontColor, Icon.'
-      ),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_workbookTableSort = microsoft_graph_entity.and(
-  z
-    .object({
-      fields: z
-        .array(microsoft_graph_workbookSortField)
-        .describe('The list of the current conditions last used to sort the table. Read-only.'),
-      matchCase: z
-        .boolean()
-        .describe('Indicates whether the casing impacted the last sort of the table. Read-only.'),
-      method: z
-        .string()
-        .describe(
-          'The Chinese character ordering method last used to sort the table. The possible values are: PinYin, StrokeCount. Read-only.'
-        ),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbookTable: z.ZodType<microsoft_graph_workbookTable> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        highlightFirstColumn: z
-          .boolean()
-          .describe('Indicates whether the first column contains special formatting.'),
-        highlightLastColumn: z
-          .boolean()
-          .describe('Indicates whether the last column contains special formatting.'),
-        legacyId: z
-          .string()
-          .describe(
-            "A legacy identifier used in older Excel clients. The value of the identifier remains the same even when the table is renamed. This property should be interpreted as an opaque string value and shouldn't be parsed to any other type. Read-only."
-          )
-          .nullable(),
-        name: z.string().describe('The name of the table.').nullable(),
-        showBandedColumns: z
-          .boolean()
-          .describe(
-            'Indicates whether the columns show banded formatting in which odd columns are highlighted differently from even ones to make reading the table easier.'
-          ),
-        showBandedRows: z
-          .boolean()
-          .describe(
-            'Indicates whether the rows show banded formatting in which odd rows are highlighted differently from even ones to make reading the table easier.'
-          ),
-        showFilterButton: z
-          .boolean()
-          .describe(
-            'Indicates whether the filter buttons are visible at the top of each column header. Setting this is only allowed if the table contains a header row.'
-          ),
-        showHeaders: z
-          .boolean()
-          .describe(
-            'Indicates whether the header row is visible or not. This value can be set to show or remove the header row.'
-          ),
-        showTotals: z
-          .boolean()
-          .describe(
-            'Indicates whether the total row is visible or not. This value can be set to show or remove the total row.'
-          ),
-        style: z
-          .string()
-          .describe(
-            'A constant value that represents the Table style. Possible values are: TableStyleLight1 through TableStyleLight21, TableStyleMedium1 through TableStyleMedium28, TableStyleStyleDark1 through TableStyleStyleDark11. A custom user-defined style present in the workbook can also be specified.'
-          )
-          .nullable(),
-        columns: z
-          .array(microsoft_graph_workbookTableColumn)
-          .describe('The list of all the columns in the table. Read-only.'),
-        rows: z
-          .array(microsoft_graph_workbookTableRow)
-          .describe('The list of all the rows in the table. Read-only.'),
-        sort: z
-          .union([microsoft_graph_workbookTableSort, z.object({}).partial().passthrough()])
-          .describe('The sorting for the table. Read-only.'),
-        worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
-          .describe('The worksheet containing the current table. Read-only.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_workbookWorksheet: z.ZodType<microsoft_graph_workbookWorksheet> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        name: z.string().describe('The display name of the worksheet.').nullable(),
-        position: z
-          .number()
-          .gte(-2147483648)
-          .lte(2147483647)
-          .describe('The zero-based position of the worksheet within the workbook.'),
-        visibility: z
-          .string()
-          .describe(
-            'The visibility of the worksheet. The possible values are: Visible, Hidden, VeryHidden.'
-          ),
-        charts: z
-          .array(microsoft_graph_workbookChart)
-          .describe('The list of charts that are part of the worksheet. Read-only.'),
-        names: z
-          .array(microsoft_graph_workbookNamedItem)
-          .describe('The list of names that are associated with the worksheet. Read-only.'),
-        pivotTables: z
-          .array(microsoft_graph_workbookPivotTable)
-          .describe('The list of piot tables that are part of the worksheet.'),
-        protection: z
-          .union([
-            microsoft_graph_workbookWorksheetProtection,
-            z.object({}).partial().passthrough(),
-          ])
-          .describe('The sheet protection object for a worksheet. Read-only.'),
-        tables: z
-          .array(microsoft_graph_workbookTable)
-          .describe('The list of tables that are part of the worksheet. Read-only.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_workbookNamedItem: z.ZodType<microsoft_graph_workbookNamedItem> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        comment: z.string().describe('The comment associated with this name.').nullable(),
-        name: z.string().describe('The name of the object. Read-only.').nullable(),
-        scope: z
-          .string()
-          .describe(
-            'Indicates whether the name is scoped to the workbook or to a specific worksheet. Read-only.'
-          ),
-        type: z
-          .string()
-          .describe(
-            'The type of reference is associated with the name. Possible values are: String, Integer, Double, Boolean, Range. Read-only.'
-          )
-          .nullable(),
-        value: z
-          .unknown()
-          .describe(
-            'The formula that the name is defined to refer to. For example, =Sheet14!$B$2:$H$12 and =4.75. Read-only.'
-          ),
-        visible: z.boolean().describe('Indicates whether the object is visible.'),
-        worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
-          .describe(
-            'Returns the worksheet to which the named item is scoped. Available only if the item is scoped to the worksheet. Read-only.'
-          ),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_workbookOperationError: z.ZodType<microsoft_graph_workbookOperationError> =
-  z.lazy(() =>
-    z
-      .object({
-        code: z.string().describe('The error code.').nullable(),
-        innerError: z.union([
-          microsoft_graph_workbookOperationError,
-          z.object({}).partial().passthrough(),
-        ]),
-        message: z.string().describe('The error message.').nullable(),
-      })
-      .partial()
-      .passthrough()
-  );
-const microsoft_graph_workbookOperationStatus = z.enum([
-  'notStarted',
-  'running',
-  'succeeded',
-  'failed',
-]);
-const microsoft_graph_workbookOperation = microsoft_graph_entity.and(
-  z
-    .object({
-      error: z
-        .union([microsoft_graph_workbookOperationError, z.object({}).partial().passthrough()])
-        .describe('The error returned by the operation.'),
-      resourceLocation: z.string().describe('The resource URI for the result.').nullable(),
-      status: microsoft_graph_workbookOperationStatus,
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_workbook = microsoft_graph_entity.and(
-  z
-    .object({
-      application: z.union([
-        microsoft_graph_workbookApplication,
-        z.object({}).partial().passthrough(),
-      ]),
-      comments: z
-        .array(microsoft_graph_workbookComment)
-        .describe('Represents a collection of comments in a workbook.'),
-      functions: z.union([microsoft_graph_workbookFunctions, z.object({}).partial().passthrough()]),
-      names: z
-        .array(microsoft_graph_workbookNamedItem)
-        .describe(
-          'Represents a collection of workbooks scoped named items (named ranges and constants). Read-only.'
-        ),
-      operations: z
-        .array(microsoft_graph_workbookOperation)
-        .describe(
-          'The status of workbook operations. Getting an operation collection is not supported, but you can get the status of a long-running operation if the Location header is returned in the response. Read-only.'
-        ),
-      tables: z
-        .array(microsoft_graph_workbookTable)
-        .describe('Represents a collection of tables associated with the workbook. Read-only.'),
-      worksheets: z
-        .array(microsoft_graph_workbookWorksheet)
-        .describe('Represents a collection of worksheets associated with the workbook. Read-only.'),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy(() =>
-  microsoft_graph_baseItem.and(
-    z
-      .object({
-        audio: z
-          .union([microsoft_graph_audio, z.object({}).partial().passthrough()])
-          .describe(
-            'Audio metadata, if the item is an audio file. Read-only. Read-only. Only on OneDrive Personal.'
-          ),
-        bundle: z
-          .union([microsoft_graph_bundle, z.object({}).partial().passthrough()])
-          .describe('Bundle metadata, if the item is a bundle. Read-only.'),
-        content: z
-          .string()
-          .describe('The content stream, if the item represents a file.')
-          .nullable(),
-        cTag: z
-          .string()
-          .describe(
-            "An eTag for the content of the item. This eTag isn't changed if only the metadata is changed. Note This property isn't returned if the item is a folder. Read-only."
-          )
-          .nullable(),
-        deleted: z
-          .union([microsoft_graph_deleted, z.object({}).partial().passthrough()])
-          .describe('Information about the deleted state of the item. Read-only.'),
-        file: z
-          .union([microsoft_graph_file, z.object({}).partial().passthrough()])
-          .describe('File metadata, if the item is a file. Read-only.'),
-        fileSystemInfo: z
-          .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
-          .describe('File system information on client. Read-write.'),
-        folder: z
-          .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
-          .describe('Folder metadata, if the item is a folder. Read-only.'),
-        image: z
-          .union([microsoft_graph_image, z.object({}).partial().passthrough()])
-          .describe('Image metadata, if the item is an image. Read-only.'),
-        location: z
-          .union([microsoft_graph_geoCoordinates, z.object({}).partial().passthrough()])
-          .describe('Location metadata, if the item has location data. Read-only.'),
-        malware: z
-          .union([microsoft_graph_malware, z.object({}).partial().passthrough()])
-          .describe('Malware metadata, if the item was detected to contain malware. Read-only.'),
-        package: z
-          .union([microsoft_graph_package, z.object({}).partial().passthrough()])
-          .describe(
-            'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
-          ),
-        pendingOperations: z
-          .union([microsoft_graph_pendingOperations, z.object({}).partial().passthrough()])
-          .describe(
-            'If present, indicates that one or more operations that might affect the state of the driveItem are pending completion. Read-only.'
-          ),
-        photo: z
-          .union([microsoft_graph_photo, z.object({}).partial().passthrough()])
-          .describe('Photo metadata, if the item is a photo. Read-only.'),
-        publication: z
-          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
-          .describe(
-            "Provides information about the published or checked-out state of an item, in locations that support such actions. This property isn't returned by default. Read-only."
-          ),
-        remoteItem: z
-          .union([microsoft_graph_remoteItem, z.object({}).partial().passthrough()])
-          .describe(
-            'Remote item data, if the item is shared from a drive other than the one being accessed. Read-only.'
-          ),
-        root: z
-          .union([microsoft_graph_root, z.object({}).partial().passthrough()])
-          .describe(
-            'If this property is non-null, it indicates that the driveItem is the top-most driveItem in the drive.'
-          ),
-        searchResult: z
-          .union([microsoft_graph_searchResult, z.object({}).partial().passthrough()])
-          .describe('Search metadata, if the item is from a search result. Read-only.'),
-        shared: z
-          .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
-          .describe(
-            'Indicates that the item was shared with others and provides information about the shared state of the item. Read-only.'
-          ),
-        sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
-          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-        size: z.number().describe('Size of the item in bytes. Read-only.').nullable(),
-        specialFolder: z
-          .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
-          .describe(
-            'If the current item is also available as a special folder, this facet is returned. Read-only.'
-          ),
-        video: z
-          .union([microsoft_graph_video, z.object({}).partial().passthrough()])
-          .describe('Video metadata, if the item is a video. Read-only.'),
-        webDavUrl: z.string().describe('WebDAV compatible URL for the item.').nullable(),
-        analytics: z
-          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
-          .describe('Analytics about the view activities that took place on this item.'),
-        children: z
-          .array(microsoft_graph_driveItem)
-          .describe(
-            'Collection containing Item objects for the immediate children of Item. Only items representing folders have children. Read-only. Nullable.'
-          ),
-        listItem: z
-          .union([microsoft_graph_listItem, z.object({}).partial().passthrough()])
-          .describe(
-            'For drives in SharePoint, the associated document library list item. Read-only. Nullable.'
-          ),
-        permissions: z
-          .array(microsoft_graph_permission)
-          .describe('The set of permissions for the item. Read-only. Nullable.'),
-        retentionLabel: z
-          .union([microsoft_graph_itemRetentionLabel, z.object({}).partial().passthrough()])
-          .describe(
-            'Information about retention label and settings enforced on the driveItem. Read-write.'
-          ),
-        subscriptions: z
-          .array(microsoft_graph_subscription)
-          .describe('The set of subscriptions on the item. Only supported on the root of a drive.'),
-        thumbnails: z
-          .array(microsoft_graph_thumbnailSet)
-          .describe(
-            'Collection of thumbnailSet objects associated with the item. For more information, see getting thumbnails. Read-only. Nullable.'
-          ),
-        versions: z
-          .array(microsoft_graph_driveItemVersion)
-          .describe(
-            'The list of previous versions of the item. For more info, see getting previous versions. Read-only. Nullable.'
-          ),
-        workbook: z
-          .union([microsoft_graph_workbook, z.object({}).partial().passthrough()])
-          .describe(
-            "For files that are Excel spreadsheets, access to the workbook API to work with the spreadsheet's contents. Nullable."
-          ),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        access: z
-          .union([microsoft_graph_accessAction, z.object({}).partial().passthrough()])
-          .describe('An item was accessed.'),
-        activityDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Details about when the activity took place. Read-only.')
-          .nullable(),
-        actor: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-          .describe('Identity of who performed the action. Read-only.'),
-        driveItem: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
-          .describe('Exposes the driveItem that was the target of this activity.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivityStat> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        access: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
-          .describe('Statistics about the access actions in this interval. Read-only.'),
-        create: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
-          .describe('Statistics about the create actions in this interval. Read-only.'),
-        delete: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
-          .describe('Statistics about the delete actions in this interval. Read-only.'),
-        edit: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
-          .describe('Statistics about the edit actions in this interval. Read-only.'),
-        endDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('When the interval ends. Read-only.')
-          .nullable(),
-        incompleteData: z
-          .union([microsoft_graph_incompleteData, z.object({}).partial().passthrough()])
-          .describe(
-            'Indicates that the statistics in this interval are based on incomplete data. Read-only.'
-          ),
-        isTrending: z
-          .boolean()
-          .describe("Indicates whether the item is 'trending.' Read-only.")
-          .nullable(),
-        move: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
-          .describe('Statistics about the move actions in this interval. Read-only.'),
-        startDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('When the interval starts. Read-only.')
-          .nullable(),
-        activities: z
-          .array(microsoft_graph_itemActivity)
-          .describe('Exposes the itemActivities represented in this itemActivityStat resource.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_itemAnalytics: z.ZodType<microsoft_graph_itemAnalytics> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        allTime: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().passthrough()]),
-        itemActivityStats: z.array(microsoft_graph_itemActivityStat),
-        lastSevenDays: z.union([
-          microsoft_graph_itemActivityStat,
-          z.object({}).partial().passthrough(),
-        ]),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_booleanColumn = z.object({}).partial().passthrough();
-const microsoft_graph_calculatedColumn = z
-  .object({
-    format: z
-      .string()
-      .describe(
-        'For dateTime output types, the format of the value. Possible values are: dateOnly or dateTime.'
-      )
-      .nullable(),
-    formula: z
-      .string()
-      .describe('The formula used to compute the value for this column.')
-      .nullable(),
-    outputType: z
-      .string()
-      .describe(
-        'The output type used to format values in this column. Possible values are: boolean, currency, dateTime, number, or text.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_choiceColumn = z
-  .object({
-    allowTextEntry: z
-      .boolean()
-      .describe("If true, allows custom values that aren't in the configured choices.")
-      .nullable(),
-    choices: z
-      .array(z.string().nullable())
-      .describe('The list of values available for this column.'),
-    displayAs: z
-      .string()
-      .describe(
-        'How the choices are to be presented in the UX. Must be one of checkBoxes, dropDownMenu, or radioButtons'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_contentApprovalStatusColumn = z.object({}).partial().passthrough();
-const microsoft_graph_currencyColumn = z
-  .object({
-    locale: z
-      .string()
-      .describe('Specifies the locale from which to infer the currency symbol.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_dateTimeColumn = z
-  .object({
-    displayAs: z
-      .string()
-      .describe(
-        'How the value should be presented in the UX. Must be one of default, friendly, or standard. See below for more details. If unspecified, treated as default.'
-      )
-      .nullable(),
-    format: z
-      .string()
-      .describe(
-        'Indicates whether the value should be presented as a date only or a date and time. Must be one of dateOnly or dateTime'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_defaultColumnValue = z
-  .object({
-    formula: z
-      .string()
-      .describe('The formula used to compute the default value for the column.')
-      .nullable(),
-    value: z
-      .string()
-      .describe('The direct value to use as the default value for the column.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_geolocationColumn = z.object({}).partial().passthrough();
-const microsoft_graph_hyperlinkOrPictureColumn = z
-  .object({
-    isPicture: z
-      .boolean()
-      .describe(
-        'Specifies whether the display format used for URL columns is an image or a hyperlink.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_lookupColumn = z
-  .object({
-    allowMultipleValues: z
-      .boolean()
-      .describe('Indicates whether multiple values can be selected from the source.')
-      .nullable(),
-    allowUnlimitedLength: z
-      .boolean()
-      .describe(
-        'Indicates whether values in the column should be able to exceed the standard limit of 255 characters.'
-      )
-      .nullable(),
-    columnName: z.string().describe('The name of the lookup source column.').nullable(),
-    listId: z.string().describe('The unique identifier of the lookup source list.').nullable(),
-    primaryLookupColumnId: z
-      .string()
-      .describe(
-        'If specified, this column is a secondary lookup, pulling an additional field from the list item looked up by the primary lookup. Use the list item looked up by the primary as the source for the column named here.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_numberColumn = z
-  .object({
-    decimalPlaces: z
-      .string()
-      .describe(
-        'How many decimal places to display. See below for information about the possible values.'
-      )
-      .nullable(),
-    displayAs: z
-      .string()
-      .describe(
-        'How the value should be presented in the UX. Must be one of number or percentage. If unspecified, treated as number.'
-      )
-      .nullable(),
-    maximum: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The maximum permitted value.'),
-    minimum: z
-      .union([z.number(), z.string(), ReferenceNumeric])
-      .describe('The minimum permitted value.'),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_personOrGroupColumn = z
-  .object({
-    allowMultipleSelection: z
-      .boolean()
-      .describe('Indicates whether multiple values can be selected from the source.')
-      .nullable(),
-    chooseFromType: z
-      .string()
-      .describe(
-        'Whether to allow selection of people only, or people and groups. Must be one of peopleAndGroups or peopleOnly.'
-      )
-      .nullable(),
-    displayAs: z
-      .string()
-      .describe('How to display the information about the person or group chosen. See below.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_termStore_localizedDescription = z
-  .object({
-    description: z.string().describe('The description in the localized language.').nullable(),
-    languageTag: z.string().describe('The language tag for the label.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_termStore_localizedLabel = z
-  .object({
-    isDefault: z.boolean().describe('Indicates whether the label is the default label.').nullable(),
-    languageTag: z.string().describe('The language tag for the label.').nullable(),
-    name: z.string().describe('The name of the label.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_keyValue = z
-  .object({
-    key: z.string().describe('Key for the key-value pair.').nullable(),
-    value: z.string().describe('Value for the key-value pair.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_termStore_relationType = z.enum(['pin', 'reuse', 'unknownFutureValue']);
-const microsoft_graph_termStore_localizedName = z
-  .object({
-    languageTag: z.string().describe('The language tag for the label.').nullable(),
-    name: z.string().describe('The name in the localized language.').nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_termStore_termGroupScope = z.enum([
-  'global',
-  'system',
-  'siteCollection',
-  'unknownFutureValue',
-]);
-const microsoft_graph_termStore_group: z.ZodType<microsoft_graph_termStore_group> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        createdDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Date and time of the group creation. Read-only.')
-          .nullable(),
-        description: z
-          .string()
-          .describe('Description that gives details on the term usage.')
-          .nullable(),
-        displayName: z.string().describe('Name of the group.').nullable(),
-        parentSiteId: z.string().describe('ID of the parent site of this group.').nullable(),
-        scope: z
-          .union([microsoft_graph_termStore_termGroupScope, z.object({}).partial().passthrough()])
-          .describe(
-            'Returns the type of the group. Possible values are: global, system, and siteCollection.'
-          ),
-        sets: z
-          .array(microsoft_graph_termStore_set)
-          .describe('All sets under the group in a term [store].'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_termStore_set: z.ZodType<microsoft_graph_termStore_set> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        createdDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Date and time of set creation. Read-only.')
-          .nullable(),
-        description: z
-          .string()
-          .describe('Description that gives details on the term usage.')
-          .nullable(),
-        localizedNames: z
-          .array(microsoft_graph_termStore_localizedName)
-          .describe('Name of the set for each languageTag.'),
-        properties: z.array(microsoft_graph_keyValue).describe('Custom properties for the set.'),
-        children: z
-          .array(microsoft_graph_termStore_term)
-          .describe('Children terms of set in term [store].'),
-        parentGroup: microsoft_graph_termStore_group,
-        relations: z
-          .array(microsoft_graph_termStore_relation)
-          .describe('Indicates which terms have been pinned or reused directly under the set.'),
-        terms: z.array(microsoft_graph_termStore_term).describe('All the terms under the set.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_termStore_relation: z.ZodType<microsoft_graph_termStore_relation> = z.lazy(
-  () =>
-    microsoft_graph_entity.and(
-      z
-        .object({
-          relationship: z
-            .union([microsoft_graph_termStore_relationType, z.object({}).partial().passthrough()])
-            .describe('The type of relation. Possible values are: pin, reuse.'),
-          fromTerm: z
-            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
-            .describe(
-              'The from [term] of the relation. The term from which the relationship is defined. A null value would indicate the relation is directly with the [set].'
-            ),
-          set: z
-            .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
-            .describe('The [set] in which the relation is relevant.'),
-          toTerm: z
-            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
-            .describe(
-              'The to [term] of the relation. The term to which the relationship is defined.'
-            ),
-        })
-        .partial()
-        .passthrough()
-    )
-);
-const microsoft_graph_termStore_term: z.ZodType<microsoft_graph_termStore_term> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        createdDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Date and time of term creation. Read-only.')
-          .nullable(),
-        descriptions: z
-          .array(microsoft_graph_termStore_localizedDescription)
-          .describe('Description about term that is dependent on the languageTag.'),
-        labels: z
-          .array(microsoft_graph_termStore_localizedLabel)
-          .describe('Label metadata for a term.'),
-        lastModifiedDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Last date and time of term modification. Read-only.')
-          .nullable(),
-        properties: z
-          .array(microsoft_graph_keyValue)
-          .describe('Collection of properties on the term.'),
-        children: z.array(microsoft_graph_termStore_term).describe('Children of current term.'),
-        relations: z
-          .array(microsoft_graph_termStore_relation)
-          .describe(
-            'To indicate which terms are related to the current term as either pinned or reused.'
-          ),
-        set: z
-          .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
-          .describe('The [set] in which the term is created.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_termColumn = z
-  .object({
-    allowMultipleValues: z
-      .boolean()
-      .describe('Specifies whether the column allows more than one value.')
-      .nullable(),
-    showFullyQualifiedName: z
-      .boolean()
-      .describe('Specifies whether to display the entire term path or only the term label.')
-      .nullable(),
-    parentTerm: z.union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()]),
-    termSet: z.union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()]),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_textColumn = z
-  .object({
-    allowMultipleLines: z.boolean().describe('Whether to allow multiple lines of text.').nullable(),
-    appendChangesToExistingText: z
-      .boolean()
-      .describe('Whether updates to this column should replace existing text, or append to it.')
-      .nullable(),
-    linesForEditing: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The size of the text box.')
-      .nullable(),
-    maxLength: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('The maximum number of characters for the value.')
-      .nullable(),
-    textType: z
-      .string()
-      .describe('The type of text being stored. Must be one of plain or richText')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_thumbnailColumn = z.object({}).partial().passthrough();
-const microsoft_graph_columnTypes = z.enum([
-  'note',
-  'text',
-  'choice',
-  'multichoice',
-  'number',
-  'currency',
-  'dateTime',
-  'lookup',
-  'boolean',
-  'user',
-  'url',
-  'calculated',
-  'location',
-  'geolocation',
-  'term',
-  'multiterm',
-  'thumbnail',
-  'approvalStatus',
-  'unknownFutureValue',
-]);
-const microsoft_graph_displayNameLocalization = z
-  .object({
-    displayName: z
-      .string()
-      .describe(
-        'If present, the value of this field contains the displayName string that has been set for the language present in the languageTag field.'
-      )
-      .nullable(),
-    languageTag: z
-      .string()
-      .describe(
-        'Provides the language culture-code and friendly name of the language that the displayName field has been provided in.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_columnValidation = z
-  .object({
-    defaultLanguage: z
-      .string()
-      .describe('Default BCP 47 language tag for the description.')
-      .nullable(),
-    descriptions: z
-      .array(microsoft_graph_displayNameLocalization)
-      .describe(
-        "Localized messages that explain what is needed for this column's value to be considered valid. User will be prompted with this message if validation fails."
-      ),
-    formula: z
-      .string()
-      .describe(
-        'The formula to validate column value. For examples, see Examples of common formulas in lists.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefinition> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        boolean: z
-          .union([microsoft_graph_booleanColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores Boolean values.'),
-        calculated: z
-          .union([microsoft_graph_calculatedColumn, z.object({}).partial().passthrough()])
-          .describe("This column's data is calculated based on other columns."),
-        choice: z
-          .union([microsoft_graph_choiceColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores data from a list of choices.'),
-        columnGroup: z
-          .string()
-          .describe(
-            'For site columns, the name of the group this column belongs to. Helps organize related columns.'
-          )
-          .nullable(),
-        contentApprovalStatus: z
-          .union([
-            microsoft_graph_contentApprovalStatusColumn,
-            z.object({}).partial().passthrough(),
-          ])
-          .describe('This column stores content approval status.'),
-        currency: z
-          .union([microsoft_graph_currencyColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores currency values.'),
-        dateTime: z
-          .union([microsoft_graph_dateTimeColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores DateTime values.'),
-        defaultValue: z
-          .union([microsoft_graph_defaultColumnValue, z.object({}).partial().passthrough()])
-          .describe('The default value for this column.'),
-        description: z.string().describe('The user-facing description of the column.').nullable(),
-        displayName: z.string().describe('The user-facing name of the column.').nullable(),
-        enforceUniqueValues: z
-          .boolean()
-          .describe('If true, no two list items may have the same value for this column.')
-          .nullable(),
-        geolocation: z
-          .union([microsoft_graph_geolocationColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores a geolocation.'),
-        hidden: z
-          .boolean()
-          .describe('Specifies whether the column is displayed in the user interface.')
-          .nullable(),
-        hyperlinkOrPicture: z
-          .union([microsoft_graph_hyperlinkOrPictureColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores hyperlink or picture values.'),
-        indexed: z
-          .boolean()
-          .describe('Specifies whether the column values can be used for sorting and searching.')
-          .nullable(),
-        isDeletable: z
-          .boolean()
-          .describe('Indicates whether this column can be deleted.')
-          .nullable(),
-        isReorderable: z
-          .boolean()
-          .describe('Indicates whether values in the column can be reordered. Read-only.')
-          .nullable(),
-        isSealed: z.boolean().describe('Specifies whether the column can be changed.').nullable(),
-        lookup: z
-          .union([microsoft_graph_lookupColumn, z.object({}).partial().passthrough()])
-          .describe("This column's data is looked up from another source in the site."),
-        name: z
-          .string()
-          .describe(
-            'The API-facing name of the column as it appears in the fields on a listItem. For the user-facing name, see displayName.'
-          )
-          .nullable(),
-        number: z
-          .union([microsoft_graph_numberColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores number values.'),
-        personOrGroup: z
-          .union([microsoft_graph_personOrGroupColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores Person or Group values.'),
-        propagateChanges: z
-          .boolean()
-          .describe(
-            "If 'true', changes to this column will be propagated to lists that implement the column."
-          )
-          .nullable(),
-        readOnly: z
-          .boolean()
-          .describe('Specifies whether the column values can be modified.')
-          .nullable(),
-        required: z
-          .boolean()
-          .describe("Specifies whether the column value isn't optional.")
-          .nullable(),
-        sourceContentType: z
-          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
-          .describe(
-            'ContentType from which this column is inherited from. Present only in contentTypes columns response. Read-only.'
-          ),
-        term: z
-          .union([microsoft_graph_termColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores taxonomy terms.'),
-        text: z
-          .union([microsoft_graph_textColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores text values.'),
-        thumbnail: z
-          .union([microsoft_graph_thumbnailColumn, z.object({}).partial().passthrough()])
-          .describe('This column stores thumbnail values.'),
-        type: z
-          .union([microsoft_graph_columnTypes, z.object({}).partial().passthrough()])
-          .describe('For site columns, the type of column. Read-only.'),
-        validation: z
-          .union([microsoft_graph_columnValidation, z.object({}).partial().passthrough()])
-          .describe('This column stores validation formula and message for the column.'),
-        sourceColumn: z
-          .union([microsoft_graph_columnDefinition, z.object({}).partial().passthrough()])
-          .describe('The source column for the content type column.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_documentSetContent = z
-  .object({
-    contentType: z
-      .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
-      .describe('Content type information of the file.'),
-    fileName: z
-      .string()
-      .describe(
-        'Name of the file in resource folder that should be added as a default content or a template in the document set.'
-      )
-      .nullable(),
-    folderName: z
-      .string()
-      .describe(
-        'Folder name in which the file will be placed when a new document set is created in the library.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_documentSet = z
-  .object({
-    allowedContentTypes: z
-      .array(microsoft_graph_contentTypeInfo)
-      .describe('Content types allowed in document set.'),
-    defaultContents: z
-      .array(microsoft_graph_documentSetContent)
-      .describe('Default contents of document set.'),
-    propagateWelcomePageChanges: z
-      .boolean()
-      .describe('Specifies whether to push welcome page changes to inherited content types.')
-      .nullable(),
-    shouldPrefixNameToFile: z
-      .boolean()
-      .describe('Indicates whether to add the name of the document set to each file name.')
-      .nullable(),
-    welcomePageUrl: z.string().describe('Welcome page absolute URL.').nullable(),
-    sharedColumns: z.array(microsoft_graph_columnDefinition),
-    welcomePageColumns: z.array(microsoft_graph_columnDefinition),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_contentTypeOrder = z
-  .object({
-    default: z.boolean().describe('Indicates whether this is the default content type').nullable(),
-    position: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe('Specifies the position in which the content type appears in the selection UI.')
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_columnLink = microsoft_graph_entity.and(
-  z
-    .object({
-      name: z.string().describe('The name of the column  in this content type.').nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        associatedHubsUrls: z
-          .array(z.string().nullable())
-          .describe(
-            'List of canonical URLs for hub sites with which this content type is associated to. This will contain all hub sites where this content type is queued to be enforced or is already enforced. Enforcing a content type means that the content type is applied to the lists in the enforced sites.'
-          ),
-        description: z.string().describe('The descriptive text for the item.').nullable(),
-        documentSet: z
-          .union([microsoft_graph_documentSet, z.object({}).partial().passthrough()])
-          .describe('Document Set metadata.'),
-        documentTemplate: z
-          .union([microsoft_graph_documentSetContent, z.object({}).partial().passthrough()])
-          .describe(
-            'Document template metadata. To make sure that documents have consistent content across a site and its subsites, you can associate a Word, Excel, or PowerPoint template with a site content type.'
-          ),
-        group: z
-          .string()
-          .describe(
-            'The name of the group this content type belongs to. Helps organize related content types.'
-          )
-          .nullable(),
-        hidden: z
-          .boolean()
-          .describe("Indicates whether the content type is hidden in the list's 'New' menu.")
-          .nullable(),
-        inheritedFrom: z
-          .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
-          .describe(
-            'If this content type is inherited from another scope (like a site), provides a reference to the item where the content type is defined.'
-          ),
-        isBuiltIn: z
-          .boolean()
-          .describe('Specifies if a content type is a built-in content type.')
-          .nullable(),
-        name: z.string().describe('The name of the content type.').nullable(),
-        order: z
-          .union([microsoft_graph_contentTypeOrder, z.object({}).partial().passthrough()])
-          .describe('Specifies the order in which the content type appears in the selection UI.'),
-        parentId: z.string().describe('The unique identifier of the content type.').nullable(),
-        propagateChanges: z
-          .boolean()
-          .describe(
-            'If true, any changes made to the content type are pushed to inherited content types and lists that implement the content type.'
-          )
-          .nullable(),
-        readOnly: z
-          .boolean()
-          .describe(
-            "If true, the content type can't be modified unless this value is first set to false."
-          )
-          .nullable(),
-        sealed: z
-          .boolean()
-          .describe(
-            "If true, the content type can't be modified by users or through push-down operations. Only site collection administrators can seal or unseal content types."
-          )
-          .nullable(),
-        base: z
-          .union([microsoft_graph_contentType, z.object({}).partial().passthrough()])
-          .describe('Parent contentType from which this content type is derived.'),
-        baseTypes: z
-          .array(microsoft_graph_contentType)
-          .describe('The collection of content types that are ancestors of this content type.'),
-        columnLinks: z
-          .array(microsoft_graph_columnLink)
-          .describe('The collection of columns that are required by this content type.'),
-        columnPositions: z
-          .array(microsoft_graph_columnDefinition)
-          .describe('Column order information in a content type.'),
-        columns: z
-          .array(microsoft_graph_columnDefinition)
-          .describe('The collection of column definitions for this content type.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_listInfo = z
-  .object({
-    contentTypesEnabled: z
-      .boolean()
-      .describe('If true, indicates that content types are enabled for this list.')
-      .nullable(),
-    hidden: z
-      .boolean()
-      .describe(
-        "If true, indicates that the list isn't normally visible in the SharePoint user experience."
-      )
-      .nullable(),
-    template: z
-      .string()
-      .describe(
-        'An enumerated value that represents the base list template used in creating the list. Possible values include documentLibrary, genericList, task, survey, announcements, contacts, and more.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .passthrough();
-const microsoft_graph_systemFacet = z.object({}).partial().passthrough();
-const microsoft_graph_longRunningOperationStatus = z.enum([
-  'notStarted',
-  'running',
-  'succeeded',
-  'failed',
-  'unknownFutureValue',
-]);
-const microsoft_graph_longRunningOperation = microsoft_graph_entity.and(
-  z
-    .object({
-      createdDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          'The start time of the operation. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
-        )
-        .nullable(),
-      lastActionDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          'The time of the last action in the operation. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
-        )
-        .nullable(),
-      resourceLocation: z
-        .string()
-        .describe('URI of the resource that the operation is performed on.')
-        .nullable(),
-      status: z
-        .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().passthrough()])
-        .describe(
-          'The status of the operation. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue.'
-        ),
-      statusDetail: z.string().describe('Details about the status of the operation.').nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_richLongRunningOperation = microsoft_graph_longRunningOperation.and(
-  z
-    .object({
-      error: z
-        .union([microsoft_graph_publicError, z.object({}).partial().passthrough()])
-        .describe('Error that caused the operation to fail.'),
-      percentageComplete: z
-        .number()
-        .gte(-2147483648)
-        .lte(2147483647)
-        .describe('A value between 0 and 100 that indicates the progress of the operation.')
-        .nullable(),
-      resourceId: z.string().describe('The unique identifier for the result.').nullable(),
-      type: z.string().describe('The type of the operation.').nullable(),
-    })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
-  microsoft_graph_baseItem.and(
-    z
-      .object({
-        displayName: z.string().describe('The displayable title of the list.').nullable(),
-        list: z
-          .union([microsoft_graph_listInfo, z.object({}).partial().passthrough()])
-          .describe('Contains more details about the list.'),
-        sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
-          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-        system: z
-          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
-          .describe('If present, indicates that the list is system-managed. Read-only.'),
-        columns: z
-          .array(microsoft_graph_columnDefinition)
-          .describe('The collection of field definitions for this list.'),
-        contentTypes: z
-          .array(microsoft_graph_contentType)
-          .describe('The collection of content types present in this list.'),
-        drive: z
-          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
-          .describe(
-            'Allows access to the list as a drive resource with driveItems. Only present on document libraries.'
-          ),
-        items: z.array(microsoft_graph_listItem).describe('All items contained in the list.'),
-        operations: z
-          .array(microsoft_graph_richLongRunningOperation)
-          .describe('The collection of long-running operations on the list.'),
-        subscriptions: z
-          .array(microsoft_graph_subscription)
-          .describe('The set of subscriptions on the list.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_pageLayoutType = z.enum([
-  'microsoftReserved',
-  'article',
-  'home',
-  'unknownFutureValue',
-]);
-const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.lazy(() =>
-  microsoft_graph_baseItem.and(
-    z
-      .object({
-        pageLayout: z
-          .union([microsoft_graph_pageLayoutType, z.object({}).partial().passthrough()])
-          .describe(
-            'The name of the page layout of the page. The possible values are: microsoftReserved, article, home, unknownFutureValue.'
-          ),
-        publishingState: z
-          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
-          .describe('The publishing status and the MM.mm version of the page.'),
-        title: z.string().describe('Title of the sitePage.').nullable(),
-      })
-      .partial()
-      .passthrough()
-  )
 );
 const microsoft_graph_termStore_store = microsoft_graph_entity.and(
   z
@@ -15198,6 +13725,22 @@ const microsoft_graph_teamsAsyncOperation = microsoft_graph_entity.and(
     .partial()
     .passthrough()
 );
+const microsoft_graph_geoCoordinates = z
+  .object({
+    altitude: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe(
+        'Optional. The altitude (height), in feet,  above sea level for the item. Read-only.'
+      ),
+    latitude: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('Optional. The latitude, in decimal, for the item. Read-only.'),
+    longitude: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('Optional. The longitude, in decimal, for the item. Read-only.'),
+  })
+  .partial()
+  .passthrough();
 const microsoft_graph_timeClockSettings = z
   .object({
     approvedLocation: z
@@ -15987,7 +14530,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
         assignedLicenses: z
           .array(microsoft_graph_assignedLicense)
           .describe(
-            'The licenses that are assigned to the group. Returned only on $select. Supports $filter (eq).Read-only.'
+            'The licenses that are assigned to the group. Returned only on $select. Supports $filter (eq). Read-only.'
           ),
         autoSubscribeNewMembers: z
           .boolean()
@@ -19995,14 +18538,23 @@ const microsoft_graph_attendanceRecord = microsoft_graph_entity.and(
         .string()
         .describe('Email address of the user associated with this attendance record.')
         .nullable(),
-      externalRegistrationInformation: z.union([
-        microsoft_graph_virtualEventExternalRegistrationInformation,
-        z.object({}).partial().passthrough(),
-      ]),
+      externalRegistrationInformation: z
+        .union([
+          microsoft_graph_virtualEventExternalRegistrationInformation,
+          z.object({}).partial().passthrough(),
+        ])
+        .describe('The external information for a virtualEventRegistration.'),
       identity: z
         .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
-        .describe('Identity of the user associated with this attendance record.'),
-      registrationId: z.string().nullable(),
+        .describe(
+          'The identity of the user associated with this attendance record. The specific type is one of the following derived types of identity, depending on the user type: communicationsUserIdentity, azureCommunicationServicesUserIdentity.'
+        ),
+      registrationId: z
+        .string()
+        .describe(
+          'Unique identifier of a virtualEventRegistration that is available to all participants registered for the virtualEventWebinar.'
+        )
+        .nullable(),
       role: z
         .string()
         .describe(
@@ -20022,7 +18574,11 @@ const microsoft_graph_attendanceRecord = microsoft_graph_entity.and(
 const microsoft_graph_meetingAttendanceReport = microsoft_graph_entity.and(
   z
     .object({
-      externalEventInformation: z.array(microsoft_graph_virtualEventExternalInformation),
+      externalEventInformation: z
+        .array(microsoft_graph_virtualEventExternalInformation)
+        .describe(
+          'The external information of a virtual event. Returned only for event organizers or coorganizers. Read-only.'
+        ),
       meetingEndDateTime: z
         .string()
         .regex(
@@ -21783,126 +20339,1585 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
       .passthrough()
   )
 );
-const microsoft_graph_storagePlanInformation = z
+const microsoft_graph_audio = z
   .object({
-    upgradeAvailable: z
+    album: z.string().describe('The title of the album for this audio file.').nullable(),
+    albumArtist: z
+      .string()
+      .describe('The artist named on the album for the audio file.')
+      .nullable(),
+    artist: z.string().describe('The performing artist for the audio file.').nullable(),
+    bitrate: z.number().describe('Bitrate expressed in kbps.').nullable(),
+    composers: z.string().describe('The name of the composer of the audio file.').nullable(),
+    copyright: z.string().describe('Copyright information for the audio file.').nullable(),
+    disc: z
+      .number()
+      .gte(-32768)
+      .lte(32767)
+      .describe('The number of the disc this audio file came from.')
+      .nullable(),
+    discCount: z
+      .number()
+      .gte(-32768)
+      .lte(32767)
+      .describe('The total number of discs in this album.')
+      .nullable(),
+    duration: z
+      .number()
+      .describe('Duration of the audio file, expressed in milliseconds')
+      .nullable(),
+    genre: z.string().describe('The genre of this audio file.').nullable(),
+    hasDrm: z
       .boolean()
-      .describe('Indicates whether there are higher storage quota plans available. Read-only.')
+      .describe('Indicates if the file is protected with digital rights management.')
+      .nullable(),
+    isVariableBitrate: z
+      .boolean()
+      .describe('Indicates if the file is encoded with a variable bitrate.')
+      .nullable(),
+    title: z.string().describe('The title of the audio file.').nullable(),
+    track: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The number of the track on the original disc for this audio file.')
+      .nullable(),
+    trackCount: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The total number of tracks on the original disc for this audio file.')
+      .nullable(),
+    year: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The year the audio file was recorded.')
       .nullable(),
   })
   .partial()
   .passthrough();
-const microsoft_graph_quota = z
+const microsoft_graph_album = z
   .object({
-    deleted: z
-      .number()
-      .describe('Total space consumed by files in the recycle bin, in bytes. Read-only.')
-      .nullable(),
-    remaining: z
-      .number()
-      .describe('Total space remaining before reaching the capacity limit, in bytes. Read-only.')
-      .nullable(),
-    state: z
+    coverImageItemId: z
       .string()
-      .describe('Enumeration value that indicates the state of the storage space. Read-only.')
+      .describe('Unique identifier of the driveItem that is the cover of the album.')
       .nullable(),
-    storagePlanInformation: z
-      .union([microsoft_graph_storagePlanInformation, z.object({}).partial().passthrough()])
-      .describe("Information about the drive's storage quota plans. Only in Personal OneDrive."),
-    total: z.number().describe('Total allowed storage space, in bytes. Read-only.').nullable(),
-    used: z.number().describe('Total space used, in bytes. Read-only.').nullable(),
   })
   .partial()
   .passthrough();
-const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
-  microsoft_graph_baseItem.and(
-    z
-      .object({
-        driveType: z
-          .string()
-          .describe(
-            'Describes the type of drive represented by this resource. OneDrive personal drives return personal. OneDrive for Business returns business. SharePoint document libraries return documentLibrary. Read-only.'
-          )
-          .nullable(),
-        owner: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
-          .describe('Optional. The user account that owns the drive. Read-only.'),
-        quota: z
-          .union([microsoft_graph_quota, z.object({}).partial().passthrough()])
-          .describe("Optional. Information about the drive's storage space quota. Read-only."),
-        sharePointIds: z.union([
-          microsoft_graph_sharepointIds,
-          z.object({}).partial().passthrough(),
-        ]),
-        system: z
-          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
-          .describe("If present, indicates that it's a system-managed drive. Read-only."),
-        bundles: z
-          .array(microsoft_graph_driveItem)
-          .describe(
-            'Collection of bundles (albums and multi-select-shared sets of items). Only in personal OneDrive.'
-          ),
-        following: z
-          .array(microsoft_graph_driveItem)
-          .describe('The list of items the user is following. Only in OneDrive for Business.'),
-        items: z
-          .array(microsoft_graph_driveItem)
-          .describe('All items contained in the drive. Read-only. Nullable.'),
-        list: z
-          .union([microsoft_graph_list, z.object({}).partial().passthrough()])
-          .describe(
-            'For drives in SharePoint, the underlying document library list. Read-only. Nullable.'
-          ),
-        root: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
-          .describe('The root folder of the drive. Read-only.'),
-        special: z
-          .array(microsoft_graph_driveItem)
-          .describe('Collection of common folders available in OneDrive. Read-only. Nullable.'),
-      })
-      .partial()
-      .passthrough()
-  )
-);
-const microsoft_graph_driveCollectionResponse = BaseCollectionPaginationCountResponse.and(
-  z
-    .object({ value: z.array(microsoft_graph_drive) })
-    .partial()
-    .passthrough()
-);
-const microsoft_graph_ODataErrors_ErrorDetails = z
-  .object({ code: z.string(), message: z.string(), target: z.string().nullish() })
-  .passthrough();
-const microsoft_graph_ODataErrors_InnerError = z
+const microsoft_graph_bundle = z
   .object({
-    'request-id': z.string().describe('Request Id as tracked internally by the service').nullable(),
-    'client-request-id': z
-      .string()
-      .describe('Client request Id as sent by the client application.')
+    album: z
+      .union([microsoft_graph_album, z.object({}).partial().passthrough()])
+      .describe('If the bundle is an album, then the album property is included'),
+    childCount: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Number of children contained immediately within this container.')
       .nullable(),
-    date: z
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_deleted = z
+  .object({ state: z.string().describe('Represents the state of the deleted item.').nullable() })
+  .partial()
+  .passthrough();
+const microsoft_graph_hashes = z
+  .object({
+    crc32Hash: z
+      .string()
+      .describe('The CRC32 value of the file (if available). Read-only.')
+      .nullable(),
+    quickXorHash: z
+      .string()
+      .describe(
+        'A proprietary hash of the file that can be used to determine if the contents of the file change (if available). Read-only.'
+      )
+      .nullable(),
+    sha1Hash: z
+      .string()
+      .describe('SHA1 hash for the contents of the file (if available). Read-only.')
+      .nullable(),
+    sha256Hash: z.string().describe("This property isn't supported. Don't use.").nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_file = z
+  .object({
+    hashes: z
+      .union([microsoft_graph_hashes, z.object({}).partial().passthrough()])
+      .describe("Hashes of the file's binary content, if available. Read-only."),
+    mimeType: z
+      .string()
+      .describe(
+        'The MIME type for the file. This is determined by logic on the server and might not be the value provided when the file was uploaded. Read-only.'
+      )
+      .nullable(),
+    processingMetadata: z.boolean().nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_fileSystemInfo = z
+  .object({
+    createdDateTime: z
       .string()
       .regex(
         /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
       )
       .datetime({ offset: true })
-      .describe('Date when the error occured.')
+      .describe('The UTC date and time the file was created on a client.')
+      .nullable(),
+    lastAccessedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe(
+        'The UTC date and time the file was last accessed. Available for the recent file list only.'
+      )
+      .nullable(),
+    lastModifiedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('The UTC date and time the file was last modified on a client.')
       .nullable(),
   })
   .partial()
   .passthrough();
-const microsoft_graph_ODataErrors_MainError = z
+const microsoft_graph_folderView = z
   .object({
-    code: z.string(),
-    message: z.string(),
-    target: z.string().nullish(),
-    details: z.array(microsoft_graph_ODataErrors_ErrorDetails).optional(),
-    innerError: microsoft_graph_ODataErrors_InnerError.optional(),
+    sortBy: z.string().describe('The method by which the folder should be sorted.').nullable(),
+    sortOrder: z
+      .string()
+      .describe(
+        'If true, indicates that items should be sorted in descending order. Otherwise, items should be sorted ascending.'
+      )
+      .nullable(),
+    viewType: z
+      .string()
+      .describe('The type of view that should be used to represent the folder.')
+      .nullable(),
   })
+  .partial()
   .passthrough();
-const microsoft_graph_ODataErrors_ODataError = z
-  .object({ error: microsoft_graph_ODataErrors_MainError })
+const microsoft_graph_folder = z
+  .object({
+    childCount: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Number of children contained immediately within this container.')
+      .nullable(),
+    view: z
+      .union([microsoft_graph_folderView, z.object({}).partial().passthrough()])
+      .describe('A collection of properties defining the recommended view for the folder.'),
+  })
+  .partial()
   .passthrough();
+const microsoft_graph_image = z
+  .object({
+    height: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Optional. Height of the image, in pixels. Read-only.')
+      .nullable(),
+    width: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Optional. Width of the image, in pixels. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_malware = z
+  .object({
+    description: z
+      .string()
+      .describe('Contains the virus details for the malware facet.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_package = z
+  .object({
+    type: z
+      .string()
+      .describe(
+        'A string indicating the type of package. While oneNote is the only currently defined value, you should expect other package types to be returned and handle them accordingly.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_pendingContentUpdate = z
+  .object({
+    queuedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('Date and time the pending binary operation was queued in UTC time. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_pendingOperations = z
+  .object({
+    pendingContentUpdate: z
+      .union([microsoft_graph_pendingContentUpdate, z.object({}).partial().passthrough()])
+      .describe(
+        'A property that indicates that an operation that might update the binary content of a file is pending completion.'
+      ),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_photo = z
+  .object({
+    cameraMake: z.string().describe('Camera manufacturer. Read-only.').nullable(),
+    cameraModel: z.string().describe('Camera model. Read-only.').nullable(),
+    exposureDenominator: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The denominator for the exposure time fraction from the camera. Read-only.'),
+    exposureNumerator: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The numerator for the exposure time fraction from the camera. Read-only.'),
+    fNumber: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The F-stop value from the camera. Read-only.'),
+    focalLength: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('The focal length from the camera. Read-only.'),
+    iso: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The ISO value from the camera. Read-only.')
+      .nullable(),
+    orientation: z
+      .number()
+      .gte(-32768)
+      .lte(32767)
+      .describe('The orientation value from the camera. Writable on OneDrive Personal.')
+      .nullable(),
+    takenDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('Represents the date and time the photo was taken. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_shared = z
+  .object({
+    owner: z
+      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .describe('The identity of the owner of the shared item. Read-only.'),
+    scope: z
+      .string()
+      .describe(
+        'Indicates the scope of how the item is shared. The possible values are: anonymous, organization, or users. Read-only.'
+      )
+      .nullable(),
+    sharedBy: z
+      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .describe('The identity of the user who shared the item. Read-only.'),
+    sharedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('The UTC date and time when the item was shared. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_specialFolder = z
+  .object({
+    name: z
+      .string()
+      .describe('The unique identifier for this item in the /drive/special collection')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_video = z
+  .object({
+    audioBitsPerSample: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Number of audio bits per sample.')
+      .nullable(),
+    audioChannels: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Number of audio channels.')
+      .nullable(),
+    audioFormat: z.string().describe('Name of the audio format (AAC, MP3, etc.).').nullable(),
+    audioSamplesPerSecond: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Number of audio samples per second.')
+      .nullable(),
+    bitrate: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Bit rate of the video in bits per second.')
+      .nullable(),
+    duration: z.number().describe('Duration of the file in milliseconds.').nullable(),
+    fourCC: z.string().describe("'Four character code' name of the video format.").nullable(),
+    frameRate: z
+      .union([z.number(), z.string(), ReferenceNumeric])
+      .describe('Frame rate of the video.'),
+    height: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Height of the video, in pixels.')
+      .nullable(),
+    width: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('Width of the video, in pixels.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_remoteItem = z
+  .object({
+    createdBy: z
+      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .describe('Identity of the user, device, and application which created the item. Read-only.'),
+    createdDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('Date and time of item creation. Read-only.')
+      .nullable(),
+    file: z
+      .union([microsoft_graph_file, z.object({}).partial().passthrough()])
+      .describe('Indicates that the remote item is a file. Read-only.'),
+    fileSystemInfo: z
+      .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
+      .describe('Information about the remote item from the local file system. Read-only.'),
+    folder: z
+      .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
+      .describe('Indicates that the remote item is a folder. Read-only.'),
+    id: z
+      .string()
+      .describe('Unique identifier for the remote item in its drive. Read-only.')
+      .nullable(),
+    image: z
+      .union([microsoft_graph_image, z.object({}).partial().passthrough()])
+      .describe('Image metadata, if the item is an image. Read-only.'),
+    lastModifiedBy: z
+      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .describe(
+        'Identity of the user, device, and application which last modified the item. Read-only.'
+      ),
+    lastModifiedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('Date and time the item was last modified. Read-only.')
+      .nullable(),
+    name: z.string().describe('Optional. Filename of the remote item. Read-only.').nullable(),
+    package: z
+      .union([microsoft_graph_package, z.object({}).partial().passthrough()])
+      .describe(
+        'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
+      ),
+    parentReference: z
+      .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+      .describe('Properties of the parent of the remote item. Read-only.'),
+    shared: z
+      .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
+      .describe(
+        'Indicates that the item has been shared with others and provides information about the shared state of the item. Read-only.'
+      ),
+    sharepointIds: z
+      .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+      .describe(
+        'Provides interop between items in OneDrive for Business and SharePoint with the full set of item identifiers. Read-only.'
+      ),
+    size: z.number().describe('Size of the remote item. Read-only.').nullable(),
+    specialFolder: z
+      .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
+      .describe(
+        'If the current item is also available as a special folder, this facet is returned. Read-only.'
+      ),
+    video: z
+      .union([microsoft_graph_video, z.object({}).partial().passthrough()])
+      .describe('Video metadata, if the item is a video. Read-only.'),
+    webDavUrl: z.string().describe('DAV compatible URL for the item.').nullable(),
+    webUrl: z
+      .string()
+      .describe('URL that displays the resource in the browser. Read-only.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_searchResult = z
+  .object({
+    onClickTelemetryUrl: z
+      .string()
+      .describe(
+        'A callback URL that can be used to record telemetry information. The application should issue a GET on this URL if the user interacts with this item to improve the quality of results.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_security_behaviorDuringRetentionPeriod = z.enum([
+  'doNotRetain',
+  'retain',
+  'retainAsRecord',
+  'retainAsRegulatoryRecord',
+  'unknownFutureValue',
+]);
+const microsoft_graph_retentionLabelSettings = z
+  .object({
+    behaviorDuringRetentionPeriod: z
+      .union([
+        microsoft_graph_security_behaviorDuringRetentionPeriod,
+        z.object({}).partial().passthrough(),
+      ])
+      .describe(
+        'Describes the item behavior during retention period. Possible values are: doNotRetain, retain, retainAsRecord, retainAsRegulatoryRecord, unknownFutureValue. Read-only.'
+      ),
+    isContentUpdateAllowed: z
+      .boolean()
+      .describe('Specifies whether updates to document content are allowed. Read-only.')
+      .nullable(),
+    isDeleteAllowed: z
+      .boolean()
+      .describe('Specifies whether the document deletion is allowed. Read-only.')
+      .nullable(),
+    isLabelUpdateAllowed: z
+      .boolean()
+      .describe(
+        "Specifies whether you're allowed to change the retention label on the document. Read-only."
+      )
+      .nullable(),
+    isMetadataUpdateAllowed: z
+      .boolean()
+      .describe(
+        'Specifies whether updates to the item metadata (for example, the Title field) are blocked. Read-only.'
+      )
+      .nullable(),
+    isRecordLocked: z
+      .boolean()
+      .describe('Specifies whether the item is locked. Read-write.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_itemRetentionLabel = microsoft_graph_entity.and(
+  z
+    .object({
+      isLabelAppliedExplicitly: z
+        .boolean()
+        .describe(
+          'Specifies whether the label is applied explicitly on the item. True indicates that the label is applied explicitly; otherwise, the label is inherited from its parent. Read-only.'
+        )
+        .nullable(),
+      labelAppliedBy: z
+        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .describe('Identity of the user who applied the label. Read-only.'),
+      labelAppliedDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          'The date and time when the label was applied on the item. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z. Read-only.'
+        )
+        .nullable(),
+      name: z.string().describe('The retention label on the document. Read-write.').nullable(),
+      retentionSettings: z
+        .union([microsoft_graph_retentionLabelSettings, z.object({}).partial().passthrough()])
+        .describe('The retention settings enforced on the item. Read-write.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_thumbnail = z
+  .object({
+    content: z.string().describe('The content stream for the thumbnail.').nullable(),
+    height: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The height of the thumbnail, in pixels.')
+      .nullable(),
+    sourceItemId: z
+      .string()
+      .describe(
+        'The unique identifier of the item that provided the thumbnail. This is only available when a folder thumbnail is requested.'
+      )
+      .nullable(),
+    url: z.string().describe('The URL used to fetch the thumbnail content.').nullable(),
+    width: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The width of the thumbnail, in pixels.')
+      .nullable(),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_thumbnailSet = microsoft_graph_entity.and(
+  z
+    .object({
+      large: z
+        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .describe('A 1920x1920 scaled thumbnail.'),
+      medium: z
+        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .describe('A 176x176 scaled thumbnail.'),
+      small: z
+        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .describe('A 48x48 cropped thumbnail.'),
+      source: z
+        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .describe(
+          'A custom thumbnail image or the original image used to generate other thumbnails.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_driveItemVersion = microsoft_graph_baseItemVersion.and(
+  z
+    .object({
+      content: z.string().describe('The content stream for this version of the item.').nullable(),
+      size: z
+        .number()
+        .describe('Indicates the size of the content stream for this version of the item.')
+        .nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookApplication = microsoft_graph_entity.and(
+  z
+    .object({
+      calculationMode: z
+        .string()
+        .describe(
+          'Returns the calculation mode used in the workbook. Possible values are: Automatic, AutomaticExceptTables, Manual.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookCommentReply = microsoft_graph_entity.and(
+  z
+    .object({
+      content: z.string().describe('The content of the reply.').nullable(),
+      contentType: z.string().describe('The content type for the reply.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookComment = microsoft_graph_entity.and(
+  z
+    .object({
+      content: z.string().describe('The content of the comment.').nullable(),
+      contentType: z.string().describe('The content type of the comment.'),
+      replies: z
+        .array(microsoft_graph_workbookCommentReply)
+        .describe('The list of replies to the comment. Read-only. Nullable.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookFunctions = microsoft_graph_entity.and(
+  z.object({}).partial().passthrough()
+);
+const microsoft_graph_workbookChartFont = microsoft_graph_entity.and(
+  z
+    .object({
+      bold: z.boolean().describe('Indicates whether the fond is bold.').nullable(),
+      color: z
+        .string()
+        .describe(
+          'The HTML color code representation of the text color. For example #FF0000 represents Red.'
+        )
+        .nullable(),
+      italic: z.boolean().describe('Indicates whether the fond is italic.').nullable(),
+      name: z.string().describe("The font name. For example 'Calibri'.").nullable(),
+      size: z
+        .union([z.number(), z.string(), ReferenceNumeric])
+        .describe('The size of the font. For example,  11.'),
+      underline: z
+        .string()
+        .describe(
+          'The type of underlining applied to the font. The possible values are: None, Single.'
+        )
+        .nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartLineFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      color: z
+        .string()
+        .describe('The HTML color code that represents the color of lines in the chart.')
+        .nullable(),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAxisFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes (font name, font size, color, etc.) for a chart axis element. Read-only.'
+        ),
+      line: z
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .describe('Represents chart line formatting. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartGridlinesFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      line: z
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .describe('Represents chart line formatting. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartGridlines = microsoft_graph_entity.and(
+  z
+    .object({
+      visible: z.boolean().describe('Indicates whether the axis gridlines are visible.'),
+      format: z
+        .union([microsoft_graph_workbookChartGridlinesFormat, z.object({}).partial().passthrough()])
+        .describe('Represents the formatting of chart gridlines. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAxisTitleFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes, such as font name, font size, color, etc. of chart axis title object. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAxisTitle = microsoft_graph_entity.and(
+  z
+    .object({
+      text: z.string().describe('Represents the axis title.').nullable(),
+      visible: z.boolean().describe('A Boolean that specifies the visibility of an axis title.'),
+      format: z
+        .union([microsoft_graph_workbookChartAxisTitleFormat, z.object({}).partial().passthrough()])
+        .describe('Represents the formatting of chart axis title. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAxis = microsoft_graph_entity.and(
+  z
+    .object({
+      majorUnit: z
+        .unknown()
+        .describe(
+          'Represents the interval between two major tick marks. Can be set to a numeric value or an empty string.  The returned value is always a number.'
+        ),
+      maximum: z
+        .unknown()
+        .describe(
+          'Represents the maximum value on the value axis.  Can be set to a numeric value or an empty string (for automatic axis values).  The returned value is always a number.'
+        ),
+      minimum: z
+        .unknown()
+        .describe(
+          'Represents the minimum value on the value axis. Can be set to a numeric value or an empty string (for automatic axis values).  The returned value is always a number.'
+        ),
+      minorUnit: z
+        .unknown()
+        .describe(
+          "Represents the interval between two minor tick marks. 'Can be set to a numeric value or an empty string (for automatic axis values). The returned value is always a number."
+        ),
+      format: z
+        .union([microsoft_graph_workbookChartAxisFormat, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the formatting of a chart object, which includes line and font formatting. Read-only.'
+        ),
+      majorGridlines: z
+        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
+        .describe(
+          'Returns a gridlines object that represents the major gridlines for the specified axis. Read-only.'
+        ),
+      minorGridlines: z
+        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
+        .describe(
+          'Returns a Gridlines object that represents the minor gridlines for the specified axis. Read-only.'
+        ),
+      title: z
+        .union([microsoft_graph_workbookChartAxisTitle, z.object({}).partial().passthrough()])
+        .describe('Represents the axis title. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAxes = microsoft_graph_entity.and(
+  z
+    .object({
+      categoryAxis: z
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .describe('Represents the category axis in a chart. Read-only.'),
+      seriesAxis: z
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .describe('Represents the series axis of a 3-dimensional chart. Read-only.'),
+      valueAxis: z
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .describe('Represents the value axis in an axis. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartFill = microsoft_graph_entity.and(
+  z.object({}).partial().passthrough()
+);
+const microsoft_graph_workbookChartDataLabelFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe('Represents the fill format of the current chart data label. Read-only.'),
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes (font name, font size, color, etc.) for a chart data label. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartDataLabels = microsoft_graph_entity.and(
+  z
+    .object({
+      position: z
+        .string()
+        .describe(
+          'DataLabelPosition value that represents the position of the data label. The possible values are: None, Center, InsideEnd, InsideBase, OutsideEnd, Left, Right, Top, Bottom, BestFit, Callout.'
+        )
+        .nullable(),
+      separator: z
+        .string()
+        .describe('String that represents the separator used for the data labels on a chart.')
+        .nullable(),
+      showBubbleSize: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label bubble size is visible.')
+        .nullable(),
+      showCategoryName: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label category name is visible.')
+        .nullable(),
+      showLegendKey: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label legend key is visible.')
+        .nullable(),
+      showPercentage: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label percentage is visible.')
+        .nullable(),
+      showSeriesName: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label series name is visible.')
+        .nullable(),
+      showValue: z
+        .boolean()
+        .describe('Boolean value that represents whether the data label value is visible.')
+        .nullable(),
+      format: z
+        .union([microsoft_graph_workbookChartDataLabelFormat, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the format of chart data labels, which includes fill and font formatting. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartAreaFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the fill format of an object, which includes background formatting information. Read-only.'
+        ),
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartLegendFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the fill format of an object, which includes background formating information. Read-only.'
+        ),
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes such as font name, font size, color, etc. of a chart legend. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartLegend = microsoft_graph_entity.and(
+  z
+    .object({
+      overlay: z
+        .boolean()
+        .describe(
+          'Indicates whether the chart legend should overlap with the main body of the chart.'
+        )
+        .nullable(),
+      position: z
+        .string()
+        .describe(
+          'Represents the position of the legend on the chart. The possible values are: Top, Bottom, Left, Right, Corner, Custom.'
+        )
+        .nullable(),
+      visible: z.boolean().describe('Indicates whether the chart legend is visible.'),
+      format: z
+        .union([microsoft_graph_workbookChartLegendFormat, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the formatting of a chart legend, which includes fill and font formatting. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartSeriesFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the fill format of a chart series, which includes background formatting information. Read-only.'
+        ),
+      line: z
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .describe('Represents line formatting. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartPointFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the fill format of a chart, which includes background formatting information. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartPoint = microsoft_graph_entity.and(
+  z
+    .object({
+      value: z.unknown().describe('The value of a chart point. Read-only.'),
+      format: z
+        .union([microsoft_graph_workbookChartPointFormat, z.object({}).partial().passthrough()])
+        .describe('The format properties of the chart point. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartSeries = microsoft_graph_entity.and(
+  z
+    .object({
+      name: z.string().describe('The name of a series in a chart.').nullable(),
+      format: z
+        .union([microsoft_graph_workbookChartSeriesFormat, z.object({}).partial().passthrough()])
+        .describe(
+          'The formatting of a chart series, which includes fill and line formatting. Read-only.'
+        ),
+      points: z
+        .array(microsoft_graph_workbookChartPoint)
+        .describe('A collection of all points in the series. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartTitleFormat = microsoft_graph_entity.and(
+  z
+    .object({
+      fill: z
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the fill format of an object, which includes background formatting information. Read-only.'
+        ),
+      font: z
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .describe(
+          'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChartTitle = microsoft_graph_entity.and(
+  z
+    .object({
+      overlay: z
+        .boolean()
+        .describe('Indicates whether the chart title will overlay the chart or not.')
+        .nullable(),
+      text: z.string().describe('The title text of the chart.').nullable(),
+      visible: z.boolean().describe('Indicates whether the chart title is visible.'),
+      format: z
+        .union([microsoft_graph_workbookChartTitleFormat, z.object({}).partial().passthrough()])
+        .describe(
+          'The formatting of a chart title, which includes fill and font formatting. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        height: z
+          .union([z.number(), z.string(), ReferenceNumeric])
+          .describe('Represents the height, in points, of the chart object.'),
+        left: z
+          .union([z.number(), z.string(), ReferenceNumeric])
+          .describe(
+            'The distance, in points, from the left side of the chart to the worksheet origin.'
+          ),
+        name: z.string().describe('Represents the name of a chart object.').nullable(),
+        top: z
+          .union([z.number(), z.string(), ReferenceNumeric])
+          .describe(
+            'Represents the distance, in points, from the top edge of the object to the top of row 1 (on a worksheet) or the top of the chart area (on a chart).'
+          ),
+        width: z
+          .union([z.number(), z.string(), ReferenceNumeric])
+          .describe('Represents the width, in points, of the chart object.'),
+        axes: z
+          .union([microsoft_graph_workbookChartAxes, z.object({}).partial().passthrough()])
+          .describe('Represents chart axes. Read-only.'),
+        dataLabels: z
+          .union([microsoft_graph_workbookChartDataLabels, z.object({}).partial().passthrough()])
+          .describe('Represents the data labels on the chart. Read-only.'),
+        format: z
+          .union([microsoft_graph_workbookChartAreaFormat, z.object({}).partial().passthrough()])
+          .describe('Encapsulates the format properties for the chart area. Read-only.'),
+        legend: z
+          .union([microsoft_graph_workbookChartLegend, z.object({}).partial().passthrough()])
+          .describe('Represents the legend for the chart. Read-only.'),
+        series: z
+          .array(microsoft_graph_workbookChartSeries)
+          .describe(
+            'Represents either a single series or collection of series in the chart. Read-only.'
+          ),
+        title: z
+          .union([microsoft_graph_workbookChartTitle, z.object({}).partial().passthrough()])
+          .describe(
+            'Represents the title of the specified chart, including the text, visibility, position and formatting of the title. Read-only.'
+          ),
+        worksheet: z
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .describe('The worksheet containing the current chart. Read-only.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_workbookPivotTable: z.ZodType<microsoft_graph_workbookPivotTable> = z.lazy(
+  () =>
+    microsoft_graph_entity.and(
+      z
+        .object({
+          name: z.string().describe('The name of the pivot table.').nullable(),
+          worksheet: z
+            .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+            .describe('The worksheet that contains the current pivot table. Read-only.'),
+        })
+        .partial()
+        .passthrough()
+    )
+);
+const microsoft_graph_workbookWorksheetProtectionOptions = z
+  .object({
+    allowAutoFilter: z
+      .boolean()
+      .describe(
+        'Represents the worksheet protection option of allowing using auto filter feature.'
+      ),
+    allowDeleteColumns: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing deleting columns.'),
+    allowDeleteRows: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing deleting rows.'),
+    allowFormatCells: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing formatting cells.'),
+    allowFormatColumns: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing formatting columns.'),
+    allowFormatRows: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing formatting rows.'),
+    allowInsertColumns: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing inserting columns.'),
+    allowInsertHyperlinks: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing inserting hyperlinks.'),
+    allowInsertRows: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing inserting rows.'),
+    allowPivotTables: z
+      .boolean()
+      .describe(
+        'Represents the worksheet protection option of allowing using pivot table feature.'
+      ),
+    allowSort: z
+      .boolean()
+      .describe('Represents the worksheet protection option of allowing using sort feature.'),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_workbookWorksheetProtection = microsoft_graph_entity.and(
+  z
+    .object({
+      options: z
+        .union([
+          microsoft_graph_workbookWorksheetProtectionOptions,
+          z.object({}).partial().passthrough(),
+        ])
+        .describe('Worksheet protection options. Read-only.'),
+      protected: z.boolean().describe('Indicates whether the worksheet is protected.  Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookIcon = z
+  .object({
+    index: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe('The index of the icon in the given set.'),
+    set: z
+      .string()
+      .describe(
+        'The set that the icon is part of. The possible values are: Invalid, ThreeArrows, ThreeArrowsGray, ThreeFlags, ThreeTrafficLights1, ThreeTrafficLights2, ThreeSigns, ThreeSymbols, ThreeSymbols2, FourArrows, FourArrowsGray, FourRedToBlack, FourRating, FourTrafficLights, FiveArrows, FiveArrowsGray, FiveRating, FiveQuarters, ThreeStars, ThreeTriangles, FiveBoxes.'
+      ),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_workbookFilterCriteria = z
+  .object({
+    color: z.string().describe('The color applied to the cell.').nullable(),
+    criterion1: z.string().describe('A custom criterion.').nullable(),
+    criterion2: z.string().describe('A custom criterion.').nullable(),
+    dynamicCriteria: z.string().describe('A dynamic formula specified in a custom filter.'),
+    filterOn: z.string().describe('Indicates whether a filter is applied to a column.'),
+    icon: z
+      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
+      .describe('An icon applied to a cell via conditional formatting.'),
+    operator: z.string().describe('An operator in a cell; for example, =, >, <, <=, or <>.'),
+    values: z.unknown().describe('The values that appear in the cell.'),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_workbookFilter = microsoft_graph_entity.and(
+  z
+    .object({
+      criteria: z
+        .union([microsoft_graph_workbookFilterCriteria, z.object({}).partial().passthrough()])
+        .describe('The currently applied filter on the given column. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookTableColumn = microsoft_graph_entity.and(
+  z
+    .object({
+      index: z
+        .number()
+        .gte(-2147483648)
+        .lte(2147483647)
+        .describe(
+          'The index of the column within the columns collection of the table. Zero-indexed. Read-only.'
+        ),
+      name: z.string().describe('The name of the table column.').nullable(),
+      values: z
+        .unknown()
+        .describe(
+          'TRepresents the raw values of the specified range. The data returned could be of type string, number, or a Boolean. Cell that contain an error will return the error string.'
+        ),
+      filter: z
+        .union([microsoft_graph_workbookFilter, z.object({}).partial().passthrough()])
+        .describe('The filter applied to the column. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookTableRow = microsoft_graph_entity.and(
+  z
+    .object({
+      index: z
+        .number()
+        .gte(-2147483648)
+        .lte(2147483647)
+        .describe(
+          'The index of the row within the rows collection of the table. Zero-based. Read-only.'
+        ),
+      values: z
+        .unknown()
+        .describe(
+          'The raw values of the specified range. The data returned could be of type string, number, or a Boolean. Any cell that contain an error will return the error string.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookSortField = z
+  .object({
+    ascending: z
+      .boolean()
+      .describe('Represents whether the sorting is done in an ascending fashion.'),
+    color: z
+      .string()
+      .describe(
+        'Represents the color that is the target of the condition if the sorting is on font or cell color.'
+      )
+      .nullable(),
+    dataOption: z
+      .string()
+      .describe(
+        'Represents additional sorting options for this field. The possible values are: Normal, TextAsNumber.'
+      ),
+    icon: z
+      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
+      .describe(
+        "Represents the icon that is the target of the condition if the sorting is on the cell's icon."
+      ),
+    key: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe(
+        'Represents the column (or row, depending on the sort orientation) that the condition is on. Represented as an offset from the first column (or row).'
+      ),
+    sortOn: z
+      .string()
+      .describe(
+        'Represents the type of sorting of this condition. The possible values are: Value, CellColor, FontColor, Icon.'
+      ),
+  })
+  .partial()
+  .passthrough();
+const microsoft_graph_workbookTableSort = microsoft_graph_entity.and(
+  z
+    .object({
+      fields: z
+        .array(microsoft_graph_workbookSortField)
+        .describe('The list of the current conditions last used to sort the table. Read-only.'),
+      matchCase: z
+        .boolean()
+        .describe('Indicates whether the casing impacted the last sort of the table. Read-only.'),
+      method: z
+        .string()
+        .describe(
+          'The Chinese character ordering method last used to sort the table. The possible values are: PinYin, StrokeCount. Read-only.'
+        ),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbookTable: z.ZodType<microsoft_graph_workbookTable> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        highlightFirstColumn: z
+          .boolean()
+          .describe('Indicates whether the first column contains special formatting.'),
+        highlightLastColumn: z
+          .boolean()
+          .describe('Indicates whether the last column contains special formatting.'),
+        legacyId: z
+          .string()
+          .describe(
+            "A legacy identifier used in older Excel clients. The value of the identifier remains the same even when the table is renamed. This property should be interpreted as an opaque string value and shouldn't be parsed to any other type. Read-only."
+          )
+          .nullable(),
+        name: z.string().describe('The name of the table.').nullable(),
+        showBandedColumns: z
+          .boolean()
+          .describe(
+            'Indicates whether the columns show banded formatting in which odd columns are highlighted differently from even ones to make reading the table easier.'
+          ),
+        showBandedRows: z
+          .boolean()
+          .describe(
+            'Indicates whether the rows show banded formatting in which odd rows are highlighted differently from even ones to make reading the table easier.'
+          ),
+        showFilterButton: z
+          .boolean()
+          .describe(
+            'Indicates whether the filter buttons are visible at the top of each column header. Setting this is only allowed if the table contains a header row.'
+          ),
+        showHeaders: z
+          .boolean()
+          .describe(
+            'Indicates whether the header row is visible or not. This value can be set to show or remove the header row.'
+          ),
+        showTotals: z
+          .boolean()
+          .describe(
+            'Indicates whether the total row is visible or not. This value can be set to show or remove the total row.'
+          ),
+        style: z
+          .string()
+          .describe(
+            'A constant value that represents the Table style. Possible values are: TableStyleLight1 through TableStyleLight21, TableStyleMedium1 through TableStyleMedium28, TableStyleStyleDark1 through TableStyleStyleDark11. A custom user-defined style present in the workbook can also be specified.'
+          )
+          .nullable(),
+        columns: z
+          .array(microsoft_graph_workbookTableColumn)
+          .describe('The list of all the columns in the table. Read-only.'),
+        rows: z
+          .array(microsoft_graph_workbookTableRow)
+          .describe('The list of all the rows in the table. Read-only.'),
+        sort: z
+          .union([microsoft_graph_workbookTableSort, z.object({}).partial().passthrough()])
+          .describe('The sorting for the table. Read-only.'),
+        worksheet: z
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .describe('The worksheet containing the current table. Read-only.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_workbookWorksheet: z.ZodType<microsoft_graph_workbookWorksheet> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        name: z.string().describe('The display name of the worksheet.').nullable(),
+        position: z
+          .number()
+          .gte(-2147483648)
+          .lte(2147483647)
+          .describe('The zero-based position of the worksheet within the workbook.'),
+        visibility: z
+          .string()
+          .describe(
+            'The visibility of the worksheet. The possible values are: Visible, Hidden, VeryHidden.'
+          ),
+        charts: z
+          .array(microsoft_graph_workbookChart)
+          .describe('The list of charts that are part of the worksheet. Read-only.'),
+        names: z
+          .array(microsoft_graph_workbookNamedItem)
+          .describe('The list of names that are associated with the worksheet. Read-only.'),
+        pivotTables: z
+          .array(microsoft_graph_workbookPivotTable)
+          .describe('The list of piot tables that are part of the worksheet.'),
+        protection: z
+          .union([
+            microsoft_graph_workbookWorksheetProtection,
+            z.object({}).partial().passthrough(),
+          ])
+          .describe('The sheet protection object for a worksheet. Read-only.'),
+        tables: z
+          .array(microsoft_graph_workbookTable)
+          .describe('The list of tables that are part of the worksheet. Read-only.'),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_workbookNamedItem: z.ZodType<microsoft_graph_workbookNamedItem> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        comment: z.string().describe('The comment associated with this name.').nullable(),
+        name: z.string().describe('The name of the object. Read-only.').nullable(),
+        scope: z
+          .string()
+          .describe(
+            'Indicates whether the name is scoped to the workbook or to a specific worksheet. Read-only.'
+          ),
+        type: z
+          .string()
+          .describe(
+            'The type of reference is associated with the name. Possible values are: String, Integer, Double, Boolean, Range. Read-only.'
+          )
+          .nullable(),
+        value: z
+          .unknown()
+          .describe(
+            'The formula that the name is defined to refer to. For example, =Sheet14!$B$2:$H$12 and =4.75. Read-only.'
+          ),
+        visible: z.boolean().describe('Indicates whether the object is visible.'),
+        worksheet: z
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .describe(
+            'Returns the worksheet to which the named item is scoped. Available only if the item is scoped to the worksheet. Read-only.'
+          ),
+      })
+      .partial()
+      .passthrough()
+  )
+);
+const microsoft_graph_workbookOperationError: z.ZodType<microsoft_graph_workbookOperationError> =
+  z.lazy(() =>
+    z
+      .object({
+        code: z.string().describe('The error code.').nullable(),
+        innerError: z.union([
+          microsoft_graph_workbookOperationError,
+          z.object({}).partial().passthrough(),
+        ]),
+        message: z.string().describe('The error message.').nullable(),
+      })
+      .partial()
+      .passthrough()
+  );
+const microsoft_graph_workbookOperationStatus = z.enum([
+  'notStarted',
+  'running',
+  'succeeded',
+  'failed',
+]);
+const microsoft_graph_workbookOperation = microsoft_graph_entity.and(
+  z
+    .object({
+      error: z
+        .union([microsoft_graph_workbookOperationError, z.object({}).partial().passthrough()])
+        .describe('The error returned by the operation.'),
+      resourceLocation: z.string().describe('The resource URI for the result.').nullable(),
+      status: microsoft_graph_workbookOperationStatus,
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_workbook = microsoft_graph_entity.and(
+  z
+    .object({
+      application: z.union([
+        microsoft_graph_workbookApplication,
+        z.object({}).partial().passthrough(),
+      ]),
+      comments: z
+        .array(microsoft_graph_workbookComment)
+        .describe('Represents a collection of comments in a workbook.'),
+      functions: z.union([microsoft_graph_workbookFunctions, z.object({}).partial().passthrough()]),
+      names: z
+        .array(microsoft_graph_workbookNamedItem)
+        .describe(
+          'Represents a collection of workbooks scoped named items (named ranges and constants). Read-only.'
+        ),
+      operations: z
+        .array(microsoft_graph_workbookOperation)
+        .describe(
+          'The status of workbook operations. Getting an operation collection is not supported, but you can get the status of a long-running operation if the Location header is returned in the response. Read-only.'
+        ),
+      tables: z
+        .array(microsoft_graph_workbookTable)
+        .describe('Represents a collection of tables associated with the workbook. Read-only.'),
+      worksheets: z
+        .array(microsoft_graph_workbookWorksheet)
+        .describe('Represents a collection of worksheets associated with the workbook. Read-only.'),
+    })
+    .partial()
+    .passthrough()
+);
+const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy(() =>
+  microsoft_graph_baseItem.and(
+    z
+      .object({
+        audio: z
+          .union([microsoft_graph_audio, z.object({}).partial().passthrough()])
+          .describe(
+            'Audio metadata, if the item is an audio file. Read-only. Read-only. Only on OneDrive Personal.'
+          ),
+        bundle: z
+          .union([microsoft_graph_bundle, z.object({}).partial().passthrough()])
+          .describe('Bundle metadata, if the item is a bundle. Read-only.'),
+        content: z
+          .string()
+          .describe('The content stream, if the item represents a file.')
+          .nullable(),
+        cTag: z
+          .string()
+          .describe(
+            "An eTag for the content of the item. This eTag isn't changed if only the metadata is changed. Note This property isn't returned if the item is a folder. Read-only."
+          )
+          .nullable(),
+        deleted: z
+          .union([microsoft_graph_deleted, z.object({}).partial().passthrough()])
+          .describe('Information about the deleted state of the item. Read-only.'),
+        file: z
+          .union([microsoft_graph_file, z.object({}).partial().passthrough()])
+          .describe('File metadata, if the item is a file. Read-only.'),
+        fileSystemInfo: z
+          .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
+          .describe('File system information on client. Read-write.'),
+        folder: z
+          .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
+          .describe('Folder metadata, if the item is a folder. Read-only.'),
+        image: z
+          .union([microsoft_graph_image, z.object({}).partial().passthrough()])
+          .describe('Image metadata, if the item is an image. Read-only.'),
+        location: z
+          .union([microsoft_graph_geoCoordinates, z.object({}).partial().passthrough()])
+          .describe('Location metadata, if the item has location data. Read-only.'),
+        malware: z
+          .union([microsoft_graph_malware, z.object({}).partial().passthrough()])
+          .describe('Malware metadata, if the item was detected to contain malware. Read-only.'),
+        package: z
+          .union([microsoft_graph_package, z.object({}).partial().passthrough()])
+          .describe(
+            'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
+          ),
+        pendingOperations: z
+          .union([microsoft_graph_pendingOperations, z.object({}).partial().passthrough()])
+          .describe(
+            'If present, indicates that one or more operations that might affect the state of the driveItem are pending completion. Read-only.'
+          ),
+        photo: z
+          .union([microsoft_graph_photo, z.object({}).partial().passthrough()])
+          .describe('Photo metadata, if the item is a photo. Read-only.'),
+        publication: z
+          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+          .describe(
+            "Provides information about the published or checked-out state of an item, in locations that support such actions. This property isn't returned by default. Read-only."
+          ),
+        remoteItem: z
+          .union([microsoft_graph_remoteItem, z.object({}).partial().passthrough()])
+          .describe(
+            'Remote item data, if the item is shared from a drive other than the one being accessed. Read-only.'
+          ),
+        root: z
+          .union([microsoft_graph_root, z.object({}).partial().passthrough()])
+          .describe(
+            'If this property is non-null, it indicates that the driveItem is the top-most driveItem in the drive.'
+          ),
+        searchResult: z
+          .union([microsoft_graph_searchResult, z.object({}).partial().passthrough()])
+          .describe('Search metadata, if the item is from a search result. Read-only.'),
+        shared: z
+          .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
+          .describe(
+            'Indicates that the item was shared with others and provides information about the shared state of the item. Read-only.'
+          ),
+        sharepointIds: z
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
+        size: z.number().describe('Size of the item in bytes. Read-only.').nullable(),
+        specialFolder: z
+          .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
+          .describe(
+            'If the current item is also available as a special folder, this facet is returned. Read-only.'
+          ),
+        video: z
+          .union([microsoft_graph_video, z.object({}).partial().passthrough()])
+          .describe('Video metadata, if the item is a video. Read-only.'),
+        webDavUrl: z.string().describe('WebDAV compatible URL for the item.').nullable(),
+        analytics: z
+          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
+          .describe('Analytics about the view activities that took place on this item.'),
+        children: z
+          .array(microsoft_graph_driveItem)
+          .describe(
+            'Collection containing Item objects for the immediate children of Item. Only items representing folders have children. Read-only. Nullable.'
+          ),
+        listItem: z
+          .union([microsoft_graph_listItem, z.object({}).partial().passthrough()])
+          .describe(
+            'For drives in SharePoint, the associated document library list item. Read-only. Nullable.'
+          ),
+        permissions: z
+          .array(microsoft_graph_permission)
+          .describe('The set of permissions for the item. Read-only. Nullable.'),
+        retentionLabel: z
+          .union([microsoft_graph_itemRetentionLabel, z.object({}).partial().passthrough()])
+          .describe(
+            'Information about retention label and settings enforced on the driveItem. Read-write.'
+          ),
+        subscriptions: z
+          .array(microsoft_graph_subscription)
+          .describe('The set of subscriptions on the item. Only supported on the root of a drive.'),
+        thumbnails: z
+          .array(microsoft_graph_thumbnailSet)
+          .describe(
+            'Collection of thumbnailSet objects associated with the item. For more information, see getting thumbnails. Read-only. Nullable.'
+          ),
+        versions: z
+          .array(microsoft_graph_driveItemVersion)
+          .describe(
+            'The list of previous versions of the item. For more info, see getting previous versions. Read-only. Nullable.'
+          ),
+        workbook: z
+          .union([microsoft_graph_workbook, z.object({}).partial().passthrough()])
+          .describe(
+            "For files that are Excel spreadsheets, access to the workbook API to work with the spreadsheet's contents. Nullable."
+          ),
+      })
+      .partial()
+      .passthrough()
+  )
+);
 const microsoft_graph_driveItemCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_driveItem) })
@@ -22172,6 +22187,12 @@ const microsoft_graph_contactCollectionResponse = BaseCollectionPaginationCountR
     .partial()
     .passthrough()
 );
+const microsoft_graph_driveCollectionResponse = BaseCollectionPaginationCountResponse.and(
+  z
+    .object({ value: z.array(microsoft_graph_drive) })
+    .partial()
+    .passthrough()
+);
 const microsoft_graph_mailFolderCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_mailFolder) })
@@ -22229,6 +22250,10 @@ const microsoft_graph_todoTaskCollectionResponse = BaseCollectionPaginationCount
 );
 
 export const schemas = {
+  microsoft_graph_ODataErrors_ErrorDetails,
+  microsoft_graph_ODataErrors_InnerError,
+  microsoft_graph_ODataErrors_MainError,
+  microsoft_graph_ODataErrors_ODataError,
   BaseCollectionPaginationCountResponse,
   microsoft_graph_entity,
   microsoft_graph_identity,
@@ -22336,6 +22361,67 @@ export const schemas = {
   microsoft_graph_post,
   microsoft_graph_conversationThread,
   microsoft_graph_conversation,
+  microsoft_graph_storagePlanInformation,
+  microsoft_graph_quota,
+  microsoft_graph_systemFacet,
+  microsoft_graph_listInfo,
+  microsoft_graph_booleanColumn,
+  microsoft_graph_calculatedColumn,
+  microsoft_graph_choiceColumn,
+  microsoft_graph_contentApprovalStatusColumn,
+  microsoft_graph_currencyColumn,
+  microsoft_graph_dateTimeColumn,
+  microsoft_graph_defaultColumnValue,
+  microsoft_graph_geolocationColumn,
+  microsoft_graph_hyperlinkOrPictureColumn,
+  microsoft_graph_lookupColumn,
+  microsoft_graph_numberColumn,
+  microsoft_graph_personOrGroupColumn,
+  microsoft_graph_contentTypeInfo,
+  microsoft_graph_termStore_localizedDescription,
+  microsoft_graph_termStore_localizedLabel,
+  microsoft_graph_keyValue,
+  microsoft_graph_termStore_relationType,
+  microsoft_graph_termStore_localizedName,
+  microsoft_graph_termStore_termGroupScope,
+  microsoft_graph_termStore_group,
+  microsoft_graph_termStore_set,
+  microsoft_graph_termStore_relation,
+  microsoft_graph_termStore_term,
+  microsoft_graph_termColumn,
+  microsoft_graph_textColumn,
+  microsoft_graph_thumbnailColumn,
+  microsoft_graph_columnTypes,
+  microsoft_graph_displayNameLocalization,
+  microsoft_graph_columnValidation,
+  microsoft_graph_columnDefinition,
+  microsoft_graph_documentSetContent,
+  microsoft_graph_documentSet,
+  microsoft_graph_contentTypeOrder,
+  microsoft_graph_columnLink,
+  microsoft_graph_contentType,
+  microsoft_graph_itemActionStat,
+  microsoft_graph_incompleteData,
+  microsoft_graph_accessAction,
+  microsoft_graph_itemActivity,
+  microsoft_graph_itemActivityStat,
+  microsoft_graph_itemAnalytics,
+  microsoft_graph_publicationFacet,
+  microsoft_graph_baseItemVersion,
+  microsoft_graph_fieldValueSet,
+  microsoft_graph_listItemVersion,
+  microsoft_graph_documentSetVersionItem,
+  microsoft_graph_documentSetVersion,
+  microsoft_graph_listItem,
+  microsoft_graph_longRunningOperationStatus,
+  microsoft_graph_longRunningOperation,
+  microsoft_graph_publicErrorDetail,
+  microsoft_graph_publicInnerError,
+  microsoft_graph_publicError,
+  microsoft_graph_richLongRunningOperation,
+  microsoft_graph_subscription,
+  microsoft_graph_list,
+  microsoft_graph_drive,
   microsoft_graph_groupLifecyclePolicy,
   microsoft_graph_onenoteEntityBaseModel,
   microsoft_graph_onenoteEntitySchemaObjectModel,
@@ -22378,146 +22464,17 @@ export const schemas = {
   microsoft_graph_plannerGroup,
   microsoft_graph_settingValue,
   microsoft_graph_groupSetting,
-  microsoft_graph_publicErrorDetail,
-  microsoft_graph_publicInnerError,
-  microsoft_graph_publicError,
   microsoft_graph_root,
   microsoft_graph_siteArchiveStatus,
   microsoft_graph_siteArchivalDetails,
   microsoft_graph_siteCollection,
-  microsoft_graph_itemActionStat,
-  microsoft_graph_incompleteData,
-  microsoft_graph_accessAction,
-  microsoft_graph_audio,
-  microsoft_graph_album,
-  microsoft_graph_bundle,
-  microsoft_graph_deleted,
-  microsoft_graph_hashes,
-  microsoft_graph_file,
-  microsoft_graph_fileSystemInfo,
-  microsoft_graph_folderView,
-  microsoft_graph_folder,
-  microsoft_graph_image,
-  microsoft_graph_geoCoordinates,
-  microsoft_graph_malware,
-  microsoft_graph_package,
-  microsoft_graph_pendingContentUpdate,
-  microsoft_graph_pendingOperations,
-  microsoft_graph_photo,
-  microsoft_graph_publicationFacet,
-  microsoft_graph_shared,
-  microsoft_graph_specialFolder,
-  microsoft_graph_video,
-  microsoft_graph_remoteItem,
-  microsoft_graph_searchResult,
-  microsoft_graph_contentTypeInfo,
-  microsoft_graph_baseItemVersion,
-  microsoft_graph_fieldValueSet,
-  microsoft_graph_listItemVersion,
-  microsoft_graph_documentSetVersionItem,
-  microsoft_graph_documentSetVersion,
-  microsoft_graph_listItem,
+  microsoft_graph_pageLayoutType,
+  microsoft_graph_baseSitePage,
   microsoft_graph_sharePointIdentity,
   microsoft_graph_sharePointIdentitySet,
   microsoft_graph_sharingInvitation,
   microsoft_graph_sharingLink,
   microsoft_graph_permission,
-  microsoft_graph_security_behaviorDuringRetentionPeriod,
-  microsoft_graph_retentionLabelSettings,
-  microsoft_graph_itemRetentionLabel,
-  microsoft_graph_subscription,
-  microsoft_graph_thumbnail,
-  microsoft_graph_thumbnailSet,
-  microsoft_graph_driveItemVersion,
-  microsoft_graph_workbookApplication,
-  microsoft_graph_workbookCommentReply,
-  microsoft_graph_workbookComment,
-  microsoft_graph_workbookFunctions,
-  microsoft_graph_workbookChartFont,
-  microsoft_graph_workbookChartLineFormat,
-  microsoft_graph_workbookChartAxisFormat,
-  microsoft_graph_workbookChartGridlinesFormat,
-  microsoft_graph_workbookChartGridlines,
-  microsoft_graph_workbookChartAxisTitleFormat,
-  microsoft_graph_workbookChartAxisTitle,
-  microsoft_graph_workbookChartAxis,
-  microsoft_graph_workbookChartAxes,
-  microsoft_graph_workbookChartFill,
-  microsoft_graph_workbookChartDataLabelFormat,
-  microsoft_graph_workbookChartDataLabels,
-  microsoft_graph_workbookChartAreaFormat,
-  microsoft_graph_workbookChartLegendFormat,
-  microsoft_graph_workbookChartLegend,
-  microsoft_graph_workbookChartSeriesFormat,
-  microsoft_graph_workbookChartPointFormat,
-  microsoft_graph_workbookChartPoint,
-  microsoft_graph_workbookChartSeries,
-  microsoft_graph_workbookChartTitleFormat,
-  microsoft_graph_workbookChartTitle,
-  microsoft_graph_workbookChart,
-  microsoft_graph_workbookPivotTable,
-  microsoft_graph_workbookWorksheetProtectionOptions,
-  microsoft_graph_workbookWorksheetProtection,
-  microsoft_graph_workbookIcon,
-  microsoft_graph_workbookFilterCriteria,
-  microsoft_graph_workbookFilter,
-  microsoft_graph_workbookTableColumn,
-  microsoft_graph_workbookTableRow,
-  microsoft_graph_workbookSortField,
-  microsoft_graph_workbookTableSort,
-  microsoft_graph_workbookTable,
-  microsoft_graph_workbookWorksheet,
-  microsoft_graph_workbookNamedItem,
-  microsoft_graph_workbookOperationError,
-  microsoft_graph_workbookOperationStatus,
-  microsoft_graph_workbookOperation,
-  microsoft_graph_workbook,
-  microsoft_graph_driveItem,
-  microsoft_graph_itemActivity,
-  microsoft_graph_itemActivityStat,
-  microsoft_graph_itemAnalytics,
-  microsoft_graph_booleanColumn,
-  microsoft_graph_calculatedColumn,
-  microsoft_graph_choiceColumn,
-  microsoft_graph_contentApprovalStatusColumn,
-  microsoft_graph_currencyColumn,
-  microsoft_graph_dateTimeColumn,
-  microsoft_graph_defaultColumnValue,
-  microsoft_graph_geolocationColumn,
-  microsoft_graph_hyperlinkOrPictureColumn,
-  microsoft_graph_lookupColumn,
-  microsoft_graph_numberColumn,
-  microsoft_graph_personOrGroupColumn,
-  microsoft_graph_termStore_localizedDescription,
-  microsoft_graph_termStore_localizedLabel,
-  microsoft_graph_keyValue,
-  microsoft_graph_termStore_relationType,
-  microsoft_graph_termStore_localizedName,
-  microsoft_graph_termStore_termGroupScope,
-  microsoft_graph_termStore_group,
-  microsoft_graph_termStore_set,
-  microsoft_graph_termStore_relation,
-  microsoft_graph_termStore_term,
-  microsoft_graph_termColumn,
-  microsoft_graph_textColumn,
-  microsoft_graph_thumbnailColumn,
-  microsoft_graph_columnTypes,
-  microsoft_graph_displayNameLocalization,
-  microsoft_graph_columnValidation,
-  microsoft_graph_columnDefinition,
-  microsoft_graph_documentSetContent,
-  microsoft_graph_documentSet,
-  microsoft_graph_contentTypeOrder,
-  microsoft_graph_columnLink,
-  microsoft_graph_contentType,
-  microsoft_graph_listInfo,
-  microsoft_graph_systemFacet,
-  microsoft_graph_longRunningOperationStatus,
-  microsoft_graph_longRunningOperation,
-  microsoft_graph_richLongRunningOperation,
-  microsoft_graph_list,
-  microsoft_graph_pageLayoutType,
-  microsoft_graph_baseSitePage,
   microsoft_graph_termStore_store,
   microsoft_graph_site,
   microsoft_graph_giphyRatingType,
@@ -22572,6 +22529,7 @@ export const schemas = {
   microsoft_graph_teamsAsyncOperationType,
   microsoft_graph_teamsAsyncOperationStatus,
   microsoft_graph_teamsAsyncOperation,
+  microsoft_graph_geoCoordinates,
   microsoft_graph_timeClockSettings,
   microsoft_graph_changeTrackedEntity,
   microsoft_graph_dayNote,
@@ -22788,14 +22746,76 @@ export const schemas = {
   microsoft_graph_todo,
   microsoft_graph_user,
   microsoft_graph_baseItem,
-  microsoft_graph_storagePlanInformation,
-  microsoft_graph_quota,
-  microsoft_graph_drive,
-  microsoft_graph_driveCollectionResponse,
-  microsoft_graph_ODataErrors_ErrorDetails,
-  microsoft_graph_ODataErrors_InnerError,
-  microsoft_graph_ODataErrors_MainError,
-  microsoft_graph_ODataErrors_ODataError,
+  microsoft_graph_audio,
+  microsoft_graph_album,
+  microsoft_graph_bundle,
+  microsoft_graph_deleted,
+  microsoft_graph_hashes,
+  microsoft_graph_file,
+  microsoft_graph_fileSystemInfo,
+  microsoft_graph_folderView,
+  microsoft_graph_folder,
+  microsoft_graph_image,
+  microsoft_graph_malware,
+  microsoft_graph_package,
+  microsoft_graph_pendingContentUpdate,
+  microsoft_graph_pendingOperations,
+  microsoft_graph_photo,
+  microsoft_graph_shared,
+  microsoft_graph_specialFolder,
+  microsoft_graph_video,
+  microsoft_graph_remoteItem,
+  microsoft_graph_searchResult,
+  microsoft_graph_security_behaviorDuringRetentionPeriod,
+  microsoft_graph_retentionLabelSettings,
+  microsoft_graph_itemRetentionLabel,
+  microsoft_graph_thumbnail,
+  microsoft_graph_thumbnailSet,
+  microsoft_graph_driveItemVersion,
+  microsoft_graph_workbookApplication,
+  microsoft_graph_workbookCommentReply,
+  microsoft_graph_workbookComment,
+  microsoft_graph_workbookFunctions,
+  microsoft_graph_workbookChartFont,
+  microsoft_graph_workbookChartLineFormat,
+  microsoft_graph_workbookChartAxisFormat,
+  microsoft_graph_workbookChartGridlinesFormat,
+  microsoft_graph_workbookChartGridlines,
+  microsoft_graph_workbookChartAxisTitleFormat,
+  microsoft_graph_workbookChartAxisTitle,
+  microsoft_graph_workbookChartAxis,
+  microsoft_graph_workbookChartAxes,
+  microsoft_graph_workbookChartFill,
+  microsoft_graph_workbookChartDataLabelFormat,
+  microsoft_graph_workbookChartDataLabels,
+  microsoft_graph_workbookChartAreaFormat,
+  microsoft_graph_workbookChartLegendFormat,
+  microsoft_graph_workbookChartLegend,
+  microsoft_graph_workbookChartSeriesFormat,
+  microsoft_graph_workbookChartPointFormat,
+  microsoft_graph_workbookChartPoint,
+  microsoft_graph_workbookChartSeries,
+  microsoft_graph_workbookChartTitleFormat,
+  microsoft_graph_workbookChartTitle,
+  microsoft_graph_workbookChart,
+  microsoft_graph_workbookPivotTable,
+  microsoft_graph_workbookWorksheetProtectionOptions,
+  microsoft_graph_workbookWorksheetProtection,
+  microsoft_graph_workbookIcon,
+  microsoft_graph_workbookFilterCriteria,
+  microsoft_graph_workbookFilter,
+  microsoft_graph_workbookTableColumn,
+  microsoft_graph_workbookTableRow,
+  microsoft_graph_workbookSortField,
+  microsoft_graph_workbookTableSort,
+  microsoft_graph_workbookTable,
+  microsoft_graph_workbookWorksheet,
+  microsoft_graph_workbookNamedItem,
+  microsoft_graph_workbookOperationError,
+  microsoft_graph_workbookOperationStatus,
+  microsoft_graph_workbookOperation,
+  microsoft_graph_workbook,
+  microsoft_graph_driveItem,
   microsoft_graph_driveItemCollectionResponse,
   microsoft_graph_workbookWorksheetCollectionResponse,
   create_excel_chart_Body,
@@ -22809,6 +22829,7 @@ export const schemas = {
   microsoft_graph_calendarCollectionResponse,
   microsoft_graph_eventCollectionResponse,
   microsoft_graph_contactCollectionResponse,
+  microsoft_graph_driveCollectionResponse,
   microsoft_graph_mailFolderCollectionResponse,
   microsoft_graph_messageCollectionResponse,
   send_mail_Body,
@@ -22821,67 +22842,6 @@ export const schemas = {
 };
 
 const endpoints = makeApi([
-  {
-    method: 'get',
-    path: '/drives',
-    alias: 'list-drives',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: '$top',
-        type: 'Query',
-        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
-      },
-      {
-        name: '$skip',
-        type: 'Query',
-        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
-      },
-      {
-        name: '$search',
-        type: 'Query',
-        schema: z.string().describe('Search items by search phrases').optional(),
-      },
-      {
-        name: '$filter',
-        type: 'Query',
-        schema: z.string().describe('Filter items by property values').optional(),
-      },
-      {
-        name: '$orderby',
-        type: 'Query',
-        schema: z.array(z.string()).describe('Order items by property values').optional(),
-      },
-      {
-        name: '$select',
-        type: 'Query',
-        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
-      },
-      {
-        name: '$expand',
-        type: 'Query',
-        schema: z.array(z.string()).describe('Expand related entities').optional(),
-      },
-    ],
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Retrieved collection`,
-        schema: microsoft_graph_driveCollectionResponse,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
   {
     method: 'delete',
     path: '/drives/:driveId/items/:driveItemId',
@@ -22962,6 +22922,38 @@ const endpoints = makeApi([
         status: NaN,
         description: `Retrieved collection`,
         schema: microsoft_graph_driveItemCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/drives/:driveId/items/:driveItemId/children',
+    alias: 'create-folder',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: microsoft_graph_driveItem,
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Created navigation property.`,
+        schema: microsoft_graph_driveItem,
       },
       {
         status: NaN,
@@ -23631,6 +23623,73 @@ or from some other calendar of the user.`,
   },
   {
     method: 'get',
+    path: '/me/drives',
+    alias: 'list-drives',
+    description: `Retrieve the list of Drive resources available for a target User, Group, or Site.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_driveCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
     path: '/me/events',
     alias: 'list-calendar-events',
     description: `Get a list of event objects in the user&#x27;s mailbox. The list contains single
@@ -23702,13 +23761,8 @@ get the instances of an event. Currently, this operation returns event bodies in
     method: 'post',
     path: '/me/events',
     alias: 'create-calendar-event',
-    description: `Create an event in the user&#x27;s default calendar or specified calendar. By default, the allowNewTimeProposals property is set to true when an event is created, which means invitees can propose a different date/time for the event. See Propose new meeting times for more information on how to propose a time, and how to receive and accept a new time proposal. You can specify the time zone for each of the start and end times of the event as part of their values, because the
-start and end properties are of dateTimeTimeZone type. First find the supported time zones to make sure you set only time zones that have been configured for the user&#x27;s mailbox server. When an event is sent, the server sends invitations to all the attendees. Setting the location in an event An Exchange administrator can set up a mailbox and an email address for a resource such as a meeting room, or equipment
-like a projector. Users can then invite the resource as an attendee to a meeting. On behalf of the resource, the server accepts or rejects
-the meeting request based on the free/busy schedule of the resource.
-If the server accepts a meeting for the resource, it creates an event for the meeting in the resource&#x27;s calendar. If the meeting is rescheduled,
-the server automatically updates the event in the resource&#x27;s calendar. Another advantage of setting up a mailbox for a resource is to control scheduling of the resource, for example, only executives
-or their delegates can book a private meeting room. If you&#x27;re organizing an event that involves a meeting location: Additionally, if the meeting location has been set up as a resource, or if the event involves some equipment that has been set up as a resource:`,
+    description: `Create one or more single-value extended properties in a new or existing instance of a resource. The following user resources are supported: The following group resources: See Extended properties overview for more information about when to use
+open extensions or extended properties, and how to specify extended properties.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -24092,7 +24146,7 @@ open extensions or extended properties, and how to specify extended properties.`
     method: 'delete',
     path: '/me/messages/:messageId',
     alias: 'delete-mail-message',
-    description: `Delete eventMessage.`,
+    description: `Delete a message in the specified user&#x27;s mailbox, or delete a relationship of the message.`,
     requestFormat: 'json',
     parameters: [
       {
