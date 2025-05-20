@@ -6,6 +6,13 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
 
   const spec = fs.readFileSync(openapiFile, 'utf8');
   const openApiSpec = yaml.load(spec);
+
+  for (const endpoint of endpoints) {
+    if (!openApiSpec.paths[endpoint.pathPattern]) {
+      throw new Error(`Path "${endpoint.pathPattern}" not found in OpenAPI spec.`);
+    }
+  }
+
   for (const [key, value] of Object.entries(openApiSpec.paths)) {
     const e = endpoints.filter((ep) => ep.pathPattern === key);
     if (e.length === 0) {
