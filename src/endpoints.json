@@ -197,14 +197,6 @@
     ]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
-    "method": "post",
-    "toolName": "create-folder",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
-  },
-  {
     "pathPattern": "/me/onenote/notebooks",
     "method": "get",
     "toolName": "list-onenote-notebooks",

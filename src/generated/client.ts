@@ -22936,38 +22936,6 @@ const endpoints = makeApi([
     ],
   },
   {
-    method: 'post',
-    path: '/drives/:driveId/items/:driveItemId/children',
-    alias: 'create-folder',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        description: `New navigation property`,
-        type: 'Body',
-        schema: microsoft_graph_driveItem,
-      },
-    ],
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Created navigation property.`,
-        schema: microsoft_graph_driveItem,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
-  {
     method: 'get',
     path: '/drives/:driveId/items/:driveItemId/children/:driveItemId1/content',
     alias: 'download-onedrive-file-content',
