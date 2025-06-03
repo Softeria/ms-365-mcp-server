@@ -27,7 +27,7 @@ interface ScopeHierarchy {
 }
 
 const SCOPE_HIERARCHY: ScopeHierarchy = {
-  'Mail.ReadWrite': ['Mail.Read', 'Mail.Send'],
+  'Mail.ReadWrite': ['Mail.Read'],
   'Calendars.ReadWrite': ['Calendars.Read'],
   'Files.ReadWrite': ['Files.Read'],
   'Tasks.ReadWrite': ['Tasks.Read'],
