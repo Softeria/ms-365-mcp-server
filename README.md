@@ -104,6 +104,15 @@ Environment variables:
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true`: Disable console output
 
+## Support
+
+If you're having problems or need help:
+
+- Create an [issue](https://github.com/softeria/ms-365-mcp-server/issues)
+- Start a [discussion](https://github.com/softeria/ms-365-mcp-server/discussions)  
+- Email: eirikb@eirikb.no
+- Discord: https://discord.gg/WvGVNScrAZ or @eirikb
+
 ## License
 
 MIT © 2025 Softeria
