@@ -2,30 +2,28 @@
 
 This directory contains the generated TypeScript client for the Microsoft 365 API based on the OpenAPI specification.
 
-> **Important Note for NPM Package Users**: 
-> The source file `client.ts` (approximately 1MB) is excluded from the npm package to reduce package size, 
+> **Important Note for NPM Package Users**:
+> The source file `client.ts` (approximately 1MB) is excluded from the npm package to reduce package size,
 > but the compiled JavaScript file `client.js` is included. This means the package is fully functional,
 > but you won't see the TypeScript source in the node_modules directory.
 
 ## The Evolution
 
-### Initial Challenge
+### Version 1: AI-Generated Mappings
 
-Our initial approach used the full MS 365 OpenAPI specification file directly. This created several significant problems:
+Our initial approach used AI to map Microsoft 365 documentation and OpenAPI specifications directly into MCP tools with
+Zod mappings. While conceptually appealing, this approach didn't work well in practice and created several problems:
+
+### Version 2: Direct OpenAPI Spec Usage
+
+We then moved to using the full MS 365 OpenAPI specification file directly. This improved reliability but created new
+significant problems:
 
 - The spec file was a whopping 45MB in size
 - It had to be included in the npm package
 - Startup time was painfully slow due to parsing the large spec file
 
-### Exploration Phase
-
-We explored several alternatives:
-
-1. Live-parsing a trimmed version of the spec file
-2. Creating a static trimmed version
-3. Pre-generating client code
-
-### Current Solution
+### Version 3: Current Solution (Trimmed Spec + Generated Client)
 
 We eventually settled on a combined approach:
 
@@ -38,6 +36,13 @@ We eventually settled on a combined approach:
 - **Significantly smaller package size** - No more bundling a 45MB spec file
 - **Type safety** - Full TypeScript types generated from the OpenAPI spec
 - **Validation** - Zod schemas for request/response validation
+
+### Current Limitations & Future Improvements
+
+While this approach is a significant improvement, it's not perfect. The MCP server might still struggle to understand
+the MS 365 endpoints correctly, and there's room for improvements in how the API is exposed and documented for AI
+assistants. However, with the current foundation of generated TypeScript clients and proper type safety, these
+improvements should now be much easier to implement and maintain.
 
 ## Regenerating the Client
 
