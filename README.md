@@ -96,6 +96,8 @@ When running as an MCP server, the following options can be used:
 ```
 -v                Enable verbose logging
 --read-only       Start server in read-only mode, disabling write operations
+--http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
+                  Starts Express.js server with MCP endpoint at /mcp
 ```
 
 Environment variables:
@@ -111,7 +113,7 @@ Environment variables:
 If you're having problems or need help:
 
 - Create an [issue](https://github.com/softeria/ms-365-mcp-server/issues)
-- Start a [discussion](https://github.com/softeria/ms-365-mcp-server/discussions)  
+- Start a [discussion](https://github.com/softeria/ms-365-mcp-server/discussions)
 - Email: eirikb@eirikb.no
 - Discord: https://discord.gg/WvGVNScrAZ or @eirikb
 

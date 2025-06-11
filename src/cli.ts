@@ -18,7 +18,11 @@ program
   .option('--login', 'Login using device code flow')
   .option('--logout', 'Log out and clear saved credentials')
   .option('--verify-login', 'Verify login without starting the server')
-  .option('--read-only', 'Start server in read-only mode, disabling write operations');
+  .option('--read-only', 'Start server in read-only mode, disabling write operations')
+  .option(
+    '--http [port]',
+    'Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)'
+  );
 
 export interface CommandOptions {
   v?: boolean;
@@ -26,6 +30,7 @@ export interface CommandOptions {
   logout?: boolean;
   verifyLogin?: boolean;
   readOnly?: boolean;
+  http?: string | boolean;
 
   [key: string]: any;
 }
