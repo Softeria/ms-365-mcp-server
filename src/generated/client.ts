@@ -13820,29 +13820,52 @@ const microsoft_graph_scheduleChangeState = z.enum([
 const microsoft_graph_scheduleChangeRequest = microsoft_graph_changeTrackedEntity.and(
   z
     .object({
-      assignedTo: z.union([
-        microsoft_graph_scheduleChangeRequestActor,
-        z.object({}).partial().passthrough(),
-      ]),
+      assignedTo: z
+        .union([microsoft_graph_scheduleChangeRequestActor, z.object({}).partial().passthrough()])
+        .describe(
+          'Indicates who the request is assigned to. Possible values are: sender, recipient, manager, system, unknownFutureValue.'
+        ),
       managerActionDateTime: z
         .string()
         .regex(
           /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
         )
         .datetime({ offset: true })
+        .describe(
+          'The date and time when the manager approved or declined the scheduleChangeRequest. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
+        )
         .nullable(),
-      managerActionMessage: z.string().nullable(),
-      managerUserId: z.string().nullable(),
+      managerActionMessage: z
+        .string()
+        .describe('The message sent by the manager regarding the scheduleChangeRequest. Optional.')
+        .nullable(),
+      managerUserId: z
+        .string()
+        .describe('The user ID of the manager who approved or declined the scheduleChangeRequest.')
+        .nullable(),
       senderDateTime: z
         .string()
         .regex(
           /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
         )
         .datetime({ offset: true })
+        .describe(
+          'The date and time when the sender sent the scheduleChangeRequest. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
+        )
         .nullable(),
-      senderMessage: z.string().nullable(),
-      senderUserId: z.string().nullable(),
-      state: z.union([microsoft_graph_scheduleChangeState, z.object({}).partial().passthrough()]),
+      senderMessage: z
+        .string()
+        .describe('The message sent by the sender of the scheduleChangeRequest. Optional.')
+        .nullable(),
+      senderUserId: z
+        .string()
+        .describe('The user ID of the sender of the scheduleChangeRequest.')
+        .nullable(),
+      state: z
+        .union([microsoft_graph_scheduleChangeState, z.object({}).partial().passthrough()])
+        .describe(
+          'The state of the scheduleChangeRequest. Possible values are: pending, approved, declined, unknownFutureValue.'
+        ),
     })
     .partial()
     .passthrough()
@@ -13856,22 +13879,14 @@ const microsoft_graph_offerShiftRequest = microsoft_graph_scheduleChangeRequest.
           /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
         )
         .datetime({ offset: true })
-        .describe(
-          'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
-        )
+        .describe('The date and time when the recipient approved or declined the request.')
         .nullable(),
       recipientActionMessage: z
         .string()
-        .describe('Custom message sent by recipient of the offer shift request.')
+        .describe('The message sent by the recipient regarding the request.')
         .nullable(),
-      recipientUserId: z
-        .string()
-        .describe('User ID of the recipient of the offer shift request.')
-        .nullable(),
-      senderShiftId: z
-        .string()
-        .describe('User ID of the sender of the offer shift request.')
-        .nullable(),
+      recipientUserId: z.string().describe("The recipient's user ID.").nullable(),
+      senderShiftId: z.string().describe("The sender's shift ID.").nullable(),
     })
     .partial()
     .passthrough()
@@ -14060,12 +14075,7 @@ const microsoft_graph_shift = microsoft_graph_changeTrackedEntity.and(
 );
 const microsoft_graph_swapShiftsChangeRequest = microsoft_graph_offerShiftRequest.and(
   z
-    .object({
-      recipientShiftId: z
-        .string()
-        .describe('ShiftId for the recipient user with whom the request is to swap.')
-        .nullable(),
-    })
+    .object({ recipientShiftId: z.string().describe("The recipient's Shift ID").nullable() })
     .partial()
     .passthrough()
 );
@@ -14211,9 +14221,7 @@ const microsoft_graph_timeOffRequest = microsoft_graph_scheduleChangeRequest.and
           /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
         )
         .datetime({ offset: true })
-        .describe(
-          'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
-        )
+        .describe('The date and time the time off ends in ISO 8601 format and in UTC time.')
         .nullable(),
       startDateTime: z
         .string()
@@ -14221,9 +14229,7 @@ const microsoft_graph_timeOffRequest = microsoft_graph_scheduleChangeRequest.and
           /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
         )
         .datetime({ offset: true })
-        .describe(
-          'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
-        )
+        .describe('The date and time the time off starts in ISO 8601 format and in UTC time.')
         .nullable(),
       timeOffReasonId: z.string().describe('The reason for the time off.').nullable(),
     })
@@ -23729,8 +23735,13 @@ get the instances of an event. Currently, this operation returns event bodies in
     method: 'post',
     path: '/me/events',
     alias: 'create-calendar-event',
-    description: `Create one or more single-value extended properties in a new or existing instance of a resource. The following user resources are supported: The following group resources: See Extended properties overview for more information about when to use
-open extensions or extended properties, and how to specify extended properties.`,
+    description: `Create an event in the user&#x27;s default calendar or specified calendar. By default, the allowNewTimeProposals property is set to true when an event is created, which means invitees can propose a different date/time for the event. See Propose new meeting times for more information on how to propose a time, and how to receive and accept a new time proposal. You can specify the time zone for each of the start and end times of the event as part of their values, because the
+start and end properties are of dateTimeTimeZone type. First find the supported time zones to make sure you set only time zones that have been configured for the user&#x27;s mailbox server. When an event is sent, the server sends invitations to all the attendees. Setting the location in an event An Exchange administrator can set up a mailbox and an email address for a resource such as a meeting room, or equipment
+like a projector. Users can then invite the resource as an attendee to a meeting. On behalf of the resource, the server accepts or rejects
+the meeting request based on the free/busy schedule of the resource.
+If the server accepts a meeting for the resource, it creates an event for the meeting in the resource&#x27;s calendar. If the meeting is rescheduled,
+the server automatically updates the event in the resource&#x27;s calendar. Another advantage of setting up a mailbox for a resource is to control scheduling of the resource, for example, only executives
+or their delegates can book a private meeting room. If you&#x27;re organizing an event that involves a meeting location: Additionally, if the meeting location has been set up as a resource, or if the event involves some equipment that has been set up as a resource:`,
     requestFormat: 'json',
     parameters: [
       {
@@ -23999,7 +24010,7 @@ open extensions or extended properties, and how to specify extended properties.`
     method: 'get',
     path: '/me/messages',
     alias: 'list-mail-messages',
-    description: `Get the messages in the signed-in user&#x27;s mailbox (including the Deleted Items and Clutter folders). Depending on the page size and mailbox data, getting messages from a mailbox can incur multiple requests. The default page size is 10 messages. Use $top to customize the page size, within the range of 1 and 1000. To improve the operation response time, use $select to specify the exact properties you need; see example 1 below. Fine-tune the values for $select and $top, especially when you must use a larger page size, as returning a page with hundreds of messages each with a full response payload may trigger the gateway timeout (HTTP 504). To get the next page of messages, simply apply the entire URL returned in @odata.nextLink to the next get-messages request. This URL includes any query parameters you may have specified in the initial request. Do not try to extract the $skip value from the @odata.nextLink URL to manipulate responses. This API uses the $skip value to keep count of all the items it has gone through in the user&#x27;s mailbox to return a page of message-type items. It&#x27;s therefore possible that even in the initial response, the $skip value is larger than the page size. For more information, see Paging Microsoft Graph data in your app. Currently, this operation returns message bodies in only HTML format. There are two scenarios where an app can get messages in another user&#x27;s mail folder:`,
+    description: `Get an open extension (openTypeExtension object) identified by name or fully qualified name. The table in the Permissions section lists the resources that support open extensions. The following table lists the three scenarios where you can get an open extension from a supported resource instance.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -24114,7 +24125,7 @@ open extensions or extended properties, and how to specify extended properties.`
     method: 'delete',
     path: '/me/messages/:messageId',
     alias: 'delete-mail-message',
-    description: `Delete a message in the specified user&#x27;s mailbox, or delete a relationship of the message.`,
+    description: `Delete eventMessage.`,
     requestFormat: 'json',
     parameters: [
       {

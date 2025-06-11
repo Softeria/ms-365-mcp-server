@@ -97,7 +97,22 @@ export function registerGraphTools(
           const headers: Record<string, string> = {};
           let body: any = null;
           for (let [paramName, paramValue] of Object.entries(params)) {
-            const fixedParamName = paramName.replace(/__/g, '$');
+            // Ok, so, MCP clients (such as claude code) doesn't support $ in parameter names,
+            // and others might not support __, so we strip them in hack.ts and restore them here
+            const odataParams = [
+              'filter',
+              'select',
+              'expand',
+              'orderby',
+              'skip',
+              'top',
+              'count',
+              'search',
+              'format',
+            ];
+            const fixedParamName = odataParams.includes(paramName.toLowerCase())
+              ? `$${paramName.toLowerCase()}`
+              : paramName;
             const paramDef = parameterDefinitions.find((p) => p.name === paramName);
 
             if (paramDef) {

@@ -15,8 +15,7 @@ export class Zodios {
     this.endpoints = baseUrlOrEndpoints.map((endpoint) => {
       endpoint.parameters = endpoint.parameters || [];
       for (const parameter of endpoint.parameters) {
-        // We need a hack since MCP won't support $ in parameter names
-        parameter.name = parameter.name.replace(/\$/g, '__');
+        parameter.name = parameter.name.replace(/[$_]+/g, '');
       }
 
       const pathParamRegex = /:([a-zA-Z0-9]+)/g;
@@ -28,7 +27,7 @@ export class Zodios {
 
       for (const pathParam of pathParams) {
         const paramExists = endpoint.parameters.some(
-          (param) => param.name === pathParam || param.name === pathParam.replace(/\$/g, '__')
+          (param) => param.name === pathParam || param.name === pathParam.replace(/[$_]+/g, '')
         );
 
         if (!paramExists) {
