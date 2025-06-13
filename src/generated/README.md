@@ -2,11 +2,6 @@
 
 This directory contains the generated TypeScript client for the Microsoft 365 API based on the OpenAPI specification.
 
-> **Important Note for NPM Package Users**:
-> The source file `client.ts` (approximately 1MB) is excluded from the npm package to reduce package size,
-> but the compiled JavaScript file `client.js` is included. This means the package is fully functional,
-> but you won't see the TypeScript source in the node_modules directory.
-
 ## The Evolution
 
 ### Version 1: AI-Generated Mappings
