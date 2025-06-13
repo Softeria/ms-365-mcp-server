@@ -160,6 +160,34 @@ export function registerGraphTools(
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
           const response = await graphClient.graphRequest(path, options);
 
+          if (response && response.content && response.content.length > 0) {
+            const responseText = response.content[0].text;
+            const responseSize = responseText.length;
+            logger.info(`Response size: ${responseSize} characters`);
+
+            try {
+              const jsonResponse = JSON.parse(responseText);
+              if (jsonResponse.value && Array.isArray(jsonResponse.value)) {
+                logger.info(`Response contains ${jsonResponse.value.length} items`);
+                if (jsonResponse.value.length > 0 && jsonResponse.value[0].body) {
+                  logger.info(
+                    `First item has body field with size: ${JSON.stringify(jsonResponse.value[0].body).length} characters`
+                  );
+                }
+              }
+              if (jsonResponse['@odata.nextLink']) {
+                logger.info(`Response has pagination nextLink: ${jsonResponse['@odata.nextLink']}`);
+              }
+              const preview = responseText.substring(0, 500);
+              logger.info(`Response preview: ${preview}${responseText.length > 500 ? '...' : ''}`);
+            } catch (e) {
+              const preview = responseText.substring(0, 500);
+              logger.info(
+                `Response preview (non-JSON): ${preview}${responseText.length > 500 ? '...' : ''}`
+              );
+            }
+          }
+
           // Convert McpResponse to CallToolResult with the correct structure
           const content: ContentItem[] = response.content.map((item) => {
             // GraphClient only returns text content items, so create proper TextContent items
