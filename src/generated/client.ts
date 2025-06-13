@@ -7228,7 +7228,7 @@ type microsoft_graph_termStore_term = microsoft_graph_entity &
 
 const microsoft_graph_ODataErrors_ErrorDetails = z
   .object({ code: z.string(), message: z.string(), target: z.string().nullish() })
-  .passthrough();
+  .strict();
 const microsoft_graph_ODataErrors_InnerError = z
   .object({
     'request-id': z.string().describe('Request Id as tracked internally by the service').nullable(),
@@ -7246,7 +7246,7 @@ const microsoft_graph_ODataErrors_InnerError = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_ODataErrors_MainError = z
   .object({
     code: z.string(),
@@ -7255,18 +7255,18 @@ const microsoft_graph_ODataErrors_MainError = z
     details: z.array(microsoft_graph_ODataErrors_ErrorDetails).optional(),
     innerError: microsoft_graph_ODataErrors_InnerError.optional(),
   })
-  .passthrough();
+  .strict();
 const microsoft_graph_ODataErrors_ODataError = z
   .object({ error: microsoft_graph_ODataErrors_MainError })
-  .passthrough();
+  .strict();
 const BaseCollectionPaginationCountResponse = z
   .object({ '@odata.count': z.number().int().nullable(), '@odata.nextLink': z.string().nullable() })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_entity = z
   .object({ id: z.string().describe('The unique identifier for an entity. Read-only.') })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_identity = z
   .object({
     displayName: z
@@ -7283,21 +7283,21 @@ const microsoft_graph_identity = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_identitySet = z
   .object({
     application: z
-      .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
       .describe('Optional. The application associated with this action.'),
     device: z
-      .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
       .describe('Optional. The device associated with this action.'),
     user: z
-      .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
       .describe('Optional. The user associated with this action.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_sharepointIds = z
   .object({
     listId: z
@@ -7329,7 +7329,7 @@ const microsoft_graph_sharepointIds = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_itemReference = z
   .object({
     driveId: z
@@ -7362,7 +7362,7 @@ const microsoft_graph_itemReference = z
       )
       .nullable(),
     sharepointIds: z
-      .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
       .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
     siteId: z
       .string()
@@ -7372,7 +7372,7 @@ const microsoft_graph_itemReference = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_directoryObject = microsoft_graph_entity.and(
   z
     .object({
@@ -7388,7 +7388,7 @@ const microsoft_graph_directoryObject = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_assignedLicense = z
   .object({
@@ -7412,7 +7412,7 @@ const microsoft_graph_assignedLicense = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_assignedPlan = z
   .object({
     assignedDateTime: z
@@ -7442,12 +7442,12 @@ const microsoft_graph_assignedPlan = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_authorizationInfo = z
   .object({ certificateUserIds: z.array(z.string().nullable()) })
   .partial()
-  .passthrough();
-const microsoft_graph_customSecurityAttributeValue = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_customSecurityAttributeValue = z.object({}).partial().strict();
 const microsoft_graph_employeeOrgData = z
   .object({
     costCenter: z
@@ -7464,7 +7464,7 @@ const microsoft_graph_employeeOrgData = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_objectIdentity = z
   .object({
     issuer: z
@@ -7487,7 +7487,7 @@ const microsoft_graph_objectIdentity = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_licenseAssignmentState = z
   .object({
     assignedByGroup: z.string().nullable(),
@@ -7514,7 +7514,7 @@ const microsoft_graph_licenseAssignmentState = z
     state: z.string().nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_externalAudienceScope = z.enum(['none', 'contactsOnly', 'all']);
 const microsoft_graph_dateTimeTimeZone = z
   .object({
@@ -7531,12 +7531,12 @@ const microsoft_graph_dateTimeTimeZone = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_automaticRepliesStatus = z.enum(['disabled', 'alwaysEnabled', 'scheduled']);
 const microsoft_graph_automaticRepliesSetting = z
   .object({
     externalAudience: z
-      .union([microsoft_graph_externalAudienceScope, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalAudienceScope, z.object({}).partial().strict()])
       .describe(
         "The set of audience external to the signed-in user's organization who will receive the ExternalReplyMessage, if Status is AlwaysEnabled or Scheduled. The possible values are: none, contactsOnly, all."
       ),
@@ -7553,23 +7553,23 @@ const microsoft_graph_automaticRepliesSetting = z
       )
       .nullable(),
     scheduledEndDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe(
         'The date and time that automatic replies are set to end, if Status is set to Scheduled.'
       ),
     scheduledStartDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe(
         'The date and time that automatic replies are set to begin, if Status is set to Scheduled.'
       ),
     status: z
-      .union([microsoft_graph_automaticRepliesStatus, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_automaticRepliesStatus, z.object({}).partial().strict()])
       .describe(
         'Configurations status for automatic replies. The possible values are: disabled, alwaysEnabled, scheduled.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_delegateMeetingMessageDeliveryOptions = z.enum([
   'sendToDelegateAndInformationToPrincipal',
   'sendToDelegateAndPrincipal',
@@ -7591,7 +7591,7 @@ const microsoft_graph_localeInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_userPurpose = z.enum([
   'user',
   'linked',
@@ -7620,11 +7620,11 @@ const microsoft_graph_timeZoneBase = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workingHours = z
   .object({
     daysOfWeek: z
-      .array(z.union([microsoft_graph_dayOfWeek, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()]))
       .describe('The days of the week on which the user works.'),
     endTime: z
       .string()
@@ -7637,16 +7637,16 @@ const microsoft_graph_workingHours = z
       .describe('The time of the day that the user starts working.')
       .nullable(),
     timeZone: z
-      .union([microsoft_graph_timeZoneBase, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_timeZoneBase, z.object({}).partial().strict()])
       .describe('The time zone to which the working hours apply.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_mailboxSettings = z
   .object({
     archiveFolder: z.string().describe('Folder ID of an archive folder for the user.').nullable(),
     automaticRepliesSetting: z
-      .union([microsoft_graph_automaticRepliesSetting, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_automaticRepliesSetting, z.object({}).partial().strict()])
       .describe(
         'Configuration settings to automatically notify the sender of an incoming email with a message from the signed-in user.'
       ),
@@ -7654,29 +7654,29 @@ const microsoft_graph_mailboxSettings = z
     delegateMeetingMessageDeliveryOptions: z
       .union([
         microsoft_graph_delegateMeetingMessageDeliveryOptions,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe(
         'If the user has a calendar delegate, this specifies whether the delegate, mailbox owner, or both receive meeting messages and meeting responses. Possible values are: sendToDelegateAndInformationToPrincipal, sendToDelegateAndPrincipal, sendToDelegateOnly.'
       ),
     language: z
-      .union([microsoft_graph_localeInfo, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_localeInfo, z.object({}).partial().strict()])
       .describe(
         'The locale information for the user, including the preferred language and country/region.'
       ),
     timeFormat: z.string().describe("The time format for the user's mailbox.").nullable(),
     timeZone: z.string().describe("The default time zone for the user's mailbox.").nullable(),
     userPurpose: z
-      .union([microsoft_graph_userPurpose, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_userPurpose, z.object({}).partial().strict()])
       .describe(
         'The purpose of the mailbox. Differentiates a mailbox for a single user from a shared mailbox and equipment mailbox in Exchange Online. Possible values are: user, linked, shared, room, equipment, others, unknownFutureValue. Read-only.'
       ),
     workingHours: z
-      .union([microsoft_graph_workingHours, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_workingHours, z.object({}).partial().strict()])
       .describe('The days of the week and hours in a specific time zone that the user works.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onPremisesExtensionAttributes = z
   .object({
     extensionAttribute1: z.string().describe('First customizable extension attribute.').nullable(),
@@ -7714,7 +7714,7 @@ const microsoft_graph_onPremisesExtensionAttributes = z
     extensionAttribute9: z.string().describe('Ninth customizable extension attribute.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onPremisesProvisioningError = z
   .object({
     category: z
@@ -7740,7 +7740,7 @@ const microsoft_graph_onPremisesProvisioningError = z
     value: z.string().describe('Value of the property causing the error.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_passwordProfile = z
   .object({
     forceChangePasswordNextSignIn: z
@@ -7761,7 +7761,7 @@ const microsoft_graph_passwordProfile = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printColorMode = z.enum([
   'blackAndWhite',
   'grayscale',
@@ -7775,7 +7775,7 @@ const microsoft_graph_integerRange = z
     start: z.number().describe('The inclusive lower bound of the integer range.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printDuplexMode = z.enum([
   'flipOnLongEdge',
   'flipOnShortEdge',
@@ -7894,7 +7894,7 @@ const microsoft_graph_printerCapabilities = z
       )
       .nullable(),
     colorModes: z
-      .array(z.union([microsoft_graph_printColorMode, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printColorMode, z.object({}).partial().strict()]))
       .describe(
         'The color modes supported by the printer. Valid values are described in the following table.'
       ),
@@ -7904,23 +7904,21 @@ const microsoft_graph_printerCapabilities = z
         'A list of supported content (MIME) types that the printer supports. It is not guaranteed that the Universal Print service supports printing all of these MIME types.'
       ),
     copiesPerJob: z
-      .union([microsoft_graph_integerRange, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_integerRange, z.object({}).partial().strict()])
       .describe('The range of copies per job supported by the printer.'),
     dpis: z
       .array(z.number().gte(-2147483648).lte(2147483647).nullable())
       .describe('The list of print resolutions in DPI that are supported by the printer.'),
     duplexModes: z
-      .array(z.union([microsoft_graph_printDuplexMode, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printDuplexMode, z.object({}).partial().strict()]))
       .describe(
         'The list of duplex modes that are supported by the printer. Valid values are described in the following table.'
       ),
     feedOrientations: z
-      .array(
-        z.union([microsoft_graph_printerFeedOrientation, z.object({}).partial().passthrough()])
-      )
+      .array(z.union([microsoft_graph_printerFeedOrientation, z.object({}).partial().strict()]))
       .describe('The list of feed orientations that are supported by the printer.'),
     finishings: z
-      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().strict()]))
       .describe('Finishing processes the printer supports for a printed document.'),
     inputBins: z.array(z.string().nullable()).describe('Supported input bins for the printer.'),
     isColorPrintingSupported: z
@@ -7946,12 +7944,12 @@ const microsoft_graph_printerCapabilities = z
       .array(z.string().nullable())
       .describe('The media types supported by the printer.'),
     multipageLayouts: z
-      .array(z.union([microsoft_graph_printMultipageLayout, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printMultipageLayout, z.object({}).partial().strict()]))
       .describe(
         'The presentation directions supported by the printer. Supported values are described in the following table.'
       ),
     orientations: z
-      .array(z.union([microsoft_graph_printOrientation, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printOrientation, z.object({}).partial().strict()]))
       .describe(
         'The print orientations supported by the printer. Valid values are described in the following table.'
       ),
@@ -7962,13 +7960,13 @@ const microsoft_graph_printerCapabilities = z
       .array(z.number().gte(-2147483648).lte(2147483647).nullable())
       .describe('Supported number of Input Pages to impose upon a single Impression.'),
     qualities: z
-      .array(z.union([microsoft_graph_printQuality, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printQuality, z.object({}).partial().strict()]))
       .describe('The print qualities supported by the printer.'),
     rightMargins: z
       .array(z.number().gte(-2147483648).lte(2147483647).nullable())
       .describe('A list of supported right margins(in microns) for the printer.'),
     scalings: z
-      .array(z.union([microsoft_graph_printScaling, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printScaling, z.object({}).partial().strict()]))
       .describe('Supported print scalings.'),
     supportsFitPdfToPage: z
       .boolean()
@@ -7981,11 +7979,11 @@ const microsoft_graph_printerCapabilities = z
       .describe('A list of supported top margins(in microns) for the printer.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printerDefaults = z
   .object({
     colorMode: z
-      .union([microsoft_graph_printColorMode, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printColorMode, z.object({}).partial().strict()])
       .describe(
         'The default color mode to use when printing the document. Valid values are described in the following table.'
       ),
@@ -8006,12 +8004,12 @@ const microsoft_graph_printerDefaults = z
       .describe('The default resolution in DPI to use when printing the job.')
       .nullable(),
     duplexMode: z
-      .union([microsoft_graph_printDuplexMode, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printDuplexMode, z.object({}).partial().strict()])
       .describe(
         'The default duplex (double-sided) configuration to use when printing a document. Valid values are described in the following table.'
       ),
     finishings: z
-      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().strict()]))
       .describe(
         'The default set of finishings to apply to print jobs. Valid values are described in the following table.'
       ),
@@ -8040,12 +8038,12 @@ const microsoft_graph_printerDefaults = z
       .describe('The default media (such as paper) type to print the document on.')
       .nullable(),
     multipageLayout: z
-      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().strict()])
       .describe(
         'The default direction to lay out pages when multiple pages are being printed per sheet. Valid values are described in the following table.'
       ),
     orientation: z
-      .union([microsoft_graph_printOrientation, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printOrientation, z.object({}).partial().strict()])
       .describe(
         'The default orientation to use when printing the document. Valid values are described in the following table.'
       ),
@@ -8062,18 +8060,18 @@ const microsoft_graph_printerDefaults = z
       .describe('The default number of document pages to print on each sheet.')
       .nullable(),
     quality: z
-      .union([microsoft_graph_printQuality, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printQuality, z.object({}).partial().strict()])
       .describe(
         'The default quality to use when printing the document. Valid values are described in the following table.'
       ),
     scaling: z
-      .union([microsoft_graph_printScaling, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printScaling, z.object({}).partial().strict()])
       .describe(
         'Specifies how the printer scales the document data to fit the requested media. Valid values are described in the following table.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const ReferenceNumeric = z.enum(['-INF', 'INF', 'NaN']);
 const microsoft_graph_printerLocation = z
   .object({
@@ -8138,7 +8136,7 @@ const microsoft_graph_printerLocation = z
     subunit: z.array(z.string().nullable()),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printerProcessingStateDetail = z.enum([
   'paused',
   'mediaJam',
@@ -8990,7 +8988,7 @@ const microsoft_graph_printerStatus = z
     state: microsoft_graph_printerProcessingState,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printMargin = z
   .object({
     bottom: z
@@ -9019,7 +9017,7 @@ const microsoft_graph_printMargin = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printJobConfiguration = z
   .object({
     collate: z
@@ -9029,7 +9027,7 @@ const microsoft_graph_printJobConfiguration = z
       )
       .nullable(),
     colorMode: z
-      .union([microsoft_graph_printColorMode, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printColorMode, z.object({}).partial().strict()])
       .describe(
         'The color mode the printer should use to print the job. Valid values are described in the table below. Read-only.'
       ),
@@ -9048,17 +9046,17 @@ const microsoft_graph_printJobConfiguration = z
       )
       .nullable(),
     duplexMode: z
-      .union([microsoft_graph_printDuplexMode, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printDuplexMode, z.object({}).partial().strict()])
       .describe(
         'The duplex mode the printer should use when printing the job. Valid values are described in the table below. Read-only.'
       ),
     feedOrientation: z
-      .union([microsoft_graph_printerFeedOrientation, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printerFeedOrientation, z.object({}).partial().strict()])
       .describe(
         'The orientation to use when feeding media into the printer. Valid values are described in the following table. Read-only.'
       ),
     finishings: z
-      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().strict()]))
       .describe('Finishing processes to use when printing.'),
     fitPdfToPage: z
       .boolean()
@@ -9073,7 +9071,7 @@ const microsoft_graph_printJobConfiguration = z
       )
       .nullable(),
     margin: z
-      .union([microsoft_graph_printMargin, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printMargin, z.object({}).partial().strict()])
       .describe('The margin settings to use when printing.'),
     mediaSize: z
       .string()
@@ -9086,12 +9084,12 @@ const microsoft_graph_printJobConfiguration = z
       .describe('The default media (such as paper) type to print the document on.')
       .nullable(),
     multipageLayout: z
-      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().strict()])
       .describe(
         'The direction to lay out pages when multiple pages are being printed per sheet. Valid values are described in the following table.'
       ),
     orientation: z
-      .union([microsoft_graph_printOrientation, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printOrientation, z.object({}).partial().strict()])
       .describe(
         'The orientation setting the printer should use when printing the job. Valid values are described in the following table.'
       ),
@@ -9111,18 +9109,18 @@ const microsoft_graph_printJobConfiguration = z
       .describe('The number of document pages to print on each sheet.')
       .nullable(),
     quality: z
-      .union([microsoft_graph_printQuality, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printQuality, z.object({}).partial().strict()])
       .describe(
         'The print quality to use when printing the job. Valid values are described in the table below. Read-only.'
       ),
     scaling: z
-      .union([microsoft_graph_printScaling, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_printScaling, z.object({}).partial().strict()])
       .describe(
         'Specifies how the printer should scale the document data to fit the requested media. Valid values are described in the following table.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_userIdentity = microsoft_graph_identity.and(
   z
     .object({
@@ -9138,7 +9136,7 @@ const microsoft_graph_userIdentity = microsoft_graph_identity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_printJobStateDetail = z.enum([
   'uploadPending',
@@ -9179,7 +9177,7 @@ const microsoft_graph_printJobStatus = z
     state: microsoft_graph_printJobProcessingState,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printDocument = microsoft_graph_entity.and(
   z
     .object({
@@ -9204,7 +9202,7 @@ const microsoft_graph_printDocument = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_printTaskProcessingState = z.enum([
   'pending',
@@ -9221,7 +9219,7 @@ const microsoft_graph_printTaskStatus = z
     state: microsoft_graph_printTaskProcessingState,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_appIdentity = z
   .object({
     appId: z
@@ -9242,7 +9240,7 @@ const microsoft_graph_appIdentity = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_printTaskDefinition: z.ZodType<microsoft_graph_printTaskDefinition> = z.lazy(
   () =>
     microsoft_graph_entity.and(
@@ -9257,7 +9255,7 @@ const microsoft_graph_printTaskDefinition: z.ZodType<microsoft_graph_printTaskDe
             ),
         })
         .partial()
-        .passthrough()
+        .strict()
     )
 );
 const microsoft_graph_printEvent = z.enum(['jobStarted', 'unknownFutureValue']);
@@ -9269,7 +9267,7 @@ const microsoft_graph_printTaskTrigger: z.ZodType<microsoft_graph_printTaskTrigg
         definition: microsoft_graph_printTaskDefinition,
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_printTask: z.ZodType<microsoft_graph_printTask> = z.lazy(() =>
@@ -9286,7 +9284,7 @@ const microsoft_graph_printTask: z.ZodType<microsoft_graph_printTask> = z.lazy((
         trigger: microsoft_graph_printTaskTrigger,
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_printJob = microsoft_graph_entity.and(
@@ -9301,7 +9299,7 @@ const microsoft_graph_printJob = microsoft_graph_entity.and(
         .describe('The dateTimeOffset when the job was acknowledged. Read-only.')
         .nullable(),
       configuration: microsoft_graph_printJobConfiguration,
-      createdBy: z.union([microsoft_graph_userIdentity, z.object({}).partial().passthrough()]),
+      createdBy: z.union([microsoft_graph_userIdentity, z.object({}).partial().strict()]),
       createdDateTime: z
         .string()
         .regex(
@@ -9335,16 +9333,16 @@ const microsoft_graph_printJob = microsoft_graph_entity.and(
         .describe('A list of printTasks that were triggered by this print job.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_printerBase = microsoft_graph_entity.and(
   z
     .object({
       capabilities: z
-        .union([microsoft_graph_printerCapabilities, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_printerCapabilities, z.object({}).partial().strict()])
         .describe('The capabilities of the printer/printerShare.'),
       defaults: z
-        .union([microsoft_graph_printerDefaults, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_printerDefaults, z.object({}).partial().strict()])
         .describe('The default print settings of printer/printerShare.'),
       displayName: z.string().describe('The name of the printer/printerShare.'),
       isAcceptingJobs: z
@@ -9354,7 +9352,7 @@ const microsoft_graph_printerBase = microsoft_graph_entity.and(
         )
         .nullable(),
       location: z
-        .union([microsoft_graph_printerLocation, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_printerLocation, z.object({}).partial().strict()])
         .describe('The physical and/or organizational location of the printer/printerShare.'),
       manufacturer: z.string().describe('The manufacturer of the printer/printerShare.').nullable(),
       model: z.string().describe('The model name of the printer/printerShare.').nullable(),
@@ -9364,7 +9362,7 @@ const microsoft_graph_printerBase = microsoft_graph_entity.and(
         .describe('The list of jobs that are queued for printing by the printer/printerShare.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_printerShareViewpoint = z
   .object({
@@ -9380,18 +9378,18 @@ const microsoft_graph_printerShareViewpoint = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_assignedLabel = z
   .object({
     displayName: z.string().describe('The display name of the label. Read-only.').nullable(),
     labelId: z.string().describe('The unique identifier of the label.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_licenseProcessingState = z
   .object({ state: z.string().nullable() })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_serviceProvisioningError = z
   .object({
     createdDateTime: z
@@ -9414,7 +9412,7 @@ const microsoft_graph_serviceProvisioningError = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_appRoleAssignment = microsoft_graph_directoryObject.and(
   z
     .object({
@@ -9471,7 +9469,7 @@ const microsoft_graph_appRoleAssignment = microsoft_graph_directoryObject.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onlineMeetingProviderType = z.enum([
   'unknown',
@@ -9498,7 +9496,7 @@ const microsoft_graph_emailAddress = z
     name: z.string().describe('The display name of the person or entity.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_calendarRoleType = z.enum([
   'none',
   'freeBusyRead',
@@ -9513,12 +9511,12 @@ const microsoft_graph_calendarPermission = microsoft_graph_entity.and(
   z
     .object({
       allowedRoles: z
-        .array(z.union([microsoft_graph_calendarRoleType, z.object({}).partial().passthrough()]))
+        .array(z.union([microsoft_graph_calendarRoleType, z.object({}).partial().strict()]))
         .describe(
           'List of allowed sharing or delegating permission levels for the calendar. Possible values are: none, freeBusyRead, limitedRead, read, write, delegateWithoutPrivateEventAccess, delegateWithPrivateEventAccess, custom.'
         ),
       emailAddress: z
-        .union([microsoft_graph_emailAddress, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
         .describe(
           "Represents a share recipient or delegate who has access to the calendar. For the 'My Organization' share recipient, the address property is null. Read-only."
         ),
@@ -9535,11 +9533,11 @@ const microsoft_graph_calendarPermission = microsoft_graph_entity.and(
         )
         .nullable(),
       role: z
-        .union([microsoft_graph_calendarRoleType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_calendarRoleType, z.object({}).partial().strict()])
         .describe('Current permission level of the calendar share recipient or delegate.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_outlookItem = microsoft_graph_entity.and(
   z
@@ -9575,33 +9573,33 @@ const microsoft_graph_outlookItem = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_recipient = z
   .object({
     emailAddress: z
-      .union([microsoft_graph_emailAddress, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
       .describe("The recipient's email address."),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_attendeeType = z.enum(['required', 'optional', 'resource']);
 const microsoft_graph_attendeeBase = microsoft_graph_recipient.and(
   z
     .object({
       type: z
-        .union([microsoft_graph_attendeeType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_attendeeType, z.object({}).partial().strict()])
         .describe(
           'The type of attendee. The possible values are: required, optional, resource. Currently if the attendee is a person, findMeetingTimes always considers the person is of the Required type.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeSlot = z
   .object({ end: microsoft_graph_dateTimeTimeZone, start: microsoft_graph_dateTimeTimeZone })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_responseType = z.enum([
   'none',
   'organizer',
@@ -9613,7 +9611,7 @@ const microsoft_graph_responseType = z.enum([
 const microsoft_graph_responseStatus = z
   .object({
     response: z
-      .union([microsoft_graph_responseType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_responseType, z.object({}).partial().strict()])
       .describe(
         "The response type. Possible values are: none, organizer, tentativelyAccepted, accepted, declined, notResponded.To differentiate between none and notResponded:  none – from organizer's perspective. This value is used when the status of an attendee/participant is reported to the organizer of a meeting.  notResponded – from attendee's perspective. Indicates the attendee has not responded to the meeting request.  Clients can treat notResponded == none.  As an example, if attendee Alex hasn't responded to a meeting request, getting Alex' response status for that event in Alex' calendar returns notResponded. Getting Alex' response from the calendar of any other attendee or the organizer's returns none. Getting the organizer's response for the event in anybody's calendar also returns none."
       ),
@@ -9629,34 +9627,34 @@ const microsoft_graph_responseStatus = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_attendee = microsoft_graph_attendeeBase.and(
   z
     .object({
       proposedNewTime: z
-        .union([microsoft_graph_timeSlot, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeSlot, z.object({}).partial().strict()])
         .describe(
           "An alternate date/time proposed by the attendee for a meeting request to start and end. If the attendee hasn't proposed another time, then this property isn't included in a response of a GET event."
         ),
       status: z
-        .union([microsoft_graph_responseStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_responseStatus, z.object({}).partial().strict()])
         .describe(
           "The attendee's response (none, accepted, declined, etc.) for the event and date-time that the response was sent."
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_bodyType = z.enum(['text', 'html']);
 const microsoft_graph_itemBody = z
   .object({
     content: z.string().describe('The content of the item.').nullable(),
     contentType: z
-      .union([microsoft_graph_bodyType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_bodyType, z.object({}).partial().strict()])
       .describe('The type of the content. Possible values are text and html.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_importance = z.enum(['low', 'normal', 'high']);
 const microsoft_graph_physicalAddress = z
   .object({
@@ -9672,7 +9670,7 @@ const microsoft_graph_physicalAddress = z
     street: z.string().describe('The street.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_outlookGeoCoordinates = z
   .object({
     accuracy: z
@@ -9694,7 +9692,7 @@ const microsoft_graph_outlookGeoCoordinates = z
       .describe('The longitude of the location.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_locationType = z.enum([
   'default',
   'conferenceRoom',
@@ -9717,26 +9715,26 @@ const microsoft_graph_locationUniqueIdType = z.enum([
 const microsoft_graph_location = z
   .object({
     address: z
-      .union([microsoft_graph_physicalAddress, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
       .describe('The street address of the location.'),
     coordinates: z
-      .union([microsoft_graph_outlookGeoCoordinates, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_outlookGeoCoordinates, z.object({}).partial().strict()])
       .describe('The geographic coordinates and elevation of the location.'),
     displayName: z.string().describe('The name associated with the location.').nullable(),
     locationEmailAddress: z.string().describe('Optional email address of the location.').nullable(),
     locationType: z
-      .union([microsoft_graph_locationType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_locationType, z.object({}).partial().strict()])
       .describe(
         'The type of location. The possible values are: default, conferenceRoom, homeAddress, businessAddress,geoCoordinates, streetAddress, hotel, restaurant, localBusiness, postalAddress. Read-only.'
       ),
     locationUri: z.string().describe('Optional URI representing the location.').nullable(),
     uniqueId: z.string().describe('For internal use only.').nullable(),
     uniqueIdType: z
-      .union([microsoft_graph_locationUniqueIdType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_locationUniqueIdType, z.object({}).partial().strict()])
       .describe('For internal use only.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_phoneType = z.enum([
   'home',
   'business',
@@ -9755,13 +9753,13 @@ const microsoft_graph_phone = z
     number: z.string().describe('The phone number.').nullable(),
     region: z.string().nullable(),
     type: z
-      .union([microsoft_graph_phoneType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_phoneType, z.object({}).partial().strict()])
       .describe(
         'The type of phone number. The possible values are: home, business, mobile, other, assistant, homeFax, businessFax, otherFax, pager, radio.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onlineMeetingInfo = z
   .object({
     conferenceId: z.string().describe('The ID of the conference.').nullable(),
@@ -9784,7 +9782,7 @@ const microsoft_graph_onlineMeetingInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_weekIndex = z.enum(['first', 'second', 'third', 'fourth', 'last']);
 const microsoft_graph_recurrencePatternType = z.enum([
   'daily',
@@ -9804,17 +9802,17 @@ const microsoft_graph_recurrencePattern = z
         'The day of the month on which the event occurs. Required if type is absoluteMonthly or absoluteYearly.'
       ),
     daysOfWeek: z
-      .array(z.union([microsoft_graph_dayOfWeek, z.object({}).partial().passthrough()]))
+      .array(z.union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()]))
       .describe(
         'A collection of the days of the week on which the event occurs. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday. If type is relativeMonthly or relativeYearly, and daysOfWeek specifies more than one day, the event falls on the first day that satisfies the pattern.  Required if type is weekly, relativeMonthly, or relativeYearly.'
       ),
     firstDayOfWeek: z
-      .union([microsoft_graph_dayOfWeek, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()])
       .describe(
         'The first day of the week. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday. Default is sunday. Required if type is weekly.'
       ),
     index: z
-      .union([microsoft_graph_weekIndex, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_weekIndex, z.object({}).partial().strict()])
       .describe(
         'Specifies on which instance of the allowed days specified in daysOfWeek the event occurs, counted from the first instance in the month. The possible values are: first, second, third, fourth, last. Default is first. Optional and used if type is relativeMonthly or relativeYearly.'
       ),
@@ -9831,13 +9829,13 @@ const microsoft_graph_recurrencePattern = z
       .lte(2147483647)
       .describe('The month in which the event occurs.  This is a number from 1 to 12.'),
     type: z
-      .union([microsoft_graph_recurrencePatternType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_recurrencePatternType, z.object({}).partial().strict()])
       .describe(
         'The recurrence pattern type: daily, weekly, absoluteMonthly, relativeMonthly, absoluteYearly, relativeYearly. Required. For more information, see values of type property.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_recurrenceRangeType = z.enum(['endDate', 'noEnd', 'numbered']);
 const microsoft_graph_recurrenceRange = z
   .object({
@@ -9869,26 +9867,26 @@ const microsoft_graph_recurrenceRange = z
       )
       .nullable(),
     type: z
-      .union([microsoft_graph_recurrenceRangeType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_recurrenceRangeType, z.object({}).partial().strict()])
       .describe(
         'The recurrence range. The possible values are: endDate, noEnd, numbered. Required.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_patternedRecurrence = z
   .object({
     pattern: z
-      .union([microsoft_graph_recurrencePattern, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_recurrencePattern, z.object({}).partial().strict()])
       .describe(
         'The frequency of an event.  For access reviews: Do not specify this property for a one-time access review.  Only interval, dayOfMonth, and type (weekly, absoluteMonthly) properties of recurrencePattern are supported.'
       ),
     range: z
-      .union([microsoft_graph_recurrenceRange, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_recurrenceRange, z.object({}).partial().strict()])
       .describe('The duration of an event.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_sensitivity = z.enum(['normal', 'personal', 'private', 'confidential']);
 const microsoft_graph_freeBusyStatus = z.enum([
   'unknown',
@@ -9929,20 +9927,20 @@ const microsoft_graph_attachment = microsoft_graph_entity.and(
         .describe('The length of the attachment in bytes.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
-const microsoft_graph_extension = microsoft_graph_entity.and(z.object({}).partial().passthrough());
+const microsoft_graph_extension = microsoft_graph_entity.and(z.object({}).partial().strict());
 const microsoft_graph_multiValueLegacyExtendedProperty = microsoft_graph_entity.and(
   z
     .object({ value: z.array(z.string().nullable()).describe('A collection of property values.') })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_singleValueLegacyExtendedProperty = microsoft_graph_entity.and(
   z
     .object({ value: z.string().describe('A property value.').nullable() })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
   microsoft_graph_outlookItem.and(
@@ -9958,7 +9956,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           .array(microsoft_graph_attendee)
           .describe('The collection of attendees for the event.'),
         body: z
-          .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
           .describe(
             'The body of the message associated with the event. It can be in HTML or text format.'
           ),
@@ -9972,7 +9970,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
             'Contains occurrenceId property values of canceled instances in a recurring series, if the event is the series master. Instances in a recurring series that are canceled are called canceled occurences.Returned only on $select in a Get operation which specifies the ID (seriesMasterId property value) of a series master event.'
           ),
         end: z
-          .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
           .describe(
             'The date, time, and time zone that the event ends. By default, the end time is in UTC.'
           ),
@@ -9993,7 +9991,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         importance: z
-          .union([microsoft_graph_importance, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_importance, z.object({}).partial().strict()])
           .describe('The importance of the event. The possible values are: low, normal, high.'),
         isAllDay: z
           .boolean()
@@ -10025,7 +10023,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           .describe('Set to true if an alert is set to remind the user of the event.')
           .nullable(),
         location: z
-          .union([microsoft_graph_location, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_location, z.object({}).partial().strict()])
           .describe('The location of the event.'),
         locations: z
           .array(microsoft_graph_location)
@@ -10033,12 +10031,12 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
             'The locations where the event is held or attended from. The location and locations properties always correspond with each other. If you update the location property, any prior locations in the locations collection are removed and replaced by the new location value.'
           ),
         onlineMeeting: z
-          .union([microsoft_graph_onlineMeetingInfo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onlineMeetingInfo, z.object({}).partial().strict()])
           .describe(
             "Details for an attendee to join the meeting online. The default is null. Read-only. After you set the isOnlineMeeting and onlineMeetingProvider properties to enable a meeting online, Microsoft Graph initializes onlineMeeting. When set, the meeting remains available online, and you can't change the isOnlineMeeting, onlineMeetingProvider, and onlneMeeting properties again."
           ),
         onlineMeetingProvider: z
-          .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().strict()])
           .describe(
             "Represents the online meeting service provider. By default, onlineMeetingProvider is unknown. The possible values are unknown, teamsForBusiness, skypeForBusiness, and skypeForConsumer. Optional.  After you set onlineMeetingProvider, Microsoft Graph initializes onlineMeeting. Subsequently, you can't change onlineMeetingProvider again, and the meeting remains available online."
           ),
@@ -10049,7 +10047,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         organizer: z
-          .union([microsoft_graph_recipient, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_recipient, z.object({}).partial().strict()])
           .describe('The organizer of the event.'),
         originalEndTimeZone: z
           .string()
@@ -10074,7 +10072,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         recurrence: z
-          .union([microsoft_graph_patternedRecurrence, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
           .describe('The recurrence pattern for the event.'),
         reminderMinutesBeforeStart: z
           .number()
@@ -10091,10 +10089,10 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         responseStatus: z
-          .union([microsoft_graph_responseStatus, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_responseStatus, z.object({}).partial().strict()])
           .describe('Indicates the type of response sent in response to an event message.'),
         sensitivity: z
-          .union([microsoft_graph_sensitivity, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sensitivity, z.object({}).partial().strict()])
           .describe('Possible values are: normal, personal, private, and confidential.'),
         seriesMasterId: z
           .string()
@@ -10103,12 +10101,12 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         showAs: z
-          .union([microsoft_graph_freeBusyStatus, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_freeBusyStatus, z.object({}).partial().strict()])
           .describe(
             'The status to show. Possible values are: free, tentative, busy, oof, workingElsewhere, unknown.'
           ),
         start: z
-          .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
           .describe(
             'The start date, time, and time zone of the event. By default, the start time is in UTC.'
           ),
@@ -10120,7 +10118,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           )
           .nullable(),
         type: z
-          .union([microsoft_graph_eventType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_eventType, z.object({}).partial().strict()])
           .describe(
             'The event type. Possible values are: singleInstance, occurrence, exception, seriesMaster. Read-only'
           ),
@@ -10136,7 +10134,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
             'The collection of FileAttachment, ItemAttachment, and referenceAttachment attachments for the event. Navigation property. Read-only. Nullable.'
           ),
         calendar: z
-          .union([microsoft_graph_calendar, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_calendar, z.object({}).partial().strict()])
           .describe('The calendar that contains the event. Navigation property. Read-only.'),
         exceptionOccurrences: z
           .array(microsoft_graph_event)
@@ -10163,7 +10161,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() =>
@@ -10172,10 +10170,7 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
       .object({
         allowedOnlineMeetingProviders: z
           .array(
-            z.union([
-              microsoft_graph_onlineMeetingProviderType,
-              z.object({}).partial().passthrough(),
-            ])
+            z.union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().strict()])
           )
           .describe(
             'Represent the online meeting service providers that can be used to create online meetings in this calendar. Possible values are: unknown, skypeForBusiness, skypeForConsumer, teamsForBusiness.'
@@ -10205,12 +10200,12 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
           )
           .nullable(),
         color: z
-          .union([microsoft_graph_calendarColor, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_calendarColor, z.object({}).partial().strict()])
           .describe(
             'Specifies the color theme to distinguish the calendar from other calendars in a UI. The property values are: auto, lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor.'
           ),
         defaultOnlineMeetingProvider: z
-          .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().strict()])
           .describe(
             'The default online meeting provider for meetings sent from this calendar. Possible values are: unknown, skypeForBusiness, skypeForConsumer, teamsForBusiness.'
           ),
@@ -10238,7 +10233,7 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
           .nullable(),
         name: z.string().describe('The calendar name.').nullable(),
         owner: z
-          .union([microsoft_graph_emailAddress, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
           .describe(
             'If set, this represents the user who created or added the calendar. For a calendar that the user created or added, the owner property is set to the user. For a calendar shared with the user, the owner property is set to the person who shared that calendar with the user.'
           ),
@@ -10263,7 +10258,7 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
@@ -10271,7 +10266,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
     z
       .object({
         body: z
-          .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
           .describe(
             'The contents of the post. This is a default property. This property can be null.'
           ),
@@ -10301,7 +10296,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
             'Specifies when the post was received. The DateTimeOffset type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
           ),
         sender: z
-          .union([microsoft_graph_recipient, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_recipient, z.object({}).partial().strict()])
           .describe(
             'Contains the address of the sender. The value of Sender is assumed to be the address of the authenticated user in the case when Sender is not specified. This is a default property.'
           ),
@@ -10314,7 +10309,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
             'The collection of open extensions defined for the post. Read-only. Nullable. Supports $expand.'
           ),
         inReplyTo: z
-          .union([microsoft_graph_post, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_post, z.object({}).partial().strict()])
           .describe('Read-only. Supports $expand.'),
         multiValueExtendedProperties: z
           .array(microsoft_graph_multiValueLegacyExtendedProperty)
@@ -10328,7 +10323,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_conversationThread = microsoft_graph_entity.and(
@@ -10371,7 +10366,7 @@ const microsoft_graph_conversationThread = microsoft_graph_entity.and(
       posts: z.array(microsoft_graph_post),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_conversation = microsoft_graph_entity.and(
   z
@@ -10410,7 +10405,7 @@ const microsoft_graph_conversation = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_storagePlanInformation = z
   .object({
@@ -10420,7 +10415,7 @@ const microsoft_graph_storagePlanInformation = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_quota = z
   .object({
     deleted: z
@@ -10436,14 +10431,14 @@ const microsoft_graph_quota = z
       .describe('Enumeration value that indicates the state of the storage space. Read-only.')
       .nullable(),
     storagePlanInformation: z
-      .union([microsoft_graph_storagePlanInformation, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_storagePlanInformation, z.object({}).partial().strict()])
       .describe("Information about the drive's storage quota plans. Only in Personal OneDrive."),
     total: z.number().describe('Total allowed storage space, in bytes. Read-only.').nullable(),
     used: z.number().describe('Total space used, in bytes. Read-only.').nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_systemFacet = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_systemFacet = z.object({}).partial().strict();
 const microsoft_graph_listInfo = z
   .object({
     contentTypesEnabled: z
@@ -10464,8 +10459,8 @@ const microsoft_graph_listInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_booleanColumn = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_booleanColumn = z.object({}).partial().strict();
 const microsoft_graph_calculatedColumn = z
   .object({
     format: z
@@ -10486,7 +10481,7 @@ const microsoft_graph_calculatedColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_choiceColumn = z
   .object({
     allowTextEntry: z
@@ -10504,8 +10499,8 @@ const microsoft_graph_choiceColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_contentApprovalStatusColumn = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_contentApprovalStatusColumn = z.object({}).partial().strict();
 const microsoft_graph_currencyColumn = z
   .object({
     locale: z
@@ -10514,7 +10509,7 @@ const microsoft_graph_currencyColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_dateTimeColumn = z
   .object({
     displayAs: z
@@ -10531,7 +10526,7 @@ const microsoft_graph_dateTimeColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_defaultColumnValue = z
   .object({
     formula: z
@@ -10544,8 +10539,8 @@ const microsoft_graph_defaultColumnValue = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_geolocationColumn = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_geolocationColumn = z.object({}).partial().strict();
 const microsoft_graph_hyperlinkOrPictureColumn = z
   .object({
     isPicture: z
@@ -10556,7 +10551,7 @@ const microsoft_graph_hyperlinkOrPictureColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_lookupColumn = z
   .object({
     allowMultipleValues: z
@@ -10579,7 +10574,7 @@ const microsoft_graph_lookupColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_numberColumn = z
   .object({
     decimalPlaces: z
@@ -10602,7 +10597,7 @@ const microsoft_graph_numberColumn = z
       .describe('The minimum permitted value.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_personOrGroupColumn = z
   .object({
     allowMultipleSelection: z
@@ -10621,21 +10616,21 @@ const microsoft_graph_personOrGroupColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_contentTypeInfo = z
   .object({
     id: z.string().describe('The ID of the content type.').nullable(),
     name: z.string().describe('The name of the content type.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_termStore_localizedDescription = z
   .object({
     description: z.string().describe('The description in the localized language.').nullable(),
     languageTag: z.string().describe('The language tag for the label.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_termStore_localizedLabel = z
   .object({
     isDefault: z.boolean().describe('Indicates whether the label is the default label.').nullable(),
@@ -10643,14 +10638,14 @@ const microsoft_graph_termStore_localizedLabel = z
     name: z.string().describe('The name of the label.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_keyValue = z
   .object({
     key: z.string().describe('Key for the key-value pair.').nullable(),
     value: z.string().describe('Value for the key-value pair.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_termStore_relationType = z.enum(['pin', 'reuse', 'unknownFutureValue']);
 const microsoft_graph_termStore_localizedName = z
   .object({
@@ -10658,7 +10653,7 @@ const microsoft_graph_termStore_localizedName = z
     name: z.string().describe('The name in the localized language.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_termStore_termGroupScope = z.enum([
   'global',
   'system',
@@ -10684,7 +10679,7 @@ const microsoft_graph_termStore_group: z.ZodType<microsoft_graph_termStore_group
         displayName: z.string().describe('Name of the group.').nullable(),
         parentSiteId: z.string().describe('ID of the parent site of this group.').nullable(),
         scope: z
-          .union([microsoft_graph_termStore_termGroupScope, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_termStore_termGroupScope, z.object({}).partial().strict()])
           .describe(
             'Returns the type of the group. Possible values are: global, system, and siteCollection.'
           ),
@@ -10693,7 +10688,7 @@ const microsoft_graph_termStore_group: z.ZodType<microsoft_graph_termStore_group
           .describe('All sets under the group in a term [store].'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_termStore_set: z.ZodType<microsoft_graph_termStore_set> = z.lazy(() =>
@@ -10726,7 +10721,7 @@ const microsoft_graph_termStore_set: z.ZodType<microsoft_graph_termStore_set> = 
         terms: z.array(microsoft_graph_termStore_term).describe('All the terms under the set.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_termStore_relation: z.ZodType<microsoft_graph_termStore_relation> = z.lazy(
@@ -10735,24 +10730,24 @@ const microsoft_graph_termStore_relation: z.ZodType<microsoft_graph_termStore_re
       z
         .object({
           relationship: z
-            .union([microsoft_graph_termStore_relationType, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_termStore_relationType, z.object({}).partial().strict()])
             .describe('The type of relation. Possible values are: pin, reuse.'),
           fromTerm: z
-            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_termStore_term, z.object({}).partial().strict()])
             .describe(
               'The from [term] of the relation. The term from which the relationship is defined. A null value would indicate the relation is directly with the [set].'
             ),
           set: z
-            .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_termStore_set, z.object({}).partial().strict()])
             .describe('The [set] in which the relation is relevant.'),
           toTerm: z
-            .union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_termStore_term, z.object({}).partial().strict()])
             .describe(
               'The to [term] of the relation. The term to which the relationship is defined.'
             ),
         })
         .partial()
-        .passthrough()
+        .strict()
     )
 );
 const microsoft_graph_termStore_term: z.ZodType<microsoft_graph_termStore_term> = z.lazy(() =>
@@ -10791,11 +10786,11 @@ const microsoft_graph_termStore_term: z.ZodType<microsoft_graph_termStore_term> 
             'To indicate which terms are related to the current term as either pinned or reused.'
           ),
         set: z
-          .union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_termStore_set, z.object({}).partial().strict()])
           .describe('The [set] in which the term is created.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_termColumn = z
@@ -10808,11 +10803,11 @@ const microsoft_graph_termColumn = z
       .boolean()
       .describe('Specifies whether to display the entire term path or only the term label.')
       .nullable(),
-    parentTerm: z.union([microsoft_graph_termStore_term, z.object({}).partial().passthrough()]),
-    termSet: z.union([microsoft_graph_termStore_set, z.object({}).partial().passthrough()]),
+    parentTerm: z.union([microsoft_graph_termStore_term, z.object({}).partial().strict()]),
+    termSet: z.union([microsoft_graph_termStore_set, z.object({}).partial().strict()]),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_textColumn = z
   .object({
     allowMultipleLines: z.boolean().describe('Whether to allow multiple lines of text.').nullable(),
@@ -10838,8 +10833,8 @@ const microsoft_graph_textColumn = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_thumbnailColumn = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_thumbnailColumn = z.object({}).partial().strict();
 const microsoft_graph_columnTypes = z.enum([
   'note',
   'text',
@@ -10877,7 +10872,7 @@ const microsoft_graph_displayNameLocalization = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_columnValidation = z
   .object({
     defaultLanguage: z
@@ -10897,19 +10892,19 @@ const microsoft_graph_columnValidation = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefinition> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
       .object({
         boolean: z
-          .union([microsoft_graph_booleanColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_booleanColumn, z.object({}).partial().strict()])
           .describe('This column stores Boolean values.'),
         calculated: z
-          .union([microsoft_graph_calculatedColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_calculatedColumn, z.object({}).partial().strict()])
           .describe("This column's data is calculated based on other columns."),
         choice: z
-          .union([microsoft_graph_choiceColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_choiceColumn, z.object({}).partial().strict()])
           .describe('This column stores data from a list of choices.'),
         columnGroup: z
           .string()
@@ -10918,19 +10913,16 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
           )
           .nullable(),
         contentApprovalStatus: z
-          .union([
-            microsoft_graph_contentApprovalStatusColumn,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_contentApprovalStatusColumn, z.object({}).partial().strict()])
           .describe('This column stores content approval status.'),
         currency: z
-          .union([microsoft_graph_currencyColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_currencyColumn, z.object({}).partial().strict()])
           .describe('This column stores currency values.'),
         dateTime: z
-          .union([microsoft_graph_dateTimeColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_dateTimeColumn, z.object({}).partial().strict()])
           .describe('This column stores DateTime values.'),
         defaultValue: z
-          .union([microsoft_graph_defaultColumnValue, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_defaultColumnValue, z.object({}).partial().strict()])
           .describe('The default value for this column.'),
         description: z.string().describe('The user-facing description of the column.').nullable(),
         displayName: z.string().describe('The user-facing name of the column.').nullable(),
@@ -10939,14 +10931,14 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
           .describe('If true, no two list items may have the same value for this column.')
           .nullable(),
         geolocation: z
-          .union([microsoft_graph_geolocationColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_geolocationColumn, z.object({}).partial().strict()])
           .describe('This column stores a geolocation.'),
         hidden: z
           .boolean()
           .describe('Specifies whether the column is displayed in the user interface.')
           .nullable(),
         hyperlinkOrPicture: z
-          .union([microsoft_graph_hyperlinkOrPictureColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_hyperlinkOrPictureColumn, z.object({}).partial().strict()])
           .describe('This column stores hyperlink or picture values.'),
         indexed: z
           .boolean()
@@ -10962,7 +10954,7 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
           .nullable(),
         isSealed: z.boolean().describe('Specifies whether the column can be changed.').nullable(),
         lookup: z
-          .union([microsoft_graph_lookupColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_lookupColumn, z.object({}).partial().strict()])
           .describe("This column's data is looked up from another source in the site."),
         name: z
           .string()
@@ -10971,10 +10963,10 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
           )
           .nullable(),
         number: z
-          .union([microsoft_graph_numberColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_numberColumn, z.object({}).partial().strict()])
           .describe('This column stores number values.'),
         personOrGroup: z
-          .union([microsoft_graph_personOrGroupColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_personOrGroupColumn, z.object({}).partial().strict()])
           .describe('This column stores Person or Group values.'),
         propagateChanges: z
           .boolean()
@@ -10991,37 +10983,37 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
           .describe("Specifies whether the column value isn't optional.")
           .nullable(),
         sourceContentType: z
-          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
           .describe(
             'ContentType from which this column is inherited from. Present only in contentTypes columns response. Read-only.'
           ),
         term: z
-          .union([microsoft_graph_termColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_termColumn, z.object({}).partial().strict()])
           .describe('This column stores taxonomy terms.'),
         text: z
-          .union([microsoft_graph_textColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_textColumn, z.object({}).partial().strict()])
           .describe('This column stores text values.'),
         thumbnail: z
-          .union([microsoft_graph_thumbnailColumn, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_thumbnailColumn, z.object({}).partial().strict()])
           .describe('This column stores thumbnail values.'),
         type: z
-          .union([microsoft_graph_columnTypes, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_columnTypes, z.object({}).partial().strict()])
           .describe('For site columns, the type of column. Read-only.'),
         validation: z
-          .union([microsoft_graph_columnValidation, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_columnValidation, z.object({}).partial().strict()])
           .describe('This column stores validation formula and message for the column.'),
         sourceColumn: z
-          .union([microsoft_graph_columnDefinition, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_columnDefinition, z.object({}).partial().strict()])
           .describe('The source column for the content type column.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_documentSetContent = z
   .object({
     contentType: z
-      .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
       .describe('Content type information of the file.'),
     fileName: z
       .string()
@@ -11037,7 +11029,7 @@ const microsoft_graph_documentSetContent = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_documentSet = z
   .object({
     allowedContentTypes: z
@@ -11059,7 +11051,7 @@ const microsoft_graph_documentSet = z
     welcomePageColumns: z.array(microsoft_graph_columnDefinition),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_contentTypeOrder = z
   .object({
     default: z.boolean().describe('Indicates whether this is the default content type').nullable(),
@@ -11071,14 +11063,14 @@ const microsoft_graph_contentTypeOrder = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_columnLink = microsoft_graph_entity.and(
   z
     .object({
       name: z.string().describe('The name of the column  in this content type.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -11091,10 +11083,10 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           ),
         description: z.string().describe('The descriptive text for the item.').nullable(),
         documentSet: z
-          .union([microsoft_graph_documentSet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_documentSet, z.object({}).partial().strict()])
           .describe('Document Set metadata.'),
         documentTemplate: z
-          .union([microsoft_graph_documentSetContent, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_documentSetContent, z.object({}).partial().strict()])
           .describe(
             'Document template metadata. To make sure that documents have consistent content across a site and its subsites, you can associate a Word, Excel, or PowerPoint template with a site content type.'
           ),
@@ -11109,7 +11101,7 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           .describe("Indicates whether the content type is hidden in the list's 'New' menu.")
           .nullable(),
         inheritedFrom: z
-          .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
           .describe(
             'If this content type is inherited from another scope (like a site), provides a reference to the item where the content type is defined.'
           ),
@@ -11119,7 +11111,7 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           .nullable(),
         name: z.string().describe('The name of the content type.').nullable(),
         order: z
-          .union([microsoft_graph_contentTypeOrder, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_contentTypeOrder, z.object({}).partial().strict()])
           .describe('Specifies the order in which the content type appears in the selection UI.'),
         parentId: z.string().describe('The unique identifier of the content type.').nullable(),
         propagateChanges: z
@@ -11141,7 +11133,7 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           )
           .nullable(),
         base: z
-          .union([microsoft_graph_contentType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_contentType, z.object({}).partial().strict()])
           .describe('Parent contentType from which this content type is derived.'),
         baseTypes: z
           .array(microsoft_graph_contentType)
@@ -11157,7 +11149,7 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           .describe('The collection of column definitions for this content type.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_itemActionStat = z
@@ -11176,7 +11168,7 @@ const microsoft_graph_itemActionStat = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_incompleteData = z
   .object({
     missingDataBeforeDateTime: z
@@ -11193,14 +11185,14 @@ const microsoft_graph_incompleteData = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_accessAction = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_accessAction = z.object({}).partial().strict();
 const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
       .object({
         access: z
-          .union([microsoft_graph_accessAction, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_accessAction, z.object({}).partial().strict()])
           .describe('An item was accessed.'),
         activityDateTime: z
           .string()
@@ -11211,14 +11203,14 @@ const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.
           .describe('Details about when the activity took place. Read-only.')
           .nullable(),
         actor: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe('Identity of who performed the action. Read-only.'),
         driveItem: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
           .describe('Exposes the driveItem that was the target of this activity.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivityStat> = z.lazy(() =>
@@ -11226,16 +11218,16 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
     z
       .object({
         access: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
           .describe('Statistics about the access actions in this interval. Read-only.'),
         create: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
           .describe('Statistics about the create actions in this interval. Read-only.'),
         delete: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
           .describe('Statistics about the delete actions in this interval. Read-only.'),
         edit: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
           .describe('Statistics about the edit actions in this interval. Read-only.'),
         endDateTime: z
           .string()
@@ -11246,7 +11238,7 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
           .describe('When the interval ends. Read-only.')
           .nullable(),
         incompleteData: z
-          .union([microsoft_graph_incompleteData, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_incompleteData, z.object({}).partial().strict()])
           .describe(
             'Indicates that the statistics in this interval are based on incomplete data. Read-only.'
           ),
@@ -11255,7 +11247,7 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
           .describe("Indicates whether the item is 'trending.' Read-only.")
           .nullable(),
         move: z
-          .union([microsoft_graph_itemActionStat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
           .describe('Statistics about the move actions in this interval. Read-only.'),
         startDateTime: z
           .string()
@@ -11270,28 +11262,25 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
           .describe('Exposes the itemActivities represented in this itemActivityStat resource.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_itemAnalytics: z.ZodType<microsoft_graph_itemAnalytics> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
       .object({
-        allTime: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().passthrough()]),
+        allTime: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().strict()]),
         itemActivityStats: z.array(microsoft_graph_itemActivityStat),
-        lastSevenDays: z.union([
-          microsoft_graph_itemActivityStat,
-          z.object({}).partial().passthrough(),
-        ]),
+        lastSevenDays: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().strict()]),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_publicationFacet = z
   .object({
     checkedOutBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe('The user who checked out the file.'),
     level: z
       .string()
@@ -11307,12 +11296,12 @@ const microsoft_graph_publicationFacet = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_baseItemVersion = microsoft_graph_entity.and(
   z
     .object({
       lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the user which last modified the version. Read-only.'),
       lastModifiedDateTime: z
         .string()
@@ -11323,24 +11312,22 @@ const microsoft_graph_baseItemVersion = microsoft_graph_entity.and(
         .describe('Date and time the version was last modified. Read-only.')
         .nullable(),
       publication: z
-        .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
         .describe('Indicates the publication status of this particular version. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
-const microsoft_graph_fieldValueSet = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
+const microsoft_graph_fieldValueSet = microsoft_graph_entity.and(z.object({}).partial().strict());
 const microsoft_graph_listItemVersion = microsoft_graph_baseItemVersion.and(
   z
     .object({
       fields: z
-        .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_fieldValueSet, z.object({}).partial().strict()])
         .describe('A collection of the fields and values for this version of the list item.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_documentSetVersionItem = z
   .object({
@@ -11349,13 +11336,13 @@ const microsoft_graph_documentSetVersionItem = z
     versionId: z.string().describe('The version ID of the item.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_documentSetVersion = microsoft_graph_listItemVersion.and(
   z
     .object({
       comment: z.string().describe('Comment about the captured version.').nullable(),
       createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('User who captured the version.'),
       createdDateTime: z
         .string()
@@ -11376,38 +11363,38 @@ const microsoft_graph_documentSetVersion = microsoft_graph_listItemVersion.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() =>
   microsoft_graph_baseItem.and(
     z
       .object({
         contentType: z
-          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
           .describe('The content type of this list item'),
         sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
           .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
         analytics: z
-          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
           .describe('Analytics about the view activities that took place on this item.'),
         documentSetVersions: z
           .array(microsoft_graph_documentSetVersion)
           .describe('Version information for a document set version created by a user.'),
         driveItem: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
           .describe(
             'For document libraries, the driveItem relationship exposes the listItem as a driveItem'
           ),
         fields: z
-          .union([microsoft_graph_fieldValueSet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_fieldValueSet, z.object({}).partial().strict()])
           .describe('The values of the columns set on this list item.'),
         versions: z
           .array(microsoft_graph_listItemVersion)
           .describe('The list of previous versions of the list item.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_longRunningOperationStatus = z.enum([
@@ -11445,14 +11432,14 @@ const microsoft_graph_longRunningOperation = microsoft_graph_entity.and(
         .describe('URI of the resource that the operation is performed on.')
         .nullable(),
       status: z
-        .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().strict()])
         .describe(
           'The status of the operation. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue.'
         ),
       statusDetail: z.string().describe('Details about the status of the operation.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_publicErrorDetail = z
   .object({
@@ -11461,7 +11448,7 @@ const microsoft_graph_publicErrorDetail = z
     target: z.string().describe('The target of the error.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_publicInnerError = z
   .object({
     code: z.string().describe('The error code.').nullable(),
@@ -11470,24 +11457,24 @@ const microsoft_graph_publicInnerError = z
     target: z.string().describe('The target of the error.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_publicError = z
   .object({
     code: z.string().describe('Represents the error code.').nullable(),
     details: z.array(microsoft_graph_publicErrorDetail).describe('Details of the error.'),
     innerError: z
-      .union([microsoft_graph_publicInnerError, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_publicInnerError, z.object({}).partial().strict()])
       .describe('Details of the inner error.'),
     message: z.string().describe('A non-localized message for the developer.').nullable(),
     target: z.string().describe('The target of the error.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_richLongRunningOperation = microsoft_graph_longRunningOperation.and(
   z
     .object({
       error: z
-        .union([microsoft_graph_publicError, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_publicError, z.object({}).partial().strict()])
         .describe('Error that caused the operation to fail.'),
       percentageComplete: z
         .number()
@@ -11499,7 +11486,7 @@ const microsoft_graph_richLongRunningOperation = microsoft_graph_longRunningOper
       type: z.string().describe('The type of the operation.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_subscription = microsoft_graph_entity.and(
   z
@@ -11590,7 +11577,7 @@ const microsoft_graph_subscription = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
   microsoft_graph_baseItem.and(
@@ -11598,13 +11585,13 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
       .object({
         displayName: z.string().describe('The displayable title of the list.').nullable(),
         list: z
-          .union([microsoft_graph_listInfo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_listInfo, z.object({}).partial().strict()])
           .describe('Contains more details about the list.'),
         sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
           .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
         system: z
-          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_systemFacet, z.object({}).partial().strict()])
           .describe('If present, indicates that the list is system-managed. Read-only.'),
         columns: z
           .array(microsoft_graph_columnDefinition)
@@ -11613,7 +11600,7 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
           .array(microsoft_graph_contentType)
           .describe('The collection of content types present in this list.'),
         drive: z
-          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_drive, z.object({}).partial().strict()])
           .describe(
             'Allows access to the list as a drive resource with driveItems. Only present on document libraries.'
           ),
@@ -11626,7 +11613,7 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
           .describe('The set of subscriptions on the list.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
@@ -11640,17 +11627,14 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
           )
           .nullable(),
         owner: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe('Optional. The user account that owns the drive. Read-only.'),
         quota: z
-          .union([microsoft_graph_quota, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_quota, z.object({}).partial().strict()])
           .describe("Optional. Information about the drive's storage space quota. Read-only."),
-        sharePointIds: z.union([
-          microsoft_graph_sharepointIds,
-          z.object({}).partial().passthrough(),
-        ]),
+        sharePointIds: z.union([microsoft_graph_sharepointIds, z.object({}).partial().strict()]),
         system: z
-          .union([microsoft_graph_systemFacet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_systemFacet, z.object({}).partial().strict()])
           .describe("If present, indicates that it's a system-managed drive. Read-only."),
         bundles: z
           .array(microsoft_graph_driveItem)
@@ -11664,19 +11648,19 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
           .array(microsoft_graph_driveItem)
           .describe('All items contained in the drive. Read-only. Nullable.'),
         list: z
-          .union([microsoft_graph_list, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_list, z.object({}).partial().strict()])
           .describe(
             'For drives in SharePoint, the underlying document library list. Read-only. Nullable.'
           ),
         root: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
           .describe('The root folder of the drive. Read-only.'),
         special: z
           .array(microsoft_graph_driveItem)
           .describe('Collection of common folders available in OneDrive. Read-only. Nullable.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_groupLifecyclePolicy = microsoft_graph_entity.and(
@@ -11704,7 +11688,7 @@ const microsoft_graph_groupLifecyclePolicy = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteEntityBaseModel = microsoft_graph_entity.and(
   z
@@ -11715,7 +11699,7 @@ const microsoft_graph_onenoteEntityBaseModel = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteEntitySchemaObjectModel = microsoft_graph_onenoteEntityBaseModel.and(
   z
@@ -11732,20 +11716,20 @@ const microsoft_graph_onenoteEntitySchemaObjectModel = microsoft_graph_onenoteEn
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteEntityHierarchyModel =
   microsoft_graph_onenoteEntitySchemaObjectModel.and(
     z
       .object({
         createdBy: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe(
             'Identity of the user, device, and application that created the item. Read-only.'
           ),
         displayName: z.string().describe('The name of the notebook.').nullable(),
         lastModifiedBy: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe(
             'Identity of the user, device, and application that created the item. Read-only.'
           ),
@@ -11761,46 +11745,46 @@ const microsoft_graph_onenoteEntityHierarchyModel =
           .nullable(),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_externalLink = z
   .object({ href: z.string().describe('The URL of the link.').nullable() })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_notebookLinks = z
   .object({
     oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe("Opens the notebook in the OneNote native client if it's installed."),
     oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe('Opens the notebook in OneNote on the web.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onenoteUserRole = z.enum(['None', 'Owner', 'Contributor', 'Reader']);
 const microsoft_graph_sectionLinks = z
   .object({
     oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe("Opens the section in the OneNote native client if it's installed."),
     oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe('Opens the section in OneNote on the web.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_pageLinks = z
   .object({
     oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe("Opens the page in the OneNote native client if it's installed."),
     oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
       .describe('Opens the page in OneNote on the web.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.lazy(() =>
   microsoft_graph_onenoteEntitySchemaObjectModel.and(
     z
@@ -11831,7 +11815,7 @@ const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.la
           .describe('The indentation level of the page. Read-only.')
           .nullable(),
         links: z
-          .union([microsoft_graph_pageLinks, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_pageLinks, z.object({}).partial().strict()])
           .describe(
             "Links for opening the page. The oneNoteClientURL link opens the page in the OneNote native client if it 's installed. The oneNoteWebUrl link opens the page in OneNote on the web. Read-only."
           ),
@@ -11844,14 +11828,14 @@ const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.la
         title: z.string().describe('The title of the page.').nullable(),
         userTags: z.array(z.string().nullable()),
         parentNotebook: z
-          .union([microsoft_graph_notebook, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_notebook, z.object({}).partial().strict()])
           .describe('The notebook that contains the page.  Read-only.'),
         parentSection: z
-          .union([microsoft_graph_onenoteSection, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onenoteSection, z.object({}).partial().strict()])
           .describe('The section that contains the page. Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> = z.lazy(() =>
@@ -11863,7 +11847,7 @@ const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> 
           .describe("Indicates whether this is the user's default section. Read-only.")
           .nullable(),
         links: z
-          .union([microsoft_graph_sectionLinks, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sectionLinks, z.object({}).partial().strict()])
           .describe(
             "Links for opening the section. The oneNoteClientURL link opens the section in the OneNote native client if it's installed. The oneNoteWebURL link opens the section in OneNote on the web."
           ),
@@ -11877,14 +11861,14 @@ const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> 
           .array(microsoft_graph_onenotePage)
           .describe('The collection of pages in the section.  Read-only. Nullable.'),
         parentNotebook: z
-          .union([microsoft_graph_notebook, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_notebook, z.object({}).partial().strict()])
           .describe('The notebook that contains the section.  Read-only.'),
         parentSectionGroup: z
-          .union([microsoft_graph_sectionGroup, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sectionGroup, z.object({}).partial().strict()])
           .describe('The section group that contains the section.  Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_sectionGroup: z.ZodType<microsoft_graph_sectionGroup> = z.lazy(() =>
@@ -11904,10 +11888,10 @@ const microsoft_graph_sectionGroup: z.ZodType<microsoft_graph_sectionGroup> = z.
           )
           .nullable(),
         parentNotebook: z
-          .union([microsoft_graph_notebook, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_notebook, z.object({}).partial().strict()])
           .describe('The notebook that contains the section group. Read-only.'),
         parentSectionGroup: z
-          .union([microsoft_graph_sectionGroup, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sectionGroup, z.object({}).partial().strict()])
           .describe('The section group that contains the section group. Read-only.'),
         sectionGroups: z
           .array(microsoft_graph_sectionGroup)
@@ -11917,7 +11901,7 @@ const microsoft_graph_sectionGroup: z.ZodType<microsoft_graph_sectionGroup> = z.
           .describe('The sections in the section group. Read-only. Nullable.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() =>
@@ -11935,7 +11919,7 @@ const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() 
           )
           .nullable(),
         links: z
-          .union([microsoft_graph_notebookLinks, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_notebookLinks, z.object({}).partial().strict()])
           .describe(
             "Links for opening the notebook. The oneNoteClientURL link opens the notebook in the OneNote native client if it's installed. The oneNoteWebURL link opens the notebook in OneNote on the web."
           ),
@@ -11952,7 +11936,7 @@ const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() 
           )
           .nullable(),
         userRole: z
-          .union([microsoft_graph_onenoteUserRole, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onenoteUserRole, z.object({}).partial().strict()])
           .describe(
             'Possible values are: Owner, Contributor, Reader, None. Owner represents owner-level access to the notebook. Contributor represents read/write access to the notebook. Reader represents read-only access to the notebook. Read-only.'
           ),
@@ -11964,7 +11948,7 @@ const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() 
           .describe('The sections in the notebook. Read-only. Nullable.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_operationStatus = z.enum(['NotStarted', 'Running', 'Completed', 'Failed']);
@@ -11988,11 +11972,11 @@ const microsoft_graph_operation = microsoft_graph_entity.and(
         .describe('The time of the last action of the operation.')
         .nullable(),
       status: z
-        .union([microsoft_graph_operationStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_operationStatus, z.object({}).partial().strict()])
         .describe('The current status of the operation: notStarted, running, completed, failed'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteOperationError = z
   .object({
@@ -12000,12 +11984,12 @@ const microsoft_graph_onenoteOperationError = z
     message: z.string().describe('The error message.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onenoteOperation = microsoft_graph_operation.and(
   z
     .object({
       error: z
-        .union([microsoft_graph_onenoteOperationError, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_onenoteOperationError, z.object({}).partial().strict()])
         .describe('The error returned by the operation.'),
       percentComplete: z
         .string()
@@ -12020,7 +12004,7 @@ const microsoft_graph_onenoteOperation = microsoft_graph_operation.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteResource = microsoft_graph_onenoteEntityBaseModel.and(
   z
@@ -12029,7 +12013,7 @@ const microsoft_graph_onenoteResource = microsoft_graph_onenoteEntityBaseModel.a
       contentUrl: z.string().describe('The URL for downloading the content').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenote = microsoft_graph_entity.and(
   z
@@ -12066,7 +12050,7 @@ const microsoft_graph_onenote = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_resourceSpecificPermissionGrant = microsoft_graph_directoryObject.and(
   z
@@ -12095,7 +12079,7 @@ const microsoft_graph_resourceSpecificPermissionGrant = microsoft_graph_director
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_profilePhoto = microsoft_graph_entity.and(
   z
@@ -12114,7 +12098,7 @@ const microsoft_graph_profilePhoto = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerContainerType = z.enum(['group', 'unknownFutureValue', 'roster']);
 const microsoft_graph_plannerPlanContainer = z
@@ -12124,16 +12108,16 @@ const microsoft_graph_plannerPlanContainer = z
       .describe('The identifier of the resource that contains the plan. Optional.')
       .nullable(),
     type: z
-      .union([microsoft_graph_plannerContainerType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_plannerContainerType, z.object({}).partial().strict()])
       .describe(
         'The type of the resource that contains the plan. For supported types, see the previous table. Possible values are: group, unknownFutureValue, roster. Use the Prefer: include-unknown-enum-members request header to get the following value in this evolvable enum: roster. Optional.'
       ),
     url: z.string().describe('The full canonical URL of the container. Optional.').nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_plannerAppliedCategories = z.object({}).partial().passthrough();
-const microsoft_graph_plannerAssignments = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_plannerAppliedCategories = z.object({}).partial().strict();
+const microsoft_graph_plannerAssignments = z.object({}).partial().strict();
 const microsoft_graph_plannerPreviewType = z.enum([
   'automatic',
   'noPreview',
@@ -12141,12 +12125,12 @@ const microsoft_graph_plannerPreviewType = z.enum([
   'description',
   'reference',
 ]);
-const microsoft_graph_plannerOrderHintsByAssignee = z.object({}).partial().passthrough();
+const microsoft_graph_plannerOrderHintsByAssignee = z.object({}).partial().strict();
 const microsoft_graph_plannerAssignedToTaskBoardTaskFormat = microsoft_graph_entity.and(
   z
     .object({
       orderHintsByAssignee: z
-        .union([microsoft_graph_plannerOrderHintsByAssignee, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerOrderHintsByAssignee, z.object({}).partial().strict()])
         .describe(
           'Dictionary of hints used to order tasks on the AssignedTo view of the Task Board. The key of each entry is one of the users the task is assigned to and the value is the order hint. The format of each value is defined as outlined here.'
         ),
@@ -12158,7 +12142,7 @@ const microsoft_graph_plannerAssignedToTaskBoardTaskFormat = microsoft_graph_ent
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerBucketTaskBoardTaskFormat = microsoft_graph_entity.and(
   z
@@ -12171,28 +12155,28 @@ const microsoft_graph_plannerBucketTaskBoardTaskFormat = microsoft_graph_entity.
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
-const microsoft_graph_plannerChecklistItems = z.object({}).partial().passthrough();
-const microsoft_graph_plannerExternalReferences = z.object({}).partial().passthrough();
+const microsoft_graph_plannerChecklistItems = z.object({}).partial().strict();
+const microsoft_graph_plannerExternalReferences = z.object({}).partial().strict();
 const microsoft_graph_plannerTaskDetails = microsoft_graph_entity.and(
   z
     .object({
       checklist: z
-        .union([microsoft_graph_plannerChecklistItems, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerChecklistItems, z.object({}).partial().strict()])
         .describe('The collection of checklist items on the task.'),
       description: z.string().describe('Description of the task.').nullable(),
       previewType: z
-        .union([microsoft_graph_plannerPreviewType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerPreviewType, z.object({}).partial().strict()])
         .describe(
           'This sets the type of preview that shows up on the task. The possible values are: automatic, noPreview, checklist, description, reference. When set to automatic the displayed preview is chosen by the app viewing the task.'
         ),
       references: z
-        .union([microsoft_graph_plannerExternalReferences, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerExternalReferences, z.object({}).partial().strict()])
         .describe('The collection of references on the task.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerProgressTaskBoardTaskFormat = microsoft_graph_entity.and(
   z
@@ -12205,7 +12189,7 @@ const microsoft_graph_plannerProgressTaskBoardTaskFormat = microsoft_graph_entit
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerTask = microsoft_graph_entity.and(
   z
@@ -12219,7 +12203,7 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
         )
         .nullable(),
       appliedCategories: z
-        .union([microsoft_graph_plannerAppliedCategories, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerAppliedCategories, z.object({}).partial().strict()])
         .describe(
           'The categories to which the task has been applied. See applied Categories for possible values.'
         ),
@@ -12230,7 +12214,7 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
         )
         .nullable(),
       assignments: z
-        .union([microsoft_graph_plannerAssignments, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerAssignments, z.object({}).partial().strict()])
         .describe('The set of assignees the task is assigned to.'),
       bucketId: z
         .string()
@@ -12245,7 +12229,7 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
         .describe('Number of checklist items that are present on the task.')
         .nullable(),
       completedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the user that completed the task.'),
       completedDateTime: z
         .string()
@@ -12264,7 +12248,7 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
         )
         .nullable(),
       createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the user that created the task.'),
       createdDateTime: z
         .string()
@@ -12308,7 +12292,7 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
         .nullable(),
       planId: z.string().describe('Plan ID to which the task belongs.').nullable(),
       previewType: z
-        .union([microsoft_graph_plannerPreviewType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerPreviewType, z.object({}).partial().strict()])
         .describe(
           'This sets the type of preview that shows up on the task. The possible values are: automatic, noPreview, checklist, description, reference.'
         ),
@@ -12340,33 +12324,30 @@ const microsoft_graph_plannerTask = microsoft_graph_entity.and(
       assignedToTaskBoardFormat: z
         .union([
           microsoft_graph_plannerAssignedToTaskBoardTaskFormat,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ])
         .describe(
           'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by assignedTo.'
         ),
       bucketTaskBoardFormat: z
-        .union([
-          microsoft_graph_plannerBucketTaskBoardTaskFormat,
-          z.object({}).partial().passthrough(),
-        ])
+        .union([microsoft_graph_plannerBucketTaskBoardTaskFormat, z.object({}).partial().strict()])
         .describe(
           'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by bucket.'
         ),
       details: z
-        .union([microsoft_graph_plannerTaskDetails, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerTaskDetails, z.object({}).partial().strict()])
         .describe('Read-only. Nullable. More details about the task.'),
       progressTaskBoardFormat: z
         .union([
           microsoft_graph_plannerProgressTaskBoardTaskFormat,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ])
         .describe(
           'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by progress.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerBucket = microsoft_graph_entity.and(
   z
@@ -12384,7 +12365,7 @@ const microsoft_graph_plannerBucket = microsoft_graph_entity.and(
         .describe('Read-only. Nullable. The collection of tasks in the bucket.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerCategoryDescriptions = z
   .object({
@@ -12415,35 +12396,35 @@ const microsoft_graph_plannerCategoryDescriptions = z
     category9: z.string().describe('The label associated with Category 9').nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_plannerUserIds = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_plannerUserIds = z.object({}).partial().strict();
 const microsoft_graph_plannerPlanDetails = microsoft_graph_entity.and(
   z
     .object({
       categoryDescriptions: z
-        .union([microsoft_graph_plannerCategoryDescriptions, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerCategoryDescriptions, z.object({}).partial().strict()])
         .describe(
           'An object that specifies the descriptions of the 25 categories that can be associated with tasks in the plan.'
         ),
       sharedWith: z
-        .union([microsoft_graph_plannerUserIds, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerUserIds, z.object({}).partial().strict()])
         .describe(
           "Set of user IDs that this plan is shared with. If you're using Microsoft 365 groups, use the Groups API to manage group membership to share the group's plan. You can also add existing members of the group to this collection, although it isn't required for them to access the plan owned by the group."
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerPlan = microsoft_graph_entity.and(
   z
     .object({
       container: z
-        .union([microsoft_graph_plannerPlanContainer, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerPlanContainer, z.object({}).partial().strict()])
         .describe(
           "Identifies the container of the plan. Specify only the url, the containerId and type, or all properties. After it's set, this property can’t be updated. Required."
         ),
       createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Read-only. The user who created the plan.'),
       createdDateTime: z
         .string()
@@ -12466,14 +12447,14 @@ const microsoft_graph_plannerPlan = microsoft_graph_entity.and(
         .array(microsoft_graph_plannerBucket)
         .describe('Read-only. Nullable. Collection of buckets in the plan.'),
       details: z
-        .union([microsoft_graph_plannerPlanDetails, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_plannerPlanDetails, z.object({}).partial().strict()])
         .describe('Read-only. Nullable. Extra details about the plan.'),
       tasks: z
         .array(microsoft_graph_plannerTask)
         .describe('Read-only. Nullable. Collection of tasks in the plan.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerGroup = microsoft_graph_entity.and(
   z
@@ -12483,7 +12464,7 @@ const microsoft_graph_plannerGroup = microsoft_graph_entity.and(
         .describe('Read-only. Nullable. Returns the plannerPlans owned by the group.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_settingValue = z
   .object({
@@ -12494,7 +12475,7 @@ const microsoft_graph_settingValue = z
     value: z.string().describe('Value of the setting.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_groupSetting = microsoft_graph_entity.and(
   z
     .object({
@@ -12517,9 +12498,9 @@ const microsoft_graph_groupSetting = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
-const microsoft_graph_root = z.object({}).partial().passthrough();
+const microsoft_graph_root = z.object({}).partial().strict();
 const microsoft_graph_siteArchiveStatus = z.enum([
   'recentlyArchived',
   'fullyArchived',
@@ -12529,17 +12510,17 @@ const microsoft_graph_siteArchiveStatus = z.enum([
 const microsoft_graph_siteArchivalDetails = z
   .object({
     archiveStatus: z
-      .union([microsoft_graph_siteArchiveStatus, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_siteArchiveStatus, z.object({}).partial().strict()])
       .describe(
         'Represents the current archive status of the site collection. Returned only on $select. The possible values are: recentlyArchived, fullyArchived, reactivating, unknownFutureValue.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_siteCollection = z
   .object({
     archivalDetails: z
-      .union([microsoft_graph_siteArchivalDetails, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_siteArchivalDetails, z.object({}).partial().strict()])
       .describe(
         'Represents whether the site collection is recently archived, fully archived, or reactivating. Possible values are: recentlyArchived, fullyArchived, reactivating, unknownFutureValue.'
       ),
@@ -12551,13 +12532,13 @@ const microsoft_graph_siteCollection = z
       .nullable(),
     hostname: z.string().describe('The hostname for the site collection. Read-only.').nullable(),
     root: z
-      .union([microsoft_graph_root, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_root, z.object({}).partial().strict()])
       .describe(
         'If present, indicates that this is a root site collection in SharePoint. Read-only.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_pageLayoutType = z.enum([
   'microsoftReserved',
   'article',
@@ -12569,17 +12550,17 @@ const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.
     z
       .object({
         pageLayout: z
-          .union([microsoft_graph_pageLayoutType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_pageLayoutType, z.object({}).partial().strict()])
           .describe(
             'The name of the page layout of the page. The possible values are: microsoftReserved, article, home, unknownFutureValue.'
           ),
         publishingState: z
-          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
           .describe('The publishing status and the MM.mm version of the page.'),
         title: z.string().describe('Title of the sitePage.').nullable(),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_sharePointIdentity = microsoft_graph_identity.and(
@@ -12588,23 +12569,23 @@ const microsoft_graph_sharePointIdentity = microsoft_graph_identity.and(
       loginName: z.string().describe('The sign in name of the SharePoint identity.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_sharePointIdentitySet = microsoft_graph_identitySet.and(
   z
     .object({
       group: z
-        .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identity, z.object({}).partial().strict()])
         .describe('The group associated with this action. Optional.'),
       siteGroup: z
-        .union([microsoft_graph_sharePointIdentity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharePointIdentity, z.object({}).partial().strict()])
         .describe('The SharePoint group associated with this action. Optional.'),
       siteUser: z
-        .union([microsoft_graph_sharePointIdentity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharePointIdentity, z.object({}).partial().strict()])
         .describe('The SharePoint user associated with this action. Optional.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_sharingInvitation = z
   .object({
@@ -12615,7 +12596,7 @@ const microsoft_graph_sharingInvitation = z
       )
       .nullable(),
     invitedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe(
         'Provides information about who sent the invitation that created this permission, if that information is available. Read-only.'
       ),
@@ -12628,11 +12609,11 @@ const microsoft_graph_sharingInvitation = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_sharingLink = z
   .object({
     application: z
-      .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
       .describe('The app the link is associated with.'),
     preventsDownload: z
       .boolean()
@@ -12659,7 +12640,7 @@ const microsoft_graph_sharingLink = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_permission = microsoft_graph_entity.and(
   z
     .object({
@@ -12674,7 +12655,7 @@ const microsoft_graph_permission = microsoft_graph_entity.and(
         )
         .nullable(),
       grantedTo: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe(
           'For user type permissions, the details of the users and applications for this permission. Read-only.'
         ),
@@ -12689,7 +12670,7 @@ const microsoft_graph_permission = microsoft_graph_entity.and(
           'For link type permissions, the details of the users to whom permission was granted. Read-only.'
         ),
       grantedToV2: z
-        .union([microsoft_graph_sharePointIdentitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharePointIdentitySet, z.object({}).partial().strict()])
         .describe(
           'For user type permissions, the details of the users and applications for this permission. Read-only.'
         ),
@@ -12700,15 +12681,15 @@ const microsoft_graph_permission = microsoft_graph_entity.and(
         )
         .nullable(),
       inheritedFrom: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
         .describe(
           "Provides a reference to the ancestor of the current permission, if it's inherited from an ancestor. Read-only."
         ),
       invitation: z
-        .union([microsoft_graph_sharingInvitation, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharingInvitation, z.object({}).partial().strict()])
         .describe('Details of any associated sharing invitation for this permission. Read-only.'),
       link: z
-        .union([microsoft_graph_sharingLink, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharingLink, z.object({}).partial().strict()])
         .describe(
           "Provides the link details of the current permission, if it's a link type permission. Read-only."
         ),
@@ -12725,7 +12706,7 @@ const microsoft_graph_permission = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_termStore_store = microsoft_graph_entity.and(
   z
@@ -12742,31 +12723,31 @@ const microsoft_graph_termStore_store = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
   microsoft_graph_baseItem.and(
     z
       .object({
         displayName: z.string().describe('The full title for the site. Read-only.').nullable(),
-        error: z.union([microsoft_graph_publicError, z.object({}).partial().passthrough()]),
+        error: z.union([microsoft_graph_publicError, z.object({}).partial().strict()]),
         isPersonalSite: z
           .boolean()
           .describe('Identifies whether the site is personal or not. Read-only.')
           .nullable(),
         root: z
-          .union([microsoft_graph_root, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_root, z.object({}).partial().strict()])
           .describe('If present, provides the root site in the site collection. Read-only.'),
         sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
           .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
         siteCollection: z
-          .union([microsoft_graph_siteCollection, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_siteCollection, z.object({}).partial().strict()])
           .describe(
             "Provides details about the site's site collection. Available only on the root site. Read-only."
           ),
         analytics: z
-          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
           .describe('Analytics about the view activities that took place on this site.'),
         columns: z
           .array(microsoft_graph_columnDefinition)
@@ -12775,7 +12756,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
           .array(microsoft_graph_contentType)
           .describe('The collection of content types defined for this site.'),
         drive: z
-          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_drive, z.object({}).partial().strict()])
           .describe('The default drive (document library) for this site.'),
         drives: z
           .array(microsoft_graph_drive)
@@ -12788,7 +12769,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
           ),
         lists: z.array(microsoft_graph_list).describe('The collection of lists under this site.'),
         onenote: z
-          .union([microsoft_graph_onenote, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_onenote, z.object({}).partial().strict()])
           .describe('Calls the OneNote service for notebook related operations.'),
         operations: z
           .array(microsoft_graph_richLongRunningOperation)
@@ -12803,14 +12784,14 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
           .array(microsoft_graph_site)
           .describe('The collection of the sub-sites under this site.'),
         termStore: z
-          .union([microsoft_graph_termStore_store, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_termStore_store, z.object({}).partial().strict()])
           .describe('The default termStore under this site.'),
         termStores: z
           .array(microsoft_graph_termStore_store)
           .describe('The collection of termStores under this site.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_giphyRatingType = z.enum(['strict', 'moderate', 'unknownFutureValue']);
@@ -12826,11 +12807,11 @@ const microsoft_graph_teamFunSettings = z
       .describe('If set to true, enables users to include stickers and memes.')
       .nullable(),
     giphyContentRating: z
-      .union([microsoft_graph_giphyRatingType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_giphyRatingType, z.object({}).partial().strict()])
       .describe('Giphy content rating. Possible values are: moderate, strict.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamGuestSettings = z
   .object({
     allowCreateUpdateChannels: z
@@ -12843,7 +12824,7 @@ const microsoft_graph_teamGuestSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamMemberSettings = z
   .object({
     allowAddRemoveApps: z
@@ -12872,7 +12853,7 @@ const microsoft_graph_teamMemberSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamMessagingSettings = z
   .object({
     allowChannelMentions: z
@@ -12897,7 +12878,7 @@ const microsoft_graph_teamMessagingSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamSpecialization = z.enum([
   'none',
   'educationStandard',
@@ -12930,7 +12911,7 @@ const microsoft_graph_teamSummary = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamVisibilityType = z.enum([
   'private',
   'public',
@@ -12969,7 +12950,7 @@ const microsoft_graph_channelSummary = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_conversationMember = microsoft_graph_entity.and(
   z
     .object({
@@ -12991,7 +12972,7 @@ const microsoft_graph_conversationMember = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chatMessageAttachment = z
   .object({
@@ -13024,7 +13005,7 @@ const microsoft_graph_chatMessageAttachment = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_channelIdentity = z
   .object({
     channelId: z
@@ -13037,10 +13018,10 @@ const microsoft_graph_channelIdentity = z
       .nullable(),
   })
   .partial()
-  .passthrough();
-const microsoft_graph_eventMessageDetail = z.object({}).partial().passthrough();
+  .strict();
+const microsoft_graph_eventMessageDetail = z.object({}).partial().strict();
 const microsoft_graph_chatMessageFromIdentitySet = microsoft_graph_identitySet.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_chatMessageImportance = z.enum([
   'normal',
@@ -13058,28 +13039,25 @@ const microsoft_graph_teamworkConversationIdentity = microsoft_graph_identity.an
   z
     .object({
       conversationIdentityType: z
-        .union([
-          microsoft_graph_teamworkConversationIdentityType,
-          z.object({}).partial().passthrough(),
-        ])
+        .union([microsoft_graph_teamworkConversationIdentityType, z.object({}).partial().strict()])
         .describe(
           'Type of conversation. Possible values are: team, channel, chat, and unknownFutureValue.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chatMessageMentionedIdentitySet = microsoft_graph_identitySet.and(
   z
     .object({
       conversation: z
-        .union([microsoft_graph_teamworkConversationIdentity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamworkConversationIdentity, z.object({}).partial().strict()])
         .describe(
           'If present, represents a conversation (for example, team, channel, or chat) @mentioned in a message.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chatMessageMention = z
   .object({
@@ -13092,10 +13070,7 @@ const microsoft_graph_chatMessageMention = z
       )
       .nullable(),
     mentioned: z
-      .union([
-        microsoft_graph_chatMessageMentionedIdentitySet,
-        z.object({}).partial().passthrough(),
-      ])
+      .union([microsoft_graph_chatMessageMentionedIdentitySet, z.object({}).partial().strict()])
       .describe('The entity (user, application, team, channel, or chat) that was @mentioned.'),
     mentionText: z
       .string()
@@ -13105,7 +13080,7 @@ const microsoft_graph_chatMessageMention = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatMessageActions = z.enum([
   'reactionAdded',
   'reactionRemoved',
@@ -13113,7 +13088,7 @@ const microsoft_graph_chatMessageActions = z.enum([
   'unknownFutureValue',
 ]);
 const microsoft_graph_chatMessageReactionIdentitySet = microsoft_graph_identitySet.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_chatMessageReaction = z
   .object({
@@ -13139,7 +13114,7 @@ const microsoft_graph_chatMessageReaction = z
     user: microsoft_graph_chatMessageReactionIdentitySet,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatMessageHistoryItem = z
   .object({
     actions: microsoft_graph_chatMessageActions,
@@ -13151,11 +13126,11 @@ const microsoft_graph_chatMessageHistoryItem = z
       .datetime({ offset: true })
       .describe('The date and time when the message was modified.'),
     reaction: z
-      .union([microsoft_graph_chatMessageReaction, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_chatMessageReaction, z.object({}).partial().strict()])
       .describe('The reaction in the modified message.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatMessageType = z.enum([
   'message',
   'chatEvent',
@@ -13188,7 +13163,7 @@ const microsoft_graph_chatMessagePolicyViolationPolicyTip = z
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatMessagePolicyViolationUserActionTypes = z.enum([
   'none',
   'override',
@@ -13205,7 +13180,7 @@ const microsoft_graph_chatMessagePolicyViolation = z
     dlpAction: z
       .union([
         microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe(
         'The action taken by the DLP provider on the message with sensitive content. Supported values are: NoneNotifySender -- Inform the sender of the violation but allow readers to read the message.BlockAccess -- Block readers from reading the message.BlockAccessExternal -- Block users outside the organization from reading the message, while allowing users within the organization to read the message.'
@@ -13217,17 +13192,14 @@ const microsoft_graph_chatMessagePolicyViolation = z
       )
       .nullable(),
     policyTip: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationPolicyTip,
-        z.object({}).partial().passthrough(),
-      ])
+      .union([microsoft_graph_chatMessagePolicyViolationPolicyTip, z.object({}).partial().strict()])
       .describe(
         'Information to display to the message sender about why the message was flagged as a violation.'
       ),
     userAction: z
       .union([
         microsoft_graph_chatMessagePolicyViolationUserActionTypes,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe(
         "Indicates the action taken by the user on a message blocked by the DLP provider. Supported values are: NoneOverrideReportFalsePositiveWhen the DLP provider is updating the message for blocking sensitive content, userAction isn't required."
@@ -13235,14 +13207,14 @@ const microsoft_graph_chatMessagePolicyViolation = z
     verdictDetails: z
       .union([
         microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe(
         'Indicates what actions the sender may take in response to the policy violation. Supported values are: NoneAllowFalsePositiveOverride -- Allows the sender to declare the policyViolation to be an error in the DLP app and its rules, and allow readers to see the message again if the dlpAction hides it.AllowOverrideWithoutJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, without needing to provide an explanation for doing so. AllowOverrideWithJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, after providing an explanation for doing so.AllowOverrideWithoutJustification and AllowOverrideWithJustification are mutually exclusive.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamworkHostedContent = microsoft_graph_entity.and(
   z
     .object({
@@ -13256,10 +13228,10 @@ const microsoft_graph_teamworkHostedContent = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chatMessageHostedContent = microsoft_graph_teamworkHostedContent.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -13270,7 +13242,7 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
           .describe('References to attached objects like files, tabs, meetings etc.'),
         body: microsoft_graph_itemBody,
         channelIdentity: z
-          .union([microsoft_graph_channelIdentity, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_channelIdentity, z.object({}).partial().strict()])
           .describe('If the message was sent in a channel, represents identity of the channel.'),
         chatId: z
           .string()
@@ -13296,12 +13268,12 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
           .nullable(),
         etag: z.string().describe('Read-only. Version number of the chat message.').nullable(),
         eventDetail: z
-          .union([microsoft_graph_eventMessageDetail, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
           .describe(
             'Read-only. If present, represents details of an event that happened in a chat, a channel, or a team, for example, adding new members. For event messages, the messageType property will be set to systemEventMessage.'
           ),
         from: z
-          .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
           .describe('Details of the sender of the chat message. Can only be set during migration.'),
         importance: microsoft_graph_chatMessageImportance,
         lastEditedDateTime: z
@@ -13339,7 +13311,7 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
           ),
         messageType: microsoft_graph_chatMessageType,
         policyViolation: z
-          .union([microsoft_graph_chatMessagePolicyViolation, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_chatMessagePolicyViolation, z.object({}).partial().strict()])
           .describe(
             'Defines the properties of a policy violation set by a data loss prevention (DLP) application.'
           ),
@@ -13373,7 +13345,7 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
           .describe('Replies for a specified message. Supports $expand for channel messages.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_teamInfo: z.ZodType<microsoft_graph_teamInfo> = z.lazy(() =>
@@ -13382,10 +13354,10 @@ const microsoft_graph_teamInfo: z.ZodType<microsoft_graph_teamInfo> = z.lazy(() 
       .object({
         displayName: z.string().describe('The name of the team.').nullable(),
         tenantId: z.string().describe('The ID of the Microsoft Entra tenant.').nullable(),
-        team: z.union([microsoft_graph_team, z.object({}).partial().passthrough()]),
+        team: z.union([microsoft_graph_team, z.object({}).partial().strict()]),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_sharedWithChannelTeamInfo: z.ZodType<microsoft_graph_sharedWithChannelTeamInfo> =
@@ -13402,7 +13374,7 @@ const microsoft_graph_sharedWithChannelTeamInfo: z.ZodType<microsoft_graph_share
             .describe('A collection of team members who have access to the shared channel.'),
         })
         .partial()
-        .passthrough()
+        .strict()
     )
   );
 const microsoft_graph_teamsTabConfiguration = z
@@ -13422,7 +13394,7 @@ const microsoft_graph_teamsTabConfiguration = z
     websiteUrl: z.string().describe('Url for showing tab contents outside of Teams.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamsAppDistributionMethod = z.enum([
   'store',
   'organization',
@@ -13439,7 +13411,7 @@ const microsoft_graph_teamsAppResourceSpecificPermission = z
     permissionType: z
       .union([
         microsoft_graph_teamsAppResourceSpecificPermissionType,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe('The type of resource-specific permission.'),
     permissionValue: z
@@ -13448,7 +13420,7 @@ const microsoft_graph_teamsAppResourceSpecificPermission = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamsAppPermissionSet = z
   .object({
     resourceSpecificPermissions: z
@@ -13456,7 +13428,7 @@ const microsoft_graph_teamsAppPermissionSet = z
       .describe('A collection of resource-specific permissions.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamsAppAuthorization = z
   .object({
     clientAppId: z
@@ -13464,27 +13436,25 @@ const microsoft_graph_teamsAppAuthorization = z
       .describe('The registration ID of the Microsoft Entra app ID associated with the teamsApp.')
       .nullable(),
     requiredPermissionSet: z
-      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
       .describe('Set of permissions required by the teamsApp.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamsAppPublishingState = z.enum([
   'submitted',
   'rejected',
   'published',
   'unknownFutureValue',
 ]);
-const microsoft_graph_teamworkBot = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
+const microsoft_graph_teamworkBot = microsoft_graph_entity.and(z.object({}).partial().strict());
 const microsoft_graph_teamsAppDefinition = microsoft_graph_entity.and(
   z
     .object({
       authorization: z
-        .union([microsoft_graph_teamsAppAuthorization, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsAppAuthorization, z.object({}).partial().strict()])
         .describe('Authorization requirements specified in the Teams app manifest.'),
-      createdBy: z.union([microsoft_graph_identitySet, z.object({}).partial().passthrough()]),
+      createdBy: z.union([microsoft_graph_identitySet, z.object({}).partial().strict()]),
       description: z.string().describe('Verbose description of the application.').nullable(),
       displayName: z
         .string()
@@ -13498,7 +13468,7 @@ const microsoft_graph_teamsAppDefinition = microsoft_graph_entity.and(
         .datetime({ offset: true })
         .nullable(),
       publishingState: z
-        .union([microsoft_graph_teamsAppPublishingState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsAppPublishingState, z.object({}).partial().strict()])
         .describe(
           'The published status of a specific version of a Teams app. Possible values are:submitted—The specific version of the Teams app was submitted and is under review.published—The request to publish the specific version of the Teams app was approved by the admin and the app is published.rejected—The admin rejected the request to publish the specific version of the Teams app.'
         ),
@@ -13506,11 +13476,11 @@ const microsoft_graph_teamsAppDefinition = microsoft_graph_entity.and(
       teamsAppId: z.string().describe('The ID from the Teams app manifest.').nullable(),
       version: z.string().describe('The version number of the application.').nullable(),
       bot: z
-        .union([microsoft_graph_teamworkBot, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamworkBot, z.object({}).partial().strict()])
         .describe('The details of the bot specified in the Teams app manifest.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_teamsApp = microsoft_graph_entity.and(
   z
@@ -13522,7 +13492,7 @@ const microsoft_graph_teamsApp = microsoft_graph_entity.and(
         )
         .nullable(),
       distributionMethod: z
-        .union([microsoft_graph_teamsAppDistributionMethod, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsAppDistributionMethod, z.object({}).partial().strict()])
         .describe('The method of distribution for the app. Read-only.'),
       externalId: z
         .string()
@@ -13535,26 +13505,26 @@ const microsoft_graph_teamsApp = microsoft_graph_entity.and(
         .describe('The details for each version of the app.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_teamsTab = microsoft_graph_entity.and(
   z
     .object({
       configuration: z
-        .union([microsoft_graph_teamsTabConfiguration, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsTabConfiguration, z.object({}).partial().strict()])
         .describe(
           'Container for custom settings applied to a tab. The tab is considered configured only once this property is set.'
         ),
       displayName: z.string().describe('Name of the tab.').nullable(),
       webUrl: z.string().describe('Deep link URL of the tab instance. Read only.').nullable(),
       teamsApp: z
-        .union([microsoft_graph_teamsApp, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
         .describe(
           "The application that is linked to the tab. This can't be changed after tab creation."
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -13592,12 +13562,12 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
           )
           .nullable(),
         membershipType: z
-          .union([microsoft_graph_channelMembershipType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_channelMembershipType, z.object({}).partial().strict()])
           .describe(
             "The type of the channel. Can be set during creation and can't be changed. The possible values are: standard, private, unknownFutureValue, shared. The default value is standard. Use the Prefer: include-unknown-enum-members request header to get the following value in this evolvable enum: shared."
           ),
         summary: z
-          .union([microsoft_graph_channelSummary, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_channelSummary, z.object({}).partial().strict()])
           .describe(
             'Contains summary information about the channel, including number of owners, members, guests, and an indicator for members from other tenants. The summary property will only be returned if it is specified in the $select clause of the Get channel method.'
           ),
@@ -13614,7 +13584,7 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
             'A collection of membership records associated with the channel, including both direct and indirect members of shared channels.'
           ),
         filesFolder: z
-          .union([microsoft_graph_driveItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
           .describe("Metadata for the location where the channel's files are stored."),
         members: z
           .array(microsoft_graph_conversationMember)
@@ -13632,26 +13602,26 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
           .describe('A collection of all the tabs in the channel. A navigation property.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_teamsAppInstallation = microsoft_graph_entity.and(
   z
     .object({
       consentedPermissionSet: z
-        .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
         .describe(
           'The set of resource-specific permissions consented to while installing or upgrading the teamsApp.'
         ),
       teamsApp: z
-        .union([microsoft_graph_teamsApp, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
         .describe('The app that is installed.'),
       teamsAppDefinition: z
-        .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().strict()])
         .describe('The details of this version of the app.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_operationError = z
   .object({
@@ -13659,7 +13629,7 @@ const microsoft_graph_operationError = z
     message: z.string().describe('Operation error message.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_teamsAsyncOperationType = z.enum([
   'invalid',
   'cloneTeam',
@@ -13698,7 +13668,7 @@ const microsoft_graph_teamsAsyncOperation = microsoft_graph_entity.and(
         .datetime({ offset: true })
         .describe('Time when the operation was created.'),
       error: z
-        .union([microsoft_graph_operationError, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_operationError, z.object({}).partial().strict()])
         .describe('Any error that causes the async operation to fail.'),
       lastActionDateTime: z
         .string()
@@ -13723,7 +13693,7 @@ const microsoft_graph_teamsAsyncOperation = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_geoCoordinates = z
   .object({
@@ -13740,20 +13710,20 @@ const microsoft_graph_geoCoordinates = z
       .describe('Optional. The longitude, in decimal, for the item. Read-only.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_timeClockSettings = z
   .object({
     approvedLocation: z
-      .union([microsoft_graph_geoCoordinates, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_geoCoordinates, z.object({}).partial().strict()])
       .describe('The approved location of the timeClock.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_changeTrackedEntity = microsoft_graph_entity.and(
   z
     .object({
       createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the creator of the entity.'),
       createdDateTime: z
         .string()
@@ -13766,7 +13736,7 @@ const microsoft_graph_changeTrackedEntity = microsoft_graph_entity.and(
         )
         .nullable(),
       lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the person who last modified the entity.'),
       lastModifiedDateTime: z
         .string()
@@ -13780,7 +13750,7 @@ const microsoft_graph_changeTrackedEntity = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_dayNote = microsoft_graph_changeTrackedEntity.and(
   z
@@ -13791,18 +13761,18 @@ const microsoft_graph_dayNote = microsoft_graph_changeTrackedEntity.and(
         .describe('The date of the day note.')
         .nullable(),
       draftDayNote: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           'The draft version of this day note that is viewable by managers. Only contentType text is supported.'
         ),
       sharedDayNote: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           'The shared version of this day note that is viewable by both employees and managers. Only contentType text is supported.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_scheduleChangeRequestActor = z.enum([
   'sender',
@@ -13821,7 +13791,7 @@ const microsoft_graph_scheduleChangeRequest = microsoft_graph_changeTrackedEntit
   z
     .object({
       assignedTo: z
-        .union([microsoft_graph_scheduleChangeRequestActor, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_scheduleChangeRequestActor, z.object({}).partial().strict()])
         .describe(
           'Indicates who the request is assigned to. Possible values are: sender, recipient, manager, system, unknownFutureValue.'
         ),
@@ -13862,13 +13832,13 @@ const microsoft_graph_scheduleChangeRequest = microsoft_graph_changeTrackedEntit
         .describe('The user ID of the sender of the scheduleChangeRequest.')
         .nullable(),
       state: z
-        .union([microsoft_graph_scheduleChangeState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_scheduleChangeState, z.object({}).partial().strict()])
         .describe(
           'The state of the scheduleChangeRequest. Possible values are: pending, approved, declined, unknownFutureValue.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_offerShiftRequest = microsoft_graph_scheduleChangeRequest.and(
   z
@@ -13889,13 +13859,13 @@ const microsoft_graph_offerShiftRequest = microsoft_graph_scheduleChangeRequest.
       senderShiftId: z.string().describe("The sender's shift ID.").nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_openShiftChangeRequest = microsoft_graph_scheduleChangeRequest.and(
   z
     .object({ openShiftId: z.string().describe('ID for the open shift.').nullable() })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_scheduleEntityTheme = z.enum([
   'white',
@@ -13931,7 +13901,7 @@ const microsoft_graph_scheduleEntity = z
     theme: microsoft_graph_scheduleEntityTheme,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_shiftActivity = z
   .object({
     code: z.string().describe('Customer defined code for the shiftActivity. Required.').nullable(),
@@ -13965,7 +13935,7 @@ const microsoft_graph_shiftActivity = z
     theme: microsoft_graph_scheduleEntityTheme,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_shiftItem = microsoft_graph_scheduleEntity.and(
   z
     .object({
@@ -13978,7 +13948,7 @@ const microsoft_graph_shiftItem = microsoft_graph_scheduleEntity.and(
       notes: z.string().describe('The shift notes for the shiftItem.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_openShiftItem = microsoft_graph_shiftItem.and(
   z
@@ -13990,13 +13960,13 @@ const microsoft_graph_openShiftItem = microsoft_graph_shiftItem.and(
         .describe('Count of the number of slots for the given open shift.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_openShift = microsoft_graph_changeTrackedEntity.and(
   z
     .object({
       draftOpenShift: z
-        .union([microsoft_graph_openShiftItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_openShiftItem, z.object({}).partial().strict()])
         .describe(
           "Draft changes in the openShift are only visible to managers until they're shared."
         ),
@@ -14011,13 +13981,13 @@ const microsoft_graph_openShift = microsoft_graph_changeTrackedEntity.and(
         .describe('The ID of the schedulingGroup that contains the openShift.')
         .nullable(),
       sharedOpenShift: z
-        .union([microsoft_graph_openShiftItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_openShiftItem, z.object({}).partial().strict()])
         .describe(
           'The shared version of this openShift that is viewable by both employees and managers.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_schedulingGroup = microsoft_graph_changeTrackedEntity.and(
   z
@@ -14043,13 +14013,13 @@ const microsoft_graph_schedulingGroup = microsoft_graph_changeTrackedEntity.and(
         .describe('The list of user IDs that are a member of the schedulingGroup. Required.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_shift = microsoft_graph_changeTrackedEntity.and(
   z
     .object({
       draftShift: z
-        .union([microsoft_graph_shiftItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_shiftItem, z.object({}).partial().strict()])
         .describe(
           "Draft changes in the shift. Draft changes are only visible to managers. The changes are visible to employees when they're shared, which copies the changes from the draftShift to the sharedShift property."
         ),
@@ -14064,20 +14034,20 @@ const microsoft_graph_shift = microsoft_graph_changeTrackedEntity.and(
         .describe('ID of the scheduling group the shift is part of. Required.')
         .nullable(),
       sharedShift: z
-        .union([microsoft_graph_shiftItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_shiftItem, z.object({}).partial().strict()])
         .describe(
           'The shared version of this shift that is viewable by both employees and managers. Updates to the sharedShift property send notifications to users in the Teams client.'
         ),
       userId: z.string().describe('ID of the user assigned to the shift. Required.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_swapShiftsChangeRequest = microsoft_graph_offerShiftRequest.and(
   z
     .object({ recipientShiftId: z.string().describe("The recipient's Shift ID").nullable() })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeCardEvent = z
   .object({
@@ -14093,37 +14063,37 @@ const microsoft_graph_timeCardEvent = z
       .describe('Indicates whether this action happens at an approved location.')
       .nullable(),
     notes: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
       .describe('Notes about the timeCardEvent.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_timeCardBreak = z
   .object({
     breakId: z.string().describe('ID of the timeCardBreak.').nullable(),
     end: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
       .describe('The start event of the timeCardBreak.'),
     notes: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
       .describe('Notes about the timeCardBreak.'),
     start: microsoft_graph_timeCardEvent,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_confirmedBy = z.enum(['none', 'user', 'manager', 'unknownFutureValue']);
 const microsoft_graph_timeCardEntry = z
   .object({
     breaks: z.array(microsoft_graph_timeCardBreak).describe('The clock-in event of the timeCard.'),
     clockInEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
       .describe('The clock-out event of the timeCard.'),
     clockOutEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
       .describe('The list of breaks associated with the timeCard.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_timeCardState = z.enum([
   'clockedIn',
   'onBreak',
@@ -14137,31 +14107,31 @@ const microsoft_graph_timeCard = microsoft_graph_changeTrackedEntity.and(
         .array(microsoft_graph_timeCardBreak)
         .describe('The list of breaks associated with the timeCard.'),
       clockInEvent: z
-        .union([microsoft_graph_timeCardEvent, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
         .describe('The clock-in event of the timeCard.'),
       clockOutEvent: z
-        .union([microsoft_graph_timeCardEvent, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
         .describe('The clock-out event of the timeCard.'),
       confirmedBy: z
-        .union([microsoft_graph_confirmedBy, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_confirmedBy, z.object({}).partial().strict()])
         .describe(
           'Indicates whether this timeCard entry is confirmed. Possible values are: none, user, manager, unknownFutureValue.'
         ),
       notes: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe('Notes about the timeCard.'),
       originalEntry: z
-        .union([microsoft_graph_timeCardEntry, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeCardEntry, z.object({}).partial().strict()])
         .describe('The original timeCardEntry of the timeCard before it was edited.'),
       state: z
-        .union([microsoft_graph_timeCardState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeCardState, z.object({}).partial().strict()])
         .describe(
           'The current state of the timeCard during its life cycle. The possible values are: clockedIn, onBreak, clockedOut, unknownFutureValue.'
         ),
       userId: z.string().describe('User ID to which the timeCard belongs.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeOffReasonIconType = z.enum([
   'none',
@@ -14198,7 +14168,7 @@ const microsoft_graph_timeOffReason = microsoft_graph_changeTrackedEntity.and(
         .nullable(),
       displayName: z.string().describe('The name of the timeOffReason. Required.').nullable(),
       iconType: z
-        .union([microsoft_graph_timeOffReasonIconType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeOffReasonIconType, z.object({}).partial().strict()])
         .describe(
           'Supported icon types are: none, car, calendar, running, plane, firstAid, doctor, notWorking, clock, juryDuty, globe, cup, phone, weather, umbrella, piggyBank, dog, cake, trafficCone, pin, sunny. Required.'
         ),
@@ -14210,7 +14180,7 @@ const microsoft_graph_timeOffReason = microsoft_graph_changeTrackedEntity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeOffRequest = microsoft_graph_scheduleChangeRequest.and(
   z
@@ -14234,7 +14204,7 @@ const microsoft_graph_timeOffRequest = microsoft_graph_scheduleChangeRequest.and
       timeOffReasonId: z.string().describe('The reason for the time off.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeOffItem = microsoft_graph_scheduleEntity.and(
   z
@@ -14245,13 +14215,13 @@ const microsoft_graph_timeOffItem = microsoft_graph_scheduleEntity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeOff = microsoft_graph_changeTrackedEntity.and(
   z
     .object({
       draftTimeOff: z
-        .union([microsoft_graph_timeOffItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeOffItem, z.object({}).partial().strict()])
         .describe(
           "The draft version of this timeOff item that is viewable by managers. It must be shared before it's visible to team members. Required."
         ),
@@ -14262,14 +14232,14 @@ const microsoft_graph_timeOff = microsoft_graph_changeTrackedEntity.and(
         )
         .nullable(),
       sharedTimeOff: z
-        .union([microsoft_graph_timeOffItem, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeOffItem, z.object({}).partial().strict()])
         .describe(
           'The shared version of this timeOff that is viewable by both employees and managers. Updates to the sharedTimeOff property send notifications to users in the Teams client. Required.'
         ),
       userId: z.string().describe('ID of the user assigned to the timeOff. Required.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_schedule = microsoft_graph_entity.and(
   z
@@ -14291,7 +14261,7 @@ const microsoft_graph_schedule = microsoft_graph_entity.and(
         .describe('Indicates whether open shifts are enabled for the schedule.')
         .nullable(),
       provisionStatus: z
-        .union([microsoft_graph_operationStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_operationStatus, z.object({}).partial().strict()])
         .describe(
           'The status of the schedule provisioning. The possible values are notStarted, running, completed, failed.'
         ),
@@ -14300,7 +14270,7 @@ const microsoft_graph_schedule = microsoft_graph_entity.and(
         .describe('Additional information about why schedule provisioning failed.')
         .nullable(),
       startDayOfWeek: z
-        .union([microsoft_graph_dayOfWeek, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()])
         .describe(
           'Indicates the start day of the week. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday.'
         ),
@@ -14313,7 +14283,7 @@ const microsoft_graph_schedule = microsoft_graph_entity.and(
         .describe('Indicates whether time clock is enabled for the schedule.')
         .nullable(),
       timeClockSettings: z
-        .union([microsoft_graph_timeClockSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_timeClockSettings, z.object({}).partial().strict()])
         .describe('The time clock location settings for this schedule.'),
       timeOffRequestsEnabled: z
         .boolean()
@@ -14357,7 +14327,7 @@ const microsoft_graph_schedule = microsoft_graph_entity.and(
         .describe('The instances of times off in the schedule.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_teamworkTagType = z.enum(['standard', 'unknownFutureValue']);
 const microsoft_graph_teamworkTagMember = microsoft_graph_entity.and(
@@ -14371,7 +14341,7 @@ const microsoft_graph_teamworkTagMember = microsoft_graph_entity.and(
       userId: z.string().describe('The user ID of the member.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_teamworkTag = microsoft_graph_entity.and(
   z
@@ -14393,17 +14363,15 @@ const microsoft_graph_teamworkTag = microsoft_graph_entity.and(
         .describe('The number of users assigned to the tag.')
         .nullable(),
       tagType: z
-        .union([microsoft_graph_teamworkTagType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamworkTagType, z.object({}).partial().strict()])
         .describe('The type of the tag. Default is standard.'),
       teamId: z.string().describe('ID of the team in which the tag is defined.').nullable(),
       members: z.array(microsoft_graph_teamworkTagMember).describe('Users assigned to the tag.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
-const microsoft_graph_teamsTemplate = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
-);
+const microsoft_graph_teamsTemplate = microsoft_graph_entity.and(z.object({}).partial().strict());
 const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
@@ -14434,10 +14402,10 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
           )
           .nullable(),
         funSettings: z
-          .union([microsoft_graph_teamFunSettings, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamFunSettings, z.object({}).partial().strict()])
           .describe('Settings to configure use of Giphy, memes, and stickers in the team.'),
         guestSettings: z
-          .union([microsoft_graph_teamGuestSettings, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamGuestSettings, z.object({}).partial().strict()])
           .describe(
             'Settings to configure whether guests can create, update, or delete channels in the team.'
           ),
@@ -14449,26 +14417,26 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
           .nullable(),
         isArchived: z.boolean().describe('Whether this team is in read-only mode.').nullable(),
         memberSettings: z
-          .union([microsoft_graph_teamMemberSettings, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamMemberSettings, z.object({}).partial().strict()])
           .describe(
             'Settings to configure whether members can perform certain actions, for example, create channels and add bots, in the team.'
           ),
         messagingSettings: z
-          .union([microsoft_graph_teamMessagingSettings, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamMessagingSettings, z.object({}).partial().strict()])
           .describe('Settings to configure messaging and mentions in the team.'),
         specialization: z
-          .union([microsoft_graph_teamSpecialization, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamSpecialization, z.object({}).partial().strict()])
           .describe(
             'Optional. Indicates whether the team is intended for a particular use case. Each team specialization has access to unique behaviors and experiences targeted to its use case.'
           ),
         summary: z
-          .union([microsoft_graph_teamSummary, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamSummary, z.object({}).partial().strict()])
           .describe(
             'Contains summary information about the team, including number of owners, members, and guests.'
           ),
         tenantId: z.string().describe('The ID of the Microsoft Entra tenant.').nullable(),
         visibility: z
-          .union([microsoft_graph_teamVisibilityType, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamVisibilityType, z.object({}).partial().strict()])
           .describe('The visibility of the group and team. Defaults to Public.'),
         webUrl: z
           .string()
@@ -14484,7 +14452,7 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
         channels: z
           .array(microsoft_graph_channel)
           .describe('The collection of channels and messages associated with the team.'),
-        group: z.union([microsoft_graph_group, z.object({}).partial().passthrough()]),
+        group: z.union([microsoft_graph_group, z.object({}).partial().strict()]),
         incomingChannels: z
           .array(microsoft_graph_channel)
           .describe('List of channels shared with the team.'),
@@ -14501,21 +14469,21 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
           .array(microsoft_graph_resourceSpecificPermissionGrant)
           .describe('A collection of permissions granted to apps to access the team.'),
         photo: z
-          .union([microsoft_graph_profilePhoto, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
           .describe('The profile photo for the team.'),
         primaryChannel: z
-          .union([microsoft_graph_channel, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_channel, z.object({}).partial().strict()])
           .describe('The general channel for the team.'),
         schedule: z
-          .union([microsoft_graph_schedule, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_schedule, z.object({}).partial().strict()])
           .describe('The schedule of shifts for this team.'),
         tags: z.array(microsoft_graph_teamworkTag).describe('The tags associated with the team.'),
         template: z
-          .union([microsoft_graph_teamsTemplate, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_teamsTemplate, z.object({}).partial().strict()])
           .describe('The template this team was created from. See available templates.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
@@ -14625,7 +14593,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
           )
           .nullable(),
         licenseProcessingState: z
-          .union([microsoft_graph_licenseProcessingState, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_licenseProcessingState, z.object({}).partial().strict()])
           .describe(
             'Indicates the status of the group license assignment to all group members. The default value is false. Read-only. Possible values: QueuedForProcessing, ProcessingInProgress, and ProcessingComplete.Returned only on $select. Read-only.'
           ),
@@ -14785,19 +14753,19 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
             'Represents the app roles granted to a group for an application. Supports $expand.'
           ),
         calendar: z
-          .union([microsoft_graph_calendar, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_calendar, z.object({}).partial().strict()])
           .describe("The group's calendar. Read-only."),
         calendarView: z
           .array(microsoft_graph_event)
           .describe('The calendar view for the calendar. Read-only.'),
         conversations: z.array(microsoft_graph_conversation).describe("The group's conversations."),
         createdOnBehalfOf: z
-          .union([microsoft_graph_directoryObject, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_directoryObject, z.object({}).partial().strict()])
           .describe(
             "The user (or application) that created the group. NOTE: This property isn't set if the user is an administrator. Read-only."
           ),
         drive: z
-          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_drive, z.object({}).partial().strict()])
           .describe("The group's default drive. Read-only."),
         drives: z.array(microsoft_graph_drive).describe("The group's drives. Read-only."),
         events: z.array(microsoft_graph_event).describe("The group's calendar events."),
@@ -14824,7 +14792,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
           .describe(
             'A list of group members with license errors from this group-based license assignment. Read-only.'
           ),
-        onenote: z.union([microsoft_graph_onenote, z.object({}).partial().passthrough()]),
+        onenote: z.union([microsoft_graph_onenote, z.object({}).partial().strict()]),
         owners: z
           .array(microsoft_graph_directoryObject)
           .describe(
@@ -14832,13 +14800,13 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
           ),
         permissionGrants: z.array(microsoft_graph_resourceSpecificPermissionGrant),
         photo: z
-          .union([microsoft_graph_profilePhoto, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
           .describe("The group's profile photo"),
         photos: z
           .array(microsoft_graph_profilePhoto)
           .describe('The profile photos owned by the group. Read-only. Nullable.'),
         planner: z
-          .union([microsoft_graph_plannerGroup, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_plannerGroup, z.object({}).partial().strict()])
           .describe('Entry-point to Planner resource that might exist for a Unified Group.'),
         rejectedSenders: z
           .array(microsoft_graph_directoryObject)
@@ -14856,7 +14824,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
             'The list of SharePoint sites in this group. Access the default site with /sites/root.'
           ),
         team: z
-          .union([microsoft_graph_team, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_team, z.object({}).partial().strict()])
           .describe('The team associated with this group.'),
         threads: z
           .array(microsoft_graph_conversationThread)
@@ -14871,7 +14839,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
           .describe('The direct and transitive members of a group. Nullable.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_printConnector = microsoft_graph_entity.and(
@@ -14881,7 +14849,7 @@ const microsoft_graph_printConnector = microsoft_graph_entity.and(
       displayName: z.string().describe('The name of the connector.'),
       fullyQualifiedDomainName: z.string().describe("The connector machine's hostname."),
       location: z
-        .union([microsoft_graph_printerLocation, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_printerLocation, z.object({}).partial().strict()])
         .describe('The physical and/or organizational location of the connector.'),
       operatingSystem: z.string().describe("The connector machine's operating system version."),
       registeredDateTime: z
@@ -14893,7 +14861,7 @@ const microsoft_graph_printConnector = microsoft_graph_entity.and(
         .describe('The DateTimeOffset when the connector was registered.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_printer: z.ZodType<microsoft_graph_printer> = z.lazy(() =>
   microsoft_graph_printerBase.and(
@@ -14935,7 +14903,7 @@ const microsoft_graph_printer: z.ZodType<microsoft_graph_printer> = z.lazy(() =>
           .describe('A list of task triggers that are associated with the printer.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.lazy(() =>
@@ -14955,7 +14923,7 @@ const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.
           .datetime({ offset: true })
           .describe('The DateTimeOffset when the printer share was created. Read-only.'),
         viewPoint: z
-          .union([microsoft_graph_printerShareViewpoint, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_printerShareViewpoint, z.object({}).partial().strict()])
           .describe('Additional data for a printer share as viewed by the signed-in user.'),
         allowedGroups: z
           .array(microsoft_graph_group)
@@ -14964,18 +14932,18 @@ const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.
           .array(microsoft_graph_user)
           .describe('The users who have access to print using the printer.'),
         printer: z
-          .union([microsoft_graph_printer, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_printer, z.object({}).partial().strict()])
           .describe('The printer that this printer share is related to.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_userPrint: z.ZodType<microsoft_graph_userPrint> = z.lazy(() =>
   z
     .object({ recentPrinterShares: z.array(microsoft_graph_printerShare) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_provisionedPlan = z
   .object({
@@ -14997,7 +14965,7 @@ const microsoft_graph_provisionedPlan = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_signInActivity = z
   .object({
     lastNonInteractiveSignInDateTime: z
@@ -15044,7 +15012,7 @@ const microsoft_graph_signInActivity = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_status = z.enum([
   'active',
   'updated',
@@ -15073,11 +15041,11 @@ const microsoft_graph_imageInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_visualInfo = z
   .object({
     attribution: z
-      .union([microsoft_graph_imageInfo, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_imageInfo, z.object({}).partial().strict()])
       .describe(
         'Optional. JSON object used to represent an icon which represents the application used to generate the activity'
       ),
@@ -15105,7 +15073,7 @@ const microsoft_graph_visualInfo = z
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_activityHistoryItem: z.ZodType<microsoft_graph_activityHistoryItem> = z.lazy(
   () =>
     microsoft_graph_entity.and(
@@ -15169,7 +15137,7 @@ const microsoft_graph_activityHistoryItem: z.ZodType<microsoft_graph_activityHis
               'Required. UTC DateTime when the activityHistoryItem (activity session) was started. Required for timeline history.'
             ),
           status: z
-            .union([microsoft_graph_status, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_status, z.object({}).partial().strict()])
             .describe(
               'Set by the server. A status code used to identify valid objects. Values: active, updated, deleted, ignored.'
             ),
@@ -15182,7 +15150,7 @@ const microsoft_graph_activityHistoryItem: z.ZodType<microsoft_graph_activityHis
           activity: microsoft_graph_userActivity,
         })
         .partial()
-        .passthrough()
+        .strict()
     )
 );
 const microsoft_graph_userActivity: z.ZodType<microsoft_graph_userActivity> = z.lazy(() =>
@@ -15252,7 +15220,7 @@ const microsoft_graph_userActivity: z.ZodType<microsoft_graph_userActivity> = z.
           )
           .nullable(),
         status: z
-          .union([microsoft_graph_status, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_status, z.object({}).partial().strict()])
           .describe(
             'Set by the server. A status code used to identify valid objects. Values: active, updated, deleted, ignored.'
           ),
@@ -15270,7 +15238,7 @@ const microsoft_graph_userActivity: z.ZodType<microsoft_graph_userActivity> = z.
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_agreementAcceptanceState = z.enum([
@@ -15325,7 +15293,7 @@ const microsoft_graph_agreementAcceptance = microsoft_graph_entity.and(
         )
         .nullable(),
       state: z
-        .union([microsoft_graph_agreementAcceptanceState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_agreementAcceptanceState, z.object({}).partial().strict()])
         .describe(
           'The state of the agreement acceptance. Possible values are: accepted, declined. Supports $filter (eq).'
         ),
@@ -15347,10 +15315,10 @@ const microsoft_graph_agreementAcceptance = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_authenticationMethod = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_emailAuthenticationMethod = microsoft_graph_authenticationMethod.and(
   z
@@ -15358,7 +15326,7 @@ const microsoft_graph_emailAuthenticationMethod = microsoft_graph_authentication
       emailAddress: z.string().describe('The email address registered to this user.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_attestationLevel = z.enum(['attested', 'notAttested', 'unknownFutureValue']);
 const microsoft_graph_fido2AuthenticationMethod = microsoft_graph_authenticationMethod.and(
@@ -15374,7 +15342,7 @@ const microsoft_graph_fido2AuthenticationMethod = microsoft_graph_authentication
         .array(z.string().nullable())
         .describe('The attestation certificate(s) attached to this security key.'),
       attestationLevel: z
-        .union([microsoft_graph_attestationLevel, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_attestationLevel, z.object({}).partial().strict()])
         .describe(
           'The attestation level of this FIDO2 security key. Possible values are: attested, or notAttested.'
         ),
@@ -15396,7 +15364,7 @@ const microsoft_graph_fido2AuthenticationMethod = microsoft_graph_authentication
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_alternativeSecurityId = z
   .object({
@@ -15405,7 +15373,7 @@ const microsoft_graph_alternativeSecurityId = z
     type: z.number().gte(-2147483648).lte(2147483647).describe('For internal use only.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_device = microsoft_graph_directoryObject.and(
   z
     .object({
@@ -15605,7 +15573,7 @@ const microsoft_graph_device = microsoft_graph_directoryObject.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_microsoftAuthenticatorAuthenticationMethod =
   microsoft_graph_authenticationMethod.and(
@@ -15631,13 +15599,13 @@ const microsoft_graph_microsoftAuthenticatorAuthenticationMethod =
           .describe('Numerical version of this instance of the Authenticator app.')
           .nullable(),
         device: z
-          .union([microsoft_graph_device, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_device, z.object({}).partial().strict()])
           .describe(
             "The registered device on which Microsoft Authenticator resides. This property is null if the device isn't registered for passwordless Phone Sign-In."
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_passwordAuthenticationMethod = microsoft_graph_authenticationMethod.and(
   z
@@ -15660,7 +15628,7 @@ const microsoft_graph_passwordAuthenticationMethod = microsoft_graph_authenticat
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_authenticationPhoneType = z.enum([
   'mobile',
@@ -15687,21 +15655,18 @@ const microsoft_graph_phoneAuthenticationMethod = microsoft_graph_authentication
         )
         .nullable(),
       phoneType: z
-        .union([microsoft_graph_authenticationPhoneType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_authenticationPhoneType, z.object({}).partial().strict()])
         .describe(
           'The type of this phone. Possible values are: mobile, alternateMobile, or office.'
         ),
       smsSignInState: z
-        .union([
-          microsoft_graph_authenticationMethodSignInState,
-          z.object({}).partial().passthrough(),
-        ])
+        .union([microsoft_graph_authenticationMethodSignInState, z.object({}).partial().strict()])
         .describe(
           'Whether a phone is ready to be used for SMS sign-in or not. Possible values are: notSupported, notAllowedByPolicy, notEnabled, phoneNumberNotUnique, ready, or notConfigured, unknownFutureValue.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_authenticationMethodKeyStrength = z.enum(['normal', 'weak', 'unknown']);
 const microsoft_graph_authenticationMethodPlatform = z.enum([
@@ -15730,29 +15695,23 @@ const microsoft_graph_platformCredentialAuthenticationMethod =
           .describe('The name of the device on which Platform Credential is registered.')
           .nullable(),
         keyStrength: z
-          .union([
-            microsoft_graph_authenticationMethodKeyStrength,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_authenticationMethodKeyStrength, z.object({}).partial().strict()])
           .describe(
             'Key strength of this Platform Credential key. Possible values are: normal, weak, unknown.'
           ),
         platform: z
-          .union([
-            microsoft_graph_authenticationMethodPlatform,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_authenticationMethodPlatform, z.object({}).partial().strict()])
           .describe(
             'Platform on which this Platform Credential key is present. Possible values are: unknown, windows, macOS,iOS, android, linux.'
           ),
         device: z
-          .union([microsoft_graph_device, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_device, z.object({}).partial().strict()])
           .describe(
             "The registered device on which this Platform Credential resides. Supports $expand. When you get a user's Platform Credential registration information, this property is returned only on a single GET and when you specify ?$expand. For example, GET /users/admin@contoso.com/authentication/platformCredentialAuthenticationMethod/_jpuR-TGZtk6aQCLF3BQjA2?$expand=device."
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_softwareOathAuthenticationMethod = microsoft_graph_authenticationMethod.and(
   z
@@ -15763,7 +15722,7 @@ const microsoft_graph_softwareOathAuthenticationMethod = microsoft_graph_authent
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_temporaryAccessPassAuthenticationMethod =
   microsoft_graph_authenticationMethod.and(
@@ -15821,7 +15780,7 @@ const microsoft_graph_temporaryAccessPassAuthenticationMethod =
           .nullable(),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_windowsHelloForBusinessAuthenticationMethod =
   microsoft_graph_authenticationMethod.and(
@@ -15840,21 +15799,18 @@ const microsoft_graph_windowsHelloForBusinessAuthenticationMethod =
           .describe('The name of the device on which Windows Hello for Business is registered')
           .nullable(),
         keyStrength: z
-          .union([
-            microsoft_graph_authenticationMethodKeyStrength,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_authenticationMethodKeyStrength, z.object({}).partial().strict()])
           .describe(
             'Key strength of this Windows Hello for Business key. Possible values are: normal, weak, unknown.'
           ),
         device: z
-          .union([microsoft_graph_device, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_device, z.object({}).partial().strict()])
           .describe(
             "The registered device on which this Windows Hello for Business key resides. Supports $expand. When you get a user's Windows Hello for Business registration information, this property is returned only on a single GET and when you specify ?$expand. For example, GET /users/admin@contoso.com/authentication/windowsHelloForBusinessMethods/_jpuR-TGZtk6aQCLF3BQjA2?$expand=device."
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_authentication = microsoft_graph_entity.and(
   z
@@ -15906,7 +15862,7 @@ const microsoft_graph_authentication = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_calendarGroup = microsoft_graph_entity.and(
   z
@@ -15929,7 +15885,7 @@ const microsoft_graph_calendarGroup = microsoft_graph_entity.and(
         .describe('The calendars in the calendar group. Navigation property. Read-only. Nullable.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chatType = z.enum(['oneOnOne', 'group', 'meeting', 'unknownFutureValue']);
 const microsoft_graph_teamworkUserIdentityType = z.enum([
@@ -15947,13 +15903,13 @@ const microsoft_graph_teamworkUserIdentity = microsoft_graph_identity.and(
   z
     .object({
       userIdentityType: z
-        .union([microsoft_graph_teamworkUserIdentityType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamworkUserIdentityType, z.object({}).partial().strict()])
         .describe(
           'Type of user. Possible values are: aadUser, onPremiseAadUser, anonymousGuest, federatedUser, personalMicrosoftAccountUser, skypeUser, phoneUser, unknownFutureValue and emailUser.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_teamworkOnlineMeetingInfo = z
   .object({
@@ -15966,11 +15922,11 @@ const microsoft_graph_teamworkOnlineMeetingInfo = z
       .describe('The URL that users click to join or uniquely identify the meeting.')
       .nullable(),
     organizer: z
-      .union([microsoft_graph_teamworkUserIdentity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_teamworkUserIdentity, z.object({}).partial().strict()])
       .describe('The organizer of the meeting.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatViewpoint = z
   .object({
     isHidden: z
@@ -15989,12 +15945,12 @@ const microsoft_graph_chatViewpoint = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatMessageInfo = microsoft_graph_entity.and(
   z
     .object({
       body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           "Body of the chatMessage. This will still contain markers for @mentions and attachments even though the object doesn't return @mentions and attachments."
         ),
@@ -16007,12 +15963,12 @@ const microsoft_graph_chatMessageInfo = microsoft_graph_entity.and(
         .describe('Date time object representing the time at which message was created.')
         .nullable(),
       eventDetail: z
-        .union([microsoft_graph_eventMessageDetail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
         .describe(
           'Read-only.  If present, represents details of an event that happened in a chat, a channel, or a team, for example, members were added, and so on. For event messages, the messageType property is set to systemEventMessage.'
         ),
       from: z
-        .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
         .describe('Information about the sender of the message.'),
       isDeleted: z
         .boolean()
@@ -16021,17 +15977,17 @@ const microsoft_graph_chatMessageInfo = microsoft_graph_entity.and(
       messageType: microsoft_graph_chatMessageType,
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_pinnedChatMessageInfo = microsoft_graph_entity.and(
   z
     .object({
       message: z
-        .union([microsoft_graph_chatMessage, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatMessage, z.object({}).partial().strict()])
         .describe('Represents details about the chat message that is pinned.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_chat = microsoft_graph_entity.and(
   z
@@ -16060,7 +16016,7 @@ const microsoft_graph_chat = microsoft_graph_entity.and(
         )
         .nullable(),
       onlineMeetingInfo: z
-        .union([microsoft_graph_teamworkOnlineMeetingInfo, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_teamworkOnlineMeetingInfo, z.object({}).partial().strict()])
         .describe(
           "Represents details about an online meeting. If the chat isn't associated with an online meeting, the property is empty. Read-only."
         ),
@@ -16073,7 +16029,7 @@ const microsoft_graph_chat = microsoft_graph_entity.and(
         .describe('(Optional) Subject or topic for the chat. Only available for group chats.')
         .nullable(),
       viewpoint: z
-        .union([microsoft_graph_chatViewpoint, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatViewpoint, z.object({}).partial().strict()])
         .describe(
           'Represents caller-specific information about the chat, such as the last message read date and time. This property is populated only when the request is made in a delegated context.'
         ),
@@ -16087,7 +16043,7 @@ const microsoft_graph_chat = microsoft_graph_entity.and(
         .array(microsoft_graph_teamsAppInstallation)
         .describe('A collection of all the apps in the chat. Nullable.'),
       lastMessagePreview: z
-        .union([microsoft_graph_chatMessageInfo, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatMessageInfo, z.object({}).partial().strict()])
         .describe(
           'Preview of the last message sent in the chat. Null if no messages were sent in the chat. Currently, only the list chats operation supports this property.'
         ),
@@ -16108,7 +16064,7 @@ const microsoft_graph_chat = microsoft_graph_entity.and(
         .describe('A collection of all the tabs in the chat. Nullable.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_cloudClipboardItemPayload = z
   .object({
@@ -16118,7 +16074,7 @@ const microsoft_graph_cloudClipboardItemPayload = z
     formatName: z.string().describe('For a list of possible values see formatName values.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_cloudClipboardItem = microsoft_graph_entity.and(
   z
     .object({
@@ -16155,7 +16111,7 @@ const microsoft_graph_cloudClipboardItem = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_cloudClipboardRoot = microsoft_graph_entity.and(
   z
@@ -16165,7 +16121,7 @@ const microsoft_graph_cloudClipboardRoot = microsoft_graph_entity.and(
         .describe('Represents a collection of Cloud Clipboard items.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_contact = microsoft_graph_outlookItem.and(
   z
@@ -16182,7 +16138,7 @@ const microsoft_graph_contact = microsoft_graph_outlookItem.and(
         )
         .nullable(),
       businessAddress: z
-        .union([microsoft_graph_physicalAddress, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
         .describe("The contact's business address."),
       businessHomePage: z.string().describe('The business home page of the contact.').nullable(),
       businessPhones: z
@@ -16204,7 +16160,7 @@ const microsoft_graph_contact = microsoft_graph_outlookItem.and(
       generation: z.string().describe("The contact's suffix.").nullable(),
       givenName: z.string().describe("The contact's given name.").nullable(),
       homeAddress: z
-        .union([microsoft_graph_physicalAddress, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
         .describe("The contact's home address."),
       homePhones: z.array(z.string().nullable()).describe("The contact's home phone numbers."),
       imAddresses: z
@@ -16218,7 +16174,7 @@ const microsoft_graph_contact = microsoft_graph_outlookItem.and(
       nickName: z.string().describe("The contact's nickname.").nullable(),
       officeLocation: z.string().describe("The location of the contact's office.").nullable(),
       otherAddress: z
-        .union([microsoft_graph_physicalAddress, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
         .describe('Other addresses for the contact.'),
       parentFolderId: z.string().describe("The ID of the contact's parent folder.").nullable(),
       personalNotes: z.string().describe("The user's notes about the contact.").nullable(),
@@ -16249,7 +16205,7 @@ const microsoft_graph_contact = microsoft_graph_outlookItem.and(
           'The collection of multi-value extended properties defined for the contact. Read-only. Nullable.'
         ),
       photo: z
-        .union([microsoft_graph_profilePhoto, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
         .describe('Optional contact picture. You can get or set a photo for a contact.'),
       singleValueExtendedProperties: z
         .array(microsoft_graph_singleValueLegacyExtendedProperty)
@@ -16258,7 +16214,7 @@ const microsoft_graph_contact = microsoft_graph_outlookItem.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_contactFolder: z.ZodType<microsoft_graph_contactFolder> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -16286,7 +16242,7 @@ const microsoft_graph_contactFolder: z.ZodType<microsoft_graph_contactFolder> = 
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_deviceManagementTroubleshootingEvent = microsoft_graph_entity.and(
@@ -16305,7 +16261,7 @@ const microsoft_graph_deviceManagementTroubleshootingEvent = microsoft_graph_ent
         .describe('Time when the event occurred .'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_courseStatus = z.enum([
   'notStarted',
@@ -16342,35 +16298,35 @@ const microsoft_graph_learningCourseActivity = microsoft_graph_entity.and(
         .describe('The registration ID of the provider. Required.')
         .nullable(),
       status: z
-        .union([microsoft_graph_courseStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_courseStatus, z.object({}).partial().strict()])
         .describe(
           'The status of the course activity. Possible values are: notStarted, inProgress, completed. Required.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_employeeExperienceUser = microsoft_graph_entity.and(
   z
     .object({ learningCourseActivities: z.array(microsoft_graph_learningCourseActivity) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_inferenceClassificationType = z.enum(['focused', 'other']);
 const microsoft_graph_inferenceClassificationOverride = microsoft_graph_entity.and(
   z
     .object({
       classifyAs: z
-        .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().strict()])
         .describe(
           'Specifies how incoming messages from a specific sender should always be classified as. The possible values are: focused, other.'
         ),
       senderEmailAddress: z
-        .union([microsoft_graph_emailAddress, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
         .describe('The email address information of the sender for whom the override is created.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_inferenceClassification = microsoft_graph_entity.and(
   z
@@ -16382,7 +16338,7 @@ const microsoft_graph_inferenceClassification = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_insightIdentity = z
   .object({
@@ -16394,7 +16350,7 @@ const microsoft_graph_insightIdentity = z
     id: z.string().describe('The ID of the user who shared the item.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_resourceReference = z
   .object({
     id: z.string().describe("The item's unique identifier.").nullable(),
@@ -16407,11 +16363,11 @@ const microsoft_graph_resourceReference = z
     webUrl: z.string().describe('A URL leading to the referenced item.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_sharingDetail = z
   .object({
     sharedBy: z
-      .union([microsoft_graph_insightIdentity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_insightIdentity, z.object({}).partial().strict()])
       .describe('The user who shared the document.'),
     sharedDateTime: z
       .string()
@@ -16424,7 +16380,7 @@ const microsoft_graph_sharingDetail = z
       )
       .nullable(),
     sharingReference: z
-      .union([microsoft_graph_resourceReference, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_resourceReference, z.object({}).partial().strict()])
       .describe(
         'Reference properties of the document, such as the URL and type of the document. Read-only'
       ),
@@ -16440,7 +16396,7 @@ const microsoft_graph_sharingDetail = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_resourceVisualization = z
   .object({
     containerDisplayName: z
@@ -16479,33 +16435,33 @@ const microsoft_graph_resourceVisualization = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_sharedInsight = microsoft_graph_entity.and(
   z
     .object({
       lastShared: z
-        .union([microsoft_graph_sharingDetail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_sharingDetail, z.object({}).partial().strict()])
         .describe('Details about the shared item. Read only.'),
       resourceReference: z
-        .union([microsoft_graph_resourceReference, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceReference, z.object({}).partial().strict()])
         .describe(
           'Reference properties of the shared document, such as the url and type of the document. Read-only'
         ),
       resourceVisualization: z
-        .union([microsoft_graph_resourceVisualization, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceVisualization, z.object({}).partial().strict()])
         .describe(
           'Properties that you can use to visualize the document in your experience. Read-only'
         ),
       sharingHistory: z.array(microsoft_graph_sharingDetail),
-      lastSharedMethod: z.union([microsoft_graph_entity, z.object({}).partial().passthrough()]),
+      lastSharedMethod: z.union([microsoft_graph_entity, z.object({}).partial().strict()]),
       resource: z
-        .union([microsoft_graph_entity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_entity, z.object({}).partial().strict()])
         .describe(
           'Used for navigating to the item that was shared. For file attachments, the type is fileAttachment. For linked attachments, the type is driveItem.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_trending = microsoft_graph_entity.and(
   z
@@ -16521,12 +16477,12 @@ const microsoft_graph_trending = microsoft_graph_entity.and(
         )
         .nullable(),
       resourceReference: z
-        .union([microsoft_graph_resourceReference, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceReference, z.object({}).partial().strict()])
         .describe(
           'Reference properties of the trending document, such as the url and type of the document.'
         ),
       resourceVisualization: z
-        .union([microsoft_graph_resourceVisualization, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceVisualization, z.object({}).partial().strict()])
         .describe('Properties that you can use to visualize the document in your experience.'),
       weight: z
         .union([z.number(), z.string(), ReferenceNumeric])
@@ -16534,11 +16490,11 @@ const microsoft_graph_trending = microsoft_graph_entity.and(
           'Value indicating how much the document is currently trending. The larger the number, the more the document is currently trending around the user (the more relevant it is). Returned documents are sorted by this value.'
         ),
       resource: z
-        .union([microsoft_graph_entity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_entity, z.object({}).partial().strict()])
         .describe('Used for navigating to the trending document.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_usageDetails = z
   .object({
@@ -16564,33 +16520,33 @@ const microsoft_graph_usageDetails = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_usedInsight = microsoft_graph_entity.and(
   z
     .object({
       lastUsed: z
-        .union([microsoft_graph_usageDetails, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_usageDetails, z.object({}).partial().strict()])
         .describe(
           'Information about when the item was last viewed or modified by the user. Read only.'
         ),
       resourceReference: z
-        .union([microsoft_graph_resourceReference, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceReference, z.object({}).partial().strict()])
         .describe(
           'Reference properties of the used document, such as the url and type of the document. Read-only'
         ),
       resourceVisualization: z
-        .union([microsoft_graph_resourceVisualization, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_resourceVisualization, z.object({}).partial().strict()])
         .describe(
           'Properties that you can use to visualize the document in your experience. Read-only'
         ),
       resource: z
-        .union([microsoft_graph_entity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_entity, z.object({}).partial().strict()])
         .describe(
           'Used for navigating to the item that was used. For file attachments, the type is fileAttachment. For linked attachments, the type is driveItem.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_officeGraphInsights = microsoft_graph_entity.and(
   z
@@ -16612,10 +16568,10 @@ const microsoft_graph_officeGraphInsights = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_itemInsights = microsoft_graph_officeGraphInsights.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_servicePlanInfo = z
   .object({
@@ -16640,7 +16596,7 @@ const microsoft_graph_servicePlanInfo = z
     servicePlanName: z.string().describe('The name of the service plan.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_licenseDetails = microsoft_graph_entity.and(
   z
     .object({
@@ -16665,7 +16621,7 @@ const microsoft_graph_licenseDetails = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_messageRuleActions = z
   .object({
@@ -16693,7 +16649,7 @@ const microsoft_graph_messageRuleActions = z
       .describe('Indicates whether a message should be marked as read.')
       .nullable(),
     markImportance: z
-      .union([microsoft_graph_importance, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_importance, z.object({}).partial().strict()])
       .describe('Sets the importance of the message, which can be: low, normal, high.'),
     moveToFolder: z
       .string()
@@ -16714,7 +16670,7 @@ const microsoft_graph_messageRuleActions = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_messageActionFlag = z.enum([
   'any',
   'call',
@@ -16748,7 +16704,7 @@ const microsoft_graph_sizeRange = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_messageRulePredicates = z
   .object({
     bodyContains: z
@@ -16783,7 +16739,7 @@ const microsoft_graph_messageRulePredicates = z
         'Represents the strings that appear in the headers of an incoming message in order for the condition or exception to apply.'
       ),
     importance: z
-      .union([microsoft_graph_importance, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_importance, z.object({}).partial().strict()])
       .describe(
         'The importance that is stamped on an incoming message in order for the condition or exception to apply: low, normal, high.'
       ),
@@ -16854,7 +16810,7 @@ const microsoft_graph_messageRulePredicates = z
       )
       .nullable(),
     messageActionFlag: z
-      .union([microsoft_graph_messageActionFlag, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_messageActionFlag, z.object({}).partial().strict()])
       .describe(
         'Represents the flag-for-action value that appears on an incoming message in order for the condition or exception to apply. The possible values are: any, call, doNotForward, followUp, fyi, forward, noResponseNecessary, read, reply, replyToAll, review.'
       ),
@@ -16875,7 +16831,7 @@ const microsoft_graph_messageRulePredicates = z
         'Represents the strings that appear in the from property of an incoming message in order for the condition or exception to apply.'
       ),
     sensitivity: z
-      .union([microsoft_graph_sensitivity, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_sensitivity, z.object({}).partial().strict()])
       .describe(
         'Represents the sensitivity level that must be stamped on an incoming message in order for the condition or exception to apply. The possible values are: normal, personal, private, confidential.'
       ),
@@ -16914,29 +16870,29 @@ const microsoft_graph_messageRulePredicates = z
         'Represents the strings that appear in the subject of an incoming message in order for the condition or exception to apply.'
       ),
     withinSizeRange: z
-      .union([microsoft_graph_sizeRange, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_sizeRange, z.object({}).partial().strict()])
       .describe(
         'Represents the minimum and maximum sizes (in kilobytes) that an incoming message must fall in between in order for the condition or exception to apply.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_messageRule = microsoft_graph_entity.and(
   z
     .object({
       actions: z
-        .union([microsoft_graph_messageRuleActions, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_messageRuleActions, z.object({}).partial().strict()])
         .describe(
           'Actions to be taken on a message when the corresponding conditions are fulfilled.'
         ),
       conditions: z
-        .union([microsoft_graph_messageRulePredicates, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_messageRulePredicates, z.object({}).partial().strict()])
         .describe(
           'Conditions that when fulfilled trigger the corresponding actions for that rule.'
         ),
       displayName: z.string().describe('The display name of the rule.').nullable(),
       exceptions: z
-        .union([microsoft_graph_messageRulePredicates, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_messageRulePredicates, z.object({}).partial().strict()])
         .describe('Exception conditions for the rule.'),
       hasError: z
         .boolean()
@@ -16960,37 +16916,37 @@ const microsoft_graph_messageRule = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_followupFlagStatus = z.enum(['notFlagged', 'complete', 'flagged']);
 const microsoft_graph_followupFlag = z
   .object({
     completedDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe('The date and time that the follow-up was finished.'),
     dueDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe(
         'The date and time that the follow-up is to be finished. Note: To set the due date, you must also specify the startDateTime; otherwise, you get a 400 Bad Request response.'
       ),
     flagStatus: z
-      .union([microsoft_graph_followupFlagStatus, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_followupFlagStatus, z.object({}).partial().strict()])
       .describe(
         'The status for follow-up for an item. Possible values are notFlagged, complete, and flagged.'
       ),
     startDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe('The date and time that the follow-up is to begin.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_internetMessageHeader = z
   .object({
     name: z.string().describe('Represents the key in a key-value pair.').nullable(),
     value: z.string().describe('The value in a key-value pair.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_message = microsoft_graph_outlookItem.and(
   z
     .object({
@@ -16998,7 +16954,7 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         .array(microsoft_graph_recipient)
         .describe('The Bcc: recipients for the message.'),
       body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           'The body of the message. It can be in HTML or text format. Find out about safe HTML in a message body.'
         ),
@@ -17018,12 +16974,12 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         .describe('Indicates the position of the message within the conversation.')
         .nullable(),
       flag: z
-        .union([microsoft_graph_followupFlag, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_followupFlag, z.object({}).partial().strict()])
         .describe(
           'Indicates the status, start date, due date, or completion date for the message.'
         ),
       from: z
-        .union([microsoft_graph_recipient, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_recipient, z.object({}).partial().strict()])
         .describe(
           'The owner of the mailbox from which the message is sent. In most cases, this value is the same as the sender property, except for sharing or delegation scenarios. The value must correspond to the actual mailbox used. Find out more about setting the from and sender properties of a message.'
         ),
@@ -17034,10 +16990,10 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         )
         .nullable(),
       importance: z
-        .union([microsoft_graph_importance, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_importance, z.object({}).partial().strict()])
         .describe('The importance of the message. The possible values are: low, normal, and high.'),
       inferenceClassification: z
-        .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().strict()])
         .describe(
           'The classification of the message for the user, based on inferred relevance or importance, or on an explicit override. The possible values are: focused or other.'
         ),
@@ -17083,7 +17039,7 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         .array(microsoft_graph_recipient)
         .describe('The email addresses to use when replying.'),
       sender: z
-        .union([microsoft_graph_recipient, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_recipient, z.object({}).partial().strict()])
         .describe(
           'The account that is used to generate the message. In most cases, this value is the same as the from property. You can set this property to a different value when sending a message from a shared mailbox, for a shared calendar, or as a delegate. In any case, the value must correspond to the actual mailbox used. Find out more about setting the from and sender properties of a message.'
         ),
@@ -17102,7 +17058,7 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         .array(microsoft_graph_recipient)
         .describe('The To: recipients for the message.'),
       uniqueBody: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           'The part of the body of the message that is unique to the current message. uniqueBody is not returned by default but can be retrieved for a given message by use of the ?$select=uniqueBody query. It can be in HTML or text format.'
         ),
@@ -17130,7 +17086,7 @@ const microsoft_graph_message = microsoft_graph_outlookItem.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_mailFolder: z.ZodType<microsoft_graph_mailFolder> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -17186,10 +17142,10 @@ const microsoft_graph_mailFolder: z.ZodType<microsoft_graph_mailFolder> = z.lazy
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
-const microsoft_graph_mobileAppIdentifier = z.object({}).partial().passthrough();
+const microsoft_graph_mobileAppIdentifier = z.object({}).partial().strict();
 const microsoft_graph_managedAppFlaggedReason = z.enum(['none', 'rootedDevice']);
 const microsoft_graph_managedAppPolicy = microsoft_graph_entity.and(
   z
@@ -17213,7 +17169,7 @@ const microsoft_graph_managedAppPolicy = microsoft_graph_entity.and(
       version: z.string().describe('Version of the entity.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_managedAppOperation = microsoft_graph_entity.and(
   z
@@ -17230,13 +17186,13 @@ const microsoft_graph_managedAppOperation = microsoft_graph_entity.and(
       version: z.string().describe('Version of the entity.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_managedAppRegistration = microsoft_graph_entity.and(
   z
     .object({
       appIdentifier: z
-        .union([microsoft_graph_mobileAppIdentifier, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_mobileAppIdentifier, z.object({}).partial().strict()])
         .describe('The app package Identifier'),
       applicationVersion: z.string().describe('App version').nullable(),
       createdDateTime: z
@@ -17283,7 +17239,7 @@ const microsoft_graph_managedAppRegistration = microsoft_graph_entity.and(
         .describe('Zero or more long running operations triggered on the app registration.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_complianceState = z.enum([
   'unknown',
@@ -17306,7 +17262,7 @@ const microsoft_graph_configurationManagerClientEnabledFeatures = z
       .describe('Whether Windows Update for Business is managed by Intune'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_actionState = z.enum([
   'none',
   'pending',
@@ -17336,7 +17292,7 @@ const microsoft_graph_deviceActionResult = z
       .describe('Time the action was initiated'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_deviceEnrollmentType = z.enum([
   'unknown',
   'userEnrollment',
@@ -17483,7 +17439,7 @@ const microsoft_graph_deviceHealthAttestationState = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_deviceRegistrationState = z.enum([
   'notRegistered',
   'registered',
@@ -17559,7 +17515,7 @@ const microsoft_graph_deviceCategory = microsoft_graph_entity.and(
       displayName: z.string().describe('Display name for the device category.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_policyPlatformType = z.enum([
   'android',
@@ -17579,7 +17535,7 @@ const microsoft_graph_settingSource = z
     sourceType: microsoft_graph_settingSourceType,
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_complianceStatus = z.enum([
   'unknown',
   'notApplicable',
@@ -17612,7 +17568,7 @@ const microsoft_graph_deviceCompliancePolicySettingState = z
     userPrincipalName: z.string().describe('UserPrincipalName.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_deviceCompliancePolicyState = microsoft_graph_entity.and(
   z
     .object({
@@ -17630,7 +17586,7 @@ const microsoft_graph_deviceCompliancePolicyState = microsoft_graph_entity.and(
       version: z.number().gte(-2147483648).lte(2147483647).describe('The version of the policy'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_deviceConfigurationSettingState = z
   .object({
@@ -17654,7 +17610,7 @@ const microsoft_graph_deviceConfigurationSettingState = z
     userPrincipalName: z.string().describe('UserPrincipalName.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_deviceConfigurationState = microsoft_graph_entity.and(
   z
     .object({
@@ -17672,7 +17628,7 @@ const microsoft_graph_deviceConfigurationState = microsoft_graph_entity.and(
       version: z.number().gte(-2147483648).lte(2147483647).describe('The version of the policy'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_appLogUploadState = z.enum([
   'pending',
@@ -17728,7 +17684,7 @@ const microsoft_graph_deviceLogCollectionResponse = microsoft_graph_entity.and(
       status: microsoft_graph_appLogUploadState.describe('AppLogUploadStatus'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_windowsDeviceHealthState = z.enum([
   'clean',
@@ -17868,7 +17824,7 @@ const microsoft_graph_windowsDeviceMalwareState = microsoft_graph_entity.and(
         .describe('Information URL to learn more about the malware')
         .nullable(),
       category: z
-        .union([microsoft_graph_windowsMalwareCategory, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsMalwareCategory, z.object({}).partial().strict()])
         .describe(
           'Category of the malware. Possible values are: invalid, adware, spyware, passwordStealer, trojanDownloader, worm, backdoor, remoteAccessTrojan, trojan, emailFlooder, keylogger, dialer, monitoringSoftware, browserModifier, cookie, browserPlugin, aolExploit, nuker, securityDisabler, jokeProgram, hostileActiveXControl, softwareBundler, stealthNotifier, settingsModifier, toolBar, remoteControlSoftware, trojanFtp, potentialUnwantedSoftware, icqExploit, trojanTelnet, exploit, filesharingProgram, malwareCreationTool, remoteControlSoftware, tool, trojanDenialOfService, trojanDropper, trojanMassMailer, trojanMonitoringSoftware, trojanProxyServer, virus, known, unknown, spp, behavior, vulnerability, policy, enterpriseUnwantedSoftware, ransom, hipsRule.'
         ),
@@ -17880,7 +17836,7 @@ const microsoft_graph_windowsDeviceMalwareState = microsoft_graph_entity.and(
         .nullable(),
       displayName: z.string().describe('Malware name').nullable(),
       executionState: z
-        .union([microsoft_graph_windowsMalwareExecutionState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsMalwareExecutionState, z.object({}).partial().strict()])
         .describe(
           'Execution status of the malware like blocked/executing etc. Possible values are: unknown, blocked, allowed, running, notRunning.'
         ),
@@ -17901,30 +17857,30 @@ const microsoft_graph_windowsDeviceMalwareState = microsoft_graph_entity.and(
         .describe('The last time this particular threat was changed')
         .nullable(),
       severity: z
-        .union([microsoft_graph_windowsMalwareSeverity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsMalwareSeverity, z.object({}).partial().strict()])
         .describe(
           'Severity of the malware. Possible values are: unknown, low, moderate, high, severe.'
         ),
       state: z
-        .union([microsoft_graph_windowsMalwareState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsMalwareState, z.object({}).partial().strict()])
         .describe(
           'Current status of the malware like cleaned/quarantined/allowed etc. Possible values are: unknown, detected, cleaned, quarantined, removed, allowed, blocked, cleanFailed, quarantineFailed, removeFailed, allowFailed, abandoned, blockFailed.'
         ),
       threatState: z
-        .union([microsoft_graph_windowsMalwareThreatState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsMalwareThreatState, z.object({}).partial().strict()])
         .describe(
           'Current status of the malware like cleaned/quarantined/allowed etc. Possible values are: active, actionFailed, manualStepsRequired, fullScanRequired, rebootRequired, remediatedWithNonCriticalFailures, quarantined, removed, cleaned, allowed, noStatusCleared.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_windowsProtectionState = microsoft_graph_entity.and(
   z
     .object({
       antiMalwareVersion: z.string().describe('Current anti malware version').nullable(),
       deviceState: z
-        .union([microsoft_graph_windowsDeviceHealthState, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsDeviceHealthState, z.object({}).partial().strict()])
         .describe(
           "Indicates device's health state. Possible values are: clean, fullScanPending, rebootPending, manualStepsPending, offlineScanPending, critical. Possible values are: clean, fullScanPending, rebootPending, manualStepsPending, offlineScanPending, critical."
         ),
@@ -17992,7 +17948,7 @@ const microsoft_graph_windowsProtectionState = microsoft_graph_entity.and(
         )
         .nullable(),
       productStatus: z
-        .union([microsoft_graph_windowsDefenderProductStatus, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_windowsDefenderProductStatus, z.object({}).partial().strict()])
         .describe(
           'Product Status of Windows Defender Antivirus. Possible values are: noStatus, serviceNotRunning, serviceStartedWithoutMalwareProtection, pendingFullScanDueToThreatAction, pendingRebootDueToThreatAction, pendingManualStepsDueToThreatAction, avSignaturesOutOfDate, asSignaturesOutOfDate, noQuickScanHappenedForSpecifiedPeriod, noFullScanHappenedForSpecifiedPeriod, systemInitiatedScanInProgress, systemInitiatedCleanInProgress, samplesPendingSubmission, productRunningInEvaluationMode, productRunningInNonGenuineMode, productExpired, offlineScanRequired, serviceShutdownAsPartOfSystemShutdown, threatRemediationFailedCritically, threatRemediationFailedNonCritically, noStatusFlagsSet, platformOutOfDate, platformUpdateInProgress, platformAboutToBeOutdated, signatureOrPlatformEndOfLifeIsPastOrIsImpending, windowsSModeSignaturesInUseOnNonWin10SInstall. Possible values are: noStatus, serviceNotRunning, serviceStartedWithoutMalwareProtection, pendingFullScanDueToThreatAction, pendingRebootDueToThreatAction, pendingManualStepsDueToThreatAction, avSignaturesOutOfDate, asSignaturesOutOfDate, noQuickScanHappenedForSpecifiedPeriod, noFullScanHappenedForSpecifiedPeriod, systemInitiatedScanInProgress, systemInitiatedCleanInProgress, samplesPendingSubmission, productRunningInEvaluationMode, productRunningInNonGenuineMode, productExpired, offlineScanRequired, serviceShutdownAsPartOfSystemShutdown, threatRemediationFailedCritically, threatRemediationFailedNonCritically, noStatusFlagsSet, platformOutOfDate, platformUpdateInProgress, platformAboutToBeOutdated, signatureOrPlatformEndOfLifeIsPastOrIsImpending, windowsSModeSignaturesInUseOnNonWin10SInstall.'
         ),
@@ -18032,7 +17988,7 @@ const microsoft_graph_windowsProtectionState = microsoft_graph_entity.and(
         .describe('Device malware list'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -18073,7 +18029,7 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
         configurationManagerClientEnabledFeatures: z
           .union([
             microsoft_graph_configurationManagerClientEnabledFeatures,
-            z.object({}).partial().passthrough(),
+            z.object({}).partial().strict(),
           ])
           .describe('ConfigrMgr client enabled features. This property is read-only.'),
         deviceActionResults: z
@@ -18089,10 +18045,7 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
           'Possible ways of adding a mobile device to management.'
         ),
         deviceHealthAttestationState: z
-          .union([
-            microsoft_graph_deviceHealthAttestationState,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_deviceHealthAttestationState, z.object({}).partial().strict()])
           .describe('The device health attestation state. This property is read-only.'),
         deviceName: z
           .string()
@@ -18288,7 +18241,7 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
           .nullable(),
         wiFiMacAddress: z.string().describe('Wi-Fi MAC. This property is read-only.').nullable(),
         deviceCategory: z
-          .union([microsoft_graph_deviceCategory, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_deviceCategory, z.object({}).partial().strict()])
           .describe('Device category'),
         deviceCompliancePolicyStates: z
           .array(microsoft_graph_deviceCompliancePolicyState)
@@ -18303,11 +18256,11 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
           .array(microsoft_graph_user)
           .describe('The primary users associated with the managed device.'),
         windowsProtectionState: z
-          .union([microsoft_graph_windowsProtectionState, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_windowsProtectionState, z.object({}).partial().strict()])
           .describe('The device protection status. This property is read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_oAuth2PermissionGrant = microsoft_graph_entity.and(
@@ -18343,7 +18296,7 @@ const microsoft_graph_oAuth2PermissionGrant = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_allowedLobbyAdmitterRoles = z.enum([
   'organizerAndCoOrganizersAndPresenters',
@@ -18391,7 +18344,7 @@ const microsoft_graph_audioConferencing = z
       .describe('List of toll numbers that are displayed in the meeting invite.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatInfo = z
   .object({
     messageId: z
@@ -18405,7 +18358,7 @@ const microsoft_graph_chatInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_chatRestrictions = z
   .object({
     allowTextOnly: z
@@ -18414,7 +18367,7 @@ const microsoft_graph_chatRestrictions = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_joinMeetingIdSettings = z
   .object({
     isPasscodeRequired: z
@@ -18433,7 +18386,7 @@ const microsoft_graph_joinMeetingIdSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_lobbyBypassScope = z.enum([
   'organizer',
   'organization',
@@ -18452,13 +18405,13 @@ const microsoft_graph_lobbyBypassSettings = z
       )
       .nullable(),
     scope: z
-      .union([microsoft_graph_lobbyBypassScope, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_lobbyBypassScope, z.object({}).partial().strict()])
       .describe(
         'Specifies the type of participants that are automatically admitted into a meeting, bypassing the lobby. Optional.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_meetingChatHistoryDefaultMode = z.enum(['none', 'all', 'unknownFutureValue']);
 const microsoft_graph_watermarkProtectionValues = z
   .object({
@@ -18472,7 +18425,7 @@ const microsoft_graph_watermarkProtectionValues = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_virtualEventExternalInformation = z
   .object({
     applicationId: z
@@ -18487,7 +18440,7 @@ const microsoft_graph_virtualEventExternalInformation = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_attendanceInterval = z
   .object({
     durationInSeconds: z
@@ -18516,7 +18469,7 @@ const microsoft_graph_attendanceInterval = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_virtualEventExternalRegistrationInformation = z
   .object({
     referrer: z
@@ -18533,7 +18486,7 @@ const microsoft_graph_virtualEventExternalRegistrationInformation = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_attendanceRecord = microsoft_graph_entity.and(
   z
     .object({
@@ -18547,11 +18500,11 @@ const microsoft_graph_attendanceRecord = microsoft_graph_entity.and(
       externalRegistrationInformation: z
         .union([
           microsoft_graph_virtualEventExternalRegistrationInformation,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ])
         .describe('The external information for a virtualEventRegistration.'),
       identity: z
-        .union([microsoft_graph_identity, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identity, z.object({}).partial().strict()])
         .describe(
           'The identity of the user associated with this attendance record. The specific type is one of the following derived types of identity, depending on the user type: communicationsUserIdentity, azureCommunicationServicesUserIdentity.'
         ),
@@ -18575,7 +18528,7 @@ const microsoft_graph_attendanceRecord = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_meetingAttendanceReport = microsoft_graph_entity.and(
   z
@@ -18612,7 +18565,7 @@ const microsoft_graph_meetingAttendanceReport = microsoft_graph_entity.and(
         .describe('List of attendance records of an attendance report. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onlineMeetingBase = microsoft_graph_entity.and(
   z
@@ -18630,20 +18583,20 @@ const microsoft_graph_onlineMeetingBase = microsoft_graph_entity.and(
         .describe('Indicates whether breakout rooms are enabled for the meeting.')
         .nullable(),
       allowedLobbyAdmitters: z
-        .union([microsoft_graph_allowedLobbyAdmitterRoles, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_allowedLobbyAdmitterRoles, z.object({}).partial().strict()])
         .describe(
           'Specifies the users who can admit from the lobby. Possible values are: organizerAndCoOrganizersAndPresenters, organizerAndCoOrganizers, unknownFutureValue.'
         ),
       allowedPresenters: z
-        .union([microsoft_graph_onlineMeetingPresenters, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_onlineMeetingPresenters, z.object({}).partial().strict()])
         .describe('Specifies who can be a presenter in a meeting.'),
       allowLiveShare: z
-        .union([microsoft_graph_meetingLiveShareOptions, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_meetingLiveShareOptions, z.object({}).partial().strict()])
         .describe(
           'Indicates whether live share is enabled for the meeting. Possible values are: enabled, disabled, unknownFutureValue.'
         ),
       allowMeetingChat: z
-        .union([microsoft_graph_meetingChatMode, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_meetingChatMode, z.object({}).partial().strict()])
         .describe('Specifies the mode of the meeting chat.'),
       allowParticipantsToChangeName: z
         .boolean()
@@ -18672,41 +18625,38 @@ const microsoft_graph_onlineMeetingBase = microsoft_graph_entity.and(
         .describe('Indicates whether whiteboard is enabled for the meeting.')
         .nullable(),
       audioConferencing: z
-        .union([microsoft_graph_audioConferencing, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_audioConferencing, z.object({}).partial().strict()])
         .describe('The phone access (dial-in) information for an online meeting. Read-only.'),
       chatInfo: z
-        .union([microsoft_graph_chatInfo, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatInfo, z.object({}).partial().strict()])
         .describe('The chat information associated with this online meeting.'),
       chatRestrictions: z
-        .union([microsoft_graph_chatRestrictions, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chatRestrictions, z.object({}).partial().strict()])
         .describe('Specifies the configuration settings for meeting chat restrictions.'),
       isEntryExitAnnounced: z
         .boolean()
         .describe('Indicates whether to announce when callers join or leave.')
         .nullable(),
       joinInformation: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe(
           "The join information in the language and locale variant specified in 'Accept-Language' request HTTP header. Read-only."
         ),
       joinMeetingIdSettings: z
-        .union([microsoft_graph_joinMeetingIdSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_joinMeetingIdSettings, z.object({}).partial().strict()])
         .describe(
           "Specifies the joinMeetingId, the meeting passcode, and the requirement for the passcode. Once an onlineMeeting is created, the joinMeetingIdSettings can't be modified. To make any changes to this property, you must cancel this meeting and create a new one."
         ),
       joinWebUrl: z.string().describe('The join URL of the online meeting. Read-only.').nullable(),
       lobbyBypassSettings: z
-        .union([microsoft_graph_lobbyBypassSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_lobbyBypassSettings, z.object({}).partial().strict()])
         .describe('Specifies which participants can bypass the meeting lobby.'),
       recordAutomatically: z
         .boolean()
         .describe('Indicates whether to record the meeting automatically.')
         .nullable(),
       shareMeetingChatHistoryDefault: z
-        .union([
-          microsoft_graph_meetingChatHistoryDefaultMode,
-          z.object({}).partial().passthrough(),
-        ])
+        .union([microsoft_graph_meetingChatHistoryDefaultMode, z.object({}).partial().strict()])
         .describe(
           'Specifies whether meeting chat history is shared with participants.  Possible values are: all, none, unknownFutureValue.'
         ),
@@ -18716,7 +18666,7 @@ const microsoft_graph_onlineMeetingBase = microsoft_graph_entity.and(
         .describe('The video teleconferencing ID. Read-only.')
         .nullable(),
       watermarkProtection: z
-        .union([microsoft_graph_watermarkProtectionValues, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_watermarkProtectionValues, z.object({}).partial().strict()])
         .describe(
           'Specifies whether the client application should apply a watermark to a content type.'
         ),
@@ -18725,7 +18675,7 @@ const microsoft_graph_onlineMeetingBase = microsoft_graph_entity.and(
         .describe('The attendance reports of an online meeting. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_broadcastMeetingAudience = z.enum([
   'roleIsAttendee',
@@ -18745,19 +18695,16 @@ const microsoft_graph_broadcastMeetingCaptionSettings = z
       .describe('The translation languages (choose up to 6).'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_broadcastMeetingSettings = z
   .object({
     allowedAudience: z
-      .union([microsoft_graph_broadcastMeetingAudience, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_broadcastMeetingAudience, z.object({}).partial().strict()])
       .describe(
         'Defines who can join the Teams live event. Possible values are listed in the following table.'
       ),
     captions: z
-      .union([
-        microsoft_graph_broadcastMeetingCaptionSettings,
-        z.object({}).partial().passthrough(),
-      ])
+      .union([microsoft_graph_broadcastMeetingCaptionSettings, z.object({}).partial().strict()])
       .describe('Caption settings of a Teams live event.'),
     isAttendeeReportEnabled: z
       .boolean()
@@ -18785,7 +18732,7 @@ const microsoft_graph_broadcastMeetingSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_onlineMeetingRole = z.enum([
   'attendee',
   'presenter',
@@ -18796,26 +18743,26 @@ const microsoft_graph_onlineMeetingRole = z.enum([
 const microsoft_graph_meetingParticipantInfo = z
   .object({
     identity: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe('Identity information of the participant.'),
     role: z
-      .union([microsoft_graph_onlineMeetingRole, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_onlineMeetingRole, z.object({}).partial().strict()])
       .describe("Specifies the participant's role in the meeting."),
     upn: z.string().describe('User principal name of the participant.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_meetingParticipants = z
   .object({
     attendees: z
       .array(microsoft_graph_meetingParticipantInfo)
       .describe('Information about the meeting attendees.'),
     organizer: z
-      .union([microsoft_graph_meetingParticipantInfo, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_meetingParticipantInfo, z.object({}).partial().strict()])
       .describe('Information about the meeting organizer.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_callRecording = microsoft_graph_entity.and(
   z
     .object({
@@ -18859,7 +18806,7 @@ const microsoft_graph_callRecording = microsoft_graph_entity.and(
         )
         .nullable(),
       meetingOrganizer: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe(
           'The identity information of the organizer of the onlineMeeting related to this recording. Read-only.'
         ),
@@ -18869,7 +18816,7 @@ const microsoft_graph_callRecording = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_callTranscript = microsoft_graph_entity.and(
   z
@@ -18914,7 +18861,7 @@ const microsoft_graph_callTranscript = microsoft_graph_entity.and(
         )
         .nullable(),
       meetingOrganizer: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe(
           'The identity information of the organizer of the onlineMeeting related to this transcript. Read-only.'
         ),
@@ -18928,7 +18875,7 @@ const microsoft_graph_callTranscript = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onlineMeeting = microsoft_graph_onlineMeetingBase.and(
   z
@@ -18940,7 +18887,7 @@ const microsoft_graph_onlineMeeting = microsoft_graph_onlineMeetingBase.and(
         )
         .nullable(),
       broadcastSettings: z
-        .union([microsoft_graph_broadcastMeetingSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_broadcastMeetingSettings, z.object({}).partial().strict()])
         .describe('Settings related to a live event.'),
       creationDateTime: z
         .string()
@@ -18965,7 +18912,7 @@ const microsoft_graph_onlineMeeting = microsoft_graph_onlineMeetingBase.and(
         .nullable(),
       meetingTemplateId: z.string().describe('The ID of the meeting template.').nullable(),
       participants: z
-        .union([microsoft_graph_meetingParticipants, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_meetingParticipants, z.object({}).partial().strict()])
         .describe(
           'The participants associated with the online meeting, including the organizer and the attendees.'
         ),
@@ -18985,7 +18932,7 @@ const microsoft_graph_onlineMeeting = microsoft_graph_onlineMeetingBase.and(
         .describe('The transcripts of an online meeting. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_categoryColor = z.enum([
   'none',
@@ -19019,7 +18966,7 @@ const microsoft_graph_outlookCategory = microsoft_graph_entity.and(
   z
     .object({
       color: z
-        .union([microsoft_graph_categoryColor, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_categoryColor, z.object({}).partial().strict()])
         .describe(
           'A pre-set color constant that characterizes a category, and that is mapped to one of 25 predefined colors. For more details, see the following note.'
         ),
@@ -19031,7 +18978,7 @@ const microsoft_graph_outlookCategory = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_outlookUser = microsoft_graph_entity.and(
   z
@@ -19041,7 +18988,7 @@ const microsoft_graph_outlookUser = microsoft_graph_entity.and(
         .describe('A list of categories defined for the user.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_personType = z
   .object({
@@ -19052,7 +18999,7 @@ const microsoft_graph_personType = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_selectionLikelihoodInfo = z.enum(['notSpecified', 'high']);
 const microsoft_graph_scoredEmailAddress = z
   .object({
@@ -19065,22 +19012,22 @@ const microsoft_graph_scoredEmailAddress = z
       ),
     selectionLikelihood: z.union([
       microsoft_graph_selectionLikelihoodInfo,
-      z.object({}).partial().passthrough(),
+      z.object({}).partial().strict(),
     ]),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_websiteType = z.enum(['other', 'home', 'work', 'blog', 'profile']);
 const microsoft_graph_website = z
   .object({
     address: z.string().describe('The URL of the website.').nullable(),
     displayName: z.string().describe('The display name of the web site.').nullable(),
     type: z
-      .union([microsoft_graph_websiteType, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_websiteType, z.object({}).partial().strict()])
       .describe('The possible values are: other, home, work, blog, profile.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_person = microsoft_graph_entity.and(
   z
     .object({
@@ -19106,7 +19053,7 @@ const microsoft_graph_person = microsoft_graph_entity.and(
         .describe('Free-form notes that the user has taken about this person.')
         .nullable(),
       personType: z
-        .union([microsoft_graph_personType, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_personType, z.object({}).partial().strict()])
         .describe('The type of person.'),
       phones: z.array(microsoft_graph_phone).describe("The person's phone numbers."),
       postalAddresses: z.array(microsoft_graph_location).describe("The person's addresses."),
@@ -19128,7 +19075,7 @@ const microsoft_graph_person = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerUser = microsoft_graph_entity.and(
   z
@@ -19141,17 +19088,17 @@ const microsoft_graph_plannerUser = microsoft_graph_entity.and(
         .describe('Read-only. Nullable. Returns the plannerPlans shared with the user.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_presenceStatusMessage = z
   .object({
     expiryDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
       .describe(
         "Time in which the status message expires.If not provided, the status message doesn't expire.expiryDateTime.dateTime shouldn't include time zone.expiryDateTime isn't available when you request the presence of another user."
       ),
     message: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
       .describe(
         "Status message item. The only supported format currently is message.contentType = 'text'."
       ),
@@ -19167,7 +19114,7 @@ const microsoft_graph_presenceStatusMessage = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_presence = microsoft_graph_entity.and(
   z
     .object({
@@ -19184,11 +19131,11 @@ const microsoft_graph_presence = microsoft_graph_entity.and(
         )
         .nullable(),
       statusMessage: z
-        .union([microsoft_graph_presenceStatusMessage, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_presenceStatusMessage, z.object({}).partial().strict()])
         .describe('The presence status message of a user.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_scopedRoleMembership = microsoft_graph_entity.and(
   z
@@ -19204,7 +19151,7 @@ const microsoft_graph_scopedRoleMembership = microsoft_graph_entity.and(
       roleMemberInfo: microsoft_graph_identity,
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_userInsightsSettings = microsoft_graph_entity.and(
   z
@@ -19216,7 +19163,7 @@ const microsoft_graph_userInsightsSettings = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_timeRange = z
   .object({
@@ -19232,11 +19179,11 @@ const microsoft_graph_timeRange = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_shiftAvailability = z
   .object({
     recurrence: z
-      .union([microsoft_graph_patternedRecurrence, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
       .describe('Specifies the pattern for recurrence'),
     timeSlots: z
       .array(microsoft_graph_timeRange)
@@ -19244,7 +19191,7 @@ const microsoft_graph_shiftAvailability = z
     timeZone: z.string().describe('Specifies the time zone for the indicated time.').nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_shiftPreferences = microsoft_graph_changeTrackedEntity.and(
   z
     .object({
@@ -19253,7 +19200,7 @@ const microsoft_graph_shiftPreferences = microsoft_graph_changeTrackedEntity.and
         .describe('Availability of the user to be scheduled for work and its recurrence pattern.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_storageQuotaBreakdown = microsoft_graph_entity.and(
   z
@@ -19263,10 +19210,10 @@ const microsoft_graph_storageQuotaBreakdown = microsoft_graph_entity.and(
       used: z.number().nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_serviceStorageQuotaBreakdown = microsoft_graph_storageQuotaBreakdown.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_unifiedStorageQuota = microsoft_graph_entity.and(
   z
@@ -19280,15 +19227,15 @@ const microsoft_graph_unifiedStorageQuota = microsoft_graph_entity.and(
       services: z.array(microsoft_graph_serviceStorageQuotaBreakdown),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_userStorage = microsoft_graph_entity.and(
   z
     .object({
-      quota: z.union([microsoft_graph_unifiedStorageQuota, z.object({}).partial().passthrough()]),
+      quota: z.union([microsoft_graph_unifiedStorageQuota, z.object({}).partial().strict()]),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_windowsSettingType = z.enum(['roaming', 'backup', 'unknownFutureValue']);
 const microsoft_graph_windowsSettingInstance = microsoft_graph_entity.and(
@@ -19325,7 +19272,7 @@ const microsoft_graph_windowsSettingInstance = microsoft_graph_entity.and(
       payload: z.string().describe('Base64-encoded JSON setting value.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_windowsSetting = microsoft_graph_entity.and(
   z
@@ -19346,7 +19293,7 @@ const microsoft_graph_windowsSetting = microsoft_graph_entity.and(
         .describe('A collection of setting values for a given windowsSetting.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_userSettings = microsoft_graph_entity.and(
   z
@@ -19362,45 +19309,45 @@ const microsoft_graph_userSettings = microsoft_graph_entity.and(
           "When set to true, the delegate access to the user's trending API is disabled. When set to true, documents in the user's Office Delve are disabled. When set to true, the relevancy of the content displayed in Microsoft 365, for example in Suggested sites in SharePoint Home and the Discover view in OneDrive for work or school is affected. Users can control this setting in Office Delve."
         ),
       itemInsights: z
-        .union([microsoft_graph_userInsightsSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_userInsightsSettings, z.object({}).partial().strict()])
         .describe(
           "The user's settings for the visibility of meeting hour insights, and insights derived between a user and other items in Microsoft 365, such as documents or sites. Get userInsightsSettings through this navigation property."
         ),
       shiftPreferences: z.union([
         microsoft_graph_shiftPreferences,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ]),
-      storage: z.union([microsoft_graph_userStorage, z.object({}).partial().passthrough()]),
+      storage: z.union([microsoft_graph_userStorage, z.object({}).partial().strict()]),
       windows: z.array(microsoft_graph_windowsSetting),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workingTimeSchedule = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_userSolutionRoot = microsoft_graph_entity.and(
   z
     .object({
       workingTimeSchedule: z
-        .union([microsoft_graph_workingTimeSchedule, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workingTimeSchedule, z.object({}).partial().strict()])
         .describe('The working time schedule entity associated with the solution.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_associatedTeamInfo: z.ZodType<microsoft_graph_associatedTeamInfo> = z.lazy(
-  () => microsoft_graph_teamInfo.and(z.object({}).partial().passthrough())
+  () => microsoft_graph_teamInfo.and(z.object({}).partial().strict())
 );
 const microsoft_graph_userScopeTeamsAppInstallation = microsoft_graph_teamsAppInstallation.and(
   z
     .object({
       chat: z
-        .union([microsoft_graph_chat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_chat, z.object({}).partial().strict()])
         .describe('The chat between the user and Teams app.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_userTeamwork: z.ZodType<microsoft_graph_userTeamwork> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -19426,7 +19373,7 @@ const microsoft_graph_userTeamwork: z.ZodType<microsoft_graph_userTeamwork> = z.
           .describe('The apps installed in the personal scope of this user.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_wellknownListName = z.enum([
@@ -19469,7 +19416,7 @@ const microsoft_graph_attachmentBase = microsoft_graph_entity.and(
         .describe('The length of the attachment in bytes.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_attachmentSession = microsoft_graph_entity.and(
   z
@@ -19492,7 +19439,7 @@ const microsoft_graph_attachmentSession = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_checklistItem = microsoft_graph_entity.and(
   z
@@ -19519,7 +19466,7 @@ const microsoft_graph_checklistItem = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_linkedResource = microsoft_graph_entity.and(
   z
@@ -19538,13 +19485,13 @@ const microsoft_graph_linkedResource = microsoft_graph_entity.and(
       webUrl: z.string().describe('Deep link to the linkedResource.').nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_todoTask = microsoft_graph_entity.and(
   z
     .object({
       body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
         .describe('The task body that typically contains information about the task.'),
       bodyLastModifiedDateTime: z
         .string()
@@ -19561,7 +19508,7 @@ const microsoft_graph_todoTask = microsoft_graph_entity.and(
           'The categories associated with the task. Each category corresponds to the displayName property of an outlookCategory that the user has defined.'
         ),
       completedDateTime: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
         .describe('The date and time in the specified time zone that the task was finished.'),
       createdDateTime: z
         .string()
@@ -19573,7 +19520,7 @@ const microsoft_graph_todoTask = microsoft_graph_entity.and(
           "The date and time when the task was created. By default, it is in UTC. You can provide a custom time zone in the request header. The property value uses ISO 8601 format. For example, midnight UTC on Jan 1, 2020 would look like this: '2020-01-01T00:00:00Z'."
         ),
       dueDateTime: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
         .describe('The date and time in the specified time zone that the task is to be finished.'),
       hasAttachments: z
         .boolean()
@@ -19593,15 +19540,15 @@ const microsoft_graph_todoTask = microsoft_graph_entity.and(
           "The date and time when the task was last modified. By default, it is in UTC. You can provide a custom time zone in the request header. The property value uses ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2020 would look like this: '2020-01-01T00:00:00Z'."
         ),
       recurrence: z
-        .union([microsoft_graph_patternedRecurrence, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
         .describe('The recurrence pattern for the task.'),
       reminderDateTime: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
         .describe(
           'The date and time in the specified time zone for a reminder alert of the task to occur.'
         ),
       startDateTime: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
         .describe(
           'The date and time in the specified time zone at which the task is scheduled to start.'
         ),
@@ -19622,7 +19569,7 @@ const microsoft_graph_todoTask = microsoft_graph_entity.and(
         .describe('A collection of resources linked to the task.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_todoTaskList = microsoft_graph_entity.and(
   z
@@ -19639,7 +19586,7 @@ const microsoft_graph_todoTaskList = microsoft_graph_entity.and(
         .describe('The tasks in this task list. Read-only. Nullable.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_todo = microsoft_graph_entity.and(
   z
@@ -19647,7 +19594,7 @@ const microsoft_graph_todo = microsoft_graph_entity.and(
       lists: z.array(microsoft_graph_todoTaskList).describe('The task lists in the users mailbox.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
   microsoft_graph_directoryObject.and(
@@ -19683,7 +19630,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           ),
         authorizationInfo: z.union([
           microsoft_graph_authorizationInfo,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ]),
         birthday: z
           .string()
@@ -19740,10 +19687,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         customSecurityAttributes: z
-          .union([
-            microsoft_graph_customSecurityAttributeValue,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_customSecurityAttributeValue, z.object({}).partial().strict()])
           .describe(
             'An open complex type that holds the value of a custom security attribute that is assigned to a directory object. Nullable. Returned only on $select. Supports $filter (eq, ne, not, startsWith). The filter value is case-sensitive. To read this property, the calling app must be assigned the CustomSecAttributeAssignment.Read.All permission. To write this property, the calling app must be assigned the CustomSecAttributeAssignment.ReadWrite.All permissions. To read or write this property in delegated scenarios, the admin must be assigned the Attribute Assignment Administrator role.'
           ),
@@ -19793,7 +19737,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         employeeOrgData: z
-          .union([microsoft_graph_employeeOrgData, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_employeeOrgData, z.object({}).partial().strict()])
           .describe(
             'Represents organization data (for example, division and costCenter) associated with a user. Returned only on $select. Supports $filter (eq, ne, not , ge, le, in).'
           ),
@@ -19889,7 +19833,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         mailboxSettings: z
-          .union([microsoft_graph_mailboxSettings, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_mailboxSettings, z.object({}).partial().strict()])
           .describe(
             'Settings for the primary mailbox of the signed-in user. You can get or update settings for sending automatic replies to incoming messages, locale, and time zone. Returned only on $select.'
           ),
@@ -19928,10 +19872,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         onPremisesExtensionAttributes: z
-          .union([
-            microsoft_graph_onPremisesExtensionAttributes,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_onPremisesExtensionAttributes, z.object({}).partial().strict()])
           .describe(
             'Contains extensionAttributes1-15 for the user. These extension attributes are also known as Exchange custom attributes 1-15. Each attribute can store up to 1024 characters. For an onPremisesSyncEnabled user, the source of authority for this set of properties is the on-premises and is read-only. For a cloud-only user (where onPremisesSyncEnabled is false), these properties can be set during the creation or update of a user object.  For a cloud-only user previously synced from on-premises Active Directory, these properties are read-only in Microsoft Graph but can be fully managed through the Exchange Admin Center or the Exchange Online V2 module in PowerShell. Returned only on $select. Supports $filter (eq, ne, not, in).'
           ),
@@ -19992,7 +19933,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         passwordProfile: z
-          .union([microsoft_graph_passwordProfile, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_passwordProfile, z.object({}).partial().strict()])
           .describe(
             "Specifies the password profile for the user. The profile contains the user's password. This property is required when a user is created. The password in the profile must satisfy minimum requirements as specified by the passwordPolicies property. By default, a strong password is required. Returned only on $select. Supports $filter (eq, ne, not, in, and eq on null values). To update this property:  User-PasswordProfile.ReadWrite.All is the least privileged permission to update this property.  In delegated scenarios, the User Administrator Microsoft Entra role is the least privileged admin role supported to update this property for nonadmin users. Privileged Authentication Administrator is the least privileged role that's allowed to update this property for all administrators in the tenant. In general, the signed-in user must have a higher privileged administrator role as indicated in Who can reset passwords.  In app-only scenarios, the calling app must be assigned a supported permission and at least the User Administrator Microsoft Entra role."
           ),
@@ -20025,7 +19966,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
             'The preferred name for the user. Not Supported. This attribute returns an empty string.Returned only on $select.'
           )
           .nullable(),
-        print: z.union([microsoft_graph_userPrint, z.object({}).partial().passthrough()]),
+        print: z.union([microsoft_graph_userPrint, z.object({}).partial().strict()]),
         provisionedPlans: z
           .array(microsoft_graph_provisionedPlan)
           .describe(
@@ -20064,7 +20005,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           )
           .nullable(),
         signInActivity: z
-          .union([microsoft_graph_signInActivity, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_signInActivity, z.object({}).partial().strict()])
           .describe(
             "Get the last signed-in date and request ID of the sign-in for a given user. Read-only.Returned only on $select. Supports $filter (eq, ne, not, ge, le) but not with any other filterable properties. Note: Details for this property require a Microsoft Entra ID P1 or P2 license and the AuditLog.Read.All permission.This property isn't returned for a user who never signed in or last signed in before April 2020."
           ),
@@ -20129,10 +20070,10 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
             'Represents the app roles a user is granted for an application. Supports $expand.'
           ),
         authentication: z
-          .union([microsoft_graph_authentication, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_authentication, z.object({}).partial().strict()])
           .describe('The authentication methods that are supported for the user.'),
         calendar: z
-          .union([microsoft_graph_calendar, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_calendar, z.object({}).partial().strict()])
           .describe("The user's primary calendar. Read-only."),
         calendarGroups: z
           .array(microsoft_graph_calendarGroup)
@@ -20146,7 +20087,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         chats: z.array(microsoft_graph_chat),
         cloudClipboard: z.union([
           microsoft_graph_cloudClipboardRoot,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ]),
         contactFolders: z
           .array(microsoft_graph_contactFolder)
@@ -20166,14 +20107,14 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
             'The users and contacts that report to the user. (The users and contacts that have their manager property set to this user.) Read-only. Nullable. Supports $expand.'
           ),
         drive: z
-          .union([microsoft_graph_drive, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_drive, z.object({}).partial().strict()])
           .describe("The user's OneDrive. Read-only."),
         drives: z
           .array(microsoft_graph_drive)
           .describe('A collection of drives available for this user. Read-only.'),
         employeeExperience: z.union([
           microsoft_graph_employeeExperienceUser,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ]),
         events: z
           .array(microsoft_graph_event)
@@ -20187,12 +20128,12 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           ),
         followedSites: z.array(microsoft_graph_site),
         inferenceClassification: z
-          .union([microsoft_graph_inferenceClassification, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_inferenceClassification, z.object({}).partial().strict()])
           .describe(
             "Relevance classification of the user's messages based on explicit designations that override inferred relevance or importance."
           ),
         insights: z
-          .union([microsoft_graph_itemInsights, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemInsights, z.object({}).partial().strict()])
           .describe(
             'Represents relationships between a user and items such as OneDrive for work or school documents, calculated using advanced analytics and machine learning techniques. Read-only. Nullable.'
           ),
@@ -20210,7 +20151,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           .array(microsoft_graph_managedDevice)
           .describe('The managed devices associated with the user.'),
         manager: z
-          .union([microsoft_graph_directoryObject, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_directoryObject, z.object({}).partial().strict()])
           .describe(
             "The user or contact that is this user's manager. Read-only. Supports $expand."
           ),
@@ -20223,13 +20164,13 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           .array(microsoft_graph_message)
           .describe('The messages in a mailbox or folder. Read-only. Nullable.'),
         oauth2PermissionGrants: z.array(microsoft_graph_oAuth2PermissionGrant),
-        onenote: z.union([microsoft_graph_onenote, z.object({}).partial().passthrough()]),
+        onenote: z.union([microsoft_graph_onenote, z.object({}).partial().strict()]),
         onlineMeetings: z
           .array(microsoft_graph_onlineMeeting)
           .describe(
             'Information about a meeting, including the URL used to join a meeting, the attendees list, and the description.'
           ),
-        outlook: z.union([microsoft_graph_outlookUser, z.object({}).partial().passthrough()]),
+        outlook: z.union([microsoft_graph_outlookUser, z.object({}).partial().strict()]),
         ownedDevices: z
           .array(microsoft_graph_directoryObject)
           .describe(
@@ -20247,24 +20188,24 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           .array(microsoft_graph_resourceSpecificPermissionGrant)
           .describe('List all resource-specific permission grants of a user.'),
         photo: z
-          .union([microsoft_graph_profilePhoto, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
           .describe("The user's profile photo. Read-only."),
         photos: z
           .array(microsoft_graph_profilePhoto)
           .describe("The collection of the user's profile photos in different sizes. Read-only."),
         planner: z
-          .union([microsoft_graph_plannerUser, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_plannerUser, z.object({}).partial().strict()])
           .describe('Entry-point to the Planner resource that might exist for a user. Read-only.'),
-        presence: z.union([microsoft_graph_presence, z.object({}).partial().passthrough()]),
+        presence: z.union([microsoft_graph_presence, z.object({}).partial().strict()]),
         registeredDevices: z
           .array(microsoft_graph_directoryObject)
           .describe(
             'Devices that are registered for the user. Read-only. Nullable. Supports $expand and returns up to 100 objects.'
           ),
         scopedRoleMemberOf: z.array(microsoft_graph_scopedRoleMembership),
-        settings: z.union([microsoft_graph_userSettings, z.object({}).partial().passthrough()]),
+        settings: z.union([microsoft_graph_userSettings, z.object({}).partial().strict()]),
         solutions: z
-          .union([microsoft_graph_userSolutionRoot, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_userSolutionRoot, z.object({}).partial().strict()])
           .describe(
             'The identifier that relates the user to the working time schedule triggers. Read-Only. Nullable'
           ),
@@ -20274,12 +20215,12 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
             "The users and groups responsible for this guest's privileges in the tenant and keeping the guest's information and access updated. (HTTP Methods: GET, POST, DELETE.). Supports $expand."
           ),
         teamwork: z
-          .union([microsoft_graph_userTeamwork, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_userTeamwork, z.object({}).partial().strict()])
           .describe(
             'A container for Microsoft Teams features available for the user. Read-only. Nullable.'
           ),
         todo: z
-          .union([microsoft_graph_todo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_todo, z.object({}).partial().strict()])
           .describe('Represents the To Do services available to a user.'),
         transitiveMemberOf: z
           .array(microsoft_graph_directoryObject)
@@ -20288,7 +20229,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() =>
@@ -20296,7 +20237,7 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
     z
       .object({
         createdBy: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe(
             'Identity of the user, device, or application that created the item. Read-only.'
           ),
@@ -20313,7 +20254,7 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
           .nullable(),
         eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
         lastModifiedBy: z
-          .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
           .describe(
             'Identity of the user, device, and application that last modified the item. Read-only.'
           ),
@@ -20326,7 +20267,7 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
           .describe('Date and time the item was last modified. Read-only.'),
         name: z.string().describe('The name of the item. Read-write.').nullable(),
         parentReference: z
-          .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
           .describe('Parent information, if the item has a parent. Read-write.'),
         webUrl: z
           .string()
@@ -20335,14 +20276,14 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
           )
           .nullable(),
         createdByUser: z
-          .union([microsoft_graph_user, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_user, z.object({}).partial().strict()])
           .describe('Identity of the user who created the item. Read-only.'),
         lastModifiedByUser: z
-          .union([microsoft_graph_user, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_user, z.object({}).partial().strict()])
           .describe('Identity of the user who last modified the item. Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_audio = z
@@ -20402,7 +20343,7 @@ const microsoft_graph_audio = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_album = z
   .object({
     coverImageItemId: z
@@ -20411,11 +20352,11 @@ const microsoft_graph_album = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_bundle = z
   .object({
     album: z
-      .union([microsoft_graph_album, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_album, z.object({}).partial().strict()])
       .describe('If the bundle is an album, then the album property is included'),
     childCount: z
       .number()
@@ -20425,11 +20366,11 @@ const microsoft_graph_bundle = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_deleted = z
   .object({ state: z.string().describe('Represents the state of the deleted item.').nullable() })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_hashes = z
   .object({
     crc32Hash: z
@@ -20449,11 +20390,11 @@ const microsoft_graph_hashes = z
     sha256Hash: z.string().describe("This property isn't supported. Don't use.").nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_file = z
   .object({
     hashes: z
-      .union([microsoft_graph_hashes, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_hashes, z.object({}).partial().strict()])
       .describe("Hashes of the file's binary content, if available. Read-only."),
     mimeType: z
       .string()
@@ -20464,7 +20405,7 @@ const microsoft_graph_file = z
     processingMetadata: z.boolean().nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_fileSystemInfo = z
   .object({
     createdDateTime: z
@@ -20495,7 +20436,7 @@ const microsoft_graph_fileSystemInfo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_folderView = z
   .object({
     sortBy: z.string().describe('The method by which the folder should be sorted.').nullable(),
@@ -20511,7 +20452,7 @@ const microsoft_graph_folderView = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_folder = z
   .object({
     childCount: z
@@ -20521,11 +20462,11 @@ const microsoft_graph_folder = z
       .describe('Number of children contained immediately within this container.')
       .nullable(),
     view: z
-      .union([microsoft_graph_folderView, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_folderView, z.object({}).partial().strict()])
       .describe('A collection of properties defining the recommended view for the folder.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_image = z
   .object({
     height: z
@@ -20542,7 +20483,7 @@ const microsoft_graph_image = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_malware = z
   .object({
     description: z
@@ -20551,7 +20492,7 @@ const microsoft_graph_malware = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_package = z
   .object({
     type: z
@@ -20562,7 +20503,7 @@ const microsoft_graph_package = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_pendingContentUpdate = z
   .object({
     queuedDateTime: z
@@ -20575,17 +20516,17 @@ const microsoft_graph_pendingContentUpdate = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_pendingOperations = z
   .object({
     pendingContentUpdate: z
-      .union([microsoft_graph_pendingContentUpdate, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_pendingContentUpdate, z.object({}).partial().strict()])
       .describe(
         'A property that indicates that an operation that might update the binary content of a file is pending completion.'
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_photo = z
   .object({
     cameraMake: z.string().describe('Camera manufacturer. Read-only.').nullable(),
@@ -20624,11 +20565,11 @@ const microsoft_graph_photo = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_shared = z
   .object({
     owner: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe('The identity of the owner of the shared item. Read-only.'),
     scope: z
       .string()
@@ -20637,7 +20578,7 @@ const microsoft_graph_shared = z
       )
       .nullable(),
     sharedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe('The identity of the user who shared the item. Read-only.'),
     sharedDateTime: z
       .string()
@@ -20649,7 +20590,7 @@ const microsoft_graph_shared = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_specialFolder = z
   .object({
     name: z
@@ -20658,7 +20599,7 @@ const microsoft_graph_specialFolder = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_video = z
   .object({
     audioBitsPerSample: z
@@ -20705,11 +20646,11 @@ const microsoft_graph_video = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_remoteItem = z
   .object({
     createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe('Identity of the user, device, and application which created the item. Read-only.'),
     createdDateTime: z
       .string()
@@ -20720,23 +20661,23 @@ const microsoft_graph_remoteItem = z
       .describe('Date and time of item creation. Read-only.')
       .nullable(),
     file: z
-      .union([microsoft_graph_file, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_file, z.object({}).partial().strict()])
       .describe('Indicates that the remote item is a file. Read-only.'),
     fileSystemInfo: z
-      .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_fileSystemInfo, z.object({}).partial().strict()])
       .describe('Information about the remote item from the local file system. Read-only.'),
     folder: z
-      .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_folder, z.object({}).partial().strict()])
       .describe('Indicates that the remote item is a folder. Read-only.'),
     id: z
       .string()
       .describe('Unique identifier for the remote item in its drive. Read-only.')
       .nullable(),
     image: z
-      .union([microsoft_graph_image, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_image, z.object({}).partial().strict()])
       .describe('Image metadata, if the item is an image. Read-only.'),
     lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
       .describe(
         'Identity of the user, device, and application which last modified the item. Read-only.'
       ),
@@ -20750,31 +20691,31 @@ const microsoft_graph_remoteItem = z
       .nullable(),
     name: z.string().describe('Optional. Filename of the remote item. Read-only.').nullable(),
     package: z
-      .union([microsoft_graph_package, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_package, z.object({}).partial().strict()])
       .describe(
         'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
       ),
     parentReference: z
-      .union([microsoft_graph_itemReference, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
       .describe('Properties of the parent of the remote item. Read-only.'),
     shared: z
-      .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_shared, z.object({}).partial().strict()])
       .describe(
         'Indicates that the item has been shared with others and provides information about the shared state of the item. Read-only.'
       ),
     sharepointIds: z
-      .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
       .describe(
         'Provides interop between items in OneDrive for Business and SharePoint with the full set of item identifiers. Read-only.'
       ),
     size: z.number().describe('Size of the remote item. Read-only.').nullable(),
     specialFolder: z
-      .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_specialFolder, z.object({}).partial().strict()])
       .describe(
         'If the current item is also available as a special folder, this facet is returned. Read-only.'
       ),
     video: z
-      .union([microsoft_graph_video, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_video, z.object({}).partial().strict()])
       .describe('Video metadata, if the item is a video. Read-only.'),
     webDavUrl: z.string().describe('DAV compatible URL for the item.').nullable(),
     webUrl: z
@@ -20783,7 +20724,7 @@ const microsoft_graph_remoteItem = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_searchResult = z
   .object({
     onClickTelemetryUrl: z
@@ -20794,7 +20735,7 @@ const microsoft_graph_searchResult = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_security_behaviorDuringRetentionPeriod = z.enum([
   'doNotRetain',
   'retain',
@@ -20807,7 +20748,7 @@ const microsoft_graph_retentionLabelSettings = z
     behaviorDuringRetentionPeriod: z
       .union([
         microsoft_graph_security_behaviorDuringRetentionPeriod,
-        z.object({}).partial().passthrough(),
+        z.object({}).partial().strict(),
       ])
       .describe(
         'Describes the item behavior during retention period. Possible values are: doNotRetain, retain, retainAsRecord, retainAsRegulatoryRecord, unknownFutureValue. Read-only.'
@@ -20838,7 +20779,7 @@ const microsoft_graph_retentionLabelSettings = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_itemRetentionLabel = microsoft_graph_entity.and(
   z
     .object({
@@ -20849,7 +20790,7 @@ const microsoft_graph_itemRetentionLabel = microsoft_graph_entity.and(
         )
         .nullable(),
       labelAppliedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
         .describe('Identity of the user who applied the label. Read-only.'),
       labelAppliedDateTime: z
         .string()
@@ -20863,11 +20804,11 @@ const microsoft_graph_itemRetentionLabel = microsoft_graph_entity.and(
         .nullable(),
       name: z.string().describe('The retention label on the document. Read-write.').nullable(),
       retentionSettings: z
-        .union([microsoft_graph_retentionLabelSettings, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_retentionLabelSettings, z.object({}).partial().strict()])
         .describe('The retention settings enforced on the item. Read-write.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_thumbnail = z
   .object({
@@ -20893,27 +20834,27 @@ const microsoft_graph_thumbnail = z
       .nullable(),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_thumbnailSet = microsoft_graph_entity.and(
   z
     .object({
       large: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
         .describe('A 1920x1920 scaled thumbnail.'),
       medium: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
         .describe('A 176x176 scaled thumbnail.'),
       small: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
         .describe('A 48x48 cropped thumbnail.'),
       source: z
-        .union([microsoft_graph_thumbnail, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
         .describe(
           'A custom thumbnail image or the original image used to generate other thumbnails.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_driveItemVersion = microsoft_graph_baseItemVersion.and(
   z
@@ -20925,7 +20866,7 @@ const microsoft_graph_driveItemVersion = microsoft_graph_baseItemVersion.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookApplication = microsoft_graph_entity.and(
   z
@@ -20937,7 +20878,7 @@ const microsoft_graph_workbookApplication = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookCommentReply = microsoft_graph_entity.and(
   z
@@ -20946,7 +20887,7 @@ const microsoft_graph_workbookCommentReply = microsoft_graph_entity.and(
       contentType: z.string().describe('The content type for the reply.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookComment = microsoft_graph_entity.and(
   z
@@ -20958,10 +20899,10 @@ const microsoft_graph_workbookComment = microsoft_graph_entity.and(
         .describe('The list of replies to the comment. Read-only. Nullable.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookFunctions = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_workbookChartFont = microsoft_graph_entity.and(
   z
@@ -20986,7 +20927,7 @@ const microsoft_graph_workbookChartFont = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartLineFormat = microsoft_graph_entity.and(
   z
@@ -20997,55 +20938,55 @@ const microsoft_graph_workbookChartLineFormat = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAxisFormat = microsoft_graph_entity.and(
   z
     .object({
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes (font name, font size, color, etc.) for a chart axis element. Read-only.'
         ),
       line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
         .describe('Represents chart line formatting. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartGridlinesFormat = microsoft_graph_entity.and(
   z
     .object({
       line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
         .describe('Represents chart line formatting. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartGridlines = microsoft_graph_entity.and(
   z
     .object({
       visible: z.boolean().describe('Indicates whether the axis gridlines are visible.'),
       format: z
-        .union([microsoft_graph_workbookChartGridlinesFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartGridlinesFormat, z.object({}).partial().strict()])
         .describe('Represents the formatting of chart gridlines. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAxisTitleFormat = microsoft_graph_entity.and(
   z
     .object({
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes, such as font name, font size, color, etc. of chart axis title object. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAxisTitle = microsoft_graph_entity.and(
   z
@@ -21053,11 +20994,11 @@ const microsoft_graph_workbookChartAxisTitle = microsoft_graph_entity.and(
       text: z.string().describe('Represents the axis title.').nullable(),
       visible: z.boolean().describe('A Boolean that specifies the visibility of an axis title.'),
       format: z
-        .union([microsoft_graph_workbookChartAxisTitleFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxisTitleFormat, z.object({}).partial().strict()])
         .describe('Represents the formatting of chart axis title. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAxis = microsoft_graph_entity.and(
   z
@@ -21083,60 +21024,60 @@ const microsoft_graph_workbookChartAxis = microsoft_graph_entity.and(
           "Represents the interval between two minor tick marks. 'Can be set to a numeric value or an empty string (for automatic axis values). The returned value is always a number."
         ),
       format: z
-        .union([microsoft_graph_workbookChartAxisFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxisFormat, z.object({}).partial().strict()])
         .describe(
           'Represents the formatting of a chart object, which includes line and font formatting. Read-only.'
         ),
       majorGridlines: z
-        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().strict()])
         .describe(
           'Returns a gridlines object that represents the major gridlines for the specified axis. Read-only.'
         ),
       minorGridlines: z
-        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().strict()])
         .describe(
           'Returns a Gridlines object that represents the minor gridlines for the specified axis. Read-only.'
         ),
       title: z
-        .union([microsoft_graph_workbookChartAxisTitle, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxisTitle, z.object({}).partial().strict()])
         .describe('Represents the axis title. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAxes = microsoft_graph_entity.and(
   z
     .object({
       categoryAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
         .describe('Represents the category axis in a chart. Read-only.'),
       seriesAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
         .describe('Represents the series axis of a 3-dimensional chart. Read-only.'),
       valueAxis: z
-        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
         .describe('Represents the value axis in an axis. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartFill = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_workbookChartDataLabelFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe('Represents the fill format of the current chart data label. Read-only.'),
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes (font name, font size, color, etc.) for a chart data label. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartDataLabels = microsoft_graph_entity.and(
   z
@@ -21176,47 +21117,47 @@ const microsoft_graph_workbookChartDataLabels = microsoft_graph_entity.and(
         .describe('Boolean value that represents whether the data label value is visible.')
         .nullable(),
       format: z
-        .union([microsoft_graph_workbookChartDataLabelFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartDataLabelFormat, z.object({}).partial().strict()])
         .describe(
           'Represents the format of chart data labels, which includes fill and font formatting. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartAreaFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe(
           'Represents the fill format of an object, which includes background formatting information. Read-only.'
         ),
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartLegendFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe(
           'Represents the fill format of an object, which includes background formating information. Read-only.'
         ),
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes such as font name, font size, color, etc. of a chart legend. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartLegend = microsoft_graph_entity.and(
   z
@@ -21235,58 +21176,58 @@ const microsoft_graph_workbookChartLegend = microsoft_graph_entity.and(
         .nullable(),
       visible: z.boolean().describe('Indicates whether the chart legend is visible.'),
       format: z
-        .union([microsoft_graph_workbookChartLegendFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartLegendFormat, z.object({}).partial().strict()])
         .describe(
           'Represents the formatting of a chart legend, which includes fill and font formatting. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartSeriesFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe(
           'Represents the fill format of a chart series, which includes background formatting information. Read-only.'
         ),
       line: z
-        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
         .describe('Represents line formatting. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartPointFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe(
           'Represents the fill format of a chart, which includes background formatting information. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartPoint = microsoft_graph_entity.and(
   z
     .object({
       value: z.unknown().describe('The value of a chart point. Read-only.'),
       format: z
-        .union([microsoft_graph_workbookChartPointFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartPointFormat, z.object({}).partial().strict()])
         .describe('The format properties of the chart point. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartSeries = microsoft_graph_entity.and(
   z
     .object({
       name: z.string().describe('The name of a series in a chart.').nullable(),
       format: z
-        .union([microsoft_graph_workbookChartSeriesFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartSeriesFormat, z.object({}).partial().strict()])
         .describe(
           'The formatting of a chart series, which includes fill and line formatting. Read-only.'
         ),
@@ -21295,24 +21236,24 @@ const microsoft_graph_workbookChartSeries = microsoft_graph_entity.and(
         .describe('A collection of all points in the series. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartTitleFormat = microsoft_graph_entity.and(
   z
     .object({
       fill: z
-        .union([microsoft_graph_workbookChartFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
         .describe(
           'Represents the fill format of an object, which includes background formatting information. Read-only.'
         ),
       font: z
-        .union([microsoft_graph_workbookChartFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
         .describe(
           'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChartTitle = microsoft_graph_entity.and(
   z
@@ -21324,13 +21265,13 @@ const microsoft_graph_workbookChartTitle = microsoft_graph_entity.and(
       text: z.string().describe('The title text of the chart.').nullable(),
       visible: z.boolean().describe('Indicates whether the chart title is visible.'),
       format: z
-        .union([microsoft_graph_workbookChartTitleFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookChartTitleFormat, z.object({}).partial().strict()])
         .describe(
           'The formatting of a chart title, which includes fill and font formatting. Read-only.'
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -21354,16 +21295,16 @@ const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = 
           .union([z.number(), z.string(), ReferenceNumeric])
           .describe('Represents the width, in points, of the chart object.'),
         axes: z
-          .union([microsoft_graph_workbookChartAxes, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookChartAxes, z.object({}).partial().strict()])
           .describe('Represents chart axes. Read-only.'),
         dataLabels: z
-          .union([microsoft_graph_workbookChartDataLabels, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookChartDataLabels, z.object({}).partial().strict()])
           .describe('Represents the data labels on the chart. Read-only.'),
         format: z
-          .union([microsoft_graph_workbookChartAreaFormat, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookChartAreaFormat, z.object({}).partial().strict()])
           .describe('Encapsulates the format properties for the chart area. Read-only.'),
         legend: z
-          .union([microsoft_graph_workbookChartLegend, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookChartLegend, z.object({}).partial().strict()])
           .describe('Represents the legend for the chart. Read-only.'),
         series: z
           .array(microsoft_graph_workbookChartSeries)
@@ -21371,16 +21312,16 @@ const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = 
             'Represents either a single series or collection of series in the chart. Read-only.'
           ),
         title: z
-          .union([microsoft_graph_workbookChartTitle, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookChartTitle, z.object({}).partial().strict()])
           .describe(
             'Represents the title of the specified chart, including the text, visibility, position and formatting of the title. Read-only.'
           ),
         worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
           .describe('The worksheet containing the current chart. Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_workbookPivotTable: z.ZodType<microsoft_graph_workbookPivotTable> = z.lazy(
@@ -21390,11 +21331,11 @@ const microsoft_graph_workbookPivotTable: z.ZodType<microsoft_graph_workbookPivo
         .object({
           name: z.string().describe('The name of the pivot table.').nullable(),
           worksheet: z
-            .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+            .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
             .describe('The worksheet that contains the current pivot table. Read-only.'),
         })
         .partial()
-        .passthrough()
+        .strict()
     )
 );
 const microsoft_graph_workbookWorksheetProtectionOptions = z
@@ -21438,20 +21379,20 @@ const microsoft_graph_workbookWorksheetProtectionOptions = z
       .describe('Represents the worksheet protection option of allowing using sort feature.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workbookWorksheetProtection = microsoft_graph_entity.and(
   z
     .object({
       options: z
         .union([
           microsoft_graph_workbookWorksheetProtectionOptions,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ])
         .describe('Worksheet protection options. Read-only.'),
       protected: z.boolean().describe('Indicates whether the worksheet is protected.  Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookIcon = z
   .object({
@@ -21467,7 +21408,7 @@ const microsoft_graph_workbookIcon = z
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workbookFilterCriteria = z
   .object({
     color: z.string().describe('The color applied to the cell.').nullable(),
@@ -21476,22 +21417,22 @@ const microsoft_graph_workbookFilterCriteria = z
     dynamicCriteria: z.string().describe('A dynamic formula specified in a custom filter.'),
     filterOn: z.string().describe('Indicates whether a filter is applied to a column.'),
     icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_workbookIcon, z.object({}).partial().strict()])
       .describe('An icon applied to a cell via conditional formatting.'),
     operator: z.string().describe('An operator in a cell; for example, =, >, <, <=, or <>.'),
     values: z.unknown().describe('The values that appear in the cell.'),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workbookFilter = microsoft_graph_entity.and(
   z
     .object({
       criteria: z
-        .union([microsoft_graph_workbookFilterCriteria, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookFilterCriteria, z.object({}).partial().strict()])
         .describe('The currently applied filter on the given column. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookTableColumn = microsoft_graph_entity.and(
   z
@@ -21510,11 +21451,11 @@ const microsoft_graph_workbookTableColumn = microsoft_graph_entity.and(
           'TRepresents the raw values of the specified range. The data returned could be of type string, number, or a Boolean. Cell that contain an error will return the error string.'
         ),
       filter: z
-        .union([microsoft_graph_workbookFilter, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookFilter, z.object({}).partial().strict()])
         .describe('The filter applied to the column. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookTableRow = microsoft_graph_entity.and(
   z
@@ -21533,7 +21474,7 @@ const microsoft_graph_workbookTableRow = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookSortField = z
   .object({
@@ -21552,7 +21493,7 @@ const microsoft_graph_workbookSortField = z
         'Represents additional sorting options for this field. The possible values are: Normal, TextAsNumber.'
       ),
     icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().passthrough()])
+      .union([microsoft_graph_workbookIcon, z.object({}).partial().strict()])
       .describe(
         "Represents the icon that is the target of the condition if the sorting is on the cell's icon."
       ),
@@ -21570,7 +21511,7 @@ const microsoft_graph_workbookSortField = z
       ),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workbookTableSort = microsoft_graph_entity.and(
   z
     .object({
@@ -21587,7 +21528,7 @@ const microsoft_graph_workbookTableSort = microsoft_graph_entity.and(
         ),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookTable: z.ZodType<microsoft_graph_workbookTable> = z.lazy(() =>
   microsoft_graph_entity.and(
@@ -21644,14 +21585,14 @@ const microsoft_graph_workbookTable: z.ZodType<microsoft_graph_workbookTable> = 
           .array(microsoft_graph_workbookTableRow)
           .describe('The list of all the rows in the table. Read-only.'),
         sort: z
-          .union([microsoft_graph_workbookTableSort, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookTableSort, z.object({}).partial().strict()])
           .describe('The sorting for the table. Read-only.'),
         worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
           .describe('The worksheet containing the current table. Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_workbookWorksheet: z.ZodType<microsoft_graph_workbookWorksheet> = z.lazy(() =>
@@ -21679,17 +21620,14 @@ const microsoft_graph_workbookWorksheet: z.ZodType<microsoft_graph_workbookWorks
           .array(microsoft_graph_workbookPivotTable)
           .describe('The list of piot tables that are part of the worksheet.'),
         protection: z
-          .union([
-            microsoft_graph_workbookWorksheetProtection,
-            z.object({}).partial().passthrough(),
-          ])
+          .union([microsoft_graph_workbookWorksheetProtection, z.object({}).partial().strict()])
           .describe('The sheet protection object for a worksheet. Read-only.'),
         tables: z
           .array(microsoft_graph_workbookTable)
           .describe('The list of tables that are part of the worksheet. Read-only.'),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_workbookNamedItem: z.ZodType<microsoft_graph_workbookNamedItem> = z.lazy(() =>
@@ -21716,13 +21654,13 @@ const microsoft_graph_workbookNamedItem: z.ZodType<microsoft_graph_workbookNamed
           ),
         visible: z.boolean().describe('Indicates whether the object is visible.'),
         worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
           .describe(
             'Returns the worksheet to which the named item is scoped. Available only if the item is scoped to the worksheet. Read-only.'
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_workbookOperationError: z.ZodType<microsoft_graph_workbookOperationError> =
@@ -21732,12 +21670,12 @@ const microsoft_graph_workbookOperationError: z.ZodType<microsoft_graph_workbook
         code: z.string().describe('The error code.').nullable(),
         innerError: z.union([
           microsoft_graph_workbookOperationError,
-          z.object({}).partial().passthrough(),
+          z.object({}).partial().strict(),
         ]),
         message: z.string().describe('The error message.').nullable(),
       })
       .partial()
-      .passthrough()
+      .strict()
   );
 const microsoft_graph_workbookOperationStatus = z.enum([
   'notStarted',
@@ -21749,25 +21687,22 @@ const microsoft_graph_workbookOperation = microsoft_graph_entity.and(
   z
     .object({
       error: z
-        .union([microsoft_graph_workbookOperationError, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookOperationError, z.object({}).partial().strict()])
         .describe('The error returned by the operation.'),
       resourceLocation: z.string().describe('The resource URI for the result.').nullable(),
       status: microsoft_graph_workbookOperationStatus,
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbook = microsoft_graph_entity.and(
   z
     .object({
-      application: z.union([
-        microsoft_graph_workbookApplication,
-        z.object({}).partial().passthrough(),
-      ]),
+      application: z.union([microsoft_graph_workbookApplication, z.object({}).partial().strict()]),
       comments: z
         .array(microsoft_graph_workbookComment)
         .describe('Represents a collection of comments in a workbook.'),
-      functions: z.union([microsoft_graph_workbookFunctions, z.object({}).partial().passthrough()]),
+      functions: z.union([microsoft_graph_workbookFunctions, z.object({}).partial().strict()]),
       names: z
         .array(microsoft_graph_workbookNamedItem)
         .describe(
@@ -21786,19 +21721,19 @@ const microsoft_graph_workbook = microsoft_graph_entity.and(
         .describe('Represents a collection of worksheets associated with the workbook. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy(() =>
   microsoft_graph_baseItem.and(
     z
       .object({
         audio: z
-          .union([microsoft_graph_audio, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_audio, z.object({}).partial().strict()])
           .describe(
             'Audio metadata, if the item is an audio file. Read-only. Read-only. Only on OneDrive Personal.'
           ),
         bundle: z
-          .union([microsoft_graph_bundle, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_bundle, z.object({}).partial().strict()])
           .describe('Bundle metadata, if the item is a bundle. Read-only.'),
         content: z
           .string()
@@ -21811,77 +21746,77 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
           )
           .nullable(),
         deleted: z
-          .union([microsoft_graph_deleted, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_deleted, z.object({}).partial().strict()])
           .describe('Information about the deleted state of the item. Read-only.'),
         file: z
-          .union([microsoft_graph_file, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_file, z.object({}).partial().strict()])
           .describe('File metadata, if the item is a file. Read-only.'),
         fileSystemInfo: z
-          .union([microsoft_graph_fileSystemInfo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_fileSystemInfo, z.object({}).partial().strict()])
           .describe('File system information on client. Read-write.'),
         folder: z
-          .union([microsoft_graph_folder, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_folder, z.object({}).partial().strict()])
           .describe('Folder metadata, if the item is a folder. Read-only.'),
         image: z
-          .union([microsoft_graph_image, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_image, z.object({}).partial().strict()])
           .describe('Image metadata, if the item is an image. Read-only.'),
         location: z
-          .union([microsoft_graph_geoCoordinates, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_geoCoordinates, z.object({}).partial().strict()])
           .describe('Location metadata, if the item has location data. Read-only.'),
         malware: z
-          .union([microsoft_graph_malware, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_malware, z.object({}).partial().strict()])
           .describe('Malware metadata, if the item was detected to contain malware. Read-only.'),
         package: z
-          .union([microsoft_graph_package, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_package, z.object({}).partial().strict()])
           .describe(
             'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
           ),
         pendingOperations: z
-          .union([microsoft_graph_pendingOperations, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_pendingOperations, z.object({}).partial().strict()])
           .describe(
             'If present, indicates that one or more operations that might affect the state of the driveItem are pending completion. Read-only.'
           ),
         photo: z
-          .union([microsoft_graph_photo, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_photo, z.object({}).partial().strict()])
           .describe('Photo metadata, if the item is a photo. Read-only.'),
         publication: z
-          .union([microsoft_graph_publicationFacet, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
           .describe(
             "Provides information about the published or checked-out state of an item, in locations that support such actions. This property isn't returned by default. Read-only."
           ),
         remoteItem: z
-          .union([microsoft_graph_remoteItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_remoteItem, z.object({}).partial().strict()])
           .describe(
             'Remote item data, if the item is shared from a drive other than the one being accessed. Read-only.'
           ),
         root: z
-          .union([microsoft_graph_root, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_root, z.object({}).partial().strict()])
           .describe(
             'If this property is non-null, it indicates that the driveItem is the top-most driveItem in the drive.'
           ),
         searchResult: z
-          .union([microsoft_graph_searchResult, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_searchResult, z.object({}).partial().strict()])
           .describe('Search metadata, if the item is from a search result. Read-only.'),
         shared: z
-          .union([microsoft_graph_shared, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_shared, z.object({}).partial().strict()])
           .describe(
             'Indicates that the item was shared with others and provides information about the shared state of the item. Read-only.'
           ),
         sharepointIds: z
-          .union([microsoft_graph_sharepointIds, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
           .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
         size: z.number().describe('Size of the item in bytes. Read-only.').nullable(),
         specialFolder: z
-          .union([microsoft_graph_specialFolder, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_specialFolder, z.object({}).partial().strict()])
           .describe(
             'If the current item is also available as a special folder, this facet is returned. Read-only.'
           ),
         video: z
-          .union([microsoft_graph_video, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_video, z.object({}).partial().strict()])
           .describe('Video metadata, if the item is a video. Read-only.'),
         webDavUrl: z.string().describe('WebDAV compatible URL for the item.').nullable(),
         analytics: z
-          .union([microsoft_graph_itemAnalytics, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
           .describe('Analytics about the view activities that took place on this item.'),
         children: z
           .array(microsoft_graph_driveItem)
@@ -21889,7 +21824,7 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
             'Collection containing Item objects for the immediate children of Item. Only items representing folders have children. Read-only. Nullable.'
           ),
         listItem: z
-          .union([microsoft_graph_listItem, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_listItem, z.object({}).partial().strict()])
           .describe(
             'For drives in SharePoint, the associated document library list item. Read-only. Nullable.'
           ),
@@ -21897,7 +21832,7 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
           .array(microsoft_graph_permission)
           .describe('The set of permissions for the item. Read-only. Nullable.'),
         retentionLabel: z
-          .union([microsoft_graph_itemRetentionLabel, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_itemRetentionLabel, z.object({}).partial().strict()])
           .describe(
             'Information about retention label and settings enforced on the driveItem. Read-write.'
           ),
@@ -21915,32 +21850,32 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
             'The list of previous versions of the item. For more info, see getting previous versions. Read-only. Nullable.'
           ),
         workbook: z
-          .union([microsoft_graph_workbook, z.object({}).partial().passthrough()])
+          .union([microsoft_graph_workbook, z.object({}).partial().strict()])
           .describe(
             "For files that are Excel spreadsheets, access to the workbook API to work with the spreadsheet's contents. Nullable."
           ),
       })
       .partial()
-      .passthrough()
+      .strict()
   )
 );
 const microsoft_graph_driveItemCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_driveItem) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookWorksheetCollectionResponse =
   BaseCollectionPaginationCountResponse.and(
     z
       .object({ value: z.array(microsoft_graph_workbookWorksheet) })
       .partial()
-      .passthrough()
+      .strict()
   );
 const create_excel_chart_Body = z
   .object({ type: z.string(), sourceData: z.unknown(), seriesBy: z.string() })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_workbookRangeBorder = microsoft_graph_entity.and(
   z
     .object({
@@ -21970,7 +21905,7 @@ const microsoft_graph_workbookRangeBorder = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookRangeFill = microsoft_graph_entity.and(
   z
@@ -21983,7 +21918,7 @@ const microsoft_graph_workbookRangeFill = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookRangeFont = microsoft_graph_entity.and(
   z
@@ -22006,7 +21941,7 @@ const microsoft_graph_workbookRangeFont = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookFormatProtection = microsoft_graph_entity.and(
   z
@@ -22025,7 +21960,7 @@ const microsoft_graph_workbookFormatProtection = microsoft_graph_entity.and(
         .nullable(),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookRangeFormat = microsoft_graph_entity.and(
   z
@@ -22064,20 +21999,20 @@ const microsoft_graph_workbookRangeFormat = microsoft_graph_entity.and(
           'Collection of border objects that apply to the overall range selected Read-only.'
         ),
       fill: z
-        .union([microsoft_graph_workbookRangeFill, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookRangeFill, z.object({}).partial().strict()])
         .describe('Returns the fill object defined on the overall range. Read-only.'),
       font: z
-        .union([microsoft_graph_workbookRangeFont, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookRangeFont, z.object({}).partial().strict()])
         .describe('Returns the font object defined on the overall range selected Read-only.'),
       protection: z
-        .union([microsoft_graph_workbookFormatProtection, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookFormatProtection, z.object({}).partial().strict()])
         .describe('Returns the format protection object for a range. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_workbookRangeSort = microsoft_graph_entity.and(
-  z.object({}).partial().passthrough()
+  z.object({}).partial().strict()
 );
 const microsoft_graph_workbookRange = microsoft_graph_entity.and(
   z
@@ -22161,55 +22096,55 @@ const microsoft_graph_workbookRange = microsoft_graph_entity.and(
           'Represents the type of data of each cell. The possible values are: Unknown, Empty, String, Integer, Double, Boolean, Error. Read-only.'
         ),
       format: z
-        .union([microsoft_graph_workbookRangeFormat, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookRangeFormat, z.object({}).partial().strict()])
         .describe(
           "Returns a format object, encapsulating the range's font, fill, borders, alignment, and other properties. Read-only."
         ),
       sort: z
-        .union([microsoft_graph_workbookRangeSort, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookRangeSort, z.object({}).partial().strict()])
         .describe('The worksheet containing the current range. Read-only.'),
       worksheet: z
-        .union([microsoft_graph_workbookWorksheet, z.object({}).partial().passthrough()])
+        .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
         .describe('The worksheet containing the current range. Read-only.'),
     })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_calendarCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_calendar) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_eventCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_event) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_contactCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_contact) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_driveCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_drive) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_mailFolderCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_mailFolder) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_messageCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_message) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const send_mail_Body = z
   .object({
@@ -22217,42 +22152,42 @@ const send_mail_Body = z
     SaveToSentItems: z.boolean().nullable().default(false),
   })
   .partial()
-  .passthrough();
+  .strict();
 const microsoft_graph_notebookCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_notebook) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenoteSectionCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_onenoteSection) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_onenotePageCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_onenotePage) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_plannerTaskCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_plannerTask) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_todoTaskListCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_todoTaskList) })
     .partial()
-    .passthrough()
+    .strict()
 );
 const microsoft_graph_todoTaskCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_todoTask) })
     .partial()
-    .passthrough()
+    .strict()
 );
 
 export const schemas = {
@@ -23059,7 +22994,7 @@ const endpoints = makeApi([
       {
         status: NaN,
         description: `Success`,
-        schema: z.union([microsoft_graph_workbookChart, z.object({}).partial().passthrough()]),
+        schema: z.union([microsoft_graph_workbookChart, z.object({}).partial().strict()]),
       },
       {
         status: NaN,
@@ -23147,7 +23082,7 @@ const endpoints = makeApi([
       {
         status: NaN,
         description: `Success`,
-        schema: z.union([microsoft_graph_workbookRange, z.object({}).partial().passthrough()]),
+        schema: z.union([microsoft_graph_workbookRange, z.object({}).partial().strict()]),
       },
       {
         status: NaN,
