@@ -24218,10 +24218,68 @@ open extensions or extended properties, and how to specify extended properties.`
     ],
   },
   {
+    method: 'post',
+    path: '/me/onenote/pages',
+    alias: 'create-onenote-page',
+    description: `Create a new OneNote page in the default section of the default notebook. To create a page in a different section in the default notebook, you can use the sectionName query parameter.  Example: ../onenote/pages?sectionName&#x3D;My%20section The POST /onenote/pages operation is used only to create pages in the current user&#x27;s default notebook. If you&#x27;re targeting other notebooks, you can create pages in a specified section.  `,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: microsoft_graph_onenotePage,
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Created navigation property.`,
+        schema: microsoft_graph_onenotePage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
     method: 'get',
-    path: '/me/onenote/notebooks/:notebookId/sections/:onenoteSectionId/pages',
+    path: '/me/onenote/pages/:onenotePageId/content',
+    alias: 'get-onenote-page-content',
+    description: `The page&#x27;s HTML content.`,
+    requestFormat: 'json',
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved media content`,
+        schema: z.void(),
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/me/onenote/sections/:onenoteSectionId/pages',
     alias: 'list-onenote-section-pages',
-    description: `The collection of pages in the section.  Read-only. Nullable.`,
+    description: `Retrieve a list of page objects from the specified section.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -24271,64 +24329,6 @@ open extensions or extended properties, and how to specify extended properties.`
         status: NaN,
         description: `Retrieved collection`,
         schema: microsoft_graph_onenotePageCollectionResponse,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
-  {
-    method: 'post',
-    path: '/me/onenote/pages',
-    alias: 'create-onenote-page',
-    description: `Create a new OneNote page in the default section of the default notebook. To create a page in a different section in the default notebook, you can use the sectionName query parameter.  Example: ../onenote/pages?sectionName&#x3D;My%20section The POST /onenote/pages operation is used only to create pages in the current user&#x27;s default notebook. If you&#x27;re targeting other notebooks, you can create pages in a specified section.  `,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        description: `New navigation property`,
-        type: 'Body',
-        schema: microsoft_graph_onenotePage,
-      },
-    ],
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Created navigation property.`,
-        schema: microsoft_graph_onenotePage,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-      {
-        status: NaN,
-        description: `error`,
-        schema: microsoft_graph_ODataErrors_ODataError,
-      },
-    ],
-  },
-  {
-    method: 'get',
-    path: '/me/onenote/pages/:onenotePageId/content',
-    alias: 'get-onenote-page-content',
-    description: `The page&#x27;s HTML content.`,
-    requestFormat: 'json',
-    response: z.void(),
-    errors: [
-      {
-        status: NaN,
-        description: `Retrieved media content`,
-        schema: z.void(),
       },
       {
         status: NaN,
