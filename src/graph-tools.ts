@@ -72,8 +72,11 @@ export function registerGraphTools(
     const paramSchema: Record<string, any> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
-        // Use z.any() as a fallback schema if the parameter schema is not specified
-        paramSchema[param.name] = param.schema || z.any();
+        if (param.type === 'Body' && param.schema) {
+          paramSchema[param.name] = z.union([z.string(), param.schema]);
+        } else {
+          paramSchema[param.name] = param.schema || z.any();
+        }
       }
     }
 
@@ -128,7 +131,15 @@ export function registerGraphTools(
                   break;
 
                 case 'Body':
-                  body = paramValue;
+                  if (typeof paramValue === 'string') {
+                    try {
+                      body = JSON.parse(paramValue);
+                    } catch (e) {
+                      body = paramValue;
+                    }
+                  } else {
+                    body = paramValue;
+                  }
                   break;
 
                 case 'Header':
@@ -136,7 +147,15 @@ export function registerGraphTools(
                   break;
               }
             } else if (paramName === 'body') {
-              body = paramValue;
+              if (typeof paramValue === 'string') {
+                try {
+                  body = JSON.parse(paramValue);
+                } catch (e) {
+                  body = paramValue;
+                }
+              } else {
+                body = paramValue;
+              }
               logger.info(`Set legacy body param: ${JSON.stringify(body)}`);
             }
           }
@@ -154,7 +173,15 @@ export function registerGraphTools(
           };
 
           if (options.method !== 'GET' && body) {
-            options.body = JSON.stringify(body);
+            options.body = typeof body === 'string' ? body : JSON.stringify(body);
+          }
+
+          const isProbablyMediaContent =
+            tool.errors?.some((error) => error.description === 'Retrieved media content') ||
+            path.endsWith('/content');
+
+          if (isProbablyMediaContent) {
+            options.rawResponse = true;
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);

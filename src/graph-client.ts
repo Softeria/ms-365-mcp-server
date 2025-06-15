@@ -118,10 +118,10 @@ class GraphClient {
       }
 
       const headers: Record<string, string> = {
-        ...options.headers,
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         ...(sessionId && { 'workbook-session-id': sessionId }),
+        ...options.headers,
       };
       delete options.headers;
 
@@ -212,6 +212,30 @@ class GraphClient {
               type: 'text',
               text: JSON.stringify({
                 message: 'Binary file content received',
+                contentType: contentType,
+                contentLength: response.headers.get('content-length'),
+              }),
+            },
+          ],
+        };
+      }
+
+      const contentType = response.headers.get('content-type');
+
+      if (contentType && !contentType.includes('application/json')) {
+        if (contentType.startsWith('text/')) {
+          const text = await response.text();
+          return {
+            content: [{ type: 'text', text }],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'Binary or non-JSON content received',
                 contentType: contentType,
                 contentLength: response.headers.get('content-length'),
               }),
