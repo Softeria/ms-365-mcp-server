@@ -213,7 +213,7 @@
     ]
   },
   {
-    "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections/{onenoteSection-id}/pages",
+    "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-onenote-section-pages",
     "scopes": [
