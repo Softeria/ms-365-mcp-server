@@ -7274,6 +7274,840 @@ type microsoft_graph_termStore_term = microsoft_graph_entity &
     set: (microsoft_graph_termStore_set | {}) | Array<microsoft_graph_termStore_set | {}>;
   }>;
 
+const microsoft_graph_entity = z
+  .object({ id: z.string().describe('The unique identifier for an entity. Read-only.') })
+  .partial()
+  .strict();
+const microsoft_graph_chatType = z.enum(['oneOnOne', 'group', 'meeting', 'unknownFutureValue']);
+const microsoft_graph_identity = z
+  .object({
+    displayName: z
+      .string()
+      .describe(
+        "The display name of the identity.For drive items, the display name might not always be available or up to date. For example, if a user changes their display name the API might show the new value in a future response, but the items associated with the user don't show up as changed when using delta."
+      )
+      .nullable(),
+    id: z
+      .string()
+      .describe(
+        "Unique identifier for the identity or actor. For example, in the access reviews decisions API, this property might record the id of the principal, that is, the group, user, or application that's subject to review."
+      )
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamworkUserIdentityType = z.enum([
+  'aadUser',
+  'onPremiseAadUser',
+  'anonymousGuest',
+  'federatedUser',
+  'personalMicrosoftAccountUser',
+  'skypeUser',
+  'phoneUser',
+  'unknownFutureValue',
+  'emailUser',
+]);
+const microsoft_graph_teamworkUserIdentity = microsoft_graph_identity.and(
+  z
+    .object({
+      userIdentityType: z
+        .union([microsoft_graph_teamworkUserIdentityType, z.object({}).partial().strict()])
+        .describe(
+          'Type of user. Possible values are: aadUser, onPremiseAadUser, anonymousGuest, federatedUser, personalMicrosoftAccountUser, skypeUser, phoneUser, unknownFutureValue and emailUser.'
+        ),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_teamworkOnlineMeetingInfo = z
+  .object({
+    calendarEventId: z
+      .string()
+      .describe('The identifier of the calendar event associated with the meeting.')
+      .nullable(),
+    joinWebUrl: z
+      .string()
+      .describe('The URL that users click to join or uniquely identify the meeting.')
+      .nullable(),
+    organizer: z
+      .union([microsoft_graph_teamworkUserIdentity, z.object({}).partial().strict()])
+      .describe('The organizer of the meeting.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatViewpoint = z
+  .object({
+    isHidden: z
+      .boolean()
+      .describe('Indicates whether the chat is hidden for the current user.')
+      .nullable(),
+    lastMessageReadDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe(
+        'Represents the dateTime up until which the current user has read chatMessages in a specific chat.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamsAppResourceSpecificPermissionType = z.enum([
+  'delegated',
+  'application',
+  'unknownFutureValue',
+]);
+const microsoft_graph_teamsAppResourceSpecificPermission = z
+  .object({
+    permissionType: z
+      .union([
+        microsoft_graph_teamsAppResourceSpecificPermissionType,
+        z.object({}).partial().strict(),
+      ])
+      .describe('The type of resource-specific permission.'),
+    permissionValue: z
+      .string()
+      .describe('The name of the resource-specific permission.')
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamsAppPermissionSet = z
+  .object({
+    resourceSpecificPermissions: z
+      .array(microsoft_graph_teamsAppResourceSpecificPermission)
+      .describe('A collection of resource-specific permissions.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamsAppDistributionMethod = z.enum([
+  'store',
+  'organization',
+  'sideloaded',
+  'unknownFutureValue',
+]);
+const microsoft_graph_teamsAppAuthorization = z
+  .object({
+    clientAppId: z
+      .string()
+      .describe('The registration ID of the Microsoft Entra app ID associated with the teamsApp.')
+      .nullable(),
+    requiredPermissionSet: z
+      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
+      .describe('Set of permissions required by the teamsApp.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_identitySet = z
+  .object({
+    application: z
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
+      .describe('Optional. The application associated with this action.'),
+    device: z
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
+      .describe('Optional. The device associated with this action.'),
+    user: z
+      .union([microsoft_graph_identity, z.object({}).partial().strict()])
+      .describe('Optional. The user associated with this action.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamsAppPublishingState = z.enum([
+  'submitted',
+  'rejected',
+  'published',
+  'unknownFutureValue',
+]);
+const microsoft_graph_teamworkBot = microsoft_graph_entity.and(z.object({}).partial().strict());
+const microsoft_graph_teamsAppDefinition = microsoft_graph_entity.and(
+  z
+    .object({
+      authorization: z
+        .union([microsoft_graph_teamsAppAuthorization, z.object({}).partial().strict()])
+        .describe('Authorization requirements specified in the Teams app manifest.'),
+      createdBy: z.union([microsoft_graph_identitySet, z.object({}).partial().strict()]),
+      description: z.string().describe('Verbose description of the application.').nullable(),
+      displayName: z
+        .string()
+        .describe('The name of the app provided by the app developer.')
+        .nullable(),
+      lastModifiedDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .nullable(),
+      publishingState: z
+        .union([microsoft_graph_teamsAppPublishingState, z.object({}).partial().strict()])
+        .describe(
+          'The published status of a specific version of a Teams app. Possible values are:submitted—The specific version of the Teams app was submitted and is under review.published—The request to publish the specific version of the Teams app was approved by the admin and the app is published.rejected—The admin rejected the request to publish the specific version of the Teams app.'
+        ),
+      shortDescription: z.string().describe('Short description of the application.').nullable(),
+      teamsAppId: z.string().describe('The ID from the Teams app manifest.').nullable(),
+      version: z.string().describe('The version number of the application.').nullable(),
+      bot: z
+        .union([microsoft_graph_teamworkBot, z.object({}).partial().strict()])
+        .describe('The details of the bot specified in the Teams app manifest.'),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_teamsApp = microsoft_graph_entity.and(
+  z
+    .object({
+      displayName: z
+        .string()
+        .describe(
+          'The name of the catalog app provided by the app developer in the Microsoft Teams zip app package.'
+        )
+        .nullable(),
+      distributionMethod: z
+        .union([microsoft_graph_teamsAppDistributionMethod, z.object({}).partial().strict()])
+        .describe('The method of distribution for the app. Read-only.'),
+      externalId: z
+        .string()
+        .describe(
+          'The ID of the catalog provided by the app developer in the Microsoft Teams zip app package.'
+        )
+        .nullable(),
+      appDefinitions: z
+        .array(microsoft_graph_teamsAppDefinition)
+        .describe('The details for each version of the app.'),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_teamsAppInstallation = microsoft_graph_entity.and(
+  z
+    .object({
+      consentedPermissionSet: z
+        .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
+        .describe(
+          'The set of resource-specific permissions consented to while installing or upgrading the teamsApp.'
+        ),
+      teamsApp: z
+        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
+        .describe('The app that is installed.'),
+      teamsAppDefinition: z
+        .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().strict()])
+        .describe('The details of this version of the app.'),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_bodyType = z.enum(['text', 'html']);
+const microsoft_graph_itemBody = z
+  .object({
+    content: z.string().describe('The content of the item.').nullable(),
+    contentType: z
+      .union([microsoft_graph_bodyType, z.object({}).partial().strict()])
+      .describe('The type of the content. Possible values are text and html.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_eventMessageDetail = z.object({}).partial().strict();
+const microsoft_graph_chatMessageFromIdentitySet = microsoft_graph_identitySet.and(
+  z.object({}).partial().strict()
+);
+const microsoft_graph_chatMessageType = z.enum([
+  'message',
+  'chatEvent',
+  'typing',
+  'unknownFutureValue',
+  'systemEventMessage',
+]);
+const microsoft_graph_chatMessageInfo = microsoft_graph_entity.and(
+  z
+    .object({
+      body: z
+        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
+        .describe(
+          "Body of the chatMessage. This will still contain markers for @mentions and attachments even though the object doesn't return @mentions and attachments."
+        ),
+      createdDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe('Date time object representing the time at which message was created.')
+        .nullable(),
+      eventDetail: z
+        .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
+        .describe(
+          'Read-only.  If present, represents details of an event that happened in a chat, a channel, or a team, for example, members were added, and so on. For event messages, the messageType property is set to systemEventMessage.'
+        ),
+      from: z
+        .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
+        .describe('Information about the sender of the message.'),
+      isDeleted: z
+        .boolean()
+        .describe('If set to true, the original message has been deleted.')
+        .nullable(),
+      messageType: microsoft_graph_chatMessageType,
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_conversationMember = microsoft_graph_entity.and(
+  z
+    .object({
+      displayName: z.string().describe('The display name of the user.').nullable(),
+      roles: z
+        .array(z.string().nullable())
+        .describe(
+          "The roles for that user. This property contains more qualifiers only when relevant - for example, if the member has owner privileges, the roles property contains owner as one of the values. Similarly, if the member is an in-tenant guest, the roles property contains guest as one of the values. A basic member shouldn't have any values specified in the roles property. An Out-of-tenant external member is assigned the owner role."
+        ),
+      visibleHistoryStartDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          "The timestamp denoting how far back a conversation's history is shared with the conversation member. This property is settable only for members of a chat."
+        )
+        .nullable(),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_chatMessageAttachment = z
+  .object({
+    content: z
+      .string()
+      .describe(
+        'The content of the attachment. If the attachment is a rich card, set the property to the rich card object. This property and contentUrl are mutually exclusive.'
+      )
+      .nullable(),
+    contentType: z
+      .string()
+      .describe(
+        "The media type of the content attachment. The possible values are: reference: The attachment is a link to another file. Populate the contentURL with the link to the object.forwardedMessageReference: The attachment is a reference to a forwarded message. Populate the content with the original message context.Any contentType that is supported by the Bot Framework's Attachment object.application/vnd.microsoft.card.codesnippet: A code snippet. application/vnd.microsoft.card.announcement: An announcement header."
+      )
+      .nullable(),
+    contentUrl: z.string().describe('The URL for the content of the attachment.').nullable(),
+    id: z.string().describe('Read-only. The unique ID of the attachment.').nullable(),
+    name: z.string().describe('The name of the attachment.').nullable(),
+    teamsAppId: z
+      .string()
+      .describe(
+        'The ID of the Teams app that is associated with the attachment. The property is used to attribute a Teams message card to the specified app.'
+      )
+      .nullable(),
+    thumbnailUrl: z
+      .string()
+      .describe(
+        'The URL to a thumbnail image that the channel can use if it supports using an alternative, smaller form of content or contentUrl. For example, if you set contentType to application/word and set contentUrl to the location of the Word document, you might include a thumbnail image that represents the document. The channel could display the thumbnail image instead of the document. When the user selects the image, the channel would open the document.'
+      )
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_channelIdentity = z
+  .object({
+    channelId: z
+      .string()
+      .describe('The identity of the channel in which the message was posted.')
+      .nullable(),
+    teamId: z
+      .string()
+      .describe('The identity of the team in which the message was posted.')
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatMessageImportance = z.enum([
+  'normal',
+  'high',
+  'urgent',
+  'unknownFutureValue',
+]);
+const microsoft_graph_teamworkConversationIdentityType = z.enum([
+  'team',
+  'channel',
+  'chat',
+  'unknownFutureValue',
+]);
+const microsoft_graph_teamworkConversationIdentity = microsoft_graph_identity.and(
+  z
+    .object({
+      conversationIdentityType: z
+        .union([microsoft_graph_teamworkConversationIdentityType, z.object({}).partial().strict()])
+        .describe(
+          'Type of conversation. Possible values are: team, channel, chat, and unknownFutureValue.'
+        ),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_chatMessageMentionedIdentitySet = microsoft_graph_identitySet.and(
+  z
+    .object({
+      conversation: z
+        .union([microsoft_graph_teamworkConversationIdentity, z.object({}).partial().strict()])
+        .describe(
+          'If present, represents a conversation (for example, team, channel, or chat) @mentioned in a message.'
+        ),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_chatMessageMention = z
+  .object({
+    id: z
+      .number()
+      .gte(-2147483648)
+      .lte(2147483647)
+      .describe(
+        "Index of an entity being mentioned in the specified chatMessage. Matches the {index} value in the corresponding <at id='{index}'> tag in the message body."
+      )
+      .nullable(),
+    mentioned: z
+      .union([microsoft_graph_chatMessageMentionedIdentitySet, z.object({}).partial().strict()])
+      .describe('The entity (user, application, team, channel, or chat) that was @mentioned.'),
+    mentionText: z
+      .string()
+      .describe(
+        "String used to represent the mention. For example, a user's display name, a team name."
+      )
+      .nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatMessageActions = z.enum([
+  'reactionAdded',
+  'reactionRemoved',
+  'actionUndefined',
+  'unknownFutureValue',
+]);
+const microsoft_graph_chatMessageReactionIdentitySet = microsoft_graph_identitySet.and(
+  z.object({}).partial().strict()
+);
+const microsoft_graph_chatMessageReaction = z
+  .object({
+    createdDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe(
+        'The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
+      ),
+    displayName: z.string().describe('The name of the reaction.').nullable(),
+    reactionContentUrl: z
+      .string()
+      .describe('The hosted content URL for the custom reaction type.')
+      .nullable(),
+    reactionType: z
+      .string()
+      .describe(
+        'The reaction type. Supported values include Unicode characters, custom, and some backward-compatible reaction types, such as like, angry, sad, laugh, heart, and surprised.'
+      ),
+    user: microsoft_graph_chatMessageReactionIdentitySet,
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatMessageHistoryItem = z
+  .object({
+    actions: microsoft_graph_chatMessageActions,
+    modifiedDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe('The date and time when the message was modified.'),
+    reaction: z
+      .union([microsoft_graph_chatMessageReaction, z.object({}).partial().strict()])
+      .describe('The reaction in the modified message.'),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatMessagePolicyViolationDlpActionTypes = z.enum([
+  'none',
+  'notifySender',
+  'blockAccess',
+  'blockAccessExternal',
+]);
+const microsoft_graph_chatMessagePolicyViolationPolicyTip = z
+  .object({
+    complianceUrl: z
+      .string()
+      .describe(
+        "The URL a user can visit to read about the data loss prevention policies for the organization. (ie, policies about what users shouldn't say in chats)"
+      )
+      .nullable(),
+    generalText: z
+      .string()
+      .describe('Explanatory text shown to the sender of the message.')
+      .nullable(),
+    matchedConditionDescriptions: z
+      .array(z.string().nullable())
+      .describe(
+        "The list of improper data in the message that was detected by the data loss prevention app. Each DLP app defines its own conditions, examples include 'Credit Card Number' and 'Social Security Number'."
+      ),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_chatMessagePolicyViolationUserActionTypes = z.enum([
+  'none',
+  'override',
+  'reportFalsePositive',
+]);
+const microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes = z.enum([
+  'none',
+  'allowFalsePositiveOverride',
+  'allowOverrideWithoutJustification',
+  'allowOverrideWithJustification',
+]);
+const microsoft_graph_chatMessagePolicyViolation = z
+  .object({
+    dlpAction: z
+      .union([
+        microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
+        z.object({}).partial().strict(),
+      ])
+      .describe(
+        'The action taken by the DLP provider on the message with sensitive content. Supported values are: NoneNotifySender -- Inform the sender of the violation but allow readers to read the message.BlockAccess -- Block readers from reading the message.BlockAccessExternal -- Block users outside the organization from reading the message, while allowing users within the organization to read the message.'
+      ),
+    justificationText: z
+      .string()
+      .describe(
+        'Justification text provided by the sender of the message when overriding a policy violation.'
+      )
+      .nullable(),
+    policyTip: z
+      .union([microsoft_graph_chatMessagePolicyViolationPolicyTip, z.object({}).partial().strict()])
+      .describe(
+        'Information to display to the message sender about why the message was flagged as a violation.'
+      ),
+    userAction: z
+      .union([
+        microsoft_graph_chatMessagePolicyViolationUserActionTypes,
+        z.object({}).partial().strict(),
+      ])
+      .describe(
+        "Indicates the action taken by the user on a message blocked by the DLP provider. Supported values are: NoneOverrideReportFalsePositiveWhen the DLP provider is updating the message for blocking sensitive content, userAction isn't required."
+      ),
+    verdictDetails: z
+      .union([
+        microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
+        z.object({}).partial().strict(),
+      ])
+      .describe(
+        'Indicates what actions the sender may take in response to the policy violation. Supported values are: NoneAllowFalsePositiveOverride -- Allows the sender to declare the policyViolation to be an error in the DLP app and its rules, and allow readers to see the message again if the dlpAction hides it.AllowOverrideWithoutJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, without needing to provide an explanation for doing so. AllowOverrideWithJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, after providing an explanation for doing so.AllowOverrideWithoutJustification and AllowOverrideWithJustification are mutually exclusive.'
+      ),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamworkHostedContent = microsoft_graph_entity.and(
+  z
+    .object({
+      contentBytes: z
+        .string()
+        .describe('Write only. Bytes for the hosted content (such as images).')
+        .nullable(),
+      contentType: z
+        .string()
+        .describe('Write only. Content type. such as image/png, image/jpg.')
+        .nullable(),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_chatMessageHostedContent = microsoft_graph_teamworkHostedContent.and(
+  z.object({}).partial().strict()
+);
+const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.lazy(() =>
+  microsoft_graph_entity.and(
+    z
+      .object({
+        attachments: z
+          .array(microsoft_graph_chatMessageAttachment)
+          .describe('References to attached objects like files, tabs, meetings etc.'),
+        body: microsoft_graph_itemBody,
+        channelIdentity: z
+          .union([microsoft_graph_channelIdentity, z.object({}).partial().strict()])
+          .describe('If the message was sent in a channel, represents identity of the channel.'),
+        chatId: z
+          .string()
+          .describe('If the message was sent in a chat, represents the identity of the chat.')
+          .nullable(),
+        createdDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe('Timestamp of when the chat message was created.')
+          .nullable(),
+        deletedDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe(
+            'Read only. Timestamp at which the chat message was deleted, or null if not deleted.'
+          )
+          .nullable(),
+        etag: z.string().describe('Read-only. Version number of the chat message.').nullable(),
+        eventDetail: z
+          .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
+          .describe(
+            'Read-only. If present, represents details of an event that happened in a chat, a channel, or a team, for example, adding new members. For event messages, the messageType property will be set to systemEventMessage.'
+          ),
+        from: z
+          .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
+          .describe('Details of the sender of the chat message. Can only be set during migration.'),
+        importance: microsoft_graph_chatMessageImportance,
+        lastEditedDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe(
+            "Read only. Timestamp when edits to the chat message were made. Triggers an 'Edited' flag in the Teams UI. If no edits are made the value is null."
+          )
+          .nullable(),
+        lastModifiedDateTime: z
+          .string()
+          .regex(
+            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+          )
+          .datetime({ offset: true })
+          .describe(
+            'Read only. Timestamp when the chat message is created (initial setting) or modified, including when a reaction is added or removed.'
+          )
+          .nullable(),
+        locale: z
+          .string()
+          .describe('Locale of the chat message set by the client. Always set to en-us.'),
+        mentions: z
+          .array(microsoft_graph_chatMessageMention)
+          .describe(
+            'List of entities mentioned in the chat message. Supported entities are: user, bot, team, channel, chat, and tag.'
+          ),
+        messageHistory: z
+          .array(microsoft_graph_chatMessageHistoryItem)
+          .describe(
+            'List of activity history of a message item, including modification time and actions, such as reactionAdded, reactionRemoved, or reaction changes, on the message.'
+          ),
+        messageType: microsoft_graph_chatMessageType,
+        policyViolation: z
+          .union([microsoft_graph_chatMessagePolicyViolation, z.object({}).partial().strict()])
+          .describe(
+            'Defines the properties of a policy violation set by a data loss prevention (DLP) application.'
+          ),
+        reactions: z
+          .array(microsoft_graph_chatMessageReaction)
+          .describe('Reactions for this chat message (for example, Like).'),
+        replyToId: z
+          .string()
+          .describe(
+            'Read-only. ID of the parent chat message or root chat message of the thread. (Only applies to chat messages in channels, not chats.)'
+          )
+          .nullable(),
+        subject: z.string().describe('The subject of the chat message, in plaintext.').nullable(),
+        summary: z
+          .string()
+          .describe(
+            'Summary text of the chat message that could be used for push notifications and summary views or fall back views. Only applies to channel chat messages, not chat messages in a chat.'
+          )
+          .nullable(),
+        webUrl: z
+          .string()
+          .describe('Read-only. Link to the message in Microsoft Teams.')
+          .nullable(),
+        hostedContents: z
+          .array(microsoft_graph_chatMessageHostedContent)
+          .describe(
+            'Content in a message hosted by Microsoft Teams - for example, images or code snippets.'
+          ),
+        replies: z
+          .array(microsoft_graph_chatMessage)
+          .describe('Replies for a specified message. Supports $expand for channel messages.'),
+      })
+      .partial()
+      .strict()
+  )
+);
+const microsoft_graph_directoryObject = microsoft_graph_entity.and(
+  z
+    .object({
+      deletedDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          "Date and time when this object was deleted. Always null when the object hasn't been deleted."
+        )
+        .nullable(),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_resourceSpecificPermissionGrant = microsoft_graph_directoryObject.and(
+  z
+    .object({
+      clientAppId: z
+        .string()
+        .describe(
+          'ID of the service principal of the Microsoft Entra app that has been granted access. Read-only.'
+        )
+        .nullable(),
+      clientId: z
+        .string()
+        .describe('ID of the Microsoft Entra app that has been granted access. Read-only.')
+        .nullable(),
+      permission: z
+        .string()
+        .describe('The name of the resource-specific permission. Read-only.')
+        .nullable(),
+      permissionType: z
+        .string()
+        .describe('The type of permission. Possible values are: Application, Delegated. Read-only.')
+        .nullable(),
+      resourceAppId: z
+        .string()
+        .describe('ID of the Microsoft Entra app that is hosting the resource. Read-only.')
+        .nullable(),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_pinnedChatMessageInfo = microsoft_graph_entity.and(
+  z
+    .object({
+      message: z
+        .union([microsoft_graph_chatMessage, z.object({}).partial().strict()])
+        .describe('Represents details about the chat message that is pinned.'),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_teamsTabConfiguration = z
+  .object({
+    contentUrl: z
+      .string()
+      .describe('Url used for rendering tab contents in Teams. Required.')
+      .nullable(),
+    entityId: z
+      .string()
+      .describe('Identifier for the entity hosted by the tab provider.')
+      .nullable(),
+    removeUrl: z
+      .string()
+      .describe('Url called by Teams client when a Tab is removed using the Teams Client.')
+      .nullable(),
+    websiteUrl: z.string().describe('Url for showing tab contents outside of Teams.').nullable(),
+  })
+  .partial()
+  .strict();
+const microsoft_graph_teamsTab = microsoft_graph_entity.and(
+  z
+    .object({
+      configuration: z
+        .union([microsoft_graph_teamsTabConfiguration, z.object({}).partial().strict()])
+        .describe(
+          'Container for custom settings applied to a tab. The tab is considered configured only once this property is set.'
+        ),
+      displayName: z.string().describe('Name of the tab.').nullable(),
+      webUrl: z.string().describe('Deep link URL of the tab instance. Read only.').nullable(),
+      teamsApp: z
+        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
+        .describe(
+          "The application that is linked to the tab. This can't be changed after tab creation."
+        ),
+    })
+    .partial()
+    .strict()
+);
+const microsoft_graph_chat = microsoft_graph_entity.and(
+  z
+    .object({
+      chatType: microsoft_graph_chatType,
+      createdDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe('Date and time at which the chat was created. Read-only.')
+        .nullable(),
+      isHiddenForAllMembers: z
+        .boolean()
+        .describe('Indicates whether the chat is hidden for all its members. Read-only.')
+        .nullable(),
+      lastUpdatedDateTime: z
+        .string()
+        .regex(
+          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+        )
+        .datetime({ offset: true })
+        .describe(
+          'Date and time at which the chat was renamed or the list of members was last changed. Read-only.'
+        )
+        .nullable(),
+      onlineMeetingInfo: z
+        .union([microsoft_graph_teamworkOnlineMeetingInfo, z.object({}).partial().strict()])
+        .describe(
+          "Represents details about an online meeting. If the chat isn't associated with an online meeting, the property is empty. Read-only."
+        ),
+      tenantId: z
+        .string()
+        .describe('The identifier of the tenant in which the chat was created. Read-only.')
+        .nullable(),
+      topic: z
+        .string()
+        .describe('(Optional) Subject or topic for the chat. Only available for group chats.')
+        .nullable(),
+      viewpoint: z
+        .union([microsoft_graph_chatViewpoint, z.object({}).partial().strict()])
+        .describe(
+          'Represents caller-specific information about the chat, such as the last message read date and time. This property is populated only when the request is made in a delegated context.'
+        ),
+      webUrl: z
+        .string()
+        .describe(
+          'The URL for the chat in Microsoft Teams. The URL should be treated as an opaque blob, and not parsed. Read-only.'
+        )
+        .nullable(),
+      installedApps: z
+        .array(microsoft_graph_teamsAppInstallation)
+        .describe('A collection of all the apps in the chat. Nullable.'),
+      lastMessagePreview: z
+        .union([microsoft_graph_chatMessageInfo, z.object({}).partial().strict()])
+        .describe(
+          'Preview of the last message sent in the chat. Null if no messages were sent in the chat. Currently, only the list chats operation supports this property.'
+        ),
+      members: z
+        .array(microsoft_graph_conversationMember)
+        .describe('A collection of all the members in the chat. Nullable.'),
+      messages: z
+        .array(microsoft_graph_chatMessage)
+        .describe('A collection of all the messages in the chat. Nullable.'),
+      permissionGrants: z
+        .array(microsoft_graph_resourceSpecificPermissionGrant)
+        .describe('A collection of permissions granted to apps for the chat.'),
+      pinnedMessages: z
+        .array(microsoft_graph_pinnedChatMessageInfo)
+        .describe('A collection of all the pinned messages in the chat. Nullable.'),
+      tabs: z
+        .array(microsoft_graph_teamsTab)
+        .describe('A collection of all the tabs in the chat. Nullable.'),
+    })
+    .partial()
+    .strict()
+);
 const microsoft_graph_ODataErrors_ErrorDetails = z
   .object({ code: z.string(), message: z.string(), target: z.string().nullish() })
   .strict();
@@ -7311,41 +8145,12 @@ const BaseCollectionPaginationCountResponse = z
   .object({ '@odata.count': z.number().int().nullable(), '@odata.nextLink': z.string().nullable() })
   .partial()
   .strict();
-const microsoft_graph_entity = z
-  .object({ id: z.string().describe('The unique identifier for an entity. Read-only.') })
-  .partial()
-  .strict();
-const microsoft_graph_identity = z
-  .object({
-    displayName: z
-      .string()
-      .describe(
-        "The display name of the identity.For drive items, the display name might not always be available or up to date. For example, if a user changes their display name the API might show the new value in a future response, but the items associated with the user don't show up as changed when using delta."
-      )
-      .nullable(),
-    id: z
-      .string()
-      .describe(
-        "Unique identifier for the identity or actor. For example, in the access reviews decisions API, this property might record the id of the principal, that is, the group, user, or application that's subject to review."
-      )
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_identitySet = z
-  .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
-  })
-  .partial()
-  .strict();
+const microsoft_graph_chatMessageCollectionResponse = BaseCollectionPaginationCountResponse.and(
+  z
+    .object({ value: z.array(microsoft_graph_chatMessage) })
+    .partial()
+    .strict()
+);
 const microsoft_graph_sharepointIds = z
   .object({
     listId: z
@@ -7421,23 +8226,6 @@ const microsoft_graph_itemReference = z
   })
   .partial()
   .strict();
-const microsoft_graph_directoryObject = microsoft_graph_entity.and(
-  z
-    .object({
-      deletedDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          "Date and time when this object was deleted. Always null when the object hasn't been deleted."
-        )
-        .nullable(),
-    })
-    .partial()
-    .strict()
-);
 const microsoft_graph_assignedLicense = z
   .object({
     disabledPlans: z
@@ -9693,16 +10481,6 @@ const microsoft_graph_attendee = microsoft_graph_attendeeBase.and(
     .partial()
     .strict()
 );
-const microsoft_graph_bodyType = z.enum(['text', 'html']);
-const microsoft_graph_itemBody = z
-  .object({
-    content: z.string().describe('The content of the item.').nullable(),
-    contentType: z
-      .union([microsoft_graph_bodyType, z.object({}).partial().strict()])
-      .describe('The type of the content. Possible values are text and html.'),
-  })
-  .partial()
-  .strict();
 const microsoft_graph_importance = z.enum(['low', 'normal', 'high']);
 const microsoft_graph_physicalAddress = z
   .object({
@@ -12100,35 +12878,6 @@ const microsoft_graph_onenote = microsoft_graph_entity.and(
     .partial()
     .strict()
 );
-const microsoft_graph_resourceSpecificPermissionGrant = microsoft_graph_directoryObject.and(
-  z
-    .object({
-      clientAppId: z
-        .string()
-        .describe(
-          'ID of the service principal of the Microsoft Entra app that has been granted access. Read-only.'
-        )
-        .nullable(),
-      clientId: z
-        .string()
-        .describe('ID of the Microsoft Entra app that has been granted access. Read-only.')
-        .nullable(),
-      permission: z
-        .string()
-        .describe('The name of the resource-specific permission. Read-only.')
-        .nullable(),
-      permissionType: z
-        .string()
-        .describe('The type of permission. Possible values are: Application, Delegated. Read-only.')
-        .nullable(),
-      resourceAppId: z
-        .string()
-        .describe('ID of the Microsoft Entra app that is hosting the resource. Read-only.')
-        .nullable(),
-    })
-    .partial()
-    .strict()
-);
 const microsoft_graph_profilePhoto = microsoft_graph_entity.and(
   z
     .object({
@@ -12999,403 +13748,6 @@ const microsoft_graph_channelSummary = z
   })
   .partial()
   .strict();
-const microsoft_graph_conversationMember = microsoft_graph_entity.and(
-  z
-    .object({
-      displayName: z.string().describe('The display name of the user.').nullable(),
-      roles: z
-        .array(z.string().nullable())
-        .describe(
-          "The roles for that user. This property contains more qualifiers only when relevant - for example, if the member has owner privileges, the roles property contains owner as one of the values. Similarly, if the member is an in-tenant guest, the roles property contains guest as one of the values. A basic member shouldn't have any values specified in the roles property. An Out-of-tenant external member is assigned the owner role."
-        ),
-      visibleHistoryStartDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          "The timestamp denoting how far back a conversation's history is shared with the conversation member. This property is settable only for members of a chat."
-        )
-        .nullable(),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chatMessageAttachment = z
-  .object({
-    content: z
-      .string()
-      .describe(
-        'The content of the attachment. If the attachment is a rich card, set the property to the rich card object. This property and contentUrl are mutually exclusive.'
-      )
-      .nullable(),
-    contentType: z
-      .string()
-      .describe(
-        "The media type of the content attachment. The possible values are: reference: The attachment is a link to another file. Populate the contentURL with the link to the object.forwardedMessageReference: The attachment is a reference to a forwarded message. Populate the content with the original message context.Any contentType that is supported by the Bot Framework's Attachment object.application/vnd.microsoft.card.codesnippet: A code snippet. application/vnd.microsoft.card.announcement: An announcement header."
-      )
-      .nullable(),
-    contentUrl: z.string().describe('The URL for the content of the attachment.').nullable(),
-    id: z.string().describe('Read-only. The unique ID of the attachment.').nullable(),
-    name: z.string().describe('The name of the attachment.').nullable(),
-    teamsAppId: z
-      .string()
-      .describe(
-        'The ID of the Teams app that is associated with the attachment. The property is used to attribute a Teams message card to the specified app.'
-      )
-      .nullable(),
-    thumbnailUrl: z
-      .string()
-      .describe(
-        'The URL to a thumbnail image that the channel can use if it supports using an alternative, smaller form of content or contentUrl. For example, if you set contentType to application/word and set contentUrl to the location of the Word document, you might include a thumbnail image that represents the document. The channel could display the thumbnail image instead of the document. When the user selects the image, the channel would open the document.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_channelIdentity = z
-  .object({
-    channelId: z
-      .string()
-      .describe('The identity of the channel in which the message was posted.')
-      .nullable(),
-    teamId: z
-      .string()
-      .describe('The identity of the team in which the message was posted.')
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_eventMessageDetail = z.object({}).partial().strict();
-const microsoft_graph_chatMessageFromIdentitySet = microsoft_graph_identitySet.and(
-  z.object({}).partial().strict()
-);
-const microsoft_graph_chatMessageImportance = z.enum([
-  'normal',
-  'high',
-  'urgent',
-  'unknownFutureValue',
-]);
-const microsoft_graph_teamworkConversationIdentityType = z.enum([
-  'team',
-  'channel',
-  'chat',
-  'unknownFutureValue',
-]);
-const microsoft_graph_teamworkConversationIdentity = microsoft_graph_identity.and(
-  z
-    .object({
-      conversationIdentityType: z
-        .union([microsoft_graph_teamworkConversationIdentityType, z.object({}).partial().strict()])
-        .describe(
-          'Type of conversation. Possible values are: team, channel, chat, and unknownFutureValue.'
-        ),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chatMessageMentionedIdentitySet = microsoft_graph_identitySet.and(
-  z
-    .object({
-      conversation: z
-        .union([microsoft_graph_teamworkConversationIdentity, z.object({}).partial().strict()])
-        .describe(
-          'If present, represents a conversation (for example, team, channel, or chat) @mentioned in a message.'
-        ),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chatMessageMention = z
-  .object({
-    id: z
-      .number()
-      .gte(-2147483648)
-      .lte(2147483647)
-      .describe(
-        "Index of an entity being mentioned in the specified chatMessage. Matches the {index} value in the corresponding <at id='{index}'> tag in the message body."
-      )
-      .nullable(),
-    mentioned: z
-      .union([microsoft_graph_chatMessageMentionedIdentitySet, z.object({}).partial().strict()])
-      .describe('The entity (user, application, team, channel, or chat) that was @mentioned.'),
-    mentionText: z
-      .string()
-      .describe(
-        "String used to represent the mention. For example, a user's display name, a team name."
-      )
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatMessageActions = z.enum([
-  'reactionAdded',
-  'reactionRemoved',
-  'actionUndefined',
-  'unknownFutureValue',
-]);
-const microsoft_graph_chatMessageReactionIdentitySet = microsoft_graph_identitySet.and(
-  z.object({}).partial().strict()
-);
-const microsoft_graph_chatMessageReaction = z
-  .object({
-    createdDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe(
-        'The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
-      ),
-    displayName: z.string().describe('The name of the reaction.').nullable(),
-    reactionContentUrl: z
-      .string()
-      .describe('The hosted content URL for the custom reaction type.')
-      .nullable(),
-    reactionType: z
-      .string()
-      .describe(
-        'The reaction type. Supported values include Unicode characters, custom, and some backward-compatible reaction types, such as like, angry, sad, laugh, heart, and surprised.'
-      ),
-    user: microsoft_graph_chatMessageReactionIdentitySet,
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatMessageHistoryItem = z
-  .object({
-    actions: microsoft_graph_chatMessageActions,
-    modifiedDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe('The date and time when the message was modified.'),
-    reaction: z
-      .union([microsoft_graph_chatMessageReaction, z.object({}).partial().strict()])
-      .describe('The reaction in the modified message.'),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatMessageType = z.enum([
-  'message',
-  'chatEvent',
-  'typing',
-  'unknownFutureValue',
-  'systemEventMessage',
-]);
-const microsoft_graph_chatMessagePolicyViolationDlpActionTypes = z.enum([
-  'none',
-  'notifySender',
-  'blockAccess',
-  'blockAccessExternal',
-]);
-const microsoft_graph_chatMessagePolicyViolationPolicyTip = z
-  .object({
-    complianceUrl: z
-      .string()
-      .describe(
-        "The URL a user can visit to read about the data loss prevention policies for the organization. (ie, policies about what users shouldn't say in chats)"
-      )
-      .nullable(),
-    generalText: z
-      .string()
-      .describe('Explanatory text shown to the sender of the message.')
-      .nullable(),
-    matchedConditionDescriptions: z
-      .array(z.string().nullable())
-      .describe(
-        "The list of improper data in the message that was detected by the data loss prevention app. Each DLP app defines its own conditions, examples include 'Credit Card Number' and 'Social Security Number'."
-      ),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatMessagePolicyViolationUserActionTypes = z.enum([
-  'none',
-  'override',
-  'reportFalsePositive',
-]);
-const microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes = z.enum([
-  'none',
-  'allowFalsePositiveOverride',
-  'allowOverrideWithoutJustification',
-  'allowOverrideWithJustification',
-]);
-const microsoft_graph_chatMessagePolicyViolation = z
-  .object({
-    dlpAction: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'The action taken by the DLP provider on the message with sensitive content. Supported values are: NoneNotifySender -- Inform the sender of the violation but allow readers to read the message.BlockAccess -- Block readers from reading the message.BlockAccessExternal -- Block users outside the organization from reading the message, while allowing users within the organization to read the message.'
-      ),
-    justificationText: z
-      .string()
-      .describe(
-        'Justification text provided by the sender of the message when overriding a policy violation.'
-      )
-      .nullable(),
-    policyTip: z
-      .union([microsoft_graph_chatMessagePolicyViolationPolicyTip, z.object({}).partial().strict()])
-      .describe(
-        'Information to display to the message sender about why the message was flagged as a violation.'
-      ),
-    userAction: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationUserActionTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        "Indicates the action taken by the user on a message blocked by the DLP provider. Supported values are: NoneOverrideReportFalsePositiveWhen the DLP provider is updating the message for blocking sensitive content, userAction isn't required."
-      ),
-    verdictDetails: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'Indicates what actions the sender may take in response to the policy violation. Supported values are: NoneAllowFalsePositiveOverride -- Allows the sender to declare the policyViolation to be an error in the DLP app and its rules, and allow readers to see the message again if the dlpAction hides it.AllowOverrideWithoutJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, without needing to provide an explanation for doing so. AllowOverrideWithJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, after providing an explanation for doing so.AllowOverrideWithoutJustification and AllowOverrideWithJustification are mutually exclusive.'
-      ),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_teamworkHostedContent = microsoft_graph_entity.and(
-  z
-    .object({
-      contentBytes: z
-        .string()
-        .describe('Write only. Bytes for the hosted content (such as images).')
-        .nullable(),
-      contentType: z
-        .string()
-        .describe('Write only. Content type. such as image/png, image/jpg.')
-        .nullable(),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chatMessageHostedContent = microsoft_graph_teamworkHostedContent.and(
-  z.object({}).partial().strict()
-);
-const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.lazy(() =>
-  microsoft_graph_entity.and(
-    z
-      .object({
-        attachments: z
-          .array(microsoft_graph_chatMessageAttachment)
-          .describe('References to attached objects like files, tabs, meetings etc.'),
-        body: microsoft_graph_itemBody,
-        channelIdentity: z
-          .union([microsoft_graph_channelIdentity, z.object({}).partial().strict()])
-          .describe('If the message was sent in a channel, represents identity of the channel.'),
-        chatId: z
-          .string()
-          .describe('If the message was sent in a chat, represents the identity of the chat.')
-          .nullable(),
-        createdDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe('Timestamp of when the chat message was created.')
-          .nullable(),
-        deletedDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe(
-            'Read only. Timestamp at which the chat message was deleted, or null if not deleted.'
-          )
-          .nullable(),
-        etag: z.string().describe('Read-only. Version number of the chat message.').nullable(),
-        eventDetail: z
-          .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
-          .describe(
-            'Read-only. If present, represents details of an event that happened in a chat, a channel, or a team, for example, adding new members. For event messages, the messageType property will be set to systemEventMessage.'
-          ),
-        from: z
-          .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
-          .describe('Details of the sender of the chat message. Can only be set during migration.'),
-        importance: microsoft_graph_chatMessageImportance,
-        lastEditedDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe(
-            "Read only. Timestamp when edits to the chat message were made. Triggers an 'Edited' flag in the Teams UI. If no edits are made the value is null."
-          )
-          .nullable(),
-        lastModifiedDateTime: z
-          .string()
-          .regex(
-            /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-          )
-          .datetime({ offset: true })
-          .describe(
-            'Read only. Timestamp when the chat message is created (initial setting) or modified, including when a reaction is added or removed.'
-          )
-          .nullable(),
-        locale: z
-          .string()
-          .describe('Locale of the chat message set by the client. Always set to en-us.'),
-        mentions: z
-          .array(microsoft_graph_chatMessageMention)
-          .describe(
-            'List of entities mentioned in the chat message. Supported entities are: user, bot, team, channel, chat, and tag.'
-          ),
-        messageHistory: z
-          .array(microsoft_graph_chatMessageHistoryItem)
-          .describe(
-            'List of activity history of a message item, including modification time and actions, such as reactionAdded, reactionRemoved, or reaction changes, on the message.'
-          ),
-        messageType: microsoft_graph_chatMessageType,
-        policyViolation: z
-          .union([microsoft_graph_chatMessagePolicyViolation, z.object({}).partial().strict()])
-          .describe(
-            'Defines the properties of a policy violation set by a data loss prevention (DLP) application.'
-          ),
-        reactions: z
-          .array(microsoft_graph_chatMessageReaction)
-          .describe('Reactions for this chat message (for example, Like).'),
-        replyToId: z
-          .string()
-          .describe(
-            'Read-only. ID of the parent chat message or root chat message of the thread. (Only applies to chat messages in channels, not chats.)'
-          )
-          .nullable(),
-        subject: z.string().describe('The subject of the chat message, in plaintext.').nullable(),
-        summary: z
-          .string()
-          .describe(
-            'Summary text of the chat message that could be used for push notifications and summary views or fall back views. Only applies to channel chat messages, not chat messages in a chat.'
-          )
-          .nullable(),
-        webUrl: z
-          .string()
-          .describe('Read-only. Link to the message in Microsoft Teams.')
-          .nullable(),
-        hostedContents: z
-          .array(microsoft_graph_chatMessageHostedContent)
-          .describe(
-            'Content in a message hosted by Microsoft Teams - for example, images or code snippets.'
-          ),
-        replies: z
-          .array(microsoft_graph_chatMessage)
-          .describe('Replies for a specified message. Supports $expand for channel messages.'),
-      })
-      .partial()
-      .strict()
-  )
-);
 const microsoft_graph_teamInfo: z.ZodType<microsoft_graph_teamInfo> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
@@ -13425,155 +13777,6 @@ const microsoft_graph_sharedWithChannelTeamInfo: z.ZodType<microsoft_graph_share
         .strict()
     )
   );
-const microsoft_graph_teamsTabConfiguration = z
-  .object({
-    contentUrl: z
-      .string()
-      .describe('Url used for rendering tab contents in Teams. Required.')
-      .nullable(),
-    entityId: z
-      .string()
-      .describe('Identifier for the entity hosted by the tab provider.')
-      .nullable(),
-    removeUrl: z
-      .string()
-      .describe('Url called by Teams client when a Tab is removed using the Teams Client.')
-      .nullable(),
-    websiteUrl: z.string().describe('Url for showing tab contents outside of Teams.').nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_teamsAppDistributionMethod = z.enum([
-  'store',
-  'organization',
-  'sideloaded',
-  'unknownFutureValue',
-]);
-const microsoft_graph_teamsAppResourceSpecificPermissionType = z.enum([
-  'delegated',
-  'application',
-  'unknownFutureValue',
-]);
-const microsoft_graph_teamsAppResourceSpecificPermission = z
-  .object({
-    permissionType: z
-      .union([
-        microsoft_graph_teamsAppResourceSpecificPermissionType,
-        z.object({}).partial().strict(),
-      ])
-      .describe('The type of resource-specific permission.'),
-    permissionValue: z
-      .string()
-      .describe('The name of the resource-specific permission.')
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_teamsAppPermissionSet = z
-  .object({
-    resourceSpecificPermissions: z
-      .array(microsoft_graph_teamsAppResourceSpecificPermission)
-      .describe('A collection of resource-specific permissions.'),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_teamsAppAuthorization = z
-  .object({
-    clientAppId: z
-      .string()
-      .describe('The registration ID of the Microsoft Entra app ID associated with the teamsApp.')
-      .nullable(),
-    requiredPermissionSet: z
-      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
-      .describe('Set of permissions required by the teamsApp.'),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_teamsAppPublishingState = z.enum([
-  'submitted',
-  'rejected',
-  'published',
-  'unknownFutureValue',
-]);
-const microsoft_graph_teamworkBot = microsoft_graph_entity.and(z.object({}).partial().strict());
-const microsoft_graph_teamsAppDefinition = microsoft_graph_entity.and(
-  z
-    .object({
-      authorization: z
-        .union([microsoft_graph_teamsAppAuthorization, z.object({}).partial().strict()])
-        .describe('Authorization requirements specified in the Teams app manifest.'),
-      createdBy: z.union([microsoft_graph_identitySet, z.object({}).partial().strict()]),
-      description: z.string().describe('Verbose description of the application.').nullable(),
-      displayName: z
-        .string()
-        .describe('The name of the app provided by the app developer.')
-        .nullable(),
-      lastModifiedDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .nullable(),
-      publishingState: z
-        .union([microsoft_graph_teamsAppPublishingState, z.object({}).partial().strict()])
-        .describe(
-          'The published status of a specific version of a Teams app. Possible values are:submitted—The specific version of the Teams app was submitted and is under review.published—The request to publish the specific version of the Teams app was approved by the admin and the app is published.rejected—The admin rejected the request to publish the specific version of the Teams app.'
-        ),
-      shortDescription: z.string().describe('Short description of the application.').nullable(),
-      teamsAppId: z.string().describe('The ID from the Teams app manifest.').nullable(),
-      version: z.string().describe('The version number of the application.').nullable(),
-      bot: z
-        .union([microsoft_graph_teamworkBot, z.object({}).partial().strict()])
-        .describe('The details of the bot specified in the Teams app manifest.'),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_teamsApp = microsoft_graph_entity.and(
-  z
-    .object({
-      displayName: z
-        .string()
-        .describe(
-          'The name of the catalog app provided by the app developer in the Microsoft Teams zip app package.'
-        )
-        .nullable(),
-      distributionMethod: z
-        .union([microsoft_graph_teamsAppDistributionMethod, z.object({}).partial().strict()])
-        .describe('The method of distribution for the app. Read-only.'),
-      externalId: z
-        .string()
-        .describe(
-          'The ID of the catalog provided by the app developer in the Microsoft Teams zip app package.'
-        )
-        .nullable(),
-      appDefinitions: z
-        .array(microsoft_graph_teamsAppDefinition)
-        .describe('The details for each version of the app.'),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_teamsTab = microsoft_graph_entity.and(
-  z
-    .object({
-      configuration: z
-        .union([microsoft_graph_teamsTabConfiguration, z.object({}).partial().strict()])
-        .describe(
-          'Container for custom settings applied to a tab. The tab is considered configured only once this property is set.'
-        ),
-      displayName: z.string().describe('Name of the tab.').nullable(),
-      webUrl: z.string().describe('Deep link URL of the tab instance. Read only.').nullable(),
-      teamsApp: z
-        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
-        .describe(
-          "The application that is linked to the tab. This can't be changed after tab creation."
-        ),
-    })
-    .partial()
-    .strict()
-);
 const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
   microsoft_graph_entity.and(
     z
@@ -13652,24 +13855,6 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
       .partial()
       .strict()
   )
-);
-const microsoft_graph_teamsAppInstallation = microsoft_graph_entity.and(
-  z
-    .object({
-      consentedPermissionSet: z
-        .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
-        .describe(
-          'The set of resource-specific permissions consented to while installing or upgrading the teamsApp.'
-        ),
-      teamsApp: z
-        .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
-        .describe('The app that is installed.'),
-      teamsAppDefinition: z
-        .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().strict()])
-        .describe('The details of this version of the app.'),
-    })
-    .partial()
-    .strict()
 );
 const microsoft_graph_operationError = z
   .object({
@@ -15931,185 +16116,6 @@ const microsoft_graph_calendarGroup = microsoft_graph_entity.and(
       calendars: z
         .array(microsoft_graph_calendar)
         .describe('The calendars in the calendar group. Navigation property. Read-only. Nullable.'),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chatType = z.enum(['oneOnOne', 'group', 'meeting', 'unknownFutureValue']);
-const microsoft_graph_teamworkUserIdentityType = z.enum([
-  'aadUser',
-  'onPremiseAadUser',
-  'anonymousGuest',
-  'federatedUser',
-  'personalMicrosoftAccountUser',
-  'skypeUser',
-  'phoneUser',
-  'unknownFutureValue',
-  'emailUser',
-]);
-const microsoft_graph_teamworkUserIdentity = microsoft_graph_identity.and(
-  z
-    .object({
-      userIdentityType: z
-        .union([microsoft_graph_teamworkUserIdentityType, z.object({}).partial().strict()])
-        .describe(
-          'Type of user. Possible values are: aadUser, onPremiseAadUser, anonymousGuest, federatedUser, personalMicrosoftAccountUser, skypeUser, phoneUser, unknownFutureValue and emailUser.'
-        ),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_teamworkOnlineMeetingInfo = z
-  .object({
-    calendarEventId: z
-      .string()
-      .describe('The identifier of the calendar event associated with the meeting.')
-      .nullable(),
-    joinWebUrl: z
-      .string()
-      .describe('The URL that users click to join or uniquely identify the meeting.')
-      .nullable(),
-    organizer: z
-      .union([microsoft_graph_teamworkUserIdentity, z.object({}).partial().strict()])
-      .describe('The organizer of the meeting.'),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatViewpoint = z
-  .object({
-    isHidden: z
-      .boolean()
-      .describe('Indicates whether the chat is hidden for the current user.')
-      .nullable(),
-    lastMessageReadDateTime: z
-      .string()
-      .regex(
-        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-      )
-      .datetime({ offset: true })
-      .describe(
-        'Represents the dateTime up until which the current user has read chatMessages in a specific chat.'
-      )
-      .nullable(),
-  })
-  .partial()
-  .strict();
-const microsoft_graph_chatMessageInfo = microsoft_graph_entity.and(
-  z
-    .object({
-      body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-        .describe(
-          "Body of the chatMessage. This will still contain markers for @mentions and attachments even though the object doesn't return @mentions and attachments."
-        ),
-      createdDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe('Date time object representing the time at which message was created.')
-        .nullable(),
-      eventDetail: z
-        .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
-        .describe(
-          'Read-only.  If present, represents details of an event that happened in a chat, a channel, or a team, for example, members were added, and so on. For event messages, the messageType property is set to systemEventMessage.'
-        ),
-      from: z
-        .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
-        .describe('Information about the sender of the message.'),
-      isDeleted: z
-        .boolean()
-        .describe('If set to true, the original message has been deleted.')
-        .nullable(),
-      messageType: microsoft_graph_chatMessageType,
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_pinnedChatMessageInfo = microsoft_graph_entity.and(
-  z
-    .object({
-      message: z
-        .union([microsoft_graph_chatMessage, z.object({}).partial().strict()])
-        .describe('Represents details about the chat message that is pinned.'),
-    })
-    .partial()
-    .strict()
-);
-const microsoft_graph_chat = microsoft_graph_entity.and(
-  z
-    .object({
-      chatType: microsoft_graph_chatType,
-      createdDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe('Date and time at which the chat was created. Read-only.')
-        .nullable(),
-      isHiddenForAllMembers: z
-        .boolean()
-        .describe('Indicates whether the chat is hidden for all its members. Read-only.')
-        .nullable(),
-      lastUpdatedDateTime: z
-        .string()
-        .regex(
-          /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
-        )
-        .datetime({ offset: true })
-        .describe(
-          'Date and time at which the chat was renamed or the list of members was last changed. Read-only.'
-        )
-        .nullable(),
-      onlineMeetingInfo: z
-        .union([microsoft_graph_teamworkOnlineMeetingInfo, z.object({}).partial().strict()])
-        .describe(
-          "Represents details about an online meeting. If the chat isn't associated with an online meeting, the property is empty. Read-only."
-        ),
-      tenantId: z
-        .string()
-        .describe('The identifier of the tenant in which the chat was created. Read-only.')
-        .nullable(),
-      topic: z
-        .string()
-        .describe('(Optional) Subject or topic for the chat. Only available for group chats.')
-        .nullable(),
-      viewpoint: z
-        .union([microsoft_graph_chatViewpoint, z.object({}).partial().strict()])
-        .describe(
-          'Represents caller-specific information about the chat, such as the last message read date and time. This property is populated only when the request is made in a delegated context.'
-        ),
-      webUrl: z
-        .string()
-        .describe(
-          'The URL for the chat in Microsoft Teams. The URL should be treated as an opaque blob, and not parsed. Read-only.'
-        )
-        .nullable(),
-      installedApps: z
-        .array(microsoft_graph_teamsAppInstallation)
-        .describe('A collection of all the apps in the chat. Nullable.'),
-      lastMessagePreview: z
-        .union([microsoft_graph_chatMessageInfo, z.object({}).partial().strict()])
-        .describe(
-          'Preview of the last message sent in the chat. Null if no messages were sent in the chat. Currently, only the list chats operation supports this property.'
-        ),
-      members: z
-        .array(microsoft_graph_conversationMember)
-        .describe('A collection of all the members in the chat. Nullable.'),
-      messages: z
-        .array(microsoft_graph_chatMessage)
-        .describe('A collection of all the messages in the chat. Nullable.'),
-      permissionGrants: z
-        .array(microsoft_graph_resourceSpecificPermissionGrant)
-        .describe('A collection of permissions granted to apps for the chat.'),
-      pinnedMessages: z
-        .array(microsoft_graph_pinnedChatMessageInfo)
-        .describe('A collection of all the pinned messages in the chat. Nullable.'),
-      tabs: z
-        .array(microsoft_graph_teamsTab)
-        .describe('A collection of all the tabs in the chat. Nullable.'),
     })
     .partial()
     .strict()
@@ -22170,6 +22176,12 @@ const microsoft_graph_eventCollectionResponse = BaseCollectionPaginationCountRes
     .partial()
     .strict()
 );
+const microsoft_graph_chatCollectionResponse = BaseCollectionPaginationCountResponse.and(
+  z
+    .object({ value: z.array(microsoft_graph_chat) })
+    .partial()
+    .strict()
+);
 const microsoft_graph_contactCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_contact) })
@@ -22179,6 +22191,12 @@ const microsoft_graph_contactCollectionResponse = BaseCollectionPaginationCountR
 const microsoft_graph_driveCollectionResponse = BaseCollectionPaginationCountResponse.and(
   z
     .object({ value: z.array(microsoft_graph_drive) })
+    .partial()
+    .strict()
+);
+const microsoft_graph_teamCollectionResponse = BaseCollectionPaginationCountResponse.and(
+  z
+    .object({ value: z.array(microsoft_graph_team) })
     .partial()
     .strict()
 );
@@ -22237,19 +22255,79 @@ const microsoft_graph_todoTaskCollectionResponse = BaseCollectionPaginationCount
     .partial()
     .strict()
 );
+const microsoft_graph_channelCollectionResponse = BaseCollectionPaginationCountResponse.and(
+  z
+    .object({ value: z.array(microsoft_graph_channel) })
+    .partial()
+    .strict()
+);
+const microsoft_graph_conversationMemberCollectionResponse =
+  BaseCollectionPaginationCountResponse.and(
+    z
+      .object({ value: z.array(microsoft_graph_conversationMember) })
+      .partial()
+      .strict()
+  );
 
 export const schemas = {
+  microsoft_graph_entity,
+  microsoft_graph_chatType,
+  microsoft_graph_identity,
+  microsoft_graph_teamworkUserIdentityType,
+  microsoft_graph_teamworkUserIdentity,
+  microsoft_graph_teamworkOnlineMeetingInfo,
+  microsoft_graph_chatViewpoint,
+  microsoft_graph_teamsAppResourceSpecificPermissionType,
+  microsoft_graph_teamsAppResourceSpecificPermission,
+  microsoft_graph_teamsAppPermissionSet,
+  microsoft_graph_teamsAppDistributionMethod,
+  microsoft_graph_teamsAppAuthorization,
+  microsoft_graph_identitySet,
+  microsoft_graph_teamsAppPublishingState,
+  microsoft_graph_teamworkBot,
+  microsoft_graph_teamsAppDefinition,
+  microsoft_graph_teamsApp,
+  microsoft_graph_teamsAppInstallation,
+  microsoft_graph_bodyType,
+  microsoft_graph_itemBody,
+  microsoft_graph_eventMessageDetail,
+  microsoft_graph_chatMessageFromIdentitySet,
+  microsoft_graph_chatMessageType,
+  microsoft_graph_chatMessageInfo,
+  microsoft_graph_conversationMember,
+  microsoft_graph_chatMessageAttachment,
+  microsoft_graph_channelIdentity,
+  microsoft_graph_chatMessageImportance,
+  microsoft_graph_teamworkConversationIdentityType,
+  microsoft_graph_teamworkConversationIdentity,
+  microsoft_graph_chatMessageMentionedIdentitySet,
+  microsoft_graph_chatMessageMention,
+  microsoft_graph_chatMessageActions,
+  microsoft_graph_chatMessageReactionIdentitySet,
+  microsoft_graph_chatMessageReaction,
+  microsoft_graph_chatMessageHistoryItem,
+  microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
+  microsoft_graph_chatMessagePolicyViolationPolicyTip,
+  microsoft_graph_chatMessagePolicyViolationUserActionTypes,
+  microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
+  microsoft_graph_chatMessagePolicyViolation,
+  microsoft_graph_teamworkHostedContent,
+  microsoft_graph_chatMessageHostedContent,
+  microsoft_graph_chatMessage,
+  microsoft_graph_directoryObject,
+  microsoft_graph_resourceSpecificPermissionGrant,
+  microsoft_graph_pinnedChatMessageInfo,
+  microsoft_graph_teamsTabConfiguration,
+  microsoft_graph_teamsTab,
+  microsoft_graph_chat,
   microsoft_graph_ODataErrors_ErrorDetails,
   microsoft_graph_ODataErrors_InnerError,
   microsoft_graph_ODataErrors_MainError,
   microsoft_graph_ODataErrors_ODataError,
   BaseCollectionPaginationCountResponse,
-  microsoft_graph_entity,
-  microsoft_graph_identity,
-  microsoft_graph_identitySet,
+  microsoft_graph_chatMessageCollectionResponse,
   microsoft_graph_sharepointIds,
   microsoft_graph_itemReference,
-  microsoft_graph_directoryObject,
   microsoft_graph_assignedLicense,
   microsoft_graph_assignedPlan,
   microsoft_graph_authorizationInfo,
@@ -22321,8 +22399,6 @@ export const schemas = {
   microsoft_graph_responseType,
   microsoft_graph_responseStatus,
   microsoft_graph_attendee,
-  microsoft_graph_bodyType,
-  microsoft_graph_itemBody,
   microsoft_graph_importance,
   microsoft_graph_physicalAddress,
   microsoft_graph_outlookGeoCoordinates,
@@ -22430,7 +22506,6 @@ export const schemas = {
   microsoft_graph_onenoteOperation,
   microsoft_graph_onenoteResource,
   microsoft_graph_onenote,
-  microsoft_graph_resourceSpecificPermissionGrant,
   microsoft_graph_profilePhoto,
   microsoft_graph_plannerContainerType,
   microsoft_graph_plannerPlanContainer,
@@ -22476,44 +22551,9 @@ export const schemas = {
   microsoft_graph_teamVisibilityType,
   microsoft_graph_channelMembershipType,
   microsoft_graph_channelSummary,
-  microsoft_graph_conversationMember,
-  microsoft_graph_chatMessageAttachment,
-  microsoft_graph_channelIdentity,
-  microsoft_graph_eventMessageDetail,
-  microsoft_graph_chatMessageFromIdentitySet,
-  microsoft_graph_chatMessageImportance,
-  microsoft_graph_teamworkConversationIdentityType,
-  microsoft_graph_teamworkConversationIdentity,
-  microsoft_graph_chatMessageMentionedIdentitySet,
-  microsoft_graph_chatMessageMention,
-  microsoft_graph_chatMessageActions,
-  microsoft_graph_chatMessageReactionIdentitySet,
-  microsoft_graph_chatMessageReaction,
-  microsoft_graph_chatMessageHistoryItem,
-  microsoft_graph_chatMessageType,
-  microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
-  microsoft_graph_chatMessagePolicyViolationPolicyTip,
-  microsoft_graph_chatMessagePolicyViolationUserActionTypes,
-  microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
-  microsoft_graph_chatMessagePolicyViolation,
-  microsoft_graph_teamworkHostedContent,
-  microsoft_graph_chatMessageHostedContent,
-  microsoft_graph_chatMessage,
   microsoft_graph_teamInfo,
   microsoft_graph_sharedWithChannelTeamInfo,
-  microsoft_graph_teamsTabConfiguration,
-  microsoft_graph_teamsAppDistributionMethod,
-  microsoft_graph_teamsAppResourceSpecificPermissionType,
-  microsoft_graph_teamsAppResourceSpecificPermission,
-  microsoft_graph_teamsAppPermissionSet,
-  microsoft_graph_teamsAppAuthorization,
-  microsoft_graph_teamsAppPublishingState,
-  microsoft_graph_teamworkBot,
-  microsoft_graph_teamsAppDefinition,
-  microsoft_graph_teamsApp,
-  microsoft_graph_teamsTab,
   microsoft_graph_channel,
-  microsoft_graph_teamsAppInstallation,
   microsoft_graph_operationError,
   microsoft_graph_teamsAsyncOperationType,
   microsoft_graph_teamsAsyncOperationStatus,
@@ -22586,14 +22626,6 @@ export const schemas = {
   microsoft_graph_windowsHelloForBusinessAuthenticationMethod,
   microsoft_graph_authentication,
   microsoft_graph_calendarGroup,
-  microsoft_graph_chatType,
-  microsoft_graph_teamworkUserIdentityType,
-  microsoft_graph_teamworkUserIdentity,
-  microsoft_graph_teamworkOnlineMeetingInfo,
-  microsoft_graph_chatViewpoint,
-  microsoft_graph_chatMessageInfo,
-  microsoft_graph_pinnedChatMessageInfo,
-  microsoft_graph_chat,
   microsoft_graph_cloudClipboardItemPayload,
   microsoft_graph_cloudClipboardItem,
   microsoft_graph_cloudClipboardRoot,
@@ -22817,8 +22849,10 @@ export const schemas = {
   microsoft_graph_workbookRange,
   microsoft_graph_calendarCollectionResponse,
   microsoft_graph_eventCollectionResponse,
+  microsoft_graph_chatCollectionResponse,
   microsoft_graph_contactCollectionResponse,
   microsoft_graph_driveCollectionResponse,
+  microsoft_graph_teamCollectionResponse,
   microsoft_graph_mailFolderCollectionResponse,
   microsoft_graph_messageCollectionResponse,
   send_mail_Body,
@@ -22828,9 +22862,284 @@ export const schemas = {
   microsoft_graph_plannerTaskCollectionResponse,
   microsoft_graph_todoTaskListCollectionResponse,
   microsoft_graph_todoTaskCollectionResponse,
+  microsoft_graph_channelCollectionResponse,
+  microsoft_graph_conversationMemberCollectionResponse,
 };
 
 const endpoints = makeApi([
+  {
+    method: 'get',
+    path: '/chats/:chatId',
+    alias: 'get-chat',
+    description: `Retrieve a single chat (without its messages). This method supports federation. To access a chat, at least one chat member must belong to the tenant the request initiated from.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved entity`,
+        schema: microsoft_graph_chat,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/chats/:chatId/messages',
+    alias: 'list-chat-messages',
+    description: `Retrieve the list of messages in a chat. This method supports federation. To list chat messages in application context, the request must be made from the tenant that the channel owner belongs to (represented by the tenantId property on the channel).`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_chatMessageCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/chats/:chatId/messages',
+    alias: 'send-chat-message',
+    description: `Send a new chatMessage in the specified channel or a chat.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: microsoft_graph_chatMessage,
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Created navigation property.`,
+        schema: microsoft_graph_chatMessage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/chats/:chatId/messages/:chatMessageId',
+    alias: 'get-chat-message',
+    description: `Retrieve a single message or a message reply in a channel or a chat.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved navigation property`,
+        schema: microsoft_graph_chatMessage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/chats/:chatId/messages/:chatMessageId/replies',
+    alias: 'list-chat-message-replies',
+    description: `Replies for a specified message. Supports $expand for channel messages.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_chatMessageCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/chats/:chatId/messages/:chatMessageId/replies',
+    alias: 'reply-to-chat-message',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: microsoft_graph_chatMessage,
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Created navigation property.`,
+        schema: microsoft_graph_chatMessage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
   {
     method: 'delete',
     path: '/drives/:driveId/items/:driveItemId',
@@ -23383,6 +23692,72 @@ or from some other calendar of the user.`,
   },
   {
     method: 'get',
+    path: '/me/chats',
+    alias: 'list-chats',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_chatCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
     path: '/me/contacts',
     alias: 'list-outlook-contacts',
     description: `Get a contact collection from the default contacts folder of the signed-in user. There are two scenarios where an app can get contacts in another user&#x27;s contact folder:`,
@@ -23833,6 +24208,73 @@ open extensions or extended properties, and how to specify extended properties.`
     ],
     response: z.void(),
     errors: [
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/me/joinedTeams',
+    alias: 'list-joined-teams',
+    description: `Get the teams in Microsoft Teams that the user is a direct member of.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_teamCollectionResponse,
+      },
       {
         status: NaN,
         description: `error`,
@@ -24899,6 +25341,351 @@ open extensions or extended properties, and how to specify extended properties.`
         status: NaN,
         description: `Retrieved navigation property`,
         schema: microsoft_graph_plannerTask,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId',
+    alias: 'get-team',
+    description: `Retrieve the properties and relationships of the specified team.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved entity`,
+        schema: microsoft_graph_team,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId/channels',
+    alias: 'list-team-channels',
+    description: `Retrieve the list of channels in this team.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_channelCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId/channels/:channelId',
+    alias: 'get-team-channel',
+    description: `Retrieve the properties and relationships of a channel. This method supports federation. Only a user who is a member of the shared channel can retrieve channel information.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved navigation property`,
+        schema: microsoft_graph_channel,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId/channels/:channelId/messages',
+    alias: 'list-channel-messages',
+    description: `Retrieve the list of messages (without the replies) in a channel of a team.  To get the replies for a message, call the list message replies or the get message reply API.  This method supports federation. To list channel messages in application context, the request must be made from the tenant that the channel owner belongs to (represented by the tenantId property on the channel).`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_chatMessageCollectionResponse,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/teams/:teamId/channels/:channelId/messages',
+    alias: 'send-channel-message',
+    description: `Send a new chatMessage in the specified channel or a chat.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: microsoft_graph_chatMessage,
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Created navigation property.`,
+        schema: microsoft_graph_chatMessage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId/channels/:channelId/messages/:chatMessageId',
+    alias: 'get-channel-message',
+    description: `Retrieve a single message or a message reply in a channel or a chat.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved navigation property`,
+        schema: microsoft_graph_chatMessage,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+      {
+        status: NaN,
+        description: `error`,
+        schema: microsoft_graph_ODataErrors_ODataError,
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/teams/:teamId/members',
+    alias: 'list-team-members',
+    description: `Get the conversationMember collection of a team. The membership IDs returned by the server must be treated as opaque strings. The client shouldn&#x27;t try to parse or make assumptions about these resource IDs. In the future, membership results can include users from various tenants, as indicated in the response. Clients should avoid assuming that all members exclusively belong to the current tenant.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: z.void(),
+    errors: [
+      {
+        status: NaN,
+        description: `Retrieved collection`,
+        schema: microsoft_graph_conversationMemberCollectionResponse,
       },
       {
         status: NaN,
