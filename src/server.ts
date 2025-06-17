@@ -29,7 +29,7 @@ class MicrosoftGraphServer {
     });
 
     registerAuthTools(this.server, this.authManager);
-    registerGraphTools(this.server, this.graphClient, this.options.readOnly);
+    registerGraphTools(this.server, this.graphClient, this.authManager, this.options.readOnly);
   }
 
   async start(): Promise<void> {

@@ -34,10 +34,14 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
-function buildScopesFromEndpoints(): string[] {
+function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): string[] {
   const scopesSet = new Set<string>();
 
   endpoints.default.forEach((endpoint) => {
+    if (endpoint.requiresWorkAccount && !includeWorkAccountScopes) {
+      return;
+    }
+
     if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
       endpoint.scopes.forEach((scope) => scopesSet.add(scope));
     }
@@ -51,6 +55,10 @@ function buildScopesFromEndpoints(): string[] {
   });
 
   return Array.from(scopesSet);
+}
+
+function buildAllScopes(): string[] {
+  return buildScopesFromEndpoints(true);
 }
 
 interface LoginTestResult {
@@ -263,6 +271,78 @@ class AuthManager {
       throw error;
     }
   }
+
+  async hasWorkAccountPermissions(): Promise<boolean> {
+    try {
+      const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+      if (accounts.length === 0) {
+        return false;
+      }
+
+      const workScopes = endpoints.default
+        .filter((e) => e.requiresWorkAccount)
+        .flatMap((e) => e.scopes || []);
+
+      try {
+        await this.msalApp.acquireTokenSilent({
+          scopes: workScopes.slice(0, 1),
+          account: accounts[0],
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    } catch (error) {
+      logger.error(`Error checking work account permissions: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  async expandToWorkAccountScopes(hack?: (message: string) => void): Promise<boolean> {
+    try {
+      logger.info('Expanding to work account scopes...');
+
+      const allScopes = buildAllScopes();
+
+      const deviceCodeRequest = {
+        scopes: allScopes,
+        deviceCodeCallback: (response: { message: string }) => {
+          const text = [
+            '\n',
+            '🔄 This feature requires additional permissions (work account scopes)',
+            '\n',
+            response.message,
+            '\n',
+          ].join('');
+          if (hack) {
+            hack(text + 'After login run the "verify login" command');
+          } else {
+            console.log(text);
+          }
+          logger.info('Work account scope expansion initiated');
+        },
+      };
+
+      const response = await this.msalApp.acquireTokenByDeviceCode(deviceCodeRequest);
+      logger.info('Work account scope expansion successful');
+
+      this.accessToken = response?.accessToken || null;
+      this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
+      this.scopes = allScopes;
+
+      await this.saveTokenCache();
+      return true;
+    } catch (error) {
+      logger.error(`Error expanding to work account scopes: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  requiresWorkAccountScope(toolName: string): boolean {
+    const endpoint = endpoints.default.find((e) => e.toolName === toolName);
+    return endpoint?.requiresWorkAccount === true;
+  }
 }
 
 export default AuthManager;
+export { buildScopesFromEndpoints, buildAllScopes };

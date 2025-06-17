@@ -3,6 +3,7 @@ import logger from './logger.js';
 import GraphClient from './graph-client.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
+import AuthManager from './auth.js';
 
 type TextContent = {
   type: 'text';
@@ -61,6 +62,7 @@ interface CallToolResult {
 export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
+  authManager: AuthManager,
   readOnly: boolean = false
 ): void {
   for (const tool of api.endpoints) {
@@ -182,6 +184,30 @@ export function registerGraphTools(
 
           if (isProbablyMediaContent) {
             options.rawResponse = true;
+          }
+
+          if (authManager.requiresWorkAccountScope(tool.alias)) {
+            const hasWorkPerms = await authManager.hasWorkAccountPermissions();
+            if (!hasWorkPerms) {
+              logger.info(
+                `Tool ${tool.alias} requires work account permissions, initiating scope expansion...`
+              );
+
+              const expandSuccess = await authManager.expandToWorkAccountScopes(
+                (message: string) => {
+                  console.error(message);
+                }
+              );
+
+              if (!expandSuccess) {
+                throw new Error(
+                  'This feature requires work account permissions that could not be obtained. ' +
+                    'Please ensure you are using a work/school Microsoft account and try again.'
+                );
+              }
+
+              logger.info('Work account scope expansion successful, proceeding with API call...');
+            }
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
