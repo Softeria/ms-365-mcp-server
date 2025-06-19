@@ -67,17 +67,49 @@ integration method.
 
 > ⚠️ You must authenticate before using tools.
 
-1. **MCP client login**:
+The server supports two authentication methods:
+
+#### 1. Device Code Flow (Default)
+
+For interactive authentication via device code:
+
+- **MCP client login**:
     - Call the `login` tool (auto-checks existing token)
     - If needed, get URL+code, visit in browser
     - Use `verify-login` tool to confirm
-2. **Optional CLI login**:
+- **CLI login**:
    ```bash
    npx @softeria/ms-365-mcp-server --login
    ```
-   Follow the URL and code prompt in the terminal.
+  Follow the URL and code prompt in the terminal.
 
 Tokens are cached securely in your OS credential store (fallback to file).
+
+#### 2. OAuth Authorization Code Flow (HTTP mode only)
+
+When running with `--http`, the server **requires** OAuth authentication:
+
+```bash
+npx @softeria/ms-365-mcp-server --http 3000
+```
+
+This mode:
+
+- Advertises OAuth capabilities to MCP clients
+- Provides OAuth endpoints at `/auth/*` (authorize, token, metadata)
+- **Requires** `Authorization: Bearer <token>` for all MCP requests
+- Validates tokens with Microsoft Graph API
+
+MCP clients will automatically handle the OAuth flow when they see the advertised capabilities. For manual testing:
+
+```bash
+curl -X POST http://localhost:3000/mcp \
+  -H "Authorization: Bearer YOUR_MICROSOFT_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "initialize", "params": {"protocolVersion": "1.0.0", "capabilities": {}}, "id": 1}'
+```
+
+> **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
 
 ## CLI Options
 

@@ -68,6 +68,8 @@ class AuthManager {
   private msalApp: PublicClientApplication;
   private accessToken: string | null;
   private tokenExpiry: number | null;
+  private oauthToken: string | null;
+  private isOAuthMode: boolean;
 
   constructor(
     config: Configuration = DEFAULT_CONFIG,
@@ -79,6 +81,8 @@ class AuthManager {
     this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
+    this.oauthToken = null;
+    this.isOAuthMode = false;
   }
 
   async loadTokenCache(): Promise<void> {
@@ -126,7 +130,16 @@ class AuthManager {
     }
   }
 
+  async setOAuthToken(token: string): Promise<void> {
+    this.oauthToken = token;
+    this.isOAuthMode = true;
+  }
+
   async getToken(forceRefresh = false): Promise<string | null> {
+    if (this.isOAuthMode && this.oauthToken) {
+      return this.oauthToken;
+    }
+
     if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now() && !forceRefresh) {
       return this.accessToken;
     }
@@ -145,7 +158,8 @@ class AuthManager {
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
         return this.accessToken;
       } catch (error) {
-        logger.info('Silent token acquisition failed, using device code flow');
+        logger.error('Silent token acquisition failed');
+        throw new Error('Silent token acquisition failed');
       }
     }
 
