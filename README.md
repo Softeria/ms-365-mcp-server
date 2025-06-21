@@ -132,11 +132,13 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
+--enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 ```
 
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
+- `ENABLED_TOOLS`: Filter tools using regex pattern (alternative to --enabled-tools flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)

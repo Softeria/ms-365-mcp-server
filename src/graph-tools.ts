@@ -61,11 +61,27 @@ interface CallToolResult {
 export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
-  readOnly: boolean = false
+  readOnly: boolean = false,
+  enabledToolsPattern?: string
 ): void {
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledToolsPattern) {
+    try {
+      enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
+      logger.info(`Tool filtering enabled with pattern: ${enabledToolsPattern}`);
+    } catch (error) {
+      logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Ignoring filter.`);
+    }
+  }
+
   for (const tool of api.endpoints) {
     if (readOnly && tool.method.toUpperCase() !== 'GET') {
       logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
+      continue;
+    }
+
+    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
+      logger.info(`Skipping tool ${tool.alias} - doesn't match filter pattern`);
       continue;
     }
 
