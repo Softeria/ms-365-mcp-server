@@ -1,12 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import express from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools } from './graph-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager from './auth.js';
+import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import type { CommandOptions } from './cli.ts';
 
 class MicrosoftGraphServer {
@@ -28,8 +31,16 @@ class MicrosoftGraphServer {
       version,
     });
 
-    registerAuthTools(this.server, this.authManager);
-    registerGraphTools(this.server, this.graphClient, this.authManager, this.options.readOnly);
+    const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
+    if (shouldRegisterAuthTools) {
+      registerAuthTools(this.server, this.authManager);
+    }
+    registerGraphTools(
+      this.server,
+      this.graphClient,
+      this.options.readOnly,
+      this.options.enabledTools
+    );
   }
 
   async start(): Promise<void> {
@@ -48,35 +59,56 @@ class MicrosoftGraphServer {
       const app = express();
       app.use(express.json());
 
-      app.post('/mcp', async (req, res) => {
-        try {
-          const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: undefined, // Stateless mode
-          });
+      const oauthProvider = new MicrosoftOAuthProvider(this.authManager);
 
-          res.on('close', () => {
-            transport.close();
-          });
+      app.use(
+        '/auth',
+        mcpAuthRouter({
+          provider: oauthProvider,
+          issuerUrl: new URL(`http://localhost:${port}`),
+        })
+      );
 
-          await this.server!.connect(transport);
-          await transport.handleRequest(req, res, req.body);
-        } catch (error) {
-          logger.error('Error handling MCP request:', error);
-          if (!res.headersSent) {
-            res.status(500).json({
-              jsonrpc: '2.0',
-              error: {
-                code: -32603,
-                message: 'Internal server error',
-              },
-              id: null,
+      app.post(
+        '/mcp',
+        async (req, res, next) => {
+          if (req.headers.authorization?.startsWith('Bearer ')) {
+            return requireBearerAuth({ provider: oauthProvider })(req, res, next);
+          }
+          next();
+        },
+        async (req, res) => {
+          try {
+            const transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: undefined, // Stateless mode
             });
+
+            res.on('close', () => {
+              transport.close();
+            });
+
+            await this.server!.connect(transport);
+            await transport.handleRequest(req, res, req.body);
+          } catch (error) {
+            logger.error('Error handling MCP request:', error);
+            if (!res.headersSent) {
+              res.status(500).json({
+                jsonrpc: '2.0',
+                error: {
+                  code: -32603,
+                  message: 'Internal server error',
+                },
+                id: null,
+              });
+            }
           }
         }
-      });
+      );
 
       app.listen(port, () => {
-        logger.info(`Server listening on HTTP port ${port} at /mcp endpoint`);
+        logger.info(`Server listening on HTTP port ${port}`);
+        logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
+        logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
       });
     } else {
       const transport = new StdioServerTransport();

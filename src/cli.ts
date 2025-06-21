@@ -22,6 +22,14 @@ program
   .option(
     '--http [port]',
     'Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)'
+  )
+  .option(
+    '--enable-auth-tools',
+    'Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)'
+  )
+  .option(
+    '--enabled-tools <pattern>',
+    'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   );
 
 export interface CommandOptions {
@@ -31,6 +39,8 @@ export interface CommandOptions {
   verifyLogin?: boolean;
   readOnly?: boolean;
   http?: string | boolean;
+  enableAuthTools?: boolean;
+  enabledTools?: string;
 
   [key: string]: any;
 }
@@ -41,6 +51,10 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.READ_ONLY === 'true' || process.env.READ_ONLY === '1') {
     options.readOnly = true;
+  }
+
+  if (process.env.ENABLED_TOOLS) {
+    options.enabledTools = process.env.ENABLED_TOOLS;
   }
 
   return options;

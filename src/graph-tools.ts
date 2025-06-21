@@ -3,7 +3,6 @@ import logger from './logger.js';
 import GraphClient from './graph-client.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
-import AuthManager from './auth.js';
 
 type TextContent = {
   type: 'text';
@@ -62,12 +61,27 @@ interface CallToolResult {
 export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
-  authManager: AuthManager,
-  readOnly: boolean = false
+  readOnly: boolean = false,
+  enabledToolsPattern?: string
 ): void {
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledToolsPattern) {
+    try {
+      enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
+      logger.info(`Tool filtering enabled with pattern: ${enabledToolsPattern}`);
+    } catch (error) {
+      logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Ignoring filter.`);
+    }
+  }
+
   for (const tool of api.endpoints) {
     if (readOnly && tool.method.toUpperCase() !== 'GET') {
       logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
+      continue;
+    }
+
+    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
+      logger.info(`Skipping tool ${tool.alias} - doesn't match filter pattern`);
       continue;
     }
 
@@ -184,30 +198,6 @@ export function registerGraphTools(
 
           if (isProbablyMediaContent) {
             options.rawResponse = true;
-          }
-
-          if (authManager.requiresWorkAccountScope(tool.alias)) {
-            const hasWorkPerms = await authManager.hasWorkAccountPermissions();
-            if (!hasWorkPerms) {
-              logger.info(
-                `Tool ${tool.alias} requires work account permissions, initiating scope expansion...`
-              );
-
-              const expandSuccess = await authManager.expandToWorkAccountScopes(
-                (message: string) => {
-                  console.error(message);
-                }
-              );
-
-              if (!expandSuccess) {
-                throw new Error(
-                  'This feature requires work account permissions that could not be obtained. ' +
-                    'Please ensure you are using a work/school Microsoft account and try again.'
-                );
-              }
-
-              logger.info('Work account scope expansion successful, proceeding with API call...');
-            }
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);

@@ -31,6 +31,12 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
 
   if (openApiSpec.components && openApiSpec.components.schemas) {
     removeODataTypeRecursively(openApiSpec.components.schemas);
+    flattenComplexSchemasRecursively(openApiSpec.components.schemas);
+  }
+
+  if (openApiSpec.paths) {
+    removeODataTypeRecursively(openApiSpec.paths);
+    simplifyAnyOfInPaths(openApiSpec.paths);
   }
 
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
@@ -80,6 +86,301 @@ function removeODataTypeRecursively(obj) {
   Object.keys(obj).forEach((key) => {
     if (typeof obj[key] === 'object' && obj[key] !== null) {
       removeODataTypeRecursively(obj[key]);
+    }
+  });
+}
+
+function flattenComplexSchemasRecursively(schemas) {
+  console.log('Flattening complex schemas for better client compatibility...');
+
+  let flattenedCount = 0;
+
+  Object.keys(schemas).forEach((schemaName) => {
+    const schema = schemas[schemaName];
+
+    if (schema.allOf && Array.isArray(schema.allOf) && schema.allOf.length <= 5) {
+      try {
+        const flattened = { type: 'object', properties: {} };
+        const required = new Set();
+
+        for (const subSchema of schema.allOf) {
+          if (subSchema.$ref && subSchema.$ref.startsWith('#/components/schemas/')) {
+            const refName = subSchema.$ref.replace('#/components/schemas/', '');
+            if (schemas[refName] && schemas[refName].properties) {
+              Object.assign(flattened.properties, schemas[refName].properties);
+              if (schemas[refName].required) {
+                schemas[refName].required.forEach((req) => required.add(req));
+              }
+            }
+          } else if (subSchema.properties) {
+            Object.assign(flattened.properties, subSchema.properties);
+            if (subSchema.required) {
+              subSchema.required.forEach((req) => required.add(req));
+            }
+          }
+
+          Object.keys(subSchema).forEach((key) => {
+            if (!['allOf', 'properties', 'required', '$ref'].includes(key) && !flattened[key]) {
+              flattened[key] = subSchema[key];
+            }
+          });
+        }
+
+        if (schema.properties) {
+          Object.assign(flattened.properties, schema.properties);
+        }
+
+        if (schema.required) {
+          schema.required.forEach((req) => required.add(req));
+        }
+
+        Object.keys(schema).forEach((key) => {
+          if (!['allOf', 'properties', 'required'].includes(key) && !flattened[key]) {
+            flattened[key] = schema[key];
+          }
+        });
+
+        if (required.size > 0) {
+          flattened.required = Array.from(required);
+        }
+
+        schemas[schemaName] = flattened;
+        flattenedCount++;
+      } catch (error) {
+        console.warn(`Warning: Could not flatten schema ${schemaName}:`, error.message);
+      }
+    }
+
+    if (schema.anyOf && Array.isArray(schema.anyOf)) {
+      if (schema.anyOf.length === 2) {
+        const hasRef = schema.anyOf.some((item) => item.$ref);
+        const hasNullableObject = schema.anyOf.some(
+          (item) =>
+            item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+        );
+
+        if (hasRef && hasNullableObject) {
+          console.log(`Simplifying anyOf in ${schemaName} (ref + nullable object pattern)`);
+          const refItem = schema.anyOf.find((item) => item.$ref);
+          const simplified = { ...refItem };
+          simplified.nullable = true;
+          Object.keys(schema).forEach((key) => {
+            if (!['anyOf'].includes(key) && !simplified[key]) {
+              simplified[key] = schema[key];
+            }
+          });
+          schemas[schemaName] = simplified;
+          flattenedCount++;
+        }
+      } else if (schema.anyOf.length > 2) {
+        console.log(`Simplifying anyOf in ${schemaName} (${schema.anyOf.length} -> 1 option)`);
+        const simplified = { ...schema.anyOf[0] };
+        simplified.nullable = true;
+        simplified.description = `Simplified from ${schema.anyOf.length} anyOf options`;
+        schemas[schemaName] = simplified;
+        flattenedCount++;
+      }
+    }
+
+    if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 2) {
+      console.log(`Simplifying oneOf in ${schemaName} (${schema.oneOf.length} -> 1 option)`);
+      const simplified = { ...schema.oneOf[0] };
+      simplified.nullable = true;
+      simplified.description = `Simplified from ${schema.oneOf.length} oneOf options`;
+      schemas[schemaName] = simplified;
+      flattenedCount++;
+    }
+
+    if (schema.properties && Object.keys(schema.properties).length > 25) {
+      console.log(
+        `Reducing properties in ${schemaName} (${Object.keys(schema.properties).length} -> 25)`
+      );
+      const priorityProperties = {};
+      const allKeys = Object.keys(schema.properties);
+
+      if (schema.required) {
+        schema.required.forEach((key) => {
+          if (schema.properties[key]) {
+            priorityProperties[key] = schema.properties[key];
+          }
+        });
+      }
+
+      const remainingSlots = 25 - Object.keys(priorityProperties).length;
+      allKeys.slice(0, remainingSlots).forEach((key) => {
+        if (!priorityProperties[key]) {
+          priorityProperties[key] = schema.properties[key];
+        }
+      });
+
+      schema.properties = priorityProperties;
+      schema.description =
+        `${schema.description || ''} [Simplified: showing ${Object.keys(priorityProperties).length} of ${allKeys.length} properties]`.trim();
+      flattenedCount++;
+    }
+
+    if (schema.properties) {
+      simplifyNestedPropertiesRecursively(schema.properties, 0, 4);
+    }
+  });
+
+  Object.keys(schemas).forEach((schemaName) => {
+    const schema = schemas[schemaName];
+    if (schema.properties) {
+      Object.keys(schema.properties).forEach((propName) => {
+        const prop = schema.properties[propName];
+        if (prop && prop.anyOf && Array.isArray(prop.anyOf) && prop.anyOf.length === 2) {
+          const hasRef = prop.anyOf.some((item) => item.$ref);
+          const hasNullableObject = prop.anyOf.some(
+            (item) =>
+              item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+          );
+
+          if (hasRef && hasNullableObject) {
+            console.log(
+              `Simplifying anyOf in ${schemaName}.${propName} (ref + nullable object pattern)`
+            );
+            const refItem = prop.anyOf.find((item) => item.$ref);
+            delete prop.anyOf;
+            prop.$ref = refItem.$ref;
+            prop.nullable = true;
+            flattenedCount++;
+          }
+        }
+      });
+    }
+  });
+
+  console.log(`Flattened ${flattenedCount} complex schemas`);
+}
+
+function simplifyAnyOfInPaths(paths) {
+  console.log('Simplifying anyOf patterns in API paths...');
+  let simplifiedCount = 0;
+
+  Object.keys(paths).forEach((path) => {
+    const pathItem = paths[path];
+    Object.keys(pathItem).forEach((method) => {
+      const operation = pathItem[method];
+      if (operation && typeof operation === 'object') {
+        if (operation.responses) {
+          Object.keys(operation.responses).forEach((statusCode) => {
+            const response = operation.responses[statusCode];
+            if (response && response.content) {
+              Object.keys(response.content).forEach((contentType) => {
+                const mediaType = response.content[contentType];
+                if (mediaType && mediaType.schema) {
+                  simplifiedCount += simplifyAnyOfPattern(
+                    mediaType.schema,
+                    `${path}.${method}.${statusCode}`
+                  );
+                }
+              });
+            }
+          });
+        }
+
+        if (operation.requestBody && operation.requestBody.content) {
+          Object.keys(operation.requestBody.content).forEach((contentType) => {
+            const mediaType = operation.requestBody.content[contentType];
+            if (mediaType && mediaType.schema) {
+              simplifiedCount += simplifyAnyOfPattern(
+                mediaType.schema,
+                `${path}.${method}.requestBody`
+              );
+            }
+          });
+        }
+      }
+    });
+  });
+
+  console.log(`Simplified ${simplifiedCount} anyOf patterns in paths`);
+}
+
+function simplifyAnyOfPattern(obj, context = '') {
+  let count = 0;
+
+  if (!obj || typeof obj !== 'object') return count;
+
+  if (obj.anyOf && Array.isArray(obj.anyOf) && obj.anyOf.length === 2) {
+    const hasRef = obj.anyOf.some((item) => item.$ref);
+    const hasNullableObject = obj.anyOf.some(
+      (item) => item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+    );
+
+    if (hasRef && hasNullableObject) {
+      console.log(`Simplifying anyOf in ${context} (ref + nullable object pattern)`);
+      const refItem = obj.anyOf.find((item) => item.$ref);
+      Object.keys(obj).forEach((key) => {
+        if (key !== 'anyOf') delete obj[key];
+      });
+      Object.assign(obj, refItem);
+      obj.nullable = true;
+      delete obj.anyOf;
+      count++;
+    }
+  }
+
+  Object.keys(obj).forEach((key) => {
+    if (typeof obj[key] === 'object' && obj[key] !== null) {
+      count += simplifyAnyOfPattern(obj[key], context ? `${context}.${key}` : key);
+    }
+  });
+
+  return count;
+}
+
+function simplifyNestedPropertiesRecursively(properties, currentDepth, maxDepth) {
+  if (currentDepth >= maxDepth) {
+    return;
+  }
+
+  Object.keys(properties).forEach((key) => {
+    const prop = properties[key];
+
+    if (prop && typeof prop === 'object') {
+      if (currentDepth === maxDepth - 1 && prop.properties) {
+        console.log(`Flattening nested property at depth ${currentDepth}: ${key}`);
+        prop.type = 'object';
+        prop.description = `${prop.description || ''} [Simplified: nested object]`.trim();
+        delete prop.properties;
+        delete prop.additionalProperties;
+      } else if (prop.properties) {
+        simplifyNestedPropertiesRecursively(prop.properties, currentDepth + 1, maxDepth);
+      }
+
+      if (prop.anyOf && Array.isArray(prop.anyOf)) {
+        if (prop.anyOf.length === 2) {
+          const hasRef = prop.anyOf.some((item) => item.$ref);
+          const hasNullableObject = prop.anyOf.some(
+            (item) =>
+              item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+          );
+
+          if (hasRef && hasNullableObject) {
+            console.log(`Simplifying anyOf in property ${key} (ref + nullable object pattern)`);
+            const refItem = prop.anyOf.find((item) => item.$ref);
+            delete prop.anyOf;
+            prop.$ref = refItem.$ref;
+            prop.nullable = true;
+          }
+        } else if (prop.anyOf.length > 2) {
+          prop.type = prop.anyOf[0].type || 'object';
+          prop.nullable = true;
+          prop.description =
+            `${prop.description || ''} [Simplified from ${prop.anyOf.length} options]`.trim();
+          delete prop.anyOf;
+        }
+      }
+
+      if (prop.oneOf && Array.isArray(prop.oneOf) && prop.oneOf.length > 2) {
+        prop.type = prop.oneOf[0].type || 'object';
+        prop.nullable = true;
+        prop.description =
+          `${prop.description || ''} [Simplified from ${prop.oneOf.length} options]`.trim();
+        delete prop.oneOf;
+      }
     }
   });
 }
