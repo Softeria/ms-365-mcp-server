@@ -22,6 +22,10 @@ program
   .option(
     '--http [port]',
     'Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)'
+  )
+  .option(
+    '--enable-auth-tools',
+    'Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)'
   );
 
 export interface CommandOptions {
@@ -31,6 +35,7 @@ export interface CommandOptions {
   verifyLogin?: boolean;
   readOnly?: boolean;
   http?: string | boolean;
+  enableAuthTools?: boolean;
 
   [key: string]: any;
 }

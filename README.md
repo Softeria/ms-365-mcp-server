@@ -99,6 +99,7 @@ This mode:
 - Provides OAuth endpoints at `/auth/*` (authorize, token, metadata)
 - **Requires** `Authorization: Bearer <token>` for all MCP requests
 - Validates tokens with Microsoft Graph API
+- **Disables** login/logout tools by default (use `--enable-auth-tools` to enable them)
 
 MCP clients will automatically handle the OAuth flow when they see the advertised capabilities. For manual testing:
 
@@ -110,6 +111,9 @@ curl -X POST http://localhost:3000/mcp \
 ```
 
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
+>
+> **Authentication Tools**: In HTTP mode, login/logout tools are disabled by default since OAuth handles authentication.
+> Use `--enable-auth-tools` if you need them available.
 
 ## CLI Options
 
@@ -130,6 +134,7 @@ When running as an MCP server, the following options can be used:
 --read-only       Start server in read-only mode, disabling write operations
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
+--enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 ```
 
 Environment variables:
