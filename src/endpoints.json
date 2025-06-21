@@ -284,135 +284,105 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "scopes": [
-      "Chat.Read"
-    ],
+    "scopes": ["Chat.Read"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "scopes": [
-      "Chat.Read"
-    ],
+    "scopes": ["Chat.Read"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "scopes": [
-      "ChatMessage.Read"
-    ],
+    "scopes": ["ChatMessage.Read"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
-    "scopes": [
-      "ChatMessage.Read"
-    ],
+    "scopes": ["ChatMessage.Read"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "scopes": [
-      "ChatMessage.Send"
-    ],
+    "scopes": ["ChatMessage.Send"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "scopes": [
-      "Team.ReadBasic.All"
-    ],
+    "scopes": ["Team.ReadBasic.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "scopes": [
-      "Team.ReadBasic.All"
-    ],
+    "scopes": ["Team.ReadBasic.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "scopes": [
-      "Channel.ReadBasic.All"
-    ],
+    "scopes": ["Channel.ReadBasic.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "scopes": [
-      "Channel.ReadBasic.All"
-    ],
+    "scopes": ["Channel.ReadBasic.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "scopes": [
-      "ChannelMessage.Read.All"
-    ],
+    "scopes": ["ChannelMessage.Read.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-channel-message",
-    "scopes": [
-      "ChannelMessage.Read.All"
-    ],
+    "scopes": ["ChannelMessage.Read.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "scopes": [
-      "ChannelMessage.Send"
-    ],
+    "scopes": ["ChannelMessage.Send"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
-    "scopes": [
-      "TeamMember.Read.All"
-    ],
+    "scopes": ["TeamMember.Read.All"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "scopes": [
-      "ChatMessage.Read"
-    ],
+    "scopes": ["ChatMessage.Read"],
     "requiresWorkAccount": true
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "scopes": [
-      "ChatMessage.Send"
-    ],
+    "scopes": ["ChatMessage.Send"],
     "requiresWorkAccount": true
   }
 ]
