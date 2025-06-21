@@ -10,9 +10,7 @@ type microsoft_graph_accessPackage = Partial<{
   modifiedDateTime: string | null;
   accessPackagesIncompatibleWith: Array<microsoft_graph_accessPackage>;
   assignmentPolicies: Array<microsoft_graph_accessPackageAssignmentPolicy>;
-  catalog:
-    | (microsoft_graph_accessPackageCatalog | {})
-    | Array<microsoft_graph_accessPackageCatalog | {}>;
+  catalog: microsoft_graph_accessPackageCatalog;
   incompatibleAccessPackages: Array<microsoft_graph_accessPackage>;
   incompatibleGroups: Array<microsoft_graph_group>;
   resourceRoleScopes: Array<microsoft_graph_accessPackageResourceRoleScope>;
@@ -36,9 +34,7 @@ type microsoft_graph_accessPackageAutomaticRequestSettings = Partial<{
 type microsoft_graph_expirationPattern = Partial<{
   duration: string | null;
   endDateTime: string | null;
-  type:
-    | (microsoft_graph_expirationPatternType | {})
-    | Array<microsoft_graph_expirationPatternType | {}>;
+  type: microsoft_graph_expirationPatternType;
 }>;
 type microsoft_graph_expirationPatternType =
   | 'notSpecified'
@@ -76,18 +72,14 @@ type microsoft_graph_accessPackageAssignmentRequestorSettings = Partial<{
   onBehalfRequestors: Array<microsoft_graph_subjectSet>;
 }>;
 type microsoft_graph_accessPackageAssignmentReviewSettings = Partial<{
-  expirationBehavior:
-    | (microsoft_graph_accessReviewExpirationBehavior | {})
-    | Array<microsoft_graph_accessReviewExpirationBehavior | {}>;
+  expirationBehavior: microsoft_graph_accessReviewExpirationBehavior;
   fallbackReviewers: Array<microsoft_graph_subjectSet>;
   isEnabled: boolean | null;
   isRecommendationEnabled: boolean | null;
   isReviewerJustificationRequired: boolean | null;
   isSelfReview: boolean | null;
   primaryReviewers: Array<microsoft_graph_subjectSet>;
-  schedule:
-    | (microsoft_graph_entitlementManagementSchedule | {})
-    | Array<microsoft_graph_entitlementManagementSchedule | {}>;
+  schedule: microsoft_graph_entitlementManagementSchedule;
 }>;
 type microsoft_graph_accessReviewExpirationBehavior =
   | 'keepAccess'
@@ -95,28 +87,22 @@ type microsoft_graph_accessReviewExpirationBehavior =
   | 'acceptAccessRecommendation'
   | 'unknownFutureValue';
 type microsoft_graph_entitlementManagementSchedule = Partial<{
-  expiration:
-    | (microsoft_graph_expirationPattern | {})
-    | Array<microsoft_graph_expirationPattern | {}>;
-  recurrence:
-    | (microsoft_graph_patternedRecurrence | {})
-    | Array<microsoft_graph_patternedRecurrence | {}>;
+  expiration: microsoft_graph_expirationPattern;
+  recurrence: microsoft_graph_patternedRecurrence;
   startDateTime: string | null;
 }>;
 type microsoft_graph_patternedRecurrence = Partial<{
-  pattern: (microsoft_graph_recurrencePattern | {}) | Array<microsoft_graph_recurrencePattern | {}>;
-  range: (microsoft_graph_recurrenceRange | {}) | Array<microsoft_graph_recurrenceRange | {}>;
+  pattern: microsoft_graph_recurrencePattern;
+  range: microsoft_graph_recurrenceRange;
 }>;
 type microsoft_graph_recurrencePattern = Partial<{
   dayOfMonth: number;
   daysOfWeek: Array<(microsoft_graph_dayOfWeek | {}) | Array<microsoft_graph_dayOfWeek | {}>>;
-  firstDayOfWeek: (microsoft_graph_dayOfWeek | {}) | Array<microsoft_graph_dayOfWeek | {}>;
-  index: (microsoft_graph_weekIndex | {}) | Array<microsoft_graph_weekIndex | {}>;
+  firstDayOfWeek: microsoft_graph_dayOfWeek;
+  index: microsoft_graph_weekIndex;
   interval: number;
   month: number;
-  type:
-    | (microsoft_graph_recurrencePatternType | {})
-    | Array<microsoft_graph_recurrencePatternType | {}>;
+  type: microsoft_graph_recurrencePatternType;
 }>;
 type microsoft_graph_dayOfWeek =
   | 'sunday'
@@ -139,9 +125,7 @@ type microsoft_graph_recurrenceRange = Partial<{
   numberOfOccurrences: number;
   recurrenceTimeZone: string | null;
   startDate: string | null;
-  type:
-    | (microsoft_graph_recurrenceRangeType | {})
-    | Array<microsoft_graph_recurrenceRangeType | {}>;
+  type: microsoft_graph_recurrenceRangeType;
 }>;
 type microsoft_graph_recurrenceRangeType = 'endDate' | 'noEnd' | 'numbered';
 type microsoft_graph_accessPackageCatalogType =
@@ -152,17 +136,11 @@ type microsoft_graph_accessPackageCatalogType =
 type microsoft_graph_accessPackageCatalogState = 'unpublished' | 'published' | 'unknownFutureValue';
 type microsoft_graph_customCalloutExtension = Partial<{
   id: string;
-  authenticationConfiguration:
-    | (microsoft_graph_customExtensionAuthenticationConfiguration | {})
-    | Array<microsoft_graph_customExtensionAuthenticationConfiguration | {}>;
-  clientConfiguration:
-    | (microsoft_graph_customExtensionClientConfiguration | {})
-    | Array<microsoft_graph_customExtensionClientConfiguration | {}>;
+  authenticationConfiguration: microsoft_graph_customExtensionAuthenticationConfiguration;
+  clientConfiguration: microsoft_graph_customExtensionClientConfiguration;
   description: string | null;
   displayName: string | null;
-  endpointConfiguration:
-    | (microsoft_graph_customExtensionEndpointConfiguration | {})
-    | Array<microsoft_graph_customExtensionEndpointConfiguration | {}>;
+  endpointConfiguration: microsoft_graph_customExtensionEndpointConfiguration;
 }>;
 type microsoft_graph_customExtensionAuthenticationConfiguration = Partial<{}>;
 type microsoft_graph_customExtensionClientConfiguration = Partial<{
@@ -171,15 +149,11 @@ type microsoft_graph_customExtensionClientConfiguration = Partial<{
 }>;
 type microsoft_graph_customExtensionEndpointConfiguration = Partial<{}>;
 type microsoft_graph_accessPackageResourceAttribute = Partial<{
-  destination:
-    | (microsoft_graph_accessPackageResourceAttributeDestination | {})
-    | Array<microsoft_graph_accessPackageResourceAttributeDestination | {}>;
+  destination: microsoft_graph_accessPackageResourceAttributeDestination;
   isEditable: boolean | null;
   isPersistedOnAssignmentRemoval: boolean | null;
   name: string | null;
-  source:
-    | (microsoft_graph_accessPackageResourceAttributeSource | {})
-    | Array<microsoft_graph_accessPackageResourceAttributeSource | {}>;
+  source: microsoft_graph_accessPackageResourceAttributeSource;
 }>;
 type microsoft_graph_accessPackageResourceAttributeDestination = Partial<{}>;
 type microsoft_graph_accessPackageResourceAttributeSource = Partial<{}>;
@@ -189,9 +163,7 @@ type microsoft_graph_connectionInfo = Partial<{
 type microsoft_graph_customExtensionStageSetting = Partial<{
   id: string;
   stage: microsoft_graph_accessPackageCustomExtensionStage;
-  customExtension:
-    | (microsoft_graph_customCalloutExtension | {})
-    | Array<microsoft_graph_customCalloutExtension | {}>;
+  customExtension: microsoft_graph_customCalloutExtension;
 }>;
 type microsoft_graph_accessPackageCustomExtensionStage =
   | 'assignmentRequestCreated'
@@ -274,10 +246,10 @@ type microsoft_graph_calendarPermission = Partial<{
   allowedRoles: Array<
     (microsoft_graph_calendarRoleType | {}) | Array<microsoft_graph_calendarRoleType | {}>
   >;
-  emailAddress: (microsoft_graph_emailAddress | {}) | Array<microsoft_graph_emailAddress | {}>;
+  emailAddress: microsoft_graph_emailAddress;
   isInsideOrganization: boolean | null;
   isRemovable: boolean | null;
-  role: (microsoft_graph_calendarRoleType | {}) | Array<microsoft_graph_calendarRoleType | {}>;
+  role: microsoft_graph_calendarRoleType;
 }>;
 type microsoft_graph_calendarRoleType =
   | 'none'
@@ -289,8 +261,8 @@ type microsoft_graph_calendarRoleType =
   | 'delegateWithPrivateEventAccess'
   | 'custom';
 type microsoft_graph_attendee = Partial<{
-  proposedNewTime: (microsoft_graph_timeSlot | {}) | Array<microsoft_graph_timeSlot | {}>;
-  status: (microsoft_graph_responseStatus | {}) | Array<microsoft_graph_responseStatus | {}>;
+  proposedNewTime: microsoft_graph_timeSlot;
+  status: microsoft_graph_responseStatus;
 }>;
 type microsoft_graph_timeSlot = Partial<{
   end: microsoft_graph_dateTimeTimeZone;
@@ -301,7 +273,7 @@ type microsoft_graph_dateTimeTimeZone = Partial<{
   timeZone: string | null;
 }>;
 type microsoft_graph_responseStatus = Partial<{
-  response: (microsoft_graph_responseType | {}) | Array<microsoft_graph_responseType | {}>;
+  response: microsoft_graph_responseType;
   time: string | null;
 }>;
 type microsoft_graph_responseType =
@@ -313,23 +285,19 @@ type microsoft_graph_responseType =
   | 'notResponded';
 type microsoft_graph_itemBody = Partial<{
   content: string | null;
-  contentType: (microsoft_graph_bodyType | {}) | Array<microsoft_graph_bodyType | {}>;
+  contentType: microsoft_graph_bodyType;
 }>;
 type microsoft_graph_bodyType = 'text' | 'html';
 type microsoft_graph_importance = 'low' | 'normal' | 'high';
 type microsoft_graph_location = Partial<{
-  address: (microsoft_graph_physicalAddress | {}) | Array<microsoft_graph_physicalAddress | {}>;
-  coordinates:
-    | (microsoft_graph_outlookGeoCoordinates | {})
-    | Array<microsoft_graph_outlookGeoCoordinates | {}>;
+  address: microsoft_graph_physicalAddress;
+  coordinates: microsoft_graph_outlookGeoCoordinates;
   displayName: string | null;
   locationEmailAddress: string | null;
-  locationType: (microsoft_graph_locationType | {}) | Array<microsoft_graph_locationType | {}>;
+  locationType: microsoft_graph_locationType;
   locationUri: string | null;
   uniqueId: string | null;
-  uniqueIdType:
-    | (microsoft_graph_locationUniqueIdType | {})
-    | Array<microsoft_graph_locationUniqueIdType | {}>;
+  uniqueIdType: microsoft_graph_locationUniqueIdType;
 }>;
 type microsoft_graph_physicalAddress = Partial<{
   city: string | null;
@@ -374,7 +342,7 @@ type microsoft_graph_phone = Partial<{
   language: string | null;
   number: string | null;
   region: string | null;
-  type: (microsoft_graph_phoneType | {}) | Array<microsoft_graph_phoneType | {}>;
+  type: microsoft_graph_phoneType;
 }>;
 type microsoft_graph_phoneType =
   | 'home'
@@ -388,7 +356,7 @@ type microsoft_graph_phoneType =
   | 'pager'
   | 'radio';
 type microsoft_graph_recipient = Partial<{
-  emailAddress: (microsoft_graph_emailAddress | {}) | Array<microsoft_graph_emailAddress | {}>;
+  emailAddress: microsoft_graph_emailAddress;
 }>;
 type microsoft_graph_sensitivity = 'normal' | 'personal' | 'private' | 'confidential';
 type microsoft_graph_freeBusyStatus =
@@ -440,9 +408,9 @@ type microsoft_graph_conversationThread = Partial<{
   posts: Array<microsoft_graph_post>;
 }>;
 type microsoft_graph_identitySet = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  device: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  user: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
+  application: microsoft_graph_identity;
+  device: microsoft_graph_identity;
+  user: microsoft_graph_identity;
 }>;
 type microsoft_graph_identity = Partial<{
   displayName: string | null;
@@ -455,7 +423,7 @@ type microsoft_graph_itemReference = Partial<{
   name: string | null;
   path: string | null;
   shareId: string | null;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
+  sharepointIds: microsoft_graph_sharepointIds;
   siteId: string | null;
 }>;
 type microsoft_graph_sharepointIds = Partial<{
@@ -496,34 +464,22 @@ type microsoft_graph_licenseAssignmentState = Partial<{
 }>;
 type microsoft_graph_mailboxSettings = Partial<{
   archiveFolder: string | null;
-  automaticRepliesSetting:
-    | (microsoft_graph_automaticRepliesSetting | {})
-    | Array<microsoft_graph_automaticRepliesSetting | {}>;
+  automaticRepliesSetting: microsoft_graph_automaticRepliesSetting;
   dateFormat: string | null;
-  delegateMeetingMessageDeliveryOptions:
-    | (microsoft_graph_delegateMeetingMessageDeliveryOptions | {})
-    | Array<microsoft_graph_delegateMeetingMessageDeliveryOptions | {}>;
-  language: (microsoft_graph_localeInfo | {}) | Array<microsoft_graph_localeInfo | {}>;
+  delegateMeetingMessageDeliveryOptions: microsoft_graph_delegateMeetingMessageDeliveryOptions;
+  language: microsoft_graph_localeInfo;
   timeFormat: string | null;
   timeZone: string | null;
-  userPurpose: (microsoft_graph_userPurpose | {}) | Array<microsoft_graph_userPurpose | {}>;
-  workingHours: (microsoft_graph_workingHours | {}) | Array<microsoft_graph_workingHours | {}>;
+  userPurpose: microsoft_graph_userPurpose;
+  workingHours: microsoft_graph_workingHours;
 }>;
 type microsoft_graph_automaticRepliesSetting = Partial<{
-  externalAudience:
-    | (microsoft_graph_externalAudienceScope | {})
-    | Array<microsoft_graph_externalAudienceScope | {}>;
+  externalAudience: microsoft_graph_externalAudienceScope;
   externalReplyMessage: string | null;
   internalReplyMessage: string | null;
-  scheduledEndDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  scheduledStartDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  status:
-    | (microsoft_graph_automaticRepliesStatus | {})
-    | Array<microsoft_graph_automaticRepliesStatus | {}>;
+  scheduledEndDateTime: microsoft_graph_dateTimeTimeZone;
+  scheduledStartDateTime: microsoft_graph_dateTimeTimeZone;
+  status: microsoft_graph_automaticRepliesStatus;
 }>;
 type microsoft_graph_externalAudienceScope = 'none' | 'contactsOnly' | 'all';
 type microsoft_graph_automaticRepliesStatus = 'disabled' | 'alwaysEnabled' | 'scheduled';
@@ -547,7 +503,7 @@ type microsoft_graph_workingHours = Partial<{
   daysOfWeek: Array<(microsoft_graph_dayOfWeek | {}) | Array<microsoft_graph_dayOfWeek | {}>>;
   endTime: string | null;
   startTime: string | null;
-  timeZone: (microsoft_graph_timeZoneBase | {}) | Array<microsoft_graph_timeZoneBase | {}>;
+  timeZone: microsoft_graph_timeZoneBase;
 }>;
 type microsoft_graph_timeZoneBase = Partial<{
   name: string | null;
@@ -581,7 +537,7 @@ type microsoft_graph_printerCapabilities = Partial<{
     (microsoft_graph_printColorMode | {}) | Array<microsoft_graph_printColorMode | {}>
   >;
   contentTypes: Array<string | null>;
-  copiesPerJob: (microsoft_graph_integerRange | {}) | Array<microsoft_graph_integerRange | {}>;
+  copiesPerJob: microsoft_graph_integerRange;
   dpis: Array<number | null>;
   duplexModes: Array<
     (microsoft_graph_printDuplexMode | {}) | Array<microsoft_graph_printDuplexMode | {}>
@@ -725,11 +681,11 @@ type microsoft_graph_printScaling =
   | 'none'
   | 'unknownFutureValue';
 type microsoft_graph_printerDefaults = Partial<{
-  colorMode: (microsoft_graph_printColorMode | {}) | Array<microsoft_graph_printColorMode | {}>;
+  colorMode: microsoft_graph_printColorMode;
   contentType: string | null;
   copiesPerJob: number | null;
   dpi: number | null;
-  duplexMode: (microsoft_graph_printDuplexMode | {}) | Array<microsoft_graph_printDuplexMode | {}>;
+  duplexMode: microsoft_graph_printDuplexMode;
   finishings: Array<
     (microsoft_graph_printFinishing | {}) | Array<microsoft_graph_printFinishing | {}>
   >;
@@ -738,16 +694,12 @@ type microsoft_graph_printerDefaults = Partial<{
   mediaColor: string | null;
   mediaSize: string | null;
   mediaType: string | null;
-  multipageLayout:
-    | (microsoft_graph_printMultipageLayout | {})
-    | Array<microsoft_graph_printMultipageLayout | {}>;
-  orientation:
-    | (microsoft_graph_printOrientation | {})
-    | Array<microsoft_graph_printOrientation | {}>;
+  multipageLayout: microsoft_graph_printMultipageLayout;
+  orientation: microsoft_graph_printOrientation;
   outputBin: string | null;
   pagesPerSheet: number | null;
-  quality: (microsoft_graph_printQuality | {}) | Array<microsoft_graph_printQuality | {}>;
-  scaling: (microsoft_graph_printScaling | {}) | Array<microsoft_graph_printScaling | {}>;
+  quality: microsoft_graph_printQuality;
+  scaling: microsoft_graph_printScaling;
 }>;
 type microsoft_graph_printerLocation = Partial<{
   altitudeInMeters: number | null;
@@ -1610,7 +1562,7 @@ type microsoft_graph_printJob = Partial<{
   id: string;
   acknowledgedDateTime: string | null;
   configuration: microsoft_graph_printJobConfiguration;
-  createdBy: (microsoft_graph_userIdentity | {}) | Array<microsoft_graph_userIdentity | {}>;
+  createdBy: microsoft_graph_userIdentity;
   createdDateTime: string;
   errorCode: number | null;
   isFetchable: boolean;
@@ -1622,32 +1574,26 @@ type microsoft_graph_printJob = Partial<{
 }>;
 type microsoft_graph_printJobConfiguration = Partial<{
   collate: boolean | null;
-  colorMode: (microsoft_graph_printColorMode | {}) | Array<microsoft_graph_printColorMode | {}>;
+  colorMode: microsoft_graph_printColorMode;
   copies: number | null;
   dpi: number | null;
-  duplexMode: (microsoft_graph_printDuplexMode | {}) | Array<microsoft_graph_printDuplexMode | {}>;
-  feedOrientation:
-    | (microsoft_graph_printerFeedOrientation | {})
-    | Array<microsoft_graph_printerFeedOrientation | {}>;
+  duplexMode: microsoft_graph_printDuplexMode;
+  feedOrientation: microsoft_graph_printerFeedOrientation;
   finishings: Array<
     (microsoft_graph_printFinishing | {}) | Array<microsoft_graph_printFinishing | {}>
   >;
   fitPdfToPage: boolean | null;
   inputBin: string | null;
-  margin: (microsoft_graph_printMargin | {}) | Array<microsoft_graph_printMargin | {}>;
+  margin: microsoft_graph_printMargin;
   mediaSize: string | null;
   mediaType: string | null;
-  multipageLayout:
-    | (microsoft_graph_printMultipageLayout | {})
-    | Array<microsoft_graph_printMultipageLayout | {}>;
-  orientation:
-    | (microsoft_graph_printOrientation | {})
-    | Array<microsoft_graph_printOrientation | {}>;
+  multipageLayout: microsoft_graph_printMultipageLayout;
+  orientation: microsoft_graph_printOrientation;
   outputBin: string | null;
   pageRanges: Array<microsoft_graph_integerRange>;
   pagesPerSheet: number | null;
-  quality: (microsoft_graph_printQuality | {}) | Array<microsoft_graph_printQuality | {}>;
-  scaling: (microsoft_graph_printScaling | {}) | Array<microsoft_graph_printScaling | {}>;
+  quality: microsoft_graph_printQuality;
+  scaling: microsoft_graph_printScaling;
 }>;
 type microsoft_graph_printMargin = Partial<{
   bottom: number | null;
@@ -1730,25 +1676,23 @@ type microsoft_graph_onenote = Partial<{
   sections: Array<microsoft_graph_onenoteSection>;
 }>;
 type microsoft_graph_notebookLinks = Partial<{
-  oneNoteClientUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
-  oneNoteWebUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
+  oneNoteClientUrl: microsoft_graph_externalLink;
+  oneNoteWebUrl: microsoft_graph_externalLink;
 }>;
 type microsoft_graph_externalLink = Partial<{
   href: string | null;
 }>;
 type microsoft_graph_onenoteUserRole = 'None' | 'Owner' | 'Contributor' | 'Reader';
 type microsoft_graph_sectionLinks = Partial<{
-  oneNoteClientUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
-  oneNoteWebUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
+  oneNoteClientUrl: microsoft_graph_externalLink;
+  oneNoteWebUrl: microsoft_graph_externalLink;
 }>;
 type microsoft_graph_pageLinks = Partial<{
-  oneNoteClientUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
-  oneNoteWebUrl: (microsoft_graph_externalLink | {}) | Array<microsoft_graph_externalLink | {}>;
+  oneNoteClientUrl: microsoft_graph_externalLink;
+  oneNoteWebUrl: microsoft_graph_externalLink;
 }>;
 type microsoft_graph_onenoteOperation = Partial<{
-  error:
-    | (microsoft_graph_onenoteOperationError | {})
-    | Array<microsoft_graph_onenoteOperationError | {}>;
+  error: microsoft_graph_onenoteOperationError;
   percentComplete: string | null;
   resourceId: string | null;
   resourceLocation: string | null;
@@ -1783,24 +1727,18 @@ type microsoft_graph_plannerGroup = Partial<{
 }>;
 type microsoft_graph_plannerPlan = Partial<{
   id: string;
-  container:
-    | (microsoft_graph_plannerPlanContainer | {})
-    | Array<microsoft_graph_plannerPlanContainer | {}>;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  container: microsoft_graph_plannerPlanContainer;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   owner: string | null;
   title: string;
   buckets: Array<microsoft_graph_plannerBucket>;
-  details:
-    | (microsoft_graph_plannerPlanDetails | {})
-    | Array<microsoft_graph_plannerPlanDetails | {}>;
+  details: microsoft_graph_plannerPlanDetails;
   tasks: Array<microsoft_graph_plannerTask>;
 }>;
 type microsoft_graph_plannerPlanContainer = Partial<{
   containerId: string | null;
-  type:
-    | (microsoft_graph_plannerContainerType | {})
-    | Array<microsoft_graph_plannerContainerType | {}>;
+  type: microsoft_graph_plannerContainerType;
   url: string | null;
 }>;
 type microsoft_graph_plannerContainerType = 'group' | 'unknownFutureValue' | 'roster';
@@ -1814,44 +1752,30 @@ type microsoft_graph_plannerBucket = Partial<{
 type microsoft_graph_plannerTask = Partial<{
   id: string;
   activeChecklistItemCount: number | null;
-  appliedCategories:
-    | (microsoft_graph_plannerAppliedCategories | {})
-    | Array<microsoft_graph_plannerAppliedCategories | {}>;
+  appliedCategories: microsoft_graph_plannerAppliedCategories;
   assigneePriority: string | null;
-  assignments:
-    | (microsoft_graph_plannerAssignments | {})
-    | Array<microsoft_graph_plannerAssignments | {}>;
+  assignments: microsoft_graph_plannerAssignments;
   bucketId: string | null;
   checklistItemCount: number | null;
-  completedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  completedBy: microsoft_graph_identitySet;
   completedDateTime: string | null;
   conversationThreadId: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   dueDateTime: string | null;
   hasDescription: boolean | null;
   orderHint: string | null;
   percentComplete: number | null;
   planId: string | null;
-  previewType:
-    | (microsoft_graph_plannerPreviewType | {})
-    | Array<microsoft_graph_plannerPreviewType | {}>;
+  previewType: microsoft_graph_plannerPreviewType;
   priority: number | null;
   referenceCount: number | null;
   startDateTime: string | null;
   title: string;
-  assignedToTaskBoardFormat:
-    | (microsoft_graph_plannerAssignedToTaskBoardTaskFormat | {})
-    | Array<microsoft_graph_plannerAssignedToTaskBoardTaskFormat | {}>;
-  bucketTaskBoardFormat:
-    | (microsoft_graph_plannerBucketTaskBoardTaskFormat | {})
-    | Array<microsoft_graph_plannerBucketTaskBoardTaskFormat | {}>;
-  details:
-    | (microsoft_graph_plannerTaskDetails | {})
-    | Array<microsoft_graph_plannerTaskDetails | {}>;
-  progressTaskBoardFormat:
-    | (microsoft_graph_plannerProgressTaskBoardTaskFormat | {})
-    | Array<microsoft_graph_plannerProgressTaskBoardTaskFormat | {}>;
+  assignedToTaskBoardFormat: microsoft_graph_plannerAssignedToTaskBoardTaskFormat;
+  bucketTaskBoardFormat: microsoft_graph_plannerBucketTaskBoardTaskFormat;
+  details: microsoft_graph_plannerTaskDetails;
+  progressTaskBoardFormat: microsoft_graph_plannerProgressTaskBoardTaskFormat;
 }>;
 type microsoft_graph_plannerAppliedCategories = Partial<{}>;
 type microsoft_graph_plannerAssignments = Partial<{}>;
@@ -1863,9 +1787,7 @@ type microsoft_graph_plannerPreviewType =
   | 'reference';
 type microsoft_graph_plannerAssignedToTaskBoardTaskFormat = Partial<{
   id: string;
-  orderHintsByAssignee:
-    | (microsoft_graph_plannerOrderHintsByAssignee | {})
-    | Array<microsoft_graph_plannerOrderHintsByAssignee | {}>;
+  orderHintsByAssignee: microsoft_graph_plannerOrderHintsByAssignee;
   unassignedOrderHint: string | null;
 }>;
 type microsoft_graph_plannerOrderHintsByAssignee = Partial<{}>;
@@ -1875,16 +1797,10 @@ type microsoft_graph_plannerBucketTaskBoardTaskFormat = Partial<{
 }>;
 type microsoft_graph_plannerTaskDetails = Partial<{
   id: string;
-  checklist:
-    | (microsoft_graph_plannerChecklistItems | {})
-    | Array<microsoft_graph_plannerChecklistItems | {}>;
+  checklist: microsoft_graph_plannerChecklistItems;
   description: string | null;
-  previewType:
-    | (microsoft_graph_plannerPreviewType | {})
-    | Array<microsoft_graph_plannerPreviewType | {}>;
-  references:
-    | (microsoft_graph_plannerExternalReferences | {})
-    | Array<microsoft_graph_plannerExternalReferences | {}>;
+  previewType: microsoft_graph_plannerPreviewType;
+  references: microsoft_graph_plannerExternalReferences;
 }>;
 type microsoft_graph_plannerChecklistItems = Partial<{}>;
 type microsoft_graph_plannerExternalReferences = Partial<{}>;
@@ -1894,10 +1810,8 @@ type microsoft_graph_plannerProgressTaskBoardTaskFormat = Partial<{
 }>;
 type microsoft_graph_plannerPlanDetails = Partial<{
   id: string;
-  categoryDescriptions:
-    | (microsoft_graph_plannerCategoryDescriptions | {})
-    | Array<microsoft_graph_plannerCategoryDescriptions | {}>;
-  sharedWith: (microsoft_graph_plannerUserIds | {}) | Array<microsoft_graph_plannerUserIds | {}>;
+  categoryDescriptions: microsoft_graph_plannerCategoryDescriptions;
+  sharedWith: microsoft_graph_plannerUserIds;
 }>;
 type microsoft_graph_plannerCategoryDescriptions = Partial<{
   category1: string | null;
@@ -1940,9 +1854,7 @@ type microsoft_graph_settingValue = Partial<{
 type microsoft_graph_publicError = Partial<{
   code: string | null;
   details: Array<microsoft_graph_publicErrorDetail>;
-  innerError:
-    | (microsoft_graph_publicInnerError | {})
-    | Array<microsoft_graph_publicInnerError | {}>;
+  innerError: microsoft_graph_publicInnerError;
   message: string | null;
   target: string | null;
 }>;
@@ -1959,17 +1871,13 @@ type microsoft_graph_publicInnerError = Partial<{
 }>;
 type microsoft_graph_root = Partial<{}>;
 type microsoft_graph_siteCollection = Partial<{
-  archivalDetails:
-    | (microsoft_graph_siteArchivalDetails | {})
-    | Array<microsoft_graph_siteArchivalDetails | {}>;
+  archivalDetails: microsoft_graph_siteArchivalDetails;
   dataLocationCode: string | null;
   hostname: string | null;
-  root: (microsoft_graph_root | {}) | Array<microsoft_graph_root | {}>;
+  root: microsoft_graph_root;
 }>;
 type microsoft_graph_siteArchivalDetails = Partial<{
-  archiveStatus:
-    | (microsoft_graph_siteArchiveStatus | {})
-    | Array<microsoft_graph_siteArchiveStatus | {}>;
+  archiveStatus: microsoft_graph_siteArchiveStatus;
 }>;
 type microsoft_graph_siteArchiveStatus =
   | 'recentlyArchived'
@@ -2004,7 +1912,7 @@ type microsoft_graph_audio = Partial<{
   year: number | null;
 }>;
 type microsoft_graph_bundle = Partial<{
-  album: (microsoft_graph_album | {}) | Array<microsoft_graph_album | {}>;
+  album: microsoft_graph_album;
   childCount: number | null;
 }>;
 type microsoft_graph_album = Partial<{
@@ -2014,7 +1922,7 @@ type microsoft_graph_deleted = Partial<{
   state: string | null;
 }>;
 type microsoft_graph_file = Partial<{
-  hashes: (microsoft_graph_hashes | {}) | Array<microsoft_graph_hashes | {}>;
+  hashes: microsoft_graph_hashes;
   mimeType: string | null;
   processingMetadata: boolean | null;
 }>;
@@ -2031,7 +1939,7 @@ type microsoft_graph_fileSystemInfo = Partial<{
 }>;
 type microsoft_graph_folder = Partial<{
   childCount: number | null;
-  view: (microsoft_graph_folderView | {}) | Array<microsoft_graph_folderView | {}>;
+  view: microsoft_graph_folderView;
 }>;
 type microsoft_graph_folderView = Partial<{
   sortBy: string | null;
@@ -2054,9 +1962,7 @@ type microsoft_graph_package = Partial<{
   type: string | null;
 }>;
 type microsoft_graph_pendingOperations = Partial<{
-  pendingContentUpdate:
-    | (microsoft_graph_pendingContentUpdate | {})
-    | Array<microsoft_graph_pendingContentUpdate | {}>;
+  pendingContentUpdate: microsoft_graph_pendingContentUpdate;
 }>;
 type microsoft_graph_pendingContentUpdate = Partial<{
   queuedDateTime: string | null;
@@ -2073,37 +1979,35 @@ type microsoft_graph_photo = Partial<{
   takenDateTime: string | null;
 }>;
 type microsoft_graph_publicationFacet = Partial<{
-  checkedOutBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  checkedOutBy: microsoft_graph_identitySet;
   level: string | null;
   versionId: string | null;
 }>;
 type microsoft_graph_remoteItem = Partial<{
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  file: (microsoft_graph_file | {}) | Array<microsoft_graph_file | {}>;
-  fileSystemInfo:
-    | (microsoft_graph_fileSystemInfo | {})
-    | Array<microsoft_graph_fileSystemInfo | {}>;
-  folder: (microsoft_graph_folder | {}) | Array<microsoft_graph_folder | {}>;
+  file: microsoft_graph_file;
+  fileSystemInfo: microsoft_graph_fileSystemInfo;
+  folder: microsoft_graph_folder;
   id: string | null;
-  image: (microsoft_graph_image | {}) | Array<microsoft_graph_image | {}>;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  image: microsoft_graph_image;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   name: string | null;
-  package: (microsoft_graph_package | {}) | Array<microsoft_graph_package | {}>;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
-  shared: (microsoft_graph_shared | {}) | Array<microsoft_graph_shared | {}>;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
+  package: microsoft_graph_package;
+  parentReference: microsoft_graph_itemReference;
+  shared: microsoft_graph_shared;
+  sharepointIds: microsoft_graph_sharepointIds;
   size: number | null;
-  specialFolder: (microsoft_graph_specialFolder | {}) | Array<microsoft_graph_specialFolder | {}>;
-  video: (microsoft_graph_video | {}) | Array<microsoft_graph_video | {}>;
+  specialFolder: microsoft_graph_specialFolder;
+  video: microsoft_graph_video;
   webDavUrl: string | null;
   webUrl: string | null;
 }>;
 type microsoft_graph_shared = Partial<{
-  owner: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  owner: microsoft_graph_identitySet;
   scope: string | null;
-  sharedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  sharedBy: microsoft_graph_identitySet;
   sharedDateTime: string | null;
 }>;
 type microsoft_graph_specialFolder = Partial<{
@@ -2130,7 +2034,7 @@ type microsoft_graph_contentTypeInfo = Partial<{
 }>;
 type microsoft_graph_documentSetVersion = Partial<{
   comment: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   items: Array<microsoft_graph_documentSetVersionItem>;
   shouldCaptureMinorVersion: boolean | null;
@@ -2145,42 +2049,32 @@ type microsoft_graph_fieldValueSet = Partial<{
 }>;
 type microsoft_graph_listItemVersion = Partial<{
   id: string;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  publication:
-    | (microsoft_graph_publicationFacet | {})
-    | Array<microsoft_graph_publicationFacet | {}>;
-  fields: (microsoft_graph_fieldValueSet | {}) | Array<microsoft_graph_fieldValueSet | {}>;
+  publication: microsoft_graph_publicationFacet;
+  fields: microsoft_graph_fieldValueSet;
 }>;
 type microsoft_graph_permission = Partial<{
   id: string;
   expirationDateTime: string | null;
-  grantedTo: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  grantedTo: microsoft_graph_identitySet;
   grantedToIdentities: Array<microsoft_graph_identitySet>;
   grantedToIdentitiesV2: Array<microsoft_graph_sharePointIdentitySet>;
-  grantedToV2:
-    | (microsoft_graph_sharePointIdentitySet | {})
-    | Array<microsoft_graph_sharePointIdentitySet | {}>;
+  grantedToV2: microsoft_graph_sharePointIdentitySet;
   hasPassword: boolean | null;
-  inheritedFrom: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
-  invitation:
-    | (microsoft_graph_sharingInvitation | {})
-    | Array<microsoft_graph_sharingInvitation | {}>;
-  link: (microsoft_graph_sharingLink | {}) | Array<microsoft_graph_sharingLink | {}>;
+  inheritedFrom: microsoft_graph_itemReference;
+  invitation: microsoft_graph_sharingInvitation;
+  link: microsoft_graph_sharingLink;
   roles: Array<string | null>;
   shareId: string | null;
 }>;
 type microsoft_graph_sharePointIdentitySet = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  device: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  user: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  group: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  siteGroup:
-    | (microsoft_graph_sharePointIdentity | {})
-    | Array<microsoft_graph_sharePointIdentity | {}>;
-  siteUser:
-    | (microsoft_graph_sharePointIdentity | {})
-    | Array<microsoft_graph_sharePointIdentity | {}>;
+  application: microsoft_graph_identity;
+  device: microsoft_graph_identity;
+  user: microsoft_graph_identity;
+  group: microsoft_graph_identity;
+  siteGroup: microsoft_graph_sharePointIdentity;
+  siteUser: microsoft_graph_sharePointIdentity;
 }>;
 type microsoft_graph_sharePointIdentity = Partial<{
   displayName: string | null;
@@ -2189,12 +2083,12 @@ type microsoft_graph_sharePointIdentity = Partial<{
 }>;
 type microsoft_graph_sharingInvitation = Partial<{
   email: string | null;
-  invitedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  invitedBy: microsoft_graph_identitySet;
   redeemedBy: string | null;
   signInRequired: boolean | null;
 }>;
 type microsoft_graph_sharingLink = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
+  application: microsoft_graph_identity;
   preventsDownload: boolean | null;
   scope: string | null;
   type: string | null;
@@ -2204,17 +2098,13 @@ type microsoft_graph_sharingLink = Partial<{
 type microsoft_graph_itemRetentionLabel = Partial<{
   id: string;
   isLabelAppliedExplicitly: boolean | null;
-  labelAppliedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  labelAppliedBy: microsoft_graph_identitySet;
   labelAppliedDateTime: string | null;
   name: string | null;
-  retentionSettings:
-    | (microsoft_graph_retentionLabelSettings | {})
-    | Array<microsoft_graph_retentionLabelSettings | {}>;
+  retentionSettings: microsoft_graph_retentionLabelSettings;
 }>;
 type microsoft_graph_retentionLabelSettings = Partial<{
-  behaviorDuringRetentionPeriod:
-    | (microsoft_graph_security_behaviorDuringRetentionPeriod | {})
-    | Array<microsoft_graph_security_behaviorDuringRetentionPeriod | {}>;
+  behaviorDuringRetentionPeriod: microsoft_graph_security_behaviorDuringRetentionPeriod;
   isContentUpdateAllowed: boolean | null;
   isDeleteAllowed: boolean | null;
   isLabelUpdateAllowed: boolean | null;
@@ -2246,10 +2136,10 @@ type microsoft_graph_subscription = Partial<{
 }>;
 type microsoft_graph_thumbnailSet = Partial<{
   id: string;
-  large: (microsoft_graph_thumbnail | {}) | Array<microsoft_graph_thumbnail | {}>;
-  medium: (microsoft_graph_thumbnail | {}) | Array<microsoft_graph_thumbnail | {}>;
-  small: (microsoft_graph_thumbnail | {}) | Array<microsoft_graph_thumbnail | {}>;
-  source: (microsoft_graph_thumbnail | {}) | Array<microsoft_graph_thumbnail | {}>;
+  large: microsoft_graph_thumbnail;
+  medium: microsoft_graph_thumbnail;
+  small: microsoft_graph_thumbnail;
+  source: microsoft_graph_thumbnail;
 }>;
 type microsoft_graph_thumbnail = Partial<{
   content: string | null;
@@ -2260,23 +2150,17 @@ type microsoft_graph_thumbnail = Partial<{
 }>;
 type microsoft_graph_driveItemVersion = Partial<{
   id: string;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  publication:
-    | (microsoft_graph_publicationFacet | {})
-    | Array<microsoft_graph_publicationFacet | {}>;
+  publication: microsoft_graph_publicationFacet;
   content: string | null;
   size: number | null;
 }>;
 type microsoft_graph_workbook = Partial<{
   id: string;
-  application:
-    | (microsoft_graph_workbookApplication | {})
-    | Array<microsoft_graph_workbookApplication | {}>;
+  application: microsoft_graph_workbookApplication;
   comments: Array<microsoft_graph_workbookComment>;
-  functions:
-    | (microsoft_graph_workbookFunctions | {})
-    | Array<microsoft_graph_workbookFunctions | {}>;
+  functions: microsoft_graph_workbookFunctions;
   names: Array<microsoft_graph_workbookNamedItem>;
   operations: Array<microsoft_graph_workbookOperation>;
   tables: Array<microsoft_graph_workbookTable>;
@@ -2303,15 +2187,9 @@ type microsoft_graph_workbookFunctions = Partial<{
 type ReferenceNumeric = '-INF' | 'INF' | 'NaN' | null;
 type microsoft_graph_workbookChartAxes = Partial<{
   id: string;
-  categoryAxis:
-    | (microsoft_graph_workbookChartAxis | {})
-    | Array<microsoft_graph_workbookChartAxis | {}>;
-  seriesAxis:
-    | (microsoft_graph_workbookChartAxis | {})
-    | Array<microsoft_graph_workbookChartAxis | {}>;
-  valueAxis:
-    | (microsoft_graph_workbookChartAxis | {})
-    | Array<microsoft_graph_workbookChartAxis | {}>;
+  categoryAxis: microsoft_graph_workbookChartAxis;
+  seriesAxis: microsoft_graph_workbookChartAxis;
+  valueAxis: microsoft_graph_workbookChartAxis;
 }>;
 type microsoft_graph_workbookChartAxis = Partial<{
   id: string;
@@ -2319,25 +2197,15 @@ type microsoft_graph_workbookChartAxis = Partial<{
   maximum: unknown;
   minimum: unknown;
   minorUnit: unknown;
-  format:
-    | (microsoft_graph_workbookChartAxisFormat | {})
-    | Array<microsoft_graph_workbookChartAxisFormat | {}>;
-  majorGridlines:
-    | (microsoft_graph_workbookChartGridlines | {})
-    | Array<microsoft_graph_workbookChartGridlines | {}>;
-  minorGridlines:
-    | (microsoft_graph_workbookChartGridlines | {})
-    | Array<microsoft_graph_workbookChartGridlines | {}>;
-  title:
-    | (microsoft_graph_workbookChartAxisTitle | {})
-    | Array<microsoft_graph_workbookChartAxisTitle | {}>;
+  format: microsoft_graph_workbookChartAxisFormat;
+  majorGridlines: microsoft_graph_workbookChartGridlines;
+  minorGridlines: microsoft_graph_workbookChartGridlines;
+  title: microsoft_graph_workbookChartAxisTitle;
 }>;
 type microsoft_graph_workbookChartAxisFormat = Partial<{
   id: string;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
-  line:
-    | (microsoft_graph_workbookChartLineFormat | {})
-    | Array<microsoft_graph_workbookChartLineFormat | {}>;
+  font: microsoft_graph_workbookChartFont;
+  line: microsoft_graph_workbookChartLineFormat;
 }>;
 type microsoft_graph_workbookChartFont = Partial<{
   id: string;
@@ -2355,27 +2223,21 @@ type microsoft_graph_workbookChartLineFormat = Partial<{
 type microsoft_graph_workbookChartGridlines = Partial<{
   id: string;
   visible: boolean;
-  format:
-    | (microsoft_graph_workbookChartGridlinesFormat | {})
-    | Array<microsoft_graph_workbookChartGridlinesFormat | {}>;
+  format: microsoft_graph_workbookChartGridlinesFormat;
 }>;
 type microsoft_graph_workbookChartGridlinesFormat = Partial<{
   id: string;
-  line:
-    | (microsoft_graph_workbookChartLineFormat | {})
-    | Array<microsoft_graph_workbookChartLineFormat | {}>;
+  line: microsoft_graph_workbookChartLineFormat;
 }>;
 type microsoft_graph_workbookChartAxisTitle = Partial<{
   id: string;
   text: string | null;
   visible: boolean;
-  format:
-    | (microsoft_graph_workbookChartAxisTitleFormat | {})
-    | Array<microsoft_graph_workbookChartAxisTitleFormat | {}>;
+  format: microsoft_graph_workbookChartAxisTitleFormat;
 }>;
 type microsoft_graph_workbookChartAxisTitleFormat = Partial<{
   id: string;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
+  font: microsoft_graph_workbookChartFont;
 }>;
 type microsoft_graph_workbookChartDataLabels = Partial<{
   id: string;
@@ -2387,82 +2249,68 @@ type microsoft_graph_workbookChartDataLabels = Partial<{
   showPercentage: boolean | null;
   showSeriesName: boolean | null;
   showValue: boolean | null;
-  format:
-    | (microsoft_graph_workbookChartDataLabelFormat | {})
-    | Array<microsoft_graph_workbookChartDataLabelFormat | {}>;
+  format: microsoft_graph_workbookChartDataLabelFormat;
 }>;
 type microsoft_graph_workbookChartDataLabelFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
+  fill: microsoft_graph_workbookChartFill;
+  font: microsoft_graph_workbookChartFont;
 }>;
 type microsoft_graph_workbookChartFill = Partial<{
   id: string;
 }>;
 type microsoft_graph_workbookChartAreaFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
+  fill: microsoft_graph_workbookChartFill;
+  font: microsoft_graph_workbookChartFont;
 }>;
 type microsoft_graph_workbookChartLegend = Partial<{
   id: string;
   overlay: boolean | null;
   position: string | null;
   visible: boolean;
-  format:
-    | (microsoft_graph_workbookChartLegendFormat | {})
-    | Array<microsoft_graph_workbookChartLegendFormat | {}>;
+  format: microsoft_graph_workbookChartLegendFormat;
 }>;
 type microsoft_graph_workbookChartLegendFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
+  fill: microsoft_graph_workbookChartFill;
+  font: microsoft_graph_workbookChartFont;
 }>;
 type microsoft_graph_workbookChartSeries = Partial<{
   id: string;
   name: string | null;
-  format:
-    | (microsoft_graph_workbookChartSeriesFormat | {})
-    | Array<microsoft_graph_workbookChartSeriesFormat | {}>;
+  format: microsoft_graph_workbookChartSeriesFormat;
   points: Array<microsoft_graph_workbookChartPoint>;
 }>;
 type microsoft_graph_workbookChartSeriesFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
-  line:
-    | (microsoft_graph_workbookChartLineFormat | {})
-    | Array<microsoft_graph_workbookChartLineFormat | {}>;
+  fill: microsoft_graph_workbookChartFill;
+  line: microsoft_graph_workbookChartLineFormat;
 }>;
 type microsoft_graph_workbookChartPoint = Partial<{
   id: string;
   value: unknown;
-  format:
-    | (microsoft_graph_workbookChartPointFormat | {})
-    | Array<microsoft_graph_workbookChartPointFormat | {}>;
+  format: microsoft_graph_workbookChartPointFormat;
 }>;
 type microsoft_graph_workbookChartPointFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
+  fill: microsoft_graph_workbookChartFill;
 }>;
 type microsoft_graph_workbookChartTitle = Partial<{
   id: string;
   overlay: boolean | null;
   text: string | null;
   visible: boolean;
-  format:
-    | (microsoft_graph_workbookChartTitleFormat | {})
-    | Array<microsoft_graph_workbookChartTitleFormat | {}>;
+  format: microsoft_graph_workbookChartTitleFormat;
 }>;
 type microsoft_graph_workbookChartTitleFormat = Partial<{
   id: string;
-  fill: (microsoft_graph_workbookChartFill | {}) | Array<microsoft_graph_workbookChartFill | {}>;
-  font: (microsoft_graph_workbookChartFont | {}) | Array<microsoft_graph_workbookChartFont | {}>;
+  fill: microsoft_graph_workbookChartFill;
+  font: microsoft_graph_workbookChartFont;
 }>;
 type microsoft_graph_workbookWorksheetProtection = Partial<{
   id: string;
-  options:
-    | (microsoft_graph_workbookWorksheetProtectionOptions | {})
-    | Array<microsoft_graph_workbookWorksheetProtectionOptions | {}>;
+  options: microsoft_graph_workbookWorksheetProtectionOptions;
   protected: boolean;
 }>;
 type microsoft_graph_workbookWorksheetProtectionOptions = Partial<{
@@ -2483,13 +2331,11 @@ type microsoft_graph_workbookTableColumn = Partial<{
   index: number;
   name: string | null;
   values: unknown;
-  filter: (microsoft_graph_workbookFilter | {}) | Array<microsoft_graph_workbookFilter | {}>;
+  filter: microsoft_graph_workbookFilter;
 }>;
 type microsoft_graph_workbookFilter = Partial<{
   id: string;
-  criteria:
-    | (microsoft_graph_workbookFilterCriteria | {})
-    | Array<microsoft_graph_workbookFilterCriteria | {}>;
+  criteria: microsoft_graph_workbookFilterCriteria;
 }>;
 type microsoft_graph_workbookFilterCriteria = Partial<{
   color: string | null;
@@ -2497,7 +2343,7 @@ type microsoft_graph_workbookFilterCriteria = Partial<{
   criterion2: string | null;
   dynamicCriteria: string;
   filterOn: string;
-  icon: (microsoft_graph_workbookIcon | {}) | Array<microsoft_graph_workbookIcon | {}>;
+  icon: microsoft_graph_workbookIcon;
   operator: string;
   values: unknown;
 }>;
@@ -2520,15 +2366,13 @@ type microsoft_graph_workbookSortField = Partial<{
   ascending: boolean;
   color: string | null;
   dataOption: string;
-  icon: (microsoft_graph_workbookIcon | {}) | Array<microsoft_graph_workbookIcon | {}>;
+  icon: microsoft_graph_workbookIcon;
   key: number;
   sortOn: string;
 }>;
 type microsoft_graph_workbookOperation = Partial<{
   id: string;
-  error:
-    | (microsoft_graph_workbookOperationError | {})
-    | Array<microsoft_graph_workbookOperationError | {}>;
+  error: microsoft_graph_workbookOperationError;
   resourceLocation: string | null;
   status: microsoft_graph_workbookOperationStatus;
 }>;
@@ -2581,8 +2425,8 @@ type microsoft_graph_personOrGroupColumn = Partial<{
 type microsoft_graph_termColumn = Partial<{
   allowMultipleValues: boolean | null;
   showFullyQualifiedName: boolean | null;
-  parentTerm: (microsoft_graph_termStore_term | {}) | Array<microsoft_graph_termStore_term | {}>;
-  termSet: (microsoft_graph_termStore_set | {}) | Array<microsoft_graph_termStore_set | {}>;
+  parentTerm: microsoft_graph_termStore_term;
+  termSet: microsoft_graph_termStore_set;
 }>;
 type microsoft_graph_termStore_localizedDescription = Partial<{
   description: string | null;
@@ -2654,7 +2498,7 @@ type microsoft_graph_documentSet = Partial<{
   welcomePageColumns: Array<microsoft_graph_columnDefinition>;
 }>;
 type microsoft_graph_documentSetContent = Partial<{
-  contentType: (microsoft_graph_contentTypeInfo | {}) | Array<microsoft_graph_contentTypeInfo | {}>;
+  contentType: microsoft_graph_contentTypeInfo;
   fileName: string | null;
   folderName: string | null;
 }>;
@@ -2677,11 +2521,9 @@ type microsoft_graph_richLongRunningOperation = Partial<{
   createdDateTime: string | null;
   lastActionDateTime: string | null;
   resourceLocation: string | null;
-  status:
-    | (microsoft_graph_longRunningOperationStatus | {})
-    | Array<microsoft_graph_longRunningOperationStatus | {}>;
+  status: microsoft_graph_longRunningOperationStatus;
   statusDetail: string | null;
-  error: (microsoft_graph_publicError | {}) | Array<microsoft_graph_publicError | {}>;
+  error: microsoft_graph_publicError;
   percentageComplete: number | null;
   resourceId: string | null;
   type: string | null;
@@ -2708,9 +2550,7 @@ type microsoft_graph_teamFunSettings = Partial<{
   allowCustomMemes: boolean | null;
   allowGiphy: boolean | null;
   allowStickersAndMemes: boolean | null;
-  giphyContentRating:
-    | (microsoft_graph_giphyRatingType | {})
-    | Array<microsoft_graph_giphyRatingType | {}>;
+  giphyContentRating: microsoft_graph_giphyRatingType;
 }>;
 type microsoft_graph_giphyRatingType = 'strict' | 'moderate' | 'unknownFutureValue';
 type microsoft_graph_teamGuestSettings = Partial<{
@@ -2783,32 +2623,26 @@ type microsoft_graph_channelIdentity = Partial<{
 }>;
 type microsoft_graph_eventMessageDetail = Partial<{}>;
 type microsoft_graph_chatMessageFromIdentitySet = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  device: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  user: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
+  application: microsoft_graph_identity;
+  device: microsoft_graph_identity;
+  user: microsoft_graph_identity;
 }>;
 type microsoft_graph_chatMessageImportance = 'normal' | 'high' | 'urgent' | 'unknownFutureValue';
 type microsoft_graph_chatMessageMention = Partial<{
   id: number | null;
-  mentioned:
-    | (microsoft_graph_chatMessageMentionedIdentitySet | {})
-    | Array<microsoft_graph_chatMessageMentionedIdentitySet | {}>;
+  mentioned: microsoft_graph_chatMessageMentionedIdentitySet;
   mentionText: string | null;
 }>;
 type microsoft_graph_chatMessageMentionedIdentitySet = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  device: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  user: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  conversation:
-    | (microsoft_graph_teamworkConversationIdentity | {})
-    | Array<microsoft_graph_teamworkConversationIdentity | {}>;
+  application: microsoft_graph_identity;
+  device: microsoft_graph_identity;
+  user: microsoft_graph_identity;
+  conversation: microsoft_graph_teamworkConversationIdentity;
 }>;
 type microsoft_graph_teamworkConversationIdentity = Partial<{
   displayName: string | null;
   id: string | null;
-  conversationIdentityType:
-    | (microsoft_graph_teamworkConversationIdentityType | {})
-    | Array<microsoft_graph_teamworkConversationIdentityType | {}>;
+  conversationIdentityType: microsoft_graph_teamworkConversationIdentityType;
 }>;
 type microsoft_graph_teamworkConversationIdentityType =
   | 'team'
@@ -2818,9 +2652,7 @@ type microsoft_graph_teamworkConversationIdentityType =
 type microsoft_graph_chatMessageHistoryItem = Partial<{
   actions: microsoft_graph_chatMessageActions;
   modifiedDateTime: string;
-  reaction:
-    | (microsoft_graph_chatMessageReaction | {})
-    | Array<microsoft_graph_chatMessageReaction | {}>;
+  reaction: microsoft_graph_chatMessageReaction;
 }>;
 type microsoft_graph_chatMessageActions =
   | 'reactionAdded'
@@ -2835,9 +2667,9 @@ type microsoft_graph_chatMessageReaction = Partial<{
   user: microsoft_graph_chatMessageReactionIdentitySet;
 }>;
 type microsoft_graph_chatMessageReactionIdentitySet = Partial<{
-  application: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  device: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
-  user: (microsoft_graph_identity | {}) | Array<microsoft_graph_identity | {}>;
+  application: microsoft_graph_identity;
+  device: microsoft_graph_identity;
+  user: microsoft_graph_identity;
 }>;
 type microsoft_graph_chatMessageType =
   | 'message'
@@ -2846,19 +2678,11 @@ type microsoft_graph_chatMessageType =
   | 'unknownFutureValue'
   | 'systemEventMessage';
 type microsoft_graph_chatMessagePolicyViolation = Partial<{
-  dlpAction:
-    | (microsoft_graph_chatMessagePolicyViolationDlpActionTypes | {})
-    | Array<microsoft_graph_chatMessagePolicyViolationDlpActionTypes | {}>;
+  dlpAction: microsoft_graph_chatMessagePolicyViolationDlpActionTypes;
   justificationText: string | null;
-  policyTip:
-    | (microsoft_graph_chatMessagePolicyViolationPolicyTip | {})
-    | Array<microsoft_graph_chatMessagePolicyViolationPolicyTip | {}>;
-  userAction:
-    | (microsoft_graph_chatMessagePolicyViolationUserActionTypes | {})
-    | Array<microsoft_graph_chatMessagePolicyViolationUserActionTypes | {}>;
-  verdictDetails:
-    | (microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes | {})
-    | Array<microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes | {}>;
+  policyTip: microsoft_graph_chatMessagePolicyViolationPolicyTip;
+  userAction: microsoft_graph_chatMessagePolicyViolationUserActionTypes;
+  verdictDetails: microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes;
 }>;
 type microsoft_graph_chatMessagePolicyViolationDlpActionTypes =
   | 'none'
@@ -2886,12 +2710,10 @@ type microsoft_graph_sharedWithChannelTeamInfo = Partial<{
 }>;
 type microsoft_graph_teamsTab = Partial<{
   id: string;
-  configuration:
-    | (microsoft_graph_teamsTabConfiguration | {})
-    | Array<microsoft_graph_teamsTabConfiguration | {}>;
+  configuration: microsoft_graph_teamsTabConfiguration;
   displayName: string | null;
   webUrl: string | null;
-  teamsApp: (microsoft_graph_teamsApp | {}) | Array<microsoft_graph_teamsApp | {}>;
+  teamsApp: microsoft_graph_teamsApp;
 }>;
 type microsoft_graph_teamsTabConfiguration = Partial<{
   contentUrl: string | null;
@@ -2902,9 +2724,7 @@ type microsoft_graph_teamsTabConfiguration = Partial<{
 type microsoft_graph_teamsApp = Partial<{
   id: string;
   displayName: string | null;
-  distributionMethod:
-    | (microsoft_graph_teamsAppDistributionMethod | {})
-    | Array<microsoft_graph_teamsAppDistributionMethod | {}>;
+  distributionMethod: microsoft_graph_teamsAppDistributionMethod;
   externalId: string | null;
   appDefinitions: Array<microsoft_graph_teamsAppDefinition>;
 }>;
@@ -2915,34 +2735,26 @@ type microsoft_graph_teamsAppDistributionMethod =
   | 'unknownFutureValue';
 type microsoft_graph_teamsAppDefinition = Partial<{
   id: string;
-  authorization:
-    | (microsoft_graph_teamsAppAuthorization | {})
-    | Array<microsoft_graph_teamsAppAuthorization | {}>;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  authorization: microsoft_graph_teamsAppAuthorization;
+  createdBy: microsoft_graph_identitySet;
   description: string | null;
   displayName: string | null;
   lastModifiedDateTime: string | null;
-  publishingState:
-    | (microsoft_graph_teamsAppPublishingState | {})
-    | Array<microsoft_graph_teamsAppPublishingState | {}>;
+  publishingState: microsoft_graph_teamsAppPublishingState;
   shortDescription: string | null;
   teamsAppId: string | null;
   version: string | null;
-  bot: (microsoft_graph_teamworkBot | {}) | Array<microsoft_graph_teamworkBot | {}>;
+  bot: microsoft_graph_teamworkBot;
 }>;
 type microsoft_graph_teamsAppAuthorization = Partial<{
   clientAppId: string | null;
-  requiredPermissionSet:
-    | (microsoft_graph_teamsAppPermissionSet | {})
-    | Array<microsoft_graph_teamsAppPermissionSet | {}>;
+  requiredPermissionSet: microsoft_graph_teamsAppPermissionSet;
 }>;
 type microsoft_graph_teamsAppPermissionSet = Partial<{
   resourceSpecificPermissions: Array<microsoft_graph_teamsAppResourceSpecificPermission>;
 }>;
 type microsoft_graph_teamsAppResourceSpecificPermission = Partial<{
-  permissionType:
-    | (microsoft_graph_teamsAppResourceSpecificPermissionType | {})
-    | Array<microsoft_graph_teamsAppResourceSpecificPermissionType | {}>;
+  permissionType: microsoft_graph_teamsAppResourceSpecificPermissionType;
   permissionValue: string | null;
 }>;
 type microsoft_graph_teamsAppResourceSpecificPermissionType =
@@ -2959,19 +2771,15 @@ type microsoft_graph_teamworkBot = Partial<{
 }>;
 type microsoft_graph_teamsAppInstallation = Partial<{
   id: string;
-  consentedPermissionSet:
-    | (microsoft_graph_teamsAppPermissionSet | {})
-    | Array<microsoft_graph_teamsAppPermissionSet | {}>;
-  teamsApp: (microsoft_graph_teamsApp | {}) | Array<microsoft_graph_teamsApp | {}>;
-  teamsAppDefinition:
-    | (microsoft_graph_teamsAppDefinition | {})
-    | Array<microsoft_graph_teamsAppDefinition | {}>;
+  consentedPermissionSet: microsoft_graph_teamsAppPermissionSet;
+  teamsApp: microsoft_graph_teamsApp;
+  teamsAppDefinition: microsoft_graph_teamsAppDefinition;
 }>;
 type microsoft_graph_teamsAsyncOperation = Partial<{
   id: string;
   attemptsCount: number;
   createdDateTime: string;
-  error: (microsoft_graph_operationError | {}) | Array<microsoft_graph_operationError | {}>;
+  error: microsoft_graph_operationError;
   lastActionDateTime: string;
   operationType: microsoft_graph_teamsAsyncOperationType;
   status: microsoft_graph_teamsAsyncOperationStatus;
@@ -3006,16 +2814,12 @@ type microsoft_graph_schedule = Partial<{
   isActivitiesIncludedWhenCopyingShiftsEnabled: boolean | null;
   offerShiftRequestsEnabled: boolean | null;
   openShiftsEnabled: boolean | null;
-  provisionStatus:
-    | (microsoft_graph_operationStatus | {})
-    | Array<microsoft_graph_operationStatus | {}>;
+  provisionStatus: microsoft_graph_operationStatus;
   provisionStatusCode: string | null;
-  startDayOfWeek: (microsoft_graph_dayOfWeek | {}) | Array<microsoft_graph_dayOfWeek | {}>;
+  startDayOfWeek: microsoft_graph_dayOfWeek;
   swapShiftsRequestsEnabled: boolean | null;
   timeClockEnabled: boolean | null;
-  timeClockSettings:
-    | (microsoft_graph_timeClockSettings | {})
-    | Array<microsoft_graph_timeClockSettings | {}>;
+  timeClockSettings: microsoft_graph_timeClockSettings;
   timeOffRequestsEnabled: boolean | null;
   timeZone: string | null;
   workforceIntegrationIds: Array<string | null>;
@@ -3033,19 +2837,17 @@ type microsoft_graph_schedule = Partial<{
 }>;
 type microsoft_graph_operationStatus = 'NotStarted' | 'Running' | 'Completed' | 'Failed';
 type microsoft_graph_timeClockSettings = Partial<{
-  approvedLocation:
-    | (microsoft_graph_geoCoordinates | {})
-    | Array<microsoft_graph_geoCoordinates | {}>;
+  approvedLocation: microsoft_graph_geoCoordinates;
 }>;
 type microsoft_graph_dayNote = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   dayNoteDate: string | null;
-  draftDayNote: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
-  sharedDayNote: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  draftDayNote: microsoft_graph_itemBody;
+  sharedDayNote: microsoft_graph_itemBody;
 }>;
 type microsoft_graph_offerShiftRequest = Partial<{
   recipientActionDateTime: string | null;
@@ -3058,23 +2860,23 @@ type microsoft_graph_openShiftChangeRequest = Partial<{
 }>;
 type microsoft_graph_openShift = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  draftOpenShift: (microsoft_graph_openShiftItem | {}) | Array<microsoft_graph_openShiftItem | {}>;
+  draftOpenShift: microsoft_graph_openShiftItem;
   isStagedForDeletion: boolean | null;
   schedulingGroupId: string | null;
-  sharedOpenShift: (microsoft_graph_openShiftItem | {}) | Array<microsoft_graph_openShiftItem | {}>;
+  sharedOpenShift: microsoft_graph_openShiftItem;
 }>;
 type microsoft_graph_openShiftItem = Partial<{
   openSlotCount: number;
 }>;
 type microsoft_graph_schedulingGroup = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   code: string | null;
   displayName: string | null;
@@ -3083,14 +2885,14 @@ type microsoft_graph_schedulingGroup = Partial<{
 }>;
 type microsoft_graph_shift = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  draftShift: (microsoft_graph_shiftItem | {}) | Array<microsoft_graph_shiftItem | {}>;
+  draftShift: microsoft_graph_shiftItem;
   isStagedForDeletion: boolean | null;
   schedulingGroupId: string | null;
-  sharedShift: (microsoft_graph_shiftItem | {}) | Array<microsoft_graph_shiftItem | {}>;
+  sharedShift: microsoft_graph_shiftItem;
   userId: string | null;
 }>;
 type microsoft_graph_shiftItem = Partial<{
@@ -3132,48 +2934,46 @@ type microsoft_graph_swapShiftsChangeRequest = Partial<{
 }>;
 type microsoft_graph_timeCard = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   breaks: Array<microsoft_graph_timeCardBreak>;
-  clockInEvent: (microsoft_graph_timeCardEvent | {}) | Array<microsoft_graph_timeCardEvent | {}>;
-  clockOutEvent: (microsoft_graph_timeCardEvent | {}) | Array<microsoft_graph_timeCardEvent | {}>;
-  confirmedBy: (microsoft_graph_confirmedBy | {}) | Array<microsoft_graph_confirmedBy | {}>;
-  notes: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
-  originalEntry: (microsoft_graph_timeCardEntry | {}) | Array<microsoft_graph_timeCardEntry | {}>;
-  state: (microsoft_graph_timeCardState | {}) | Array<microsoft_graph_timeCardState | {}>;
+  clockInEvent: microsoft_graph_timeCardEvent;
+  clockOutEvent: microsoft_graph_timeCardEvent;
+  confirmedBy: microsoft_graph_confirmedBy;
+  notes: microsoft_graph_itemBody;
+  originalEntry: microsoft_graph_timeCardEntry;
+  state: microsoft_graph_timeCardState;
   userId: string | null;
 }>;
 type microsoft_graph_timeCardBreak = Partial<{
   breakId: string | null;
-  end: (microsoft_graph_timeCardEvent | {}) | Array<microsoft_graph_timeCardEvent | {}>;
-  notes: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  end: microsoft_graph_timeCardEvent;
+  notes: microsoft_graph_itemBody;
   start: microsoft_graph_timeCardEvent;
 }>;
 type microsoft_graph_timeCardEvent = Partial<{
   dateTime: string;
   isAtApprovedLocation: boolean | null;
-  notes: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  notes: microsoft_graph_itemBody;
 }>;
 type microsoft_graph_confirmedBy = 'none' | 'user' | 'manager' | 'unknownFutureValue';
 type microsoft_graph_timeCardEntry = Partial<{
   breaks: Array<microsoft_graph_timeCardBreak>;
-  clockInEvent: (microsoft_graph_timeCardEvent | {}) | Array<microsoft_graph_timeCardEvent | {}>;
-  clockOutEvent: (microsoft_graph_timeCardEvent | {}) | Array<microsoft_graph_timeCardEvent | {}>;
+  clockInEvent: microsoft_graph_timeCardEvent;
+  clockOutEvent: microsoft_graph_timeCardEvent;
 }>;
 type microsoft_graph_timeCardState = 'clockedIn' | 'onBreak' | 'clockedOut' | 'unknownFutureValue';
 type microsoft_graph_timeOffReason = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   code: string | null;
   displayName: string | null;
-  iconType:
-    | (microsoft_graph_timeOffReasonIconType | {})
-    | Array<microsoft_graph_timeOffReasonIconType | {}>;
+  iconType: microsoft_graph_timeOffReasonIconType;
   isActive: boolean | null;
 }>;
 type microsoft_graph_timeOffReasonIconType =
@@ -3201,22 +3001,18 @@ type microsoft_graph_timeOffReasonIconType =
   | 'unknownFutureValue';
 type microsoft_graph_timeOffRequest = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  assignedTo:
-    | (microsoft_graph_scheduleChangeRequestActor | {})
-    | Array<microsoft_graph_scheduleChangeRequestActor | {}>;
+  assignedTo: microsoft_graph_scheduleChangeRequestActor;
   managerActionDateTime: string | null;
   managerActionMessage: string | null;
   managerUserId: string | null;
   senderDateTime: string | null;
   senderMessage: string | null;
   senderUserId: string | null;
-  state:
-    | (microsoft_graph_scheduleChangeState | {})
-    | Array<microsoft_graph_scheduleChangeState | {}>;
+  state: microsoft_graph_scheduleChangeState;
   endDateTime: string | null;
   startDateTime: string | null;
   timeOffReasonId: string | null;
@@ -3234,13 +3030,13 @@ type microsoft_graph_scheduleChangeState =
   | 'unknownFutureValue';
 type microsoft_graph_timeOff = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  draftTimeOff: (microsoft_graph_timeOffItem | {}) | Array<microsoft_graph_timeOffItem | {}>;
+  draftTimeOff: microsoft_graph_timeOffItem;
   isStagedForDeletion: boolean | null;
-  sharedTimeOff: (microsoft_graph_timeOffItem | {}) | Array<microsoft_graph_timeOffItem | {}>;
+  sharedTimeOff: microsoft_graph_timeOffItem;
   userId: string | null;
 }>;
 type microsoft_graph_timeOffItem = Partial<{
@@ -3254,7 +3050,7 @@ type microsoft_graph_teamworkTag = Partial<{
   description: string | null;
   displayName: string | null;
   memberCount: number | null;
-  tagType: (microsoft_graph_teamworkTagType | {}) | Array<microsoft_graph_teamworkTagType | {}>;
+  tagType: microsoft_graph_teamworkTagType;
   teamId: string | null;
   members: Array<microsoft_graph_teamworkTagMember>;
 }>;
@@ -3273,7 +3069,7 @@ type microsoft_graph_printConnector = Partial<{
   appVersion: string;
   displayName: string;
   fullyQualifiedDomainName: string;
-  location: (microsoft_graph_printerLocation | {}) | Array<microsoft_graph_printerLocation | {}>;
+  location: microsoft_graph_printerLocation;
   operatingSystem: string;
   registeredDateTime: string;
 }>;
@@ -3292,7 +3088,7 @@ type microsoft_graph_signInActivity = Partial<{
 }>;
 type microsoft_graph_status = 'active' | 'updated' | 'deleted' | 'ignored' | 'unknownFutureValue';
 type microsoft_graph_visualInfo = Partial<{
-  attribution: (microsoft_graph_imageInfo | {}) | Array<microsoft_graph_imageInfo | {}>;
+  attribution: microsoft_graph_imageInfo;
   backgroundColor: string | null;
   content: unknown;
   description: string | null;
@@ -3314,9 +3110,7 @@ type microsoft_graph_agreementAcceptance = Partial<{
   deviceOSVersion: string | null;
   expirationDateTime: string | null;
   recordedDateTime: string | null;
-  state:
-    | (microsoft_graph_agreementAcceptanceState | {})
-    | Array<microsoft_graph_agreementAcceptanceState | {}>;
+  state: microsoft_graph_agreementAcceptanceState;
   userDisplayName: string | null;
   userEmail: string | null;
   userId: string | null;
@@ -3345,9 +3139,7 @@ type microsoft_graph_fido2AuthenticationMethod = Partial<{
   id: string;
   aaGuid: string | null;
   attestationCertificates: Array<string | null>;
-  attestationLevel:
-    | (microsoft_graph_attestationLevel | {})
-    | Array<microsoft_graph_attestationLevel | {}>;
+  attestationLevel: microsoft_graph_attestationLevel;
   createdDateTime: string | null;
   displayName: string | null;
   model: string | null;
@@ -3362,7 +3154,7 @@ type microsoft_graph_microsoftAuthenticatorAuthenticationMethod = Partial<{
   deviceTag: string | null;
   displayName: string | null;
   phoneAppVersion: string | null;
-  device: (microsoft_graph_device | {}) | Array<microsoft_graph_device | {}>;
+  device: microsoft_graph_device;
 }>;
 type microsoft_graph_device = Partial<{
   accountEnabled: boolean | null;
@@ -3411,9 +3203,7 @@ type microsoft_graph_longRunningOperation = Partial<{
   createdDateTime: string | null;
   lastActionDateTime: string | null;
   resourceLocation: string | null;
-  status:
-    | (microsoft_graph_longRunningOperationStatus | {})
-    | Array<microsoft_graph_longRunningOperationStatus | {}>;
+  status: microsoft_graph_longRunningOperationStatus;
   statusDetail: string | null;
 }>;
 type microsoft_graph_passwordAuthenticationMethod = Partial<{
@@ -3424,12 +3214,8 @@ type microsoft_graph_passwordAuthenticationMethod = Partial<{
 type microsoft_graph_phoneAuthenticationMethod = Partial<{
   id: string;
   phoneNumber: string | null;
-  phoneType:
-    | (microsoft_graph_authenticationPhoneType | {})
-    | Array<microsoft_graph_authenticationPhoneType | {}>;
-  smsSignInState:
-    | (microsoft_graph_authenticationMethodSignInState | {})
-    | Array<microsoft_graph_authenticationMethodSignInState | {}>;
+  phoneType: microsoft_graph_authenticationPhoneType;
+  smsSignInState: microsoft_graph_authenticationMethodSignInState;
 }>;
 type microsoft_graph_authenticationPhoneType =
   | 'mobile'
@@ -3448,13 +3234,9 @@ type microsoft_graph_platformCredentialAuthenticationMethod = Partial<{
   id: string;
   createdDateTime: string | null;
   displayName: string | null;
-  keyStrength:
-    | (microsoft_graph_authenticationMethodKeyStrength | {})
-    | Array<microsoft_graph_authenticationMethodKeyStrength | {}>;
-  platform:
-    | (microsoft_graph_authenticationMethodPlatform | {})
-    | Array<microsoft_graph_authenticationMethodPlatform | {}>;
-  device: (microsoft_graph_device | {}) | Array<microsoft_graph_device | {}>;
+  keyStrength: microsoft_graph_authenticationMethodKeyStrength;
+  platform: microsoft_graph_authenticationMethodPlatform;
+  device: microsoft_graph_device;
 }>;
 type microsoft_graph_authenticationMethodKeyStrength = 'normal' | 'weak' | 'unknown';
 type microsoft_graph_authenticationMethodPlatform =
@@ -3483,10 +3265,8 @@ type microsoft_graph_windowsHelloForBusinessAuthenticationMethod = Partial<{
   id: string;
   createdDateTime: string | null;
   displayName: string | null;
-  keyStrength:
-    | (microsoft_graph_authenticationMethodKeyStrength | {})
-    | Array<microsoft_graph_authenticationMethodKeyStrength | {}>;
-  device: (microsoft_graph_device | {}) | Array<microsoft_graph_device | {}>;
+  keyStrength: microsoft_graph_authenticationMethodKeyStrength;
+  device: microsoft_graph_device;
 }>;
 type microsoft_graph_calendarGroup = Partial<{
   id: string;
@@ -3501,17 +3281,13 @@ type microsoft_graph_chat = Partial<{
   createdDateTime: string | null;
   isHiddenForAllMembers: boolean | null;
   lastUpdatedDateTime: string | null;
-  onlineMeetingInfo:
-    | (microsoft_graph_teamworkOnlineMeetingInfo | {})
-    | Array<microsoft_graph_teamworkOnlineMeetingInfo | {}>;
+  onlineMeetingInfo: microsoft_graph_teamworkOnlineMeetingInfo;
   tenantId: string | null;
   topic: string | null;
-  viewpoint: (microsoft_graph_chatViewpoint | {}) | Array<microsoft_graph_chatViewpoint | {}>;
+  viewpoint: microsoft_graph_chatViewpoint;
   webUrl: string | null;
   installedApps: Array<microsoft_graph_teamsAppInstallation>;
-  lastMessagePreview:
-    | (microsoft_graph_chatMessageInfo | {})
-    | Array<microsoft_graph_chatMessageInfo | {}>;
+  lastMessagePreview: microsoft_graph_chatMessageInfo;
   members: Array<microsoft_graph_conversationMember>;
   messages: Array<microsoft_graph_chatMessage>;
   permissionGrants: Array<microsoft_graph_resourceSpecificPermissionGrant>;
@@ -3522,16 +3298,12 @@ type microsoft_graph_chatType = 'oneOnOne' | 'group' | 'meeting' | 'unknownFutur
 type microsoft_graph_teamworkOnlineMeetingInfo = Partial<{
   calendarEventId: string | null;
   joinWebUrl: string | null;
-  organizer:
-    | (microsoft_graph_teamworkUserIdentity | {})
-    | Array<microsoft_graph_teamworkUserIdentity | {}>;
+  organizer: microsoft_graph_teamworkUserIdentity;
 }>;
 type microsoft_graph_teamworkUserIdentity = Partial<{
   displayName: string | null;
   id: string | null;
-  userIdentityType:
-    | (microsoft_graph_teamworkUserIdentityType | {})
-    | Array<microsoft_graph_teamworkUserIdentityType | {}>;
+  userIdentityType: microsoft_graph_teamworkUserIdentityType;
 }>;
 type microsoft_graph_teamworkUserIdentityType =
   | 'aadUser'
@@ -3549,20 +3321,16 @@ type microsoft_graph_chatViewpoint = Partial<{
 }>;
 type microsoft_graph_chatMessageInfo = Partial<{
   id: string;
-  body: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  body: microsoft_graph_itemBody;
   createdDateTime: string | null;
-  eventDetail:
-    | (microsoft_graph_eventMessageDetail | {})
-    | Array<microsoft_graph_eventMessageDetail | {}>;
-  from:
-    | (microsoft_graph_chatMessageFromIdentitySet | {})
-    | Array<microsoft_graph_chatMessageFromIdentitySet | {}>;
+  eventDetail: microsoft_graph_eventMessageDetail;
+  from: microsoft_graph_chatMessageFromIdentitySet;
   isDeleted: boolean | null;
   messageType: microsoft_graph_chatMessageType;
 }>;
 type microsoft_graph_pinnedChatMessageInfo = Partial<{
   id: string;
-  message: (microsoft_graph_chatMessage | {}) | Array<microsoft_graph_chatMessage | {}>;
+  message: microsoft_graph_chatMessage;
 }>;
 type microsoft_graph_cloudClipboardRoot = Partial<{
   id: string;
@@ -3582,9 +3350,7 @@ type microsoft_graph_cloudClipboardItemPayload = Partial<{
 type microsoft_graph_contact = Partial<{
   assistantName: string | null;
   birthday: string | null;
-  businessAddress:
-    | (microsoft_graph_physicalAddress | {})
-    | Array<microsoft_graph_physicalAddress | {}>;
+  businessAddress: microsoft_graph_physicalAddress;
   businessHomePage: string | null;
   businessPhones: Array<string | null>;
   children: Array<string | null>;
@@ -3595,7 +3361,7 @@ type microsoft_graph_contact = Partial<{
   fileAs: string | null;
   generation: string | null;
   givenName: string | null;
-  homeAddress: (microsoft_graph_physicalAddress | {}) | Array<microsoft_graph_physicalAddress | {}>;
+  homeAddress: microsoft_graph_physicalAddress;
   homePhones: Array<string | null>;
   imAddresses: Array<string | null>;
   initials: string | null;
@@ -3605,9 +3371,7 @@ type microsoft_graph_contact = Partial<{
   mobilePhone: string | null;
   nickName: string | null;
   officeLocation: string | null;
-  otherAddress:
-    | (microsoft_graph_physicalAddress | {})
-    | Array<microsoft_graph_physicalAddress | {}>;
+  otherAddress: microsoft_graph_physicalAddress;
   parentFolderId: string | null;
   personalNotes: string | null;
   profession: string | null;
@@ -3619,7 +3383,7 @@ type microsoft_graph_contact = Partial<{
   yomiSurname: string | null;
   extensions: Array<microsoft_graph_extension>;
   multiValueExtendedProperties: Array<microsoft_graph_multiValueLegacyExtendedProperty>;
-  photo: (microsoft_graph_profilePhoto | {}) | Array<microsoft_graph_profilePhoto | {}>;
+  photo: microsoft_graph_profilePhoto;
   singleValueExtendedProperties: Array<microsoft_graph_singleValueLegacyExtendedProperty>;
 }>;
 type microsoft_graph_deviceManagementTroubleshootingEvent = Partial<{
@@ -3639,7 +3403,7 @@ type microsoft_graph_learningCourseActivity = Partial<{
   learnerUserId: string;
   learningContentId: string;
   learningProviderId: string | null;
-  status: (microsoft_graph_courseStatus | {}) | Array<microsoft_graph_courseStatus | {}>;
+  status: microsoft_graph_courseStatus;
 }>;
 type microsoft_graph_courseStatus =
   | 'notStarted'
@@ -3652,12 +3416,8 @@ type microsoft_graph_inferenceClassification = Partial<{
 }>;
 type microsoft_graph_inferenceClassificationOverride = Partial<{
   id: string;
-  classifyAs:
-    | (microsoft_graph_inferenceClassificationType | {})
-    | Array<microsoft_graph_inferenceClassificationType | {}>;
-  senderEmailAddress:
-    | (microsoft_graph_emailAddress | {})
-    | Array<microsoft_graph_emailAddress | {}>;
+  classifyAs: microsoft_graph_inferenceClassificationType;
+  senderEmailAddress: microsoft_graph_emailAddress;
 }>;
 type microsoft_graph_inferenceClassificationType = 'focused' | 'other';
 type microsoft_graph_itemInsights = Partial<{}>;
@@ -3675,16 +3435,10 @@ type microsoft_graph_servicePlanInfo = Partial<{
 }>;
 type microsoft_graph_messageRule = Partial<{
   id: string;
-  actions:
-    | (microsoft_graph_messageRuleActions | {})
-    | Array<microsoft_graph_messageRuleActions | {}>;
-  conditions:
-    | (microsoft_graph_messageRulePredicates | {})
-    | Array<microsoft_graph_messageRulePredicates | {}>;
+  actions: microsoft_graph_messageRuleActions;
+  conditions: microsoft_graph_messageRulePredicates;
   displayName: string | null;
-  exceptions:
-    | (microsoft_graph_messageRulePredicates | {})
-    | Array<microsoft_graph_messageRulePredicates | {}>;
+  exceptions: microsoft_graph_messageRulePredicates;
   hasError: boolean | null;
   isEnabled: boolean | null;
   isReadOnly: boolean | null;
@@ -3697,7 +3451,7 @@ type microsoft_graph_messageRuleActions = Partial<{
   forwardAsAttachmentTo: Array<microsoft_graph_recipient>;
   forwardTo: Array<microsoft_graph_recipient>;
   markAsRead: boolean | null;
-  markImportance: (microsoft_graph_importance | {}) | Array<microsoft_graph_importance | {}>;
+  markImportance: microsoft_graph_importance;
   moveToFolder: string | null;
   permanentDelete: boolean | null;
   redirectTo: Array<microsoft_graph_recipient>;
@@ -3710,7 +3464,7 @@ type microsoft_graph_messageRulePredicates = Partial<{
   fromAddresses: Array<microsoft_graph_recipient>;
   hasAttachments: boolean | null;
   headerContains: Array<string | null>;
-  importance: (microsoft_graph_importance | {}) | Array<microsoft_graph_importance | {}>;
+  importance: microsoft_graph_importance;
   isApprovalRequest: boolean | null;
   isAutomaticForward: boolean | null;
   isAutomaticReply: boolean | null;
@@ -3722,13 +3476,11 @@ type microsoft_graph_messageRulePredicates = Partial<{
   isReadReceipt: boolean | null;
   isSigned: boolean | null;
   isVoicemail: boolean | null;
-  messageActionFlag:
-    | (microsoft_graph_messageActionFlag | {})
-    | Array<microsoft_graph_messageActionFlag | {}>;
+  messageActionFlag: microsoft_graph_messageActionFlag;
   notSentToMe: boolean | null;
   recipientContains: Array<string | null>;
   senderContains: Array<string | null>;
-  sensitivity: (microsoft_graph_sensitivity | {}) | Array<microsoft_graph_sensitivity | {}>;
+  sensitivity: microsoft_graph_sensitivity;
   sentCcMe: boolean | null;
   sentOnlyToMe: boolean | null;
 }>;
@@ -3746,18 +3498,16 @@ type microsoft_graph_messageActionFlag =
   | 'review';
 type microsoft_graph_message = Partial<{
   bccRecipients: Array<microsoft_graph_recipient>;
-  body: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  body: microsoft_graph_itemBody;
   bodyPreview: string | null;
   ccRecipients: Array<microsoft_graph_recipient>;
   conversationId: string | null;
   conversationIndex: string | null;
-  flag: (microsoft_graph_followupFlag | {}) | Array<microsoft_graph_followupFlag | {}>;
-  from: (microsoft_graph_recipient | {}) | Array<microsoft_graph_recipient | {}>;
+  flag: microsoft_graph_followupFlag;
+  from: microsoft_graph_recipient;
   hasAttachments: boolean | null;
-  importance: (microsoft_graph_importance | {}) | Array<microsoft_graph_importance | {}>;
-  inferenceClassification:
-    | (microsoft_graph_inferenceClassificationType | {})
-    | Array<microsoft_graph_inferenceClassificationType | {}>;
+  importance: microsoft_graph_importance;
+  inferenceClassification: microsoft_graph_inferenceClassificationType;
   internetMessageHeaders: Array<microsoft_graph_internetMessageHeader>;
   internetMessageId: string | null;
   isDeliveryReceiptRequested: boolean | null;
@@ -3767,11 +3517,11 @@ type microsoft_graph_message = Partial<{
   parentFolderId: string | null;
   receivedDateTime: string | null;
   replyTo: Array<microsoft_graph_recipient>;
-  sender: (microsoft_graph_recipient | {}) | Array<microsoft_graph_recipient | {}>;
+  sender: microsoft_graph_recipient;
   sentDateTime: string | null;
   subject: string | null;
   toRecipients: Array<microsoft_graph_recipient>;
-  uniqueBody: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  uniqueBody: microsoft_graph_itemBody;
   webLink: string | null;
   attachments: Array<microsoft_graph_attachment>;
   extensions: Array<microsoft_graph_extension>;
@@ -3779,18 +3529,10 @@ type microsoft_graph_message = Partial<{
   singleValueExtendedProperties: Array<microsoft_graph_singleValueLegacyExtendedProperty>;
 }>;
 type microsoft_graph_followupFlag = Partial<{
-  completedDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  dueDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  flagStatus:
-    | (microsoft_graph_followupFlagStatus | {})
-    | Array<microsoft_graph_followupFlagStatus | {}>;
-  startDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  completedDateTime: microsoft_graph_dateTimeTimeZone;
+  dueDateTime: microsoft_graph_dateTimeTimeZone;
+  flagStatus: microsoft_graph_followupFlagStatus;
+  startDateTime: microsoft_graph_dateTimeTimeZone;
 }>;
 type microsoft_graph_followupFlagStatus = 'notFlagged' | 'complete' | 'flagged';
 type microsoft_graph_internetMessageHeader = Partial<{
@@ -3799,9 +3541,7 @@ type microsoft_graph_internetMessageHeader = Partial<{
 }>;
 type microsoft_graph_managedAppRegistration = Partial<{
   id: string;
-  appIdentifier:
-    | (microsoft_graph_mobileAppIdentifier | {})
-    | Array<microsoft_graph_mobileAppIdentifier | {}>;
+  appIdentifier: microsoft_graph_mobileAppIdentifier;
   applicationVersion: string | null;
   createdDateTime: string;
   deviceName: string | null;
@@ -4057,9 +3797,7 @@ type microsoft_graph_appLogUploadState = 'pending' | 'completed' | 'failed' | 'u
 type microsoft_graph_windowsProtectionState = Partial<{
   id: string;
   antiMalwareVersion: string | null;
-  deviceState:
-    | (microsoft_graph_windowsDeviceHealthState | {})
-    | Array<microsoft_graph_windowsDeviceHealthState | {}>;
+  deviceState: microsoft_graph_windowsDeviceHealthState;
   engineVersion: string | null;
   fullScanOverdue: boolean | null;
   fullScanRequired: boolean | null;
@@ -4071,9 +3809,7 @@ type microsoft_graph_windowsProtectionState = Partial<{
   lastReportedDateTime: string | null;
   malwareProtectionEnabled: boolean | null;
   networkInspectionSystemEnabled: boolean | null;
-  productStatus:
-    | (microsoft_graph_windowsDefenderProductStatus | {})
-    | Array<microsoft_graph_windowsDefenderProductStatus | {}>;
+  productStatus: microsoft_graph_windowsDefenderProductStatus;
   quickScanOverdue: boolean | null;
   realTimeProtectionEnabled: boolean | null;
   rebootRequired: boolean | null;
@@ -4119,25 +3855,15 @@ type microsoft_graph_windowsDefenderProductStatus =
 type microsoft_graph_windowsDeviceMalwareState = Partial<{
   id: string;
   additionalInformationUrl: string | null;
-  category:
-    | (microsoft_graph_windowsMalwareCategory | {})
-    | Array<microsoft_graph_windowsMalwareCategory | {}>;
+  category: microsoft_graph_windowsMalwareCategory;
   detectionCount: number | null;
   displayName: string | null;
-  executionState:
-    | (microsoft_graph_windowsMalwareExecutionState | {})
-    | Array<microsoft_graph_windowsMalwareExecutionState | {}>;
+  executionState: microsoft_graph_windowsMalwareExecutionState;
   initialDetectionDateTime: string | null;
   lastStateChangeDateTime: string | null;
-  severity:
-    | (microsoft_graph_windowsMalwareSeverity | {})
-    | Array<microsoft_graph_windowsMalwareSeverity | {}>;
-  state:
-    | (microsoft_graph_windowsMalwareState | {})
-    | Array<microsoft_graph_windowsMalwareState | {}>;
-  threatState:
-    | (microsoft_graph_windowsMalwareThreatState | {})
-    | Array<microsoft_graph_windowsMalwareThreatState | {}>;
+  severity: microsoft_graph_windowsMalwareSeverity;
+  state: microsoft_graph_windowsMalwareState;
+  threatState: microsoft_graph_windowsMalwareThreatState;
 }>;
 type microsoft_graph_windowsMalwareCategory =
   | 'invalid'
@@ -4233,28 +3959,20 @@ type microsoft_graph_oAuth2PermissionGrant = Partial<{
 }>;
 type microsoft_graph_onlineMeeting = Partial<{
   attendeeReport: string | null;
-  broadcastSettings:
-    | (microsoft_graph_broadcastMeetingSettings | {})
-    | Array<microsoft_graph_broadcastMeetingSettings | {}>;
+  broadcastSettings: microsoft_graph_broadcastMeetingSettings;
   creationDateTime: string | null;
   endDateTime: string | null;
   externalId: string | null;
   isBroadcast: boolean | null;
   meetingTemplateId: string | null;
-  participants:
-    | (microsoft_graph_meetingParticipants | {})
-    | Array<microsoft_graph_meetingParticipants | {}>;
+  participants: microsoft_graph_meetingParticipants;
   startDateTime: string | null;
   recordings: Array<microsoft_graph_callRecording>;
   transcripts: Array<microsoft_graph_callTranscript>;
 }>;
 type microsoft_graph_broadcastMeetingSettings = Partial<{
-  allowedAudience:
-    | (microsoft_graph_broadcastMeetingAudience | {})
-    | Array<microsoft_graph_broadcastMeetingAudience | {}>;
-  captions:
-    | (microsoft_graph_broadcastMeetingCaptionSettings | {})
-    | Array<microsoft_graph_broadcastMeetingCaptionSettings | {}>;
+  allowedAudience: microsoft_graph_broadcastMeetingAudience;
+  captions: microsoft_graph_broadcastMeetingCaptionSettings;
   isAttendeeReportEnabled: boolean | null;
   isQuestionAndAnswerEnabled: boolean | null;
   isRecordingEnabled: boolean | null;
@@ -4272,13 +3990,11 @@ type microsoft_graph_broadcastMeetingCaptionSettings = Partial<{
 }>;
 type microsoft_graph_meetingParticipants = Partial<{
   attendees: Array<microsoft_graph_meetingParticipantInfo>;
-  organizer:
-    | (microsoft_graph_meetingParticipantInfo | {})
-    | Array<microsoft_graph_meetingParticipantInfo | {}>;
+  organizer: microsoft_graph_meetingParticipantInfo;
 }>;
 type microsoft_graph_meetingParticipantInfo = Partial<{
-  identity: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
-  role: (microsoft_graph_onlineMeetingRole | {}) | Array<microsoft_graph_onlineMeetingRole | {}>;
+  identity: microsoft_graph_identitySet;
+  role: microsoft_graph_onlineMeetingRole;
   upn: string | null;
 }>;
 type microsoft_graph_onlineMeetingRole =
@@ -4295,7 +4011,7 @@ type microsoft_graph_callRecording = Partial<{
   createdDateTime: string | null;
   endDateTime: string | null;
   meetingId: string | null;
-  meetingOrganizer: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  meetingOrganizer: microsoft_graph_identitySet;
   recordingContentUrl: string | null;
 }>;
 type microsoft_graph_callTranscript = Partial<{
@@ -4306,7 +4022,7 @@ type microsoft_graph_callTranscript = Partial<{
   createdDateTime: string | null;
   endDateTime: string | null;
   meetingId: string | null;
-  meetingOrganizer: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  meetingOrganizer: microsoft_graph_identitySet;
   metadataContent: string | null;
   transcriptContentUrl: string | null;
 }>;
@@ -4316,7 +4032,7 @@ type microsoft_graph_outlookUser = Partial<{
 }>;
 type microsoft_graph_outlookCategory = Partial<{
   id: string;
-  color: (microsoft_graph_categoryColor | {}) | Array<microsoft_graph_categoryColor | {}>;
+  color: microsoft_graph_categoryColor;
   displayName: string | null;
 }>;
 type microsoft_graph_categoryColor =
@@ -4358,7 +4074,7 @@ type microsoft_graph_person = Partial<{
   jobTitle: string | null;
   officeLocation: string | null;
   personNotes: string | null;
-  personType: (microsoft_graph_personType | {}) | Array<microsoft_graph_personType | {}>;
+  personType: microsoft_graph_personType;
   phones: Array<microsoft_graph_phone>;
   postalAddresses: Array<microsoft_graph_location>;
   profession: string | null;
@@ -4376,15 +4092,13 @@ type microsoft_graph_scoredEmailAddress = Partial<{
   address: string | null;
   itemId: string | null;
   relevanceScore: number | null;
-  selectionLikelihood:
-    | (microsoft_graph_selectionLikelihoodInfo | {})
-    | Array<microsoft_graph_selectionLikelihoodInfo | {}>;
+  selectionLikelihood: microsoft_graph_selectionLikelihoodInfo;
 }>;
 type microsoft_graph_selectionLikelihoodInfo = 'notSpecified' | 'high';
 type microsoft_graph_website = Partial<{
   address: string | null;
   displayName: string | null;
-  type: (microsoft_graph_websiteType | {}) | Array<microsoft_graph_websiteType | {}>;
+  type: microsoft_graph_websiteType;
 }>;
 type microsoft_graph_websiteType = 'other' | 'home' | 'work' | 'blog' | 'profile';
 type microsoft_graph_plannerUser = Partial<{
@@ -4396,15 +4110,11 @@ type microsoft_graph_presence = Partial<{
   id: string;
   activity: string | null;
   availability: string | null;
-  statusMessage:
-    | (microsoft_graph_presenceStatusMessage | {})
-    | Array<microsoft_graph_presenceStatusMessage | {}>;
+  statusMessage: microsoft_graph_presenceStatusMessage;
 }>;
 type microsoft_graph_presenceStatusMessage = Partial<{
-  expiryDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  message: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  expiryDateTime: microsoft_graph_dateTimeTimeZone;
+  message: microsoft_graph_itemBody;
   publishedDateTime: string | null;
 }>;
 type microsoft_graph_scopedRoleMembership = Partial<{
@@ -4417,13 +4127,9 @@ type microsoft_graph_userSettings = Partial<{
   id: string;
   contributionToContentDiscoveryAsOrganizationDisabled: boolean;
   contributionToContentDiscoveryDisabled: boolean;
-  itemInsights:
-    | (microsoft_graph_userInsightsSettings | {})
-    | Array<microsoft_graph_userInsightsSettings | {}>;
-  shiftPreferences:
-    | (microsoft_graph_shiftPreferences | {})
-    | Array<microsoft_graph_shiftPreferences | {}>;
-  storage: (microsoft_graph_userStorage | {}) | Array<microsoft_graph_userStorage | {}>;
+  itemInsights: microsoft_graph_userInsightsSettings;
+  shiftPreferences: microsoft_graph_shiftPreferences;
+  storage: microsoft_graph_userStorage;
   windows: Array<microsoft_graph_windowsSetting>;
 }>;
 type microsoft_graph_userInsightsSettings = Partial<{
@@ -4432,16 +4138,14 @@ type microsoft_graph_userInsightsSettings = Partial<{
 }>;
 type microsoft_graph_shiftPreferences = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   availability: Array<microsoft_graph_shiftAvailability>;
 }>;
 type microsoft_graph_shiftAvailability = Partial<{
-  recurrence:
-    | (microsoft_graph_patternedRecurrence | {})
-    | Array<microsoft_graph_patternedRecurrence | {}>;
+  recurrence: microsoft_graph_patternedRecurrence;
   timeSlots: Array<microsoft_graph_timeRange>;
   timeZone: string | null;
 }>;
@@ -4451,9 +4155,7 @@ type microsoft_graph_timeRange = Partial<{
 }>;
 type microsoft_graph_userStorage = Partial<{
   id: string;
-  quota:
-    | (microsoft_graph_unifiedStorageQuota | {})
-    | Array<microsoft_graph_unifiedStorageQuota | {}>;
+  quota: microsoft_graph_unifiedStorageQuota;
 }>;
 type microsoft_graph_unifiedStorageQuota = Partial<{
   id: string;
@@ -4483,9 +4185,7 @@ type microsoft_graph_windowsSettingInstance = Partial<{
 }>;
 type microsoft_graph_userSolutionRoot = Partial<{
   id: string;
-  workingTimeSchedule:
-    | (microsoft_graph_workingTimeSchedule | {})
-    | Array<microsoft_graph_workingTimeSchedule | {}>;
+  workingTimeSchedule: microsoft_graph_workingTimeSchedule;
 }>;
 type microsoft_graph_workingTimeSchedule = Partial<{
   id: string;
@@ -4500,14 +4200,10 @@ type microsoft_graph_userTeamwork = Partial<{
 type microsoft_graph_associatedTeamInfo = Partial<{}>;
 type microsoft_graph_userScopeTeamsAppInstallation = Partial<{
   id: string;
-  consentedPermissionSet:
-    | (microsoft_graph_teamsAppPermissionSet | {})
-    | Array<microsoft_graph_teamsAppPermissionSet | {}>;
-  teamsApp: (microsoft_graph_teamsApp | {}) | Array<microsoft_graph_teamsApp | {}>;
-  teamsAppDefinition:
-    | (microsoft_graph_teamsAppDefinition | {})
-    | Array<microsoft_graph_teamsAppDefinition | {}>;
-  chat: (microsoft_graph_chat | {}) | Array<microsoft_graph_chat | {}>;
+  consentedPermissionSet: microsoft_graph_teamsAppPermissionSet;
+  teamsApp: microsoft_graph_teamsApp;
+  teamsAppDefinition: microsoft_graph_teamsAppDefinition;
+  chat: microsoft_graph_chat;
 }>;
 type microsoft_graph_todo = Partial<{
   id: string;
@@ -4529,29 +4225,19 @@ type microsoft_graph_wellknownListName =
   | 'unknownFutureValue';
 type microsoft_graph_todoTask = Partial<{
   id: string;
-  body: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  body: microsoft_graph_itemBody;
   bodyLastModifiedDateTime: string;
   categories: Array<string | null>;
-  completedDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  completedDateTime: microsoft_graph_dateTimeTimeZone;
   createdDateTime: string;
-  dueDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  dueDateTime: microsoft_graph_dateTimeTimeZone;
   hasAttachments: boolean | null;
   importance: microsoft_graph_importance;
   isReminderOn: boolean;
   lastModifiedDateTime: string;
-  recurrence:
-    | (microsoft_graph_patternedRecurrence | {})
-    | Array<microsoft_graph_patternedRecurrence | {}>;
-  reminderDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
-  startDateTime:
-    | (microsoft_graph_dateTimeTimeZone | {})
-    | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  recurrence: microsoft_graph_patternedRecurrence;
+  reminderDateTime: microsoft_graph_dateTimeTimeZone;
+  startDateTime: microsoft_graph_dateTimeTimeZone;
   status: microsoft_graph_taskStatus;
   title: string | null;
   attachments: Array<microsoft_graph_attachmentBase>;
@@ -4597,9 +4283,7 @@ type microsoft_graph_quota = Partial<{
   deleted: number | null;
   remaining: number | null;
   state: string | null;
-  storagePlanInformation:
-    | (microsoft_graph_storagePlanInformation | {})
-    | Array<microsoft_graph_storagePlanInformation | {}>;
+  storagePlanInformation: microsoft_graph_storagePlanInformation;
   total: number | null;
   used: number | null;
 }>;
@@ -4609,61 +4293,37 @@ type microsoft_graph_storagePlanInformation = Partial<{
 type microsoft_graph_accessPackageResourceRoleScope = Partial<{
   id: string;
   createdDateTime: string | null;
-  role:
-    | (microsoft_graph_accessPackageResourceRole | {})
-    | Array<microsoft_graph_accessPackageResourceRole | {}>;
-  scope:
-    | (microsoft_graph_accessPackageResourceScope | {})
-    | Array<microsoft_graph_accessPackageResourceScope | {}>;
+  role: microsoft_graph_accessPackageResourceRole;
+  scope: microsoft_graph_accessPackageResourceScope;
 }>;
 type microsoft_graph_accessPackageAssignmentPolicy = Partial<{
   id: string;
-  allowedTargetScope:
-    | (microsoft_graph_allowedTargetScope | {})
-    | Array<microsoft_graph_allowedTargetScope | {}>;
-  automaticRequestSettings:
-    | (microsoft_graph_accessPackageAutomaticRequestSettings | {})
-    | Array<microsoft_graph_accessPackageAutomaticRequestSettings | {}>;
+  allowedTargetScope: microsoft_graph_allowedTargetScope;
+  automaticRequestSettings: microsoft_graph_accessPackageAutomaticRequestSettings;
   createdDateTime: string | null;
   description: string | null;
   displayName: string | null;
-  expiration:
-    | (microsoft_graph_expirationPattern | {})
-    | Array<microsoft_graph_expirationPattern | {}>;
+  expiration: microsoft_graph_expirationPattern;
   modifiedDateTime: string | null;
-  notificationSettings:
-    | (microsoft_graph_accessPackageNotificationSettings | {})
-    | Array<microsoft_graph_accessPackageNotificationSettings | {}>;
-  requestApprovalSettings:
-    | (microsoft_graph_accessPackageAssignmentApprovalSettings | {})
-    | Array<microsoft_graph_accessPackageAssignmentApprovalSettings | {}>;
-  requestorSettings:
-    | (microsoft_graph_accessPackageAssignmentRequestorSettings | {})
-    | Array<microsoft_graph_accessPackageAssignmentRequestorSettings | {}>;
-  reviewSettings:
-    | (microsoft_graph_accessPackageAssignmentReviewSettings | {})
-    | Array<microsoft_graph_accessPackageAssignmentReviewSettings | {}>;
+  notificationSettings: microsoft_graph_accessPackageNotificationSettings;
+  requestApprovalSettings: microsoft_graph_accessPackageAssignmentApprovalSettings;
+  requestorSettings: microsoft_graph_accessPackageAssignmentRequestorSettings;
+  reviewSettings: microsoft_graph_accessPackageAssignmentReviewSettings;
   specificAllowedTargets: Array<microsoft_graph_subjectSet>;
-  accessPackage: (microsoft_graph_accessPackage | {}) | Array<microsoft_graph_accessPackage | {}>;
-  catalog:
-    | (microsoft_graph_accessPackageCatalog | {})
-    | Array<microsoft_graph_accessPackageCatalog | {}>;
+  accessPackage: microsoft_graph_accessPackage;
+  catalog: microsoft_graph_accessPackageCatalog;
   customExtensionStageSettings: Array<microsoft_graph_customExtensionStageSetting>;
   questions: Array<microsoft_graph_accessPackageQuestion>;
 }>;
 type microsoft_graph_accessPackageCatalog = Partial<{
   id: string;
-  catalogType:
-    | (microsoft_graph_accessPackageCatalogType | {})
-    | Array<microsoft_graph_accessPackageCatalogType | {}>;
+  catalogType: microsoft_graph_accessPackageCatalogType;
   createdDateTime: string | null;
   description: string | null;
   displayName: string | null;
   isExternallyVisible: boolean | null;
   modifiedDateTime: string | null;
-  state:
-    | (microsoft_graph_accessPackageCatalogState | {})
-    | Array<microsoft_graph_accessPackageCatalogState | {}>;
+  state: microsoft_graph_accessPackageCatalogState;
   accessPackages: Array<microsoft_graph_accessPackage>;
   customWorkflowExtensions: Array<microsoft_graph_customCalloutExtension>;
   resourceRoles: Array<microsoft_graph_accessPackageResourceRole>;
@@ -4679,17 +4339,13 @@ type microsoft_graph_accessPackageResource = Partial<{
   modifiedDateTime: string | null;
   originId: string | null;
   originSystem: string | null;
-  environment:
-    | (microsoft_graph_accessPackageResourceEnvironment | {})
-    | Array<microsoft_graph_accessPackageResourceEnvironment | {}>;
+  environment: microsoft_graph_accessPackageResourceEnvironment;
   roles: Array<microsoft_graph_accessPackageResourceRole>;
   scopes: Array<microsoft_graph_accessPackageResourceScope>;
 }>;
 type microsoft_graph_accessPackageResourceEnvironment = Partial<{
   id: string;
-  connectionInfo:
-    | (microsoft_graph_connectionInfo | {})
-    | Array<microsoft_graph_connectionInfo | {}>;
+  connectionInfo: microsoft_graph_connectionInfo;
   createdDateTime: string | null;
   description: string | null;
   displayName: string | null;
@@ -4705,9 +4361,7 @@ type microsoft_graph_accessPackageResourceRole = Partial<{
   displayName: string | null;
   originId: string | null;
   originSystem: string | null;
-  resource:
-    | (microsoft_graph_accessPackageResource | {})
-    | Array<microsoft_graph_accessPackageResource | {}>;
+  resource: microsoft_graph_accessPackageResource;
 }>;
 type microsoft_graph_accessPackageResourceScope = Partial<{
   id: string;
@@ -4716,9 +4370,7 @@ type microsoft_graph_accessPackageResourceScope = Partial<{
   isRootScope: boolean | null;
   originId: string | null;
   originSystem: string | null;
-  resource:
-    | (microsoft_graph_accessPackageResource | {})
-    | Array<microsoft_graph_accessPackageResource | {}>;
+  resource: microsoft_graph_accessPackageResource;
 }>;
 type microsoft_graph_activityHistoryItem = Partial<{
   id: string;
@@ -4728,41 +4380,39 @@ type microsoft_graph_activityHistoryItem = Partial<{
   lastActiveDateTime: string | null;
   lastModifiedDateTime: string | null;
   startedDateTime: string;
-  status: (microsoft_graph_status | {}) | Array<microsoft_graph_status | {}>;
+  status: microsoft_graph_status;
   userTimezone: string | null;
   activity: microsoft_graph_userActivity;
 }>;
 type microsoft_graph_baseItem = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
 }>;
 type microsoft_graph_baseSitePage = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  pageLayout: (microsoft_graph_pageLayoutType | {}) | Array<microsoft_graph_pageLayoutType | {}>;
-  publishingState:
-    | (microsoft_graph_publicationFacet | {})
-    | Array<microsoft_graph_publicationFacet | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
+  pageLayout: microsoft_graph_pageLayoutType;
+  publishingState: microsoft_graph_publicationFacet;
   title: string | null;
 }>;
 type microsoft_graph_calendar = Partial<{
@@ -4775,16 +4425,14 @@ type microsoft_graph_calendar = Partial<{
   canShare: boolean | null;
   canViewPrivateItems: boolean | null;
   changeKey: string | null;
-  color: (microsoft_graph_calendarColor | {}) | Array<microsoft_graph_calendarColor | {}>;
-  defaultOnlineMeetingProvider:
-    | (microsoft_graph_onlineMeetingProviderType | {})
-    | Array<microsoft_graph_onlineMeetingProviderType | {}>;
+  color: microsoft_graph_calendarColor;
+  defaultOnlineMeetingProvider: microsoft_graph_onlineMeetingProviderType;
   hexColor: string | null;
   isDefaultCalendar: boolean | null;
   isRemovable: boolean | null;
   isTallyingResponses: boolean | null;
   name: string | null;
-  owner: (microsoft_graph_emailAddress | {}) | Array<microsoft_graph_emailAddress | {}>;
+  owner: microsoft_graph_emailAddress;
   calendarPermissions: Array<microsoft_graph_calendarPermission>;
   calendarView: Array<microsoft_graph_event>;
   events: Array<microsoft_graph_event>;
@@ -4799,14 +4447,12 @@ type microsoft_graph_channel = Partial<{
   email: string | null;
   isArchived: boolean | null;
   isFavoriteByDefault: boolean | null;
-  membershipType:
-    | (microsoft_graph_channelMembershipType | {})
-    | Array<microsoft_graph_channelMembershipType | {}>;
-  summary: (microsoft_graph_channelSummary | {}) | Array<microsoft_graph_channelSummary | {}>;
+  membershipType: microsoft_graph_channelMembershipType;
+  summary: microsoft_graph_channelSummary;
   tenantId: string | null;
   webUrl: string | null;
   allMembers: Array<microsoft_graph_conversationMember>;
-  filesFolder: (microsoft_graph_driveItem | {}) | Array<microsoft_graph_driveItem | {}>;
+  filesFolder: microsoft_graph_driveItem;
   members: Array<microsoft_graph_conversationMember>;
   messages: Array<microsoft_graph_chatMessage>;
   sharedWithTeams: Array<microsoft_graph_sharedWithChannelTeamInfo>;
@@ -4816,19 +4462,13 @@ type microsoft_graph_chatMessage = Partial<{
   id: string;
   attachments: Array<microsoft_graph_chatMessageAttachment>;
   body: microsoft_graph_itemBody;
-  channelIdentity:
-    | (microsoft_graph_channelIdentity | {})
-    | Array<microsoft_graph_channelIdentity | {}>;
+  channelIdentity: microsoft_graph_channelIdentity;
   chatId: string | null;
   createdDateTime: string | null;
   deletedDateTime: string | null;
   etag: string | null;
-  eventDetail:
-    | (microsoft_graph_eventMessageDetail | {})
-    | Array<microsoft_graph_eventMessageDetail | {}>;
-  from:
-    | (microsoft_graph_chatMessageFromIdentitySet | {})
-    | Array<microsoft_graph_chatMessageFromIdentitySet | {}>;
+  eventDetail: microsoft_graph_eventMessageDetail;
+  from: microsoft_graph_chatMessageFromIdentitySet;
   importance: microsoft_graph_chatMessageImportance;
   lastEditedDateTime: string | null;
   lastModifiedDateTime: string | null;
@@ -4836,9 +4476,7 @@ type microsoft_graph_chatMessage = Partial<{
   mentions: Array<microsoft_graph_chatMessageMention>;
   messageHistory: Array<microsoft_graph_chatMessageHistoryItem>;
   messageType: microsoft_graph_chatMessageType;
-  policyViolation:
-    | (microsoft_graph_chatMessagePolicyViolation | {})
-    | Array<microsoft_graph_chatMessagePolicyViolation | {}>;
+  policyViolation: microsoft_graph_chatMessagePolicyViolation;
   reactions: Array<microsoft_graph_chatMessageReaction>;
   replyToId: string | null;
   subject: string | null;
@@ -4849,56 +4487,38 @@ type microsoft_graph_chatMessage = Partial<{
 }>;
 type microsoft_graph_columnDefinition = Partial<{
   id: string;
-  boolean: (microsoft_graph_booleanColumn | {}) | Array<microsoft_graph_booleanColumn | {}>;
-  calculated:
-    | (microsoft_graph_calculatedColumn | {})
-    | Array<microsoft_graph_calculatedColumn | {}>;
-  choice: (microsoft_graph_choiceColumn | {}) | Array<microsoft_graph_choiceColumn | {}>;
+  boolean: microsoft_graph_booleanColumn;
+  calculated: microsoft_graph_calculatedColumn;
+  choice: microsoft_graph_choiceColumn;
   columnGroup: string | null;
-  contentApprovalStatus:
-    | (microsoft_graph_contentApprovalStatusColumn | {})
-    | Array<microsoft_graph_contentApprovalStatusColumn | {}>;
-  currency: (microsoft_graph_currencyColumn | {}) | Array<microsoft_graph_currencyColumn | {}>;
-  dateTime: (microsoft_graph_dateTimeColumn | {}) | Array<microsoft_graph_dateTimeColumn | {}>;
-  defaultValue:
-    | (microsoft_graph_defaultColumnValue | {})
-    | Array<microsoft_graph_defaultColumnValue | {}>;
+  contentApprovalStatus: microsoft_graph_contentApprovalStatusColumn;
+  currency: microsoft_graph_currencyColumn;
+  dateTime: microsoft_graph_dateTimeColumn;
+  defaultValue: microsoft_graph_defaultColumnValue;
   description: string | null;
   displayName: string | null;
   enforceUniqueValues: boolean | null;
-  geolocation:
-    | (microsoft_graph_geolocationColumn | {})
-    | Array<microsoft_graph_geolocationColumn | {}>;
+  geolocation: microsoft_graph_geolocationColumn;
   hidden: boolean | null;
-  hyperlinkOrPicture:
-    | (microsoft_graph_hyperlinkOrPictureColumn | {})
-    | Array<microsoft_graph_hyperlinkOrPictureColumn | {}>;
+  hyperlinkOrPicture: microsoft_graph_hyperlinkOrPictureColumn;
   indexed: boolean | null;
   isDeletable: boolean | null;
   isReorderable: boolean | null;
   isSealed: boolean | null;
-  lookup: (microsoft_graph_lookupColumn | {}) | Array<microsoft_graph_lookupColumn | {}>;
+  lookup: microsoft_graph_lookupColumn;
   name: string | null;
-  number: (microsoft_graph_numberColumn | {}) | Array<microsoft_graph_numberColumn | {}>;
-  personOrGroup:
-    | (microsoft_graph_personOrGroupColumn | {})
-    | Array<microsoft_graph_personOrGroupColumn | {}>;
+  number: microsoft_graph_numberColumn;
+  personOrGroup: microsoft_graph_personOrGroupColumn;
   propagateChanges: boolean | null;
   readOnly: boolean | null;
   required: boolean | null;
-  sourceContentType:
-    | (microsoft_graph_contentTypeInfo | {})
-    | Array<microsoft_graph_contentTypeInfo | {}>;
-  term: (microsoft_graph_termColumn | {}) | Array<microsoft_graph_termColumn | {}>;
-  text: (microsoft_graph_textColumn | {}) | Array<microsoft_graph_textColumn | {}>;
-  thumbnail: (microsoft_graph_thumbnailColumn | {}) | Array<microsoft_graph_thumbnailColumn | {}>;
-  type: (microsoft_graph_columnTypes | {}) | Array<microsoft_graph_columnTypes | {}>;
-  validation:
-    | (microsoft_graph_columnValidation | {})
-    | Array<microsoft_graph_columnValidation | {}>;
-  sourceColumn:
-    | (microsoft_graph_columnDefinition | {})
-    | Array<microsoft_graph_columnDefinition | {}>;
+  sourceContentType: microsoft_graph_contentTypeInfo;
+  term: microsoft_graph_termColumn;
+  text: microsoft_graph_textColumn;
+  thumbnail: microsoft_graph_thumbnailColumn;
+  type: microsoft_graph_columnTypes;
+  validation: microsoft_graph_columnValidation;
+  sourceColumn: microsoft_graph_columnDefinition;
 }>;
 type microsoft_graph_contactFolder = Partial<{
   id: string;
@@ -4913,21 +4533,19 @@ type microsoft_graph_contentType = Partial<{
   id: string;
   associatedHubsUrls: Array<string | null>;
   description: string | null;
-  documentSet: (microsoft_graph_documentSet | {}) | Array<microsoft_graph_documentSet | {}>;
-  documentTemplate:
-    | (microsoft_graph_documentSetContent | {})
-    | Array<microsoft_graph_documentSetContent | {}>;
+  documentSet: microsoft_graph_documentSet;
+  documentTemplate: microsoft_graph_documentSetContent;
   group: string | null;
   hidden: boolean | null;
-  inheritedFrom: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  inheritedFrom: microsoft_graph_itemReference;
   isBuiltIn: boolean | null;
   name: string | null;
-  order: (microsoft_graph_contentTypeOrder | {}) | Array<microsoft_graph_contentTypeOrder | {}>;
+  order: microsoft_graph_contentTypeOrder;
   parentId: string | null;
   propagateChanges: boolean | null;
   readOnly: boolean | null;
   sealed: boolean | null;
-  base: (microsoft_graph_contentType | {}) | Array<microsoft_graph_contentType | {}>;
+  base: microsoft_graph_contentType;
   baseTypes: Array<microsoft_graph_contentType>;
   columnLinks: Array<microsoft_graph_columnLink>;
   columnPositions: Array<microsoft_graph_columnDefinition>;
@@ -4946,11 +4564,11 @@ type microsoft_graph_domain = Partial<{
   model: string | null;
   passwordNotificationWindowInDays: number | null;
   passwordValidityPeriodInDays: number | null;
-  state: (microsoft_graph_domainState | {}) | Array<microsoft_graph_domainState | {}>;
+  state: microsoft_graph_domainState;
   supportedServices: Array<string>;
   domainNameReferences: Array<microsoft_graph_directoryObject>;
   federationConfiguration: Array<microsoft_graph_internalDomainFederation>;
-  rootDomain: (microsoft_graph_domain | {}) | Array<microsoft_graph_domain | {}>;
+  rootDomain: microsoft_graph_domain;
   serviceConfigurationRecords: Array<microsoft_graph_domainDnsRecord>;
   verificationDnsRecords: Array<microsoft_graph_domainDnsRecord>;
 }>;
@@ -4961,18 +4579,12 @@ type microsoft_graph_domainState = Partial<{
 }>;
 type microsoft_graph_internalDomainFederation = Partial<{
   activeSignInUri: string | null;
-  federatedIdpMfaBehavior:
-    | (microsoft_graph_federatedIdpMfaBehavior | {})
-    | Array<microsoft_graph_federatedIdpMfaBehavior | {}>;
+  federatedIdpMfaBehavior: microsoft_graph_federatedIdpMfaBehavior;
   isSignedAuthenticationRequestRequired: boolean | null;
   nextSigningCertificate: string | null;
   passwordResetUri: string | null;
-  promptLoginBehavior:
-    | (microsoft_graph_promptLoginBehavior | {})
-    | Array<microsoft_graph_promptLoginBehavior | {}>;
-  signingCertificateUpdateStatus:
-    | (microsoft_graph_signingCertificateUpdateStatus | {})
-    | Array<microsoft_graph_signingCertificateUpdateStatus | {}>;
+  promptLoginBehavior: microsoft_graph_promptLoginBehavior;
+  signingCertificateUpdateStatus: microsoft_graph_signingCertificateUpdateStatus;
   signOutUri: string | null;
 }>;
 type microsoft_graph_federatedIdpMfaBehavior =
@@ -4999,109 +4611,95 @@ type microsoft_graph_domainDnsRecord = Partial<{
 }>;
 type microsoft_graph_drive = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
   driveType: string | null;
-  owner: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
-  quota: (microsoft_graph_quota | {}) | Array<microsoft_graph_quota | {}>;
-  sharePointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
-  system: (microsoft_graph_systemFacet | {}) | Array<microsoft_graph_systemFacet | {}>;
+  owner: microsoft_graph_identitySet;
+  quota: microsoft_graph_quota;
+  sharePointIds: microsoft_graph_sharepointIds;
+  system: microsoft_graph_systemFacet;
   bundles: Array<microsoft_graph_driveItem>;
   following: Array<microsoft_graph_driveItem>;
   items: Array<microsoft_graph_driveItem>;
-  list: (microsoft_graph_list | {}) | Array<microsoft_graph_list | {}>;
-  root: (microsoft_graph_driveItem | {}) | Array<microsoft_graph_driveItem | {}>;
+  list: microsoft_graph_list;
+  root: microsoft_graph_driveItem;
   special: Array<microsoft_graph_driveItem>;
 }>;
 type microsoft_graph_driveItem = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  audio: (microsoft_graph_audio | {}) | Array<microsoft_graph_audio | {}>;
-  bundle: (microsoft_graph_bundle | {}) | Array<microsoft_graph_bundle | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
+  audio: microsoft_graph_audio;
+  bundle: microsoft_graph_bundle;
   content: string | null;
   cTag: string | null;
-  deleted: (microsoft_graph_deleted | {}) | Array<microsoft_graph_deleted | {}>;
-  file: (microsoft_graph_file | {}) | Array<microsoft_graph_file | {}>;
-  fileSystemInfo:
-    | (microsoft_graph_fileSystemInfo | {})
-    | Array<microsoft_graph_fileSystemInfo | {}>;
-  folder: (microsoft_graph_folder | {}) | Array<microsoft_graph_folder | {}>;
-  image: (microsoft_graph_image | {}) | Array<microsoft_graph_image | {}>;
-  location: (microsoft_graph_geoCoordinates | {}) | Array<microsoft_graph_geoCoordinates | {}>;
-  malware: (microsoft_graph_malware | {}) | Array<microsoft_graph_malware | {}>;
-  package: (microsoft_graph_package | {}) | Array<microsoft_graph_package | {}>;
-  pendingOperations:
-    | (microsoft_graph_pendingOperations | {})
-    | Array<microsoft_graph_pendingOperations | {}>;
-  photo: (microsoft_graph_photo | {}) | Array<microsoft_graph_photo | {}>;
-  publication:
-    | (microsoft_graph_publicationFacet | {})
-    | Array<microsoft_graph_publicationFacet | {}>;
-  remoteItem: (microsoft_graph_remoteItem | {}) | Array<microsoft_graph_remoteItem | {}>;
-  root: (microsoft_graph_root | {}) | Array<microsoft_graph_root | {}>;
-  searchResult: (microsoft_graph_searchResult | {}) | Array<microsoft_graph_searchResult | {}>;
-  shared: (microsoft_graph_shared | {}) | Array<microsoft_graph_shared | {}>;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
+  deleted: microsoft_graph_deleted;
+  file: microsoft_graph_file;
+  fileSystemInfo: microsoft_graph_fileSystemInfo;
+  folder: microsoft_graph_folder;
+  image: microsoft_graph_image;
+  location: microsoft_graph_geoCoordinates;
+  malware: microsoft_graph_malware;
+  package: microsoft_graph_package;
+  pendingOperations: microsoft_graph_pendingOperations;
+  photo: microsoft_graph_photo;
+  publication: microsoft_graph_publicationFacet;
+  remoteItem: microsoft_graph_remoteItem;
+  root: microsoft_graph_root;
+  searchResult: microsoft_graph_searchResult;
+  shared: microsoft_graph_shared;
+  sharepointIds: microsoft_graph_sharepointIds;
   size: number | null;
-  specialFolder: (microsoft_graph_specialFolder | {}) | Array<microsoft_graph_specialFolder | {}>;
-  video: (microsoft_graph_video | {}) | Array<microsoft_graph_video | {}>;
+  specialFolder: microsoft_graph_specialFolder;
+  video: microsoft_graph_video;
   webDavUrl: string | null;
-  analytics: (microsoft_graph_itemAnalytics | {}) | Array<microsoft_graph_itemAnalytics | {}>;
+  analytics: microsoft_graph_itemAnalytics;
   children: Array<microsoft_graph_driveItem>;
-  listItem: (microsoft_graph_listItem | {}) | Array<microsoft_graph_listItem | {}>;
+  listItem: microsoft_graph_listItem;
   permissions: Array<microsoft_graph_permission>;
-  retentionLabel:
-    | (microsoft_graph_itemRetentionLabel | {})
-    | Array<microsoft_graph_itemRetentionLabel | {}>;
+  retentionLabel: microsoft_graph_itemRetentionLabel;
   subscriptions: Array<microsoft_graph_subscription>;
   thumbnails: Array<microsoft_graph_thumbnailSet>;
   versions: Array<microsoft_graph_driveItemVersion>;
-  workbook: (microsoft_graph_workbook | {}) | Array<microsoft_graph_workbook | {}>;
+  workbook: microsoft_graph_workbook;
 }>;
 type microsoft_graph_educationClass = Partial<{
   id: string;
   classCode: string | null;
-  course: (microsoft_graph_educationCourse | {}) | Array<microsoft_graph_educationCourse | {}>;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  course: microsoft_graph_educationCourse;
+  createdBy: microsoft_graph_identitySet;
   description: string | null;
   displayName: string;
   externalId: string | null;
   externalName: string | null;
-  externalSource:
-    | (microsoft_graph_educationExternalSource | {})
-    | Array<microsoft_graph_educationExternalSource | {}>;
+  externalSource: microsoft_graph_educationExternalSource;
   externalSourceDetail: string | null;
   grade: string | null;
   mailNickname: string;
-  term: (microsoft_graph_educationTerm | {}) | Array<microsoft_graph_educationTerm | {}>;
+  term: microsoft_graph_educationTerm;
   assignmentCategories: Array<microsoft_graph_educationCategory>;
-  assignmentDefaults:
-    | (microsoft_graph_educationAssignmentDefaults | {})
-    | Array<microsoft_graph_educationAssignmentDefaults | {}>;
+  assignmentDefaults: microsoft_graph_educationAssignmentDefaults;
   assignments: Array<microsoft_graph_educationAssignment>;
-  assignmentSettings:
-    | (microsoft_graph_educationAssignmentSettings | {})
-    | Array<microsoft_graph_educationAssignmentSettings | {}>;
-  group: (microsoft_graph_group | {}) | Array<microsoft_graph_group | {}>;
+  assignmentSettings: microsoft_graph_educationAssignmentSettings;
+  group: microsoft_graph_group;
   members: Array<microsoft_graph_educationUser>;
   modules: Array<microsoft_graph_educationModule>;
   schools: Array<microsoft_graph_educationSchool>;
@@ -5127,12 +4725,8 @@ type microsoft_graph_educationCategory = Partial<{
 }>;
 type microsoft_graph_educationAssignmentDefaults = Partial<{
   id: string;
-  addedStudentAction:
-    | (microsoft_graph_educationAddedStudentAction | {})
-    | Array<microsoft_graph_educationAddedStudentAction | {}>;
-  addToCalendarAction:
-    | (microsoft_graph_educationAddToCalendarOptions | {})
-    | Array<microsoft_graph_educationAddToCalendarOptions | {}>;
+  addedStudentAction: microsoft_graph_educationAddedStudentAction;
+  addToCalendarAction: microsoft_graph_educationAddToCalendarOptions;
   dueTime: string | null;
   notificationChannelUrl: string | null;
 }>;
@@ -5145,54 +4739,40 @@ type microsoft_graph_educationAddToCalendarOptions =
   | 'studentsOnly';
 type microsoft_graph_educationAssignment = Partial<{
   id: string;
-  addedStudentAction:
-    | (microsoft_graph_educationAddedStudentAction | {})
-    | Array<microsoft_graph_educationAddedStudentAction | {}>;
-  addToCalendarAction:
-    | (microsoft_graph_educationAddToCalendarOptions | {})
-    | Array<microsoft_graph_educationAddToCalendarOptions | {}>;
+  addedStudentAction: microsoft_graph_educationAddedStudentAction;
+  addToCalendarAction: microsoft_graph_educationAddToCalendarOptions;
   allowLateSubmissions: boolean | null;
   allowStudentsToAddResourcesToSubmission: boolean | null;
   assignDateTime: string | null;
   assignedDateTime: string | null;
-  assignTo:
-    | (microsoft_graph_educationAssignmentRecipient | {})
-    | Array<microsoft_graph_educationAssignmentRecipient | {}>;
+  assignTo: microsoft_graph_educationAssignmentRecipient;
   classId: string | null;
   closeDateTime: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   displayName: string | null;
   dueDateTime: string | null;
   feedbackResourcesFolderUrl: string | null;
-  grading:
-    | (microsoft_graph_educationAssignmentGradeType | {})
-    | Array<microsoft_graph_educationAssignmentGradeType | {}>;
-  instructions:
-    | (microsoft_graph_educationItemBody | {})
-    | Array<microsoft_graph_educationItemBody | {}>;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  grading: microsoft_graph_educationAssignmentGradeType;
+  instructions: microsoft_graph_educationItemBody;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   moduleUrl: string | null;
   notificationChannelUrl: string | null;
   resourcesFolderUrl: string | null;
-  status:
-    | (microsoft_graph_educationAssignmentStatus | {})
-    | Array<microsoft_graph_educationAssignmentStatus | {}>;
+  status: microsoft_graph_educationAssignmentStatus;
   webUrl: string | null;
   categories: Array<microsoft_graph_educationCategory>;
-  gradingCategory:
-    | (microsoft_graph_educationGradingCategory | {})
-    | Array<microsoft_graph_educationGradingCategory | {}>;
+  gradingCategory: microsoft_graph_educationGradingCategory;
   resources: Array<microsoft_graph_educationAssignmentResource>;
-  rubric: (microsoft_graph_educationRubric | {}) | Array<microsoft_graph_educationRubric | {}>;
+  rubric: microsoft_graph_educationRubric;
   submissions: Array<microsoft_graph_educationSubmission>;
 }>;
 type microsoft_graph_educationAssignmentRecipient = Partial<{}>;
 type microsoft_graph_educationAssignmentGradeType = Partial<{}>;
 type microsoft_graph_educationItemBody = Partial<{
   content: string | null;
-  contentType: (microsoft_graph_bodyType | {}) | Array<microsoft_graph_bodyType | {}>;
+  contentType: microsoft_graph_bodyType;
 }>;
 type microsoft_graph_educationAssignmentStatus =
   | 'draft'
@@ -5208,78 +4788,60 @@ type microsoft_graph_educationGradingCategory = Partial<{
 type microsoft_graph_educationAssignmentResource = Partial<{
   id: string;
   distributeForStudentWork: boolean | null;
-  resource:
-    | (microsoft_graph_educationResource | {})
-    | Array<microsoft_graph_educationResource | {}>;
+  resource: microsoft_graph_educationResource;
 }>;
 type microsoft_graph_educationResource = Partial<{
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   displayName: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
 }>;
 type microsoft_graph_educationRubric = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
-  description:
-    | (microsoft_graph_educationItemBody | {})
-    | Array<microsoft_graph_educationItemBody | {}>;
+  description: microsoft_graph_educationItemBody;
   displayName: string | null;
-  grading:
-    | (microsoft_graph_educationAssignmentGradeType | {})
-    | Array<microsoft_graph_educationAssignmentGradeType | {}>;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  grading: microsoft_graph_educationAssignmentGradeType;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   levels: Array<microsoft_graph_rubricLevel>;
   qualities: Array<microsoft_graph_rubricQuality>;
 }>;
 type microsoft_graph_rubricLevel = Partial<{
-  description:
-    | (microsoft_graph_educationItemBody | {})
-    | Array<microsoft_graph_educationItemBody | {}>;
+  description: microsoft_graph_educationItemBody;
   displayName: string | null;
-  grading:
-    | (microsoft_graph_educationAssignmentGradeType | {})
-    | Array<microsoft_graph_educationAssignmentGradeType | {}>;
+  grading: microsoft_graph_educationAssignmentGradeType;
   levelId: string | null;
 }>;
 type microsoft_graph_rubricQuality = Partial<{
   criteria: Array<microsoft_graph_rubricCriterion>;
-  description:
-    | (microsoft_graph_educationItemBody | {})
-    | Array<microsoft_graph_educationItemBody | {}>;
+  description: microsoft_graph_educationItemBody;
   displayName: string | null;
   qualityId: string | null;
   weight: number | null;
 }>;
 type microsoft_graph_rubricCriterion = Partial<{
-  description:
-    | (microsoft_graph_educationItemBody | {})
-    | Array<microsoft_graph_educationItemBody | {}>;
+  description: microsoft_graph_educationItemBody;
 }>;
 type microsoft_graph_educationSubmission = Partial<{
   id: string;
   assignmentId: string | null;
-  excusedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  excusedBy: microsoft_graph_identitySet;
   excusedDateTime: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
-  reassignedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  reassignedBy: microsoft_graph_identitySet;
   reassignedDateTime: string | null;
-  recipient:
-    | (microsoft_graph_educationSubmissionRecipient | {})
-    | Array<microsoft_graph_educationSubmissionRecipient | {}>;
+  recipient: microsoft_graph_educationSubmissionRecipient;
   resourcesFolderUrl: string | null;
-  returnedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  returnedBy: microsoft_graph_identitySet;
   returnedDateTime: string | null;
-  status:
-    | (microsoft_graph_educationSubmissionStatus | {})
-    | Array<microsoft_graph_educationSubmissionStatus | {}>;
-  submittedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  status: microsoft_graph_educationSubmissionStatus;
+  submittedBy: microsoft_graph_identitySet;
   submittedDateTime: string | null;
-  unsubmittedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  unsubmittedBy: microsoft_graph_identitySet;
   unsubmittedDateTime: string | null;
   webUrl: string | null;
   outcomes: Array<microsoft_graph_educationOutcome>;
@@ -5297,15 +4859,13 @@ type microsoft_graph_educationSubmissionStatus =
   | 'excused';
 type microsoft_graph_educationOutcome = Partial<{
   id: string;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
 }>;
 type microsoft_graph_educationSubmissionResource = Partial<{
   id: string;
   assignmentResourceUrl: string | null;
-  resource:
-    | (microsoft_graph_educationResource | {})
-    | Array<microsoft_graph_educationResource | {}>;
+  resource: microsoft_graph_educationResource;
 }>;
 type microsoft_graph_educationAssignmentSettings = Partial<{
   id: string;
@@ -5335,7 +4895,7 @@ type microsoft_graph_contactRelationship =
 type microsoft_graph_educationStudent = Partial<{
   birthDate: string | null;
   externalId: string | null;
-  gender: (microsoft_graph_educationGender | {}) | Array<microsoft_graph_educationGender | {}>;
+  gender: microsoft_graph_educationGender;
   grade: string | null;
   graduationYear: string | null;
   studentNumber: string | null;
@@ -5359,36 +4919,30 @@ type microsoft_graph_administrativeUnit = Partial<{
 }>;
 type microsoft_graph_educationModule = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   description: string | null;
   displayName: string | null;
   isPinned: boolean | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   resourcesFolderUrl: string | null;
-  status:
-    | (microsoft_graph_educationModuleStatus | {})
-    | Array<microsoft_graph_educationModuleStatus | {}>;
+  status: microsoft_graph_educationModuleStatus;
   resources: Array<microsoft_graph_educationModuleResource>;
 }>;
 type microsoft_graph_educationModuleStatus = 'draft' | 'published' | 'unknownFutureValue';
 type microsoft_graph_educationModuleResource = Partial<{
   id: string;
-  resource:
-    | (microsoft_graph_educationResource | {})
-    | Array<microsoft_graph_educationResource | {}>;
+  resource: microsoft_graph_educationResource;
 }>;
 type microsoft_graph_educationSchool = Partial<{
   id: string;
   description: string | null;
   displayName: string;
-  externalSource:
-    | (microsoft_graph_educationExternalSource | {})
-    | Array<microsoft_graph_educationExternalSource | {}>;
+  externalSource: microsoft_graph_educationExternalSource;
   externalSourceDetail: string | null;
-  address: (microsoft_graph_physicalAddress | {}) | Array<microsoft_graph_physicalAddress | {}>;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  address: microsoft_graph_physicalAddress;
+  createdBy: microsoft_graph_identitySet;
   externalId: string | null;
   externalPrincipalId: string | null;
   fax: string | null;
@@ -5398,9 +4952,7 @@ type microsoft_graph_educationSchool = Partial<{
   principalEmail: string | null;
   principalName: string | null;
   schoolNumber: string | null;
-  administrativeUnit:
-    | (microsoft_graph_administrativeUnit | {})
-    | Array<microsoft_graph_administrativeUnit | {}>;
+  administrativeUnit: microsoft_graph_administrativeUnit;
   classes: Array<microsoft_graph_educationClass>;
   users: Array<microsoft_graph_educationUser>;
 }>;
@@ -5410,41 +4962,31 @@ type microsoft_graph_educationUser = Partial<{
   assignedLicenses: Array<microsoft_graph_assignedLicense>;
   assignedPlans: Array<microsoft_graph_assignedPlan>;
   businessPhones: Array<string>;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   department: string | null;
   displayName: string | null;
-  externalSource:
-    | (microsoft_graph_educationExternalSource | {})
-    | Array<microsoft_graph_educationExternalSource | {}>;
+  externalSource: microsoft_graph_educationExternalSource;
   externalSourceDetail: string | null;
   givenName: string | null;
   mail: string | null;
-  mailingAddress:
-    | (microsoft_graph_physicalAddress | {})
-    | Array<microsoft_graph_physicalAddress | {}>;
+  mailingAddress: microsoft_graph_physicalAddress;
   mailNickname: string | null;
   middleName: string | null;
   mobilePhone: string | null;
   officeLocation: string | null;
-  onPremisesInfo:
-    | (microsoft_graph_educationOnPremisesInfo | {})
-    | Array<microsoft_graph_educationOnPremisesInfo | {}>;
+  onPremisesInfo: microsoft_graph_educationOnPremisesInfo;
   passwordPolicies: string | null;
-  passwordProfile:
-    | (microsoft_graph_passwordProfile | {})
-    | Array<microsoft_graph_passwordProfile | {}>;
+  passwordProfile: microsoft_graph_passwordProfile;
   preferredLanguage: string | null;
   primaryRole: microsoft_graph_educationUserRole;
   provisionedPlans: Array<microsoft_graph_provisionedPlan>;
   refreshTokensValidFromDateTime: string | null;
   relatedContacts: Array<microsoft_graph_relatedContact>;
-  residenceAddress:
-    | (microsoft_graph_physicalAddress | {})
-    | Array<microsoft_graph_physicalAddress | {}>;
+  residenceAddress: microsoft_graph_physicalAddress;
   showInAddressList: boolean | null;
-  student: (microsoft_graph_educationStudent | {}) | Array<microsoft_graph_educationStudent | {}>;
+  student: microsoft_graph_educationStudent;
   surname: string | null;
-  teacher: (microsoft_graph_educationTeacher | {}) | Array<microsoft_graph_educationTeacher | {}>;
+  teacher: microsoft_graph_educationTeacher;
   usageLocation: string | null;
   userPrincipalName: string | null;
   userType: string | null;
@@ -5453,56 +4995,48 @@ type microsoft_graph_educationUser = Partial<{
   rubrics: Array<microsoft_graph_educationRubric>;
   schools: Array<microsoft_graph_educationSchool>;
   taughtClasses: Array<microsoft_graph_educationClass>;
-  user: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
+  user: microsoft_graph_user;
 }>;
 type microsoft_graph_event = Partial<{
   allowNewTimeProposals: boolean | null;
   attendees: Array<microsoft_graph_attendee>;
-  body: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  body: microsoft_graph_itemBody;
   bodyPreview: string | null;
   cancelledOccurrences: Array<string>;
-  end: (microsoft_graph_dateTimeTimeZone | {}) | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  end: microsoft_graph_dateTimeTimeZone;
   hasAttachments: boolean | null;
   hideAttendees: boolean | null;
   iCalUId: string | null;
-  importance: (microsoft_graph_importance | {}) | Array<microsoft_graph_importance | {}>;
+  importance: microsoft_graph_importance;
   isAllDay: boolean | null;
   isCancelled: boolean | null;
   isDraft: boolean | null;
   isOnlineMeeting: boolean | null;
   isOrganizer: boolean | null;
   isReminderOn: boolean | null;
-  location: (microsoft_graph_location | {}) | Array<microsoft_graph_location | {}>;
+  location: microsoft_graph_location;
   locations: Array<microsoft_graph_location>;
-  onlineMeeting:
-    | (microsoft_graph_onlineMeetingInfo | {})
-    | Array<microsoft_graph_onlineMeetingInfo | {}>;
-  onlineMeetingProvider:
-    | (microsoft_graph_onlineMeetingProviderType | {})
-    | Array<microsoft_graph_onlineMeetingProviderType | {}>;
+  onlineMeeting: microsoft_graph_onlineMeetingInfo;
+  onlineMeetingProvider: microsoft_graph_onlineMeetingProviderType;
   onlineMeetingUrl: string | null;
-  organizer: (microsoft_graph_recipient | {}) | Array<microsoft_graph_recipient | {}>;
+  organizer: microsoft_graph_recipient;
   originalEndTimeZone: string | null;
   originalStart: string | null;
   originalStartTimeZone: string | null;
-  recurrence:
-    | (microsoft_graph_patternedRecurrence | {})
-    | Array<microsoft_graph_patternedRecurrence | {}>;
+  recurrence: microsoft_graph_patternedRecurrence;
   reminderMinutesBeforeStart: number | null;
   responseRequested: boolean | null;
-  responseStatus:
-    | (microsoft_graph_responseStatus | {})
-    | Array<microsoft_graph_responseStatus | {}>;
-  sensitivity: (microsoft_graph_sensitivity | {}) | Array<microsoft_graph_sensitivity | {}>;
+  responseStatus: microsoft_graph_responseStatus;
+  sensitivity: microsoft_graph_sensitivity;
   seriesMasterId: string | null;
-  showAs: (microsoft_graph_freeBusyStatus | {}) | Array<microsoft_graph_freeBusyStatus | {}>;
-  start: (microsoft_graph_dateTimeTimeZone | {}) | Array<microsoft_graph_dateTimeTimeZone | {}>;
+  showAs: microsoft_graph_freeBusyStatus;
+  start: microsoft_graph_dateTimeTimeZone;
   subject: string | null;
   transactionId: string | null;
-  type: (microsoft_graph_eventType | {}) | Array<microsoft_graph_eventType | {}>;
+  type: microsoft_graph_eventType;
   webLink: string | null;
   attachments: Array<microsoft_graph_attachment>;
-  calendar: (microsoft_graph_calendar | {}) | Array<microsoft_graph_calendar | {}>;
+  calendar: microsoft_graph_calendar;
   exceptionOccurrences: Array<microsoft_graph_event>;
   extensions: Array<microsoft_graph_extension>;
   instances: Array<microsoft_graph_event>;
@@ -5529,9 +5063,7 @@ type microsoft_graph_group = Partial<{
   isAssignableToRole: boolean | null;
   isManagementRestricted: boolean | null;
   isSubscribedByMail: boolean | null;
-  licenseProcessingState:
-    | (microsoft_graph_licenseProcessingState | {})
-    | Array<microsoft_graph_licenseProcessingState | {}>;
+  licenseProcessingState: microsoft_graph_licenseProcessingState;
   mail: string | null;
   mailEnabled: boolean | null;
   mailNickname: string | null;
@@ -5557,13 +5089,11 @@ type microsoft_graph_group = Partial<{
   visibility: string | null;
   acceptedSenders: Array<microsoft_graph_directoryObject>;
   appRoleAssignments: Array<microsoft_graph_appRoleAssignment>;
-  calendar: (microsoft_graph_calendar | {}) | Array<microsoft_graph_calendar | {}>;
+  calendar: microsoft_graph_calendar;
   calendarView: Array<microsoft_graph_event>;
   conversations: Array<microsoft_graph_conversation>;
-  createdOnBehalfOf:
-    | (microsoft_graph_directoryObject | {})
-    | Array<microsoft_graph_directoryObject | {}>;
-  drive: (microsoft_graph_drive | {}) | Array<microsoft_graph_drive | {}>;
+  createdOnBehalfOf: microsoft_graph_directoryObject;
+  drive: microsoft_graph_drive;
   drives: Array<microsoft_graph_drive>;
   events: Array<microsoft_graph_event>;
   extensions: Array<microsoft_graph_extension>;
@@ -5571,93 +5101,89 @@ type microsoft_graph_group = Partial<{
   memberOf: Array<microsoft_graph_directoryObject>;
   members: Array<microsoft_graph_directoryObject>;
   membersWithLicenseErrors: Array<microsoft_graph_directoryObject>;
-  onenote: (microsoft_graph_onenote | {}) | Array<microsoft_graph_onenote | {}>;
+  onenote: microsoft_graph_onenote;
   owners: Array<microsoft_graph_directoryObject>;
   permissionGrants: Array<microsoft_graph_resourceSpecificPermissionGrant>;
-  photo: (microsoft_graph_profilePhoto | {}) | Array<microsoft_graph_profilePhoto | {}>;
+  photo: microsoft_graph_profilePhoto;
   photos: Array<microsoft_graph_profilePhoto>;
-  planner: (microsoft_graph_plannerGroup | {}) | Array<microsoft_graph_plannerGroup | {}>;
+  planner: microsoft_graph_plannerGroup;
   rejectedSenders: Array<microsoft_graph_directoryObject>;
   settings: Array<microsoft_graph_groupSetting>;
   sites: Array<microsoft_graph_site>;
-  team: (microsoft_graph_team | {}) | Array<microsoft_graph_team | {}>;
+  team: microsoft_graph_team;
   threads: Array<microsoft_graph_conversationThread>;
   transitiveMemberOf: Array<microsoft_graph_directoryObject>;
   transitiveMembers: Array<microsoft_graph_directoryObject>;
 }>;
 type microsoft_graph_itemActivity = Partial<{
   id: string;
-  access: (microsoft_graph_accessAction | {}) | Array<microsoft_graph_accessAction | {}>;
+  access: microsoft_graph_accessAction;
   activityDateTime: string | null;
-  actor: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
-  driveItem: (microsoft_graph_driveItem | {}) | Array<microsoft_graph_driveItem | {}>;
+  actor: microsoft_graph_identitySet;
+  driveItem: microsoft_graph_driveItem;
 }>;
 type microsoft_graph_itemActivityStat = Partial<{
   id: string;
-  access: (microsoft_graph_itemActionStat | {}) | Array<microsoft_graph_itemActionStat | {}>;
-  create: (microsoft_graph_itemActionStat | {}) | Array<microsoft_graph_itemActionStat | {}>;
-  delete: (microsoft_graph_itemActionStat | {}) | Array<microsoft_graph_itemActionStat | {}>;
-  edit: (microsoft_graph_itemActionStat | {}) | Array<microsoft_graph_itemActionStat | {}>;
+  access: microsoft_graph_itemActionStat;
+  create: microsoft_graph_itemActionStat;
+  delete: microsoft_graph_itemActionStat;
+  edit: microsoft_graph_itemActionStat;
   endDateTime: string | null;
-  incompleteData:
-    | (microsoft_graph_incompleteData | {})
-    | Array<microsoft_graph_incompleteData | {}>;
+  incompleteData: microsoft_graph_incompleteData;
   isTrending: boolean | null;
-  move: (microsoft_graph_itemActionStat | {}) | Array<microsoft_graph_itemActionStat | {}>;
+  move: microsoft_graph_itemActionStat;
   startDateTime: string | null;
   activities: Array<microsoft_graph_itemActivity>;
 }>;
 type microsoft_graph_itemAnalytics = Partial<{
   id: string;
-  allTime: (microsoft_graph_itemActivityStat | {}) | Array<microsoft_graph_itemActivityStat | {}>;
+  allTime: microsoft_graph_itemActivityStat;
   itemActivityStats: Array<microsoft_graph_itemActivityStat>;
-  lastSevenDays:
-    | (microsoft_graph_itemActivityStat | {})
-    | Array<microsoft_graph_itemActivityStat | {}>;
+  lastSevenDays: microsoft_graph_itemActivityStat;
 }>;
 type microsoft_graph_list = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
   displayName: string | null;
-  list: (microsoft_graph_listInfo | {}) | Array<microsoft_graph_listInfo | {}>;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
-  system: (microsoft_graph_systemFacet | {}) | Array<microsoft_graph_systemFacet | {}>;
+  list: microsoft_graph_listInfo;
+  sharepointIds: microsoft_graph_sharepointIds;
+  system: microsoft_graph_systemFacet;
   columns: Array<microsoft_graph_columnDefinition>;
   contentTypes: Array<microsoft_graph_contentType>;
-  drive: (microsoft_graph_drive | {}) | Array<microsoft_graph_drive | {}>;
+  drive: microsoft_graph_drive;
   items: Array<microsoft_graph_listItem>;
   operations: Array<microsoft_graph_richLongRunningOperation>;
   subscriptions: Array<microsoft_graph_subscription>;
 }>;
 type microsoft_graph_listItem = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  contentType: (microsoft_graph_contentTypeInfo | {}) | Array<microsoft_graph_contentTypeInfo | {}>;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
-  analytics: (microsoft_graph_itemAnalytics | {}) | Array<microsoft_graph_itemAnalytics | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
+  contentType: microsoft_graph_contentTypeInfo;
+  sharepointIds: microsoft_graph_sharepointIds;
+  analytics: microsoft_graph_itemAnalytics;
   documentSetVersions: Array<microsoft_graph_documentSetVersion>;
-  driveItem: (microsoft_graph_driveItem | {}) | Array<microsoft_graph_driveItem | {}>;
-  fields: (microsoft_graph_fieldValueSet | {}) | Array<microsoft_graph_fieldValueSet | {}>;
+  driveItem: microsoft_graph_driveItem;
+  fields: microsoft_graph_fieldValueSet;
   versions: Array<microsoft_graph_listItemVersion>;
 }>;
 type microsoft_graph_mailFolder = Partial<{
@@ -5682,15 +5208,11 @@ type microsoft_graph_managedDevice = Partial<{
   azureADRegistered: boolean | null;
   complianceGracePeriodExpirationDateTime: string;
   complianceState: microsoft_graph_complianceState;
-  configurationManagerClientEnabledFeatures:
-    | (microsoft_graph_configurationManagerClientEnabledFeatures | {})
-    | Array<microsoft_graph_configurationManagerClientEnabledFeatures | {}>;
+  configurationManagerClientEnabledFeatures: microsoft_graph_configurationManagerClientEnabledFeatures;
   deviceActionResults: Array<microsoft_graph_deviceActionResult>;
   deviceCategoryDisplayName: string | null;
   deviceEnrollmentType: microsoft_graph_deviceEnrollmentType;
-  deviceHealthAttestationState:
-    | (microsoft_graph_deviceHealthAttestationState | {})
-    | Array<microsoft_graph_deviceHealthAttestationState | {}>;
+  deviceHealthAttestationState: microsoft_graph_deviceHealthAttestationState;
   deviceName: string | null;
   deviceRegistrationState: microsoft_graph_deviceRegistrationState;
   easActivated: boolean;
@@ -5734,24 +5256,20 @@ type microsoft_graph_managedDevice = Partial<{
   userId: string | null;
   userPrincipalName: string | null;
   wiFiMacAddress: string | null;
-  deviceCategory:
-    | (microsoft_graph_deviceCategory | {})
-    | Array<microsoft_graph_deviceCategory | {}>;
+  deviceCategory: microsoft_graph_deviceCategory;
   deviceCompliancePolicyStates: Array<microsoft_graph_deviceCompliancePolicyState>;
   deviceConfigurationStates: Array<microsoft_graph_deviceConfigurationState>;
   logCollectionRequests: Array<microsoft_graph_deviceLogCollectionResponse>;
   users: Array<microsoft_graph_user>;
-  windowsProtectionState:
-    | (microsoft_graph_windowsProtectionState | {})
-    | Array<microsoft_graph_windowsProtectionState | {}>;
+  windowsProtectionState: microsoft_graph_windowsProtectionState;
 }>;
 type microsoft_graph_notebook = Partial<{
   isDefault: boolean | null;
   isShared: boolean | null;
-  links: (microsoft_graph_notebookLinks | {}) | Array<microsoft_graph_notebookLinks | {}>;
+  links: microsoft_graph_notebookLinks;
   sectionGroupsUrl: string | null;
   sectionsUrl: string | null;
-  userRole: (microsoft_graph_onenoteUserRole | {}) | Array<microsoft_graph_onenoteUserRole | {}>;
+  userRole: microsoft_graph_onenoteUserRole;
   sectionGroups: Array<microsoft_graph_sectionGroup>;
   sections: Array<microsoft_graph_onenoteSection>;
 }>;
@@ -5764,26 +5282,24 @@ type microsoft_graph_onenotePage = Partial<{
   createdByAppId: string | null;
   lastModifiedDateTime: string | null;
   level: number | null;
-  links: (microsoft_graph_pageLinks | {}) | Array<microsoft_graph_pageLinks | {}>;
+  links: microsoft_graph_pageLinks;
   order: number | null;
   title: string | null;
   userTags: Array<string | null>;
-  parentNotebook: (microsoft_graph_notebook | {}) | Array<microsoft_graph_notebook | {}>;
-  parentSection: (microsoft_graph_onenoteSection | {}) | Array<microsoft_graph_onenoteSection | {}>;
+  parentNotebook: microsoft_graph_notebook;
+  parentSection: microsoft_graph_onenoteSection;
 }>;
 type microsoft_graph_onenoteSection = Partial<{
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   displayName: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   isDefault: boolean | null;
-  links: (microsoft_graph_sectionLinks | {}) | Array<microsoft_graph_sectionLinks | {}>;
+  links: microsoft_graph_sectionLinks;
   pagesUrl: string | null;
   pages: Array<microsoft_graph_onenotePage>;
-  parentNotebook: (microsoft_graph_notebook | {}) | Array<microsoft_graph_notebook | {}>;
-  parentSectionGroup:
-    | (microsoft_graph_sectionGroup | {})
-    | Array<microsoft_graph_sectionGroup | {}>;
+  parentNotebook: microsoft_graph_notebook;
+  parentSectionGroup: microsoft_graph_sectionGroup;
 }>;
 type microsoft_graph_post = Partial<{
   id: string;
@@ -5791,17 +5307,17 @@ type microsoft_graph_post = Partial<{
   changeKey: string | null;
   createdDateTime: string | null;
   lastModifiedDateTime: string | null;
-  body: (microsoft_graph_itemBody | {}) | Array<microsoft_graph_itemBody | {}>;
+  body: microsoft_graph_itemBody;
   conversationId: string | null;
   conversationThreadId: string | null;
   from: microsoft_graph_recipient;
   hasAttachments: boolean;
   newParticipants: Array<microsoft_graph_recipient>;
   receivedDateTime: string;
-  sender: (microsoft_graph_recipient | {}) | Array<microsoft_graph_recipient | {}>;
+  sender: microsoft_graph_recipient;
   attachments: Array<microsoft_graph_attachment>;
   extensions: Array<microsoft_graph_extension>;
-  inReplyTo: (microsoft_graph_post | {}) | Array<microsoft_graph_post | {}>;
+  inReplyTo: microsoft_graph_post;
   multiValueExtendedProperties: Array<microsoft_graph_multiValueLegacyExtendedProperty>;
   singleValueExtendedProperties: Array<microsoft_graph_singleValueLegacyExtendedProperty>;
 }>;
@@ -5816,25 +5332,21 @@ type microsoft_graph_printer = Partial<{
 }>;
 type microsoft_graph_printerShare = Partial<{
   id: string;
-  capabilities:
-    | (microsoft_graph_printerCapabilities | {})
-    | Array<microsoft_graph_printerCapabilities | {}>;
-  defaults: (microsoft_graph_printerDefaults | {}) | Array<microsoft_graph_printerDefaults | {}>;
+  capabilities: microsoft_graph_printerCapabilities;
+  defaults: microsoft_graph_printerDefaults;
   displayName: string;
   isAcceptingJobs: boolean | null;
-  location: (microsoft_graph_printerLocation | {}) | Array<microsoft_graph_printerLocation | {}>;
+  location: microsoft_graph_printerLocation;
   manufacturer: string | null;
   model: string | null;
   status: microsoft_graph_printerStatus;
   jobs: Array<microsoft_graph_printJob>;
   allowAllUsers: boolean;
   createdDateTime: string;
-  viewPoint:
-    | (microsoft_graph_printerShareViewpoint | {})
-    | Array<microsoft_graph_printerShareViewpoint | {}>;
+  viewPoint: microsoft_graph_printerShareViewpoint;
   allowedGroups: Array<microsoft_graph_group>;
   allowedUsers: Array<microsoft_graph_user>;
-  printer: (microsoft_graph_printer | {}) | Array<microsoft_graph_printer | {}>;
+  printer: microsoft_graph_printer;
 }>;
 type microsoft_graph_printTask = Partial<{
   id: string;
@@ -5860,15 +5372,13 @@ type microsoft_graph_riskyServicePrincipalHistoryItem = Partial<{
   displayName: string | null;
   isEnabled: boolean | null;
   isProcessing: boolean | null;
-  riskDetail: (microsoft_graph_riskDetail | {}) | Array<microsoft_graph_riskDetail | {}>;
+  riskDetail: microsoft_graph_riskDetail;
   riskLastUpdatedDateTime: string | null;
-  riskLevel: (microsoft_graph_riskLevel | {}) | Array<microsoft_graph_riskLevel | {}>;
-  riskState: (microsoft_graph_riskState | {}) | Array<microsoft_graph_riskState | {}>;
+  riskLevel: microsoft_graph_riskLevel;
+  riskState: microsoft_graph_riskState;
   servicePrincipalType: string | null;
   history: Array<microsoft_graph_riskyServicePrincipalHistoryItem>;
-  activity:
-    | (microsoft_graph_riskServicePrincipalActivity | {})
-    | Array<microsoft_graph_riskServicePrincipalActivity | {}>;
+  activity: microsoft_graph_riskServicePrincipalActivity;
   initiatedBy: string | null;
 }>;
 type microsoft_graph_riskDetail =
@@ -5906,26 +5416,26 @@ type microsoft_graph_riskState =
   | 'confirmedCompromised'
   | 'unknownFutureValue';
 type microsoft_graph_riskServicePrincipalActivity = Partial<{
-  detail: (microsoft_graph_riskDetail | {}) | Array<microsoft_graph_riskDetail | {}>;
+  detail: microsoft_graph_riskDetail;
   riskEventTypes: Array<string | null>;
 }>;
 type microsoft_graph_riskyUserHistoryItem = Partial<{
   id: string;
   isDeleted: boolean | null;
   isProcessing: boolean | null;
-  riskDetail: (microsoft_graph_riskDetail | {}) | Array<microsoft_graph_riskDetail | {}>;
+  riskDetail: microsoft_graph_riskDetail;
   riskLastUpdatedDateTime: string | null;
-  riskLevel: (microsoft_graph_riskLevel | {}) | Array<microsoft_graph_riskLevel | {}>;
-  riskState: (microsoft_graph_riskState | {}) | Array<microsoft_graph_riskState | {}>;
+  riskLevel: microsoft_graph_riskLevel;
+  riskState: microsoft_graph_riskState;
   userDisplayName: string | null;
   userPrincipalName: string | null;
   history: Array<microsoft_graph_riskyUserHistoryItem>;
-  activity: (microsoft_graph_riskUserActivity | {}) | Array<microsoft_graph_riskUserActivity | {}>;
+  activity: microsoft_graph_riskUserActivity;
   initiatedBy: string | null;
   userId: string | null;
 }>;
 type microsoft_graph_riskUserActivity = Partial<{
-  detail: (microsoft_graph_riskDetail | {}) | Array<microsoft_graph_riskDetail | {}>;
+  detail: microsoft_graph_riskDetail;
   riskEventTypes: Array<string | null>;
 }>;
 type microsoft_graph_roleAssignment = Partial<{
@@ -5933,9 +5443,7 @@ type microsoft_graph_roleAssignment = Partial<{
   description: string | null;
   displayName: string | null;
   resourceScopes: Array<string | null>;
-  roleDefinition:
-    | (microsoft_graph_roleDefinition | {})
-    | Array<microsoft_graph_roleDefinition | {}>;
+  roleDefinition: microsoft_graph_roleDefinition;
 }>;
 type microsoft_graph_rolePermission = Partial<{
   resourceActions: Array<microsoft_graph_resourceAction>;
@@ -5953,54 +5461,50 @@ type microsoft_graph_roleDefinition = Partial<{
   roleAssignments: Array<microsoft_graph_roleAssignment>;
 }>;
 type microsoft_graph_sectionGroup = Partial<{
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   displayName: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string | null;
   sectionGroupsUrl: string | null;
   sectionsUrl: string | null;
-  parentNotebook: (microsoft_graph_notebook | {}) | Array<microsoft_graph_notebook | {}>;
-  parentSectionGroup:
-    | (microsoft_graph_sectionGroup | {})
-    | Array<microsoft_graph_sectionGroup | {}>;
+  parentNotebook: microsoft_graph_notebook;
+  parentSectionGroup: microsoft_graph_sectionGroup;
   sectionGroups: Array<microsoft_graph_sectionGroup>;
   sections: Array<microsoft_graph_onenoteSection>;
 }>;
 type microsoft_graph_site = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string;
   description: string | null;
   eTag: string | null;
-  lastModifiedBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  lastModifiedBy: microsoft_graph_identitySet;
   lastModifiedDateTime: string;
   name: string | null;
-  parentReference: (microsoft_graph_itemReference | {}) | Array<microsoft_graph_itemReference | {}>;
+  parentReference: microsoft_graph_itemReference;
   webUrl: string | null;
-  createdByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
-  lastModifiedByUser: (microsoft_graph_user | {}) | Array<microsoft_graph_user | {}>;
+  createdByUser: microsoft_graph_user;
+  lastModifiedByUser: microsoft_graph_user;
   displayName: string | null;
-  error: (microsoft_graph_publicError | {}) | Array<microsoft_graph_publicError | {}>;
+  error: microsoft_graph_publicError;
   isPersonalSite: boolean | null;
-  root: (microsoft_graph_root | {}) | Array<microsoft_graph_root | {}>;
-  sharepointIds: (microsoft_graph_sharepointIds | {}) | Array<microsoft_graph_sharepointIds | {}>;
-  siteCollection:
-    | (microsoft_graph_siteCollection | {})
-    | Array<microsoft_graph_siteCollection | {}>;
-  analytics: (microsoft_graph_itemAnalytics | {}) | Array<microsoft_graph_itemAnalytics | {}>;
+  root: microsoft_graph_root;
+  sharepointIds: microsoft_graph_sharepointIds;
+  siteCollection: microsoft_graph_siteCollection;
+  analytics: microsoft_graph_itemAnalytics;
   columns: Array<microsoft_graph_columnDefinition>;
   contentTypes: Array<microsoft_graph_contentType>;
-  drive: (microsoft_graph_drive | {}) | Array<microsoft_graph_drive | {}>;
+  drive: microsoft_graph_drive;
   drives: Array<microsoft_graph_drive>;
   externalColumns: Array<microsoft_graph_columnDefinition>;
   items: Array<microsoft_graph_baseItem>;
   lists: Array<microsoft_graph_list>;
-  onenote: (microsoft_graph_onenote | {}) | Array<microsoft_graph_onenote | {}>;
+  onenote: microsoft_graph_onenote;
   operations: Array<microsoft_graph_richLongRunningOperation>;
   pages: Array<microsoft_graph_baseSitePage>;
   permissions: Array<microsoft_graph_permission>;
   sites: Array<microsoft_graph_site>;
-  termStore: (microsoft_graph_termStore_store | {}) | Array<microsoft_graph_termStore_store | {}>;
+  termStore: microsoft_graph_termStore_store;
   termStores: Array<microsoft_graph_termStore_store>;
 }>;
 type microsoft_graph_team = Partial<{
@@ -6010,40 +5514,30 @@ type microsoft_graph_team = Partial<{
   description: string | null;
   displayName: string | null;
   firstChannelName: string | null;
-  funSettings: (microsoft_graph_teamFunSettings | {}) | Array<microsoft_graph_teamFunSettings | {}>;
-  guestSettings:
-    | (microsoft_graph_teamGuestSettings | {})
-    | Array<microsoft_graph_teamGuestSettings | {}>;
+  funSettings: microsoft_graph_teamFunSettings;
+  guestSettings: microsoft_graph_teamGuestSettings;
   internalId: string | null;
   isArchived: boolean | null;
-  memberSettings:
-    | (microsoft_graph_teamMemberSettings | {})
-    | Array<microsoft_graph_teamMemberSettings | {}>;
-  messagingSettings:
-    | (microsoft_graph_teamMessagingSettings | {})
-    | Array<microsoft_graph_teamMessagingSettings | {}>;
-  specialization:
-    | (microsoft_graph_teamSpecialization | {})
-    | Array<microsoft_graph_teamSpecialization | {}>;
-  summary: (microsoft_graph_teamSummary | {}) | Array<microsoft_graph_teamSummary | {}>;
+  memberSettings: microsoft_graph_teamMemberSettings;
+  messagingSettings: microsoft_graph_teamMessagingSettings;
+  specialization: microsoft_graph_teamSpecialization;
+  summary: microsoft_graph_teamSummary;
   tenantId: string | null;
-  visibility:
-    | (microsoft_graph_teamVisibilityType | {})
-    | Array<microsoft_graph_teamVisibilityType | {}>;
+  visibility: microsoft_graph_teamVisibilityType;
   webUrl: string | null;
   allChannels: Array<microsoft_graph_channel>;
   channels: Array<microsoft_graph_channel>;
-  group: (microsoft_graph_group | {}) | Array<microsoft_graph_group | {}>;
+  group: microsoft_graph_group;
   incomingChannels: Array<microsoft_graph_channel>;
   installedApps: Array<microsoft_graph_teamsAppInstallation>;
   members: Array<microsoft_graph_conversationMember>;
   operations: Array<microsoft_graph_teamsAsyncOperation>;
   permissionGrants: Array<microsoft_graph_resourceSpecificPermissionGrant>;
-  photo: (microsoft_graph_profilePhoto | {}) | Array<microsoft_graph_profilePhoto | {}>;
-  primaryChannel: (microsoft_graph_channel | {}) | Array<microsoft_graph_channel | {}>;
-  schedule: (microsoft_graph_schedule | {}) | Array<microsoft_graph_schedule | {}>;
+  photo: microsoft_graph_profilePhoto;
+  primaryChannel: microsoft_graph_channel;
+  schedule: microsoft_graph_schedule;
   tags: Array<microsoft_graph_teamworkTag>;
-  template: (microsoft_graph_teamsTemplate | {}) | Array<microsoft_graph_teamsTemplate | {}>;
+  template: microsoft_graph_teamsTemplate;
 }>;
 type microsoft_graph_termsAndConditions = Partial<{
   id: string;
@@ -6060,9 +5554,7 @@ type microsoft_graph_termsAndConditions = Partial<{
 }>;
 type microsoft_graph_termsAndConditionsAssignment = Partial<{
   id: string;
-  target:
-    | (microsoft_graph_deviceAndAppManagementAssignmentTarget | {})
-    | Array<microsoft_graph_deviceAndAppManagementAssignmentTarget | {}>;
+  target: microsoft_graph_deviceAndAppManagementAssignmentTarget;
 }>;
 type microsoft_graph_deviceAndAppManagementAssignmentTarget = Partial<{}>;
 type microsoft_graph_termsAndConditionsAcceptanceStatus = Partial<{
@@ -6071,9 +5563,7 @@ type microsoft_graph_termsAndConditionsAcceptanceStatus = Partial<{
   acceptedVersion: number;
   userDisplayName: string | null;
   userPrincipalName: string | null;
-  termsAndConditions:
-    | (microsoft_graph_termsAndConditions | {})
-    | Array<microsoft_graph_termsAndConditions | {}>;
+  termsAndConditions: microsoft_graph_termsAndConditions;
 }>;
 type microsoft_graph_unifiedRoleDefinition = Partial<{
   id: string;
@@ -6100,9 +5590,7 @@ type microsoft_graph_user = Partial<{
   ageGroup: string | null;
   assignedLicenses: Array<microsoft_graph_assignedLicense>;
   assignedPlans: Array<microsoft_graph_assignedPlan>;
-  authorizationInfo:
-    | (microsoft_graph_authorizationInfo | {})
-    | Array<microsoft_graph_authorizationInfo | {}>;
+  authorizationInfo: microsoft_graph_authorizationInfo;
   birthday: string;
   businessPhones: Array<string>;
   city: string | null;
@@ -6111,18 +5599,14 @@ type microsoft_graph_user = Partial<{
   country: string | null;
   createdDateTime: string | null;
   creationType: string | null;
-  customSecurityAttributes:
-    | (microsoft_graph_customSecurityAttributeValue | {})
-    | Array<microsoft_graph_customSecurityAttributeValue | {}>;
+  customSecurityAttributes: microsoft_graph_customSecurityAttributeValue;
   department: string | null;
   deviceEnrollmentLimit: number;
   displayName: string | null;
   employeeHireDate: string | null;
   employeeId: string | null;
   employeeLeaveDateTime: string | null;
-  employeeOrgData:
-    | (microsoft_graph_employeeOrgData | {})
-    | Array<microsoft_graph_employeeOrgData | {}>;
+  employeeOrgData: microsoft_graph_employeeOrgData;
   employeeType: string | null;
   externalUserState: string | null;
   externalUserStateChangeDateTime: string | null;
@@ -6139,18 +5623,14 @@ type microsoft_graph_user = Partial<{
   legalAgeGroupClassification: string | null;
   licenseAssignmentStates: Array<microsoft_graph_licenseAssignmentState>;
   mail: string | null;
-  mailboxSettings:
-    | (microsoft_graph_mailboxSettings | {})
-    | Array<microsoft_graph_mailboxSettings | {}>;
+  mailboxSettings: microsoft_graph_mailboxSettings;
   mailNickname: string | null;
   mobilePhone: string | null;
   mySite: string | null;
   officeLocation: string | null;
   onPremisesDistinguishedName: string | null;
   onPremisesDomainName: string | null;
-  onPremisesExtensionAttributes:
-    | (microsoft_graph_onPremisesExtensionAttributes | {})
-    | Array<microsoft_graph_onPremisesExtensionAttributes | {}>;
+  onPremisesExtensionAttributes: microsoft_graph_onPremisesExtensionAttributes;
   onPremisesImmutableId: string | null;
   onPremisesLastSyncDateTime: string | null;
   onPremisesProvisioningErrors: Array<microsoft_graph_onPremisesProvisioningError>;
@@ -6160,15 +5640,13 @@ type microsoft_graph_user = Partial<{
   onPremisesUserPrincipalName: string | null;
   otherMails: Array<string>;
   passwordPolicies: string | null;
-  passwordProfile:
-    | (microsoft_graph_passwordProfile | {})
-    | Array<microsoft_graph_passwordProfile | {}>;
+  passwordProfile: microsoft_graph_passwordProfile;
   pastProjects: Array<string | null>;
   postalCode: string | null;
   preferredDataLocation: string | null;
   preferredLanguage: string | null;
   preferredName: string | null;
-  print: (microsoft_graph_userPrint | {}) | Array<microsoft_graph_userPrint | {}>;
+  print: microsoft_graph_userPrint;
   provisionedPlans: Array<microsoft_graph_provisionedPlan>;
   proxyAddresses: Array<string>;
   responsibilities: Array<string | null>;
@@ -6176,9 +5654,7 @@ type microsoft_graph_user = Partial<{
   securityIdentifier: string | null;
   serviceProvisioningErrors: Array<microsoft_graph_serviceProvisioningError>;
   showInAddressList: boolean | null;
-  signInActivity:
-    | (microsoft_graph_signInActivity | {})
-    | Array<microsoft_graph_signInActivity | {}>;
+  signInActivity: microsoft_graph_signInActivity;
   signInSessionsValidFromDateTime: string | null;
   skills: Array<string | null>;
   state: string | null;
@@ -6190,61 +5666,53 @@ type microsoft_graph_user = Partial<{
   activities: Array<microsoft_graph_userActivity>;
   agreementAcceptances: Array<microsoft_graph_agreementAcceptance>;
   appRoleAssignments: Array<microsoft_graph_appRoleAssignment>;
-  authentication:
-    | (microsoft_graph_authentication | {})
-    | Array<microsoft_graph_authentication | {}>;
-  calendar: (microsoft_graph_calendar | {}) | Array<microsoft_graph_calendar | {}>;
+  authentication: microsoft_graph_authentication;
+  calendar: microsoft_graph_calendar;
   calendarGroups: Array<microsoft_graph_calendarGroup>;
   calendars: Array<microsoft_graph_calendar>;
   calendarView: Array<microsoft_graph_event>;
   chats: Array<microsoft_graph_chat>;
-  cloudClipboard:
-    | (microsoft_graph_cloudClipboardRoot | {})
-    | Array<microsoft_graph_cloudClipboardRoot | {}>;
+  cloudClipboard: microsoft_graph_cloudClipboardRoot;
   contactFolders: Array<microsoft_graph_contactFolder>;
   contacts: Array<microsoft_graph_contact>;
   createdObjects: Array<microsoft_graph_directoryObject>;
   deviceManagementTroubleshootingEvents: Array<microsoft_graph_deviceManagementTroubleshootingEvent>;
   directReports: Array<microsoft_graph_directoryObject>;
-  drive: (microsoft_graph_drive | {}) | Array<microsoft_graph_drive | {}>;
+  drive: microsoft_graph_drive;
   drives: Array<microsoft_graph_drive>;
-  employeeExperience:
-    | (microsoft_graph_employeeExperienceUser | {})
-    | Array<microsoft_graph_employeeExperienceUser | {}>;
+  employeeExperience: microsoft_graph_employeeExperienceUser;
   events: Array<microsoft_graph_event>;
   extensions: Array<microsoft_graph_extension>;
   followedSites: Array<microsoft_graph_site>;
-  inferenceClassification:
-    | (microsoft_graph_inferenceClassification | {})
-    | Array<microsoft_graph_inferenceClassification | {}>;
-  insights: (microsoft_graph_itemInsights | {}) | Array<microsoft_graph_itemInsights | {}>;
+  inferenceClassification: microsoft_graph_inferenceClassification;
+  insights: microsoft_graph_itemInsights;
   joinedTeams: Array<microsoft_graph_team>;
   licenseDetails: Array<microsoft_graph_licenseDetails>;
   mailFolders: Array<microsoft_graph_mailFolder>;
   managedAppRegistrations: Array<microsoft_graph_managedAppRegistration>;
   managedDevices: Array<microsoft_graph_managedDevice>;
-  manager: (microsoft_graph_directoryObject | {}) | Array<microsoft_graph_directoryObject | {}>;
+  manager: microsoft_graph_directoryObject;
   memberOf: Array<microsoft_graph_directoryObject>;
   messages: Array<microsoft_graph_message>;
   oauth2PermissionGrants: Array<microsoft_graph_oAuth2PermissionGrant>;
-  onenote: (microsoft_graph_onenote | {}) | Array<microsoft_graph_onenote | {}>;
+  onenote: microsoft_graph_onenote;
   onlineMeetings: Array<microsoft_graph_onlineMeeting>;
-  outlook: (microsoft_graph_outlookUser | {}) | Array<microsoft_graph_outlookUser | {}>;
+  outlook: microsoft_graph_outlookUser;
   ownedDevices: Array<microsoft_graph_directoryObject>;
   ownedObjects: Array<microsoft_graph_directoryObject>;
   people: Array<microsoft_graph_person>;
   permissionGrants: Array<microsoft_graph_resourceSpecificPermissionGrant>;
-  photo: (microsoft_graph_profilePhoto | {}) | Array<microsoft_graph_profilePhoto | {}>;
+  photo: microsoft_graph_profilePhoto;
   photos: Array<microsoft_graph_profilePhoto>;
-  planner: (microsoft_graph_plannerUser | {}) | Array<microsoft_graph_plannerUser | {}>;
-  presence: (microsoft_graph_presence | {}) | Array<microsoft_graph_presence | {}>;
+  planner: microsoft_graph_plannerUser;
+  presence: microsoft_graph_presence;
   registeredDevices: Array<microsoft_graph_directoryObject>;
   scopedRoleMemberOf: Array<microsoft_graph_scopedRoleMembership>;
-  settings: (microsoft_graph_userSettings | {}) | Array<microsoft_graph_userSettings | {}>;
-  solutions: (microsoft_graph_userSolutionRoot | {}) | Array<microsoft_graph_userSolutionRoot | {}>;
+  settings: microsoft_graph_userSettings;
+  solutions: microsoft_graph_userSolutionRoot;
   sponsors: Array<microsoft_graph_directoryObject>;
-  teamwork: (microsoft_graph_userTeamwork | {}) | Array<microsoft_graph_userTeamwork | {}>;
-  todo: (microsoft_graph_todo | {}) | Array<microsoft_graph_todo | {}>;
+  teamwork: microsoft_graph_userTeamwork;
+  todo: microsoft_graph_todo;
   transitiveMemberOf: Array<microsoft_graph_directoryObject>;
 }>;
 type microsoft_graph_userActivity = Partial<{
@@ -6259,7 +5727,7 @@ type microsoft_graph_userActivity = Partial<{
   expirationDateTime: string | null;
   fallbackUrl: string | null;
   lastModifiedDateTime: string | null;
-  status: (microsoft_graph_status | {}) | Array<microsoft_graph_status | {}>;
+  status: microsoft_graph_status;
   userTimezone: string | null;
   visualElements: microsoft_graph_visualInfo;
   historyItems: Array<microsoft_graph_activityHistoryItem>;
@@ -6271,21 +5739,13 @@ type microsoft_graph_workbookChart = Partial<{
   name: string | null;
   top: (number | null) | (string | null) | ReferenceNumeric;
   width: (number | null) | (string | null) | ReferenceNumeric;
-  axes: (microsoft_graph_workbookChartAxes | {}) | Array<microsoft_graph_workbookChartAxes | {}>;
-  dataLabels:
-    | (microsoft_graph_workbookChartDataLabels | {})
-    | Array<microsoft_graph_workbookChartDataLabels | {}>;
-  format:
-    | (microsoft_graph_workbookChartAreaFormat | {})
-    | Array<microsoft_graph_workbookChartAreaFormat | {}>;
-  legend:
-    | (microsoft_graph_workbookChartLegend | {})
-    | Array<microsoft_graph_workbookChartLegend | {}>;
+  axes: microsoft_graph_workbookChartAxes;
+  dataLabels: microsoft_graph_workbookChartDataLabels;
+  format: microsoft_graph_workbookChartAreaFormat;
+  legend: microsoft_graph_workbookChartLegend;
   series: Array<microsoft_graph_workbookChartSeries>;
-  title: (microsoft_graph_workbookChartTitle | {}) | Array<microsoft_graph_workbookChartTitle | {}>;
-  worksheet:
-    | (microsoft_graph_workbookWorksheet | {})
-    | Array<microsoft_graph_workbookWorksheet | {}>;
+  title: microsoft_graph_workbookChartTitle;
+  worksheet: microsoft_graph_workbookWorksheet;
 }>;
 type microsoft_graph_workbookNamedItem = Partial<{
   id: string;
@@ -6295,16 +5755,12 @@ type microsoft_graph_workbookNamedItem = Partial<{
   type: string | null;
   value: unknown;
   visible: boolean;
-  worksheet:
-    | (microsoft_graph_workbookWorksheet | {})
-    | Array<microsoft_graph_workbookWorksheet | {}>;
+  worksheet: microsoft_graph_workbookWorksheet;
 }>;
 type microsoft_graph_workbookPivotTable = Partial<{
   id: string;
   name: string | null;
-  worksheet:
-    | (microsoft_graph_workbookWorksheet | {})
-    | Array<microsoft_graph_workbookWorksheet | {}>;
+  worksheet: microsoft_graph_workbookWorksheet;
 }>;
 type microsoft_graph_workbookRangeView = Partial<{
   id: string;
@@ -6335,10 +5791,8 @@ type microsoft_graph_workbookTable = Partial<{
   style: string | null;
   columns: Array<microsoft_graph_workbookTableColumn>;
   rows: Array<microsoft_graph_workbookTableRow>;
-  sort: (microsoft_graph_workbookTableSort | {}) | Array<microsoft_graph_workbookTableSort | {}>;
-  worksheet:
-    | (microsoft_graph_workbookWorksheet | {})
-    | Array<microsoft_graph_workbookWorksheet | {}>;
+  sort: microsoft_graph_workbookTableSort;
+  worksheet: microsoft_graph_workbookWorksheet;
 }>;
 type microsoft_graph_workbookWorksheet = Partial<{
   id: string;
@@ -6348,9 +5802,7 @@ type microsoft_graph_workbookWorksheet = Partial<{
   charts: Array<microsoft_graph_workbookChart>;
   names: Array<microsoft_graph_workbookNamedItem>;
   pivotTables: Array<microsoft_graph_workbookPivotTable>;
-  protection:
-    | (microsoft_graph_workbookWorksheetProtection | {})
-    | Array<microsoft_graph_workbookWorksheetProtection | {}>;
+  protection: microsoft_graph_workbookWorksheetProtection;
   tables: Array<microsoft_graph_workbookTable>;
 }>;
 type microsoft_graph_attributeMappingSource = Partial<{
@@ -6362,21 +5814,15 @@ type microsoft_graph_attributeMappingSource = Partial<{
 type microsoft_graph_attributeMappingSourceType = 'Attribute' | 'Constant' | 'Function';
 type microsoft_graph_stringKeyAttributeMappingSourceValuePair = Partial<{
   key: string | null;
-  value:
-    | (microsoft_graph_attributeMappingSource | {})
-    | Array<microsoft_graph_attributeMappingSource | {}>;
+  value: microsoft_graph_attributeMappingSource;
 }>;
 type microsoft_graph_synchronizationJobSubject = Partial<{
-  links:
-    | (microsoft_graph_synchronizationLinkedObjects | {})
-    | Array<microsoft_graph_synchronizationLinkedObjects | {}>;
+  links: microsoft_graph_synchronizationLinkedObjects;
   objectId: string | null;
   objectTypeName: string | null;
 }>;
 type microsoft_graph_synchronizationLinkedObjects = Partial<{
-  manager:
-    | (microsoft_graph_synchronizationJobSubject | {})
-    | Array<microsoft_graph_synchronizationJobSubject | {}>;
+  manager: microsoft_graph_synchronizationJobSubject;
   members: Array<microsoft_graph_synchronizationJobSubject>;
   owners: Array<microsoft_graph_synchronizationJobSubject>;
 }>;
@@ -6385,9 +5831,7 @@ type microsoft_graph_userPrint = Partial<{
 }>;
 type microsoft_graph_workbookOperationError = Partial<{
   code: string | null;
-  innerError:
-    | (microsoft_graph_workbookOperationError | {})
-    | Array<microsoft_graph_workbookOperationError | {}>;
+  innerError: microsoft_graph_workbookOperationError;
   message: string | null;
 }>;
 type microsoft_graph_identityGovernance_task = Partial<{
@@ -6431,35 +5875,19 @@ type microsoft_graph_identityGovernance_taskProcessingResult = Partial<{
 }>;
 type microsoft_graph_security_ediscoveryAddToReviewSetOperation = Partial<{
   id: string;
-  action:
-    | (microsoft_graph_security_caseAction | {})
-    | Array<microsoft_graph_security_caseAction | {}>;
+  action: microsoft_graph_security_caseAction;
   completedDateTime: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   percentProgress: number | null;
-  resultInfo: (microsoft_graph_resultInfo | {}) | Array<microsoft_graph_resultInfo | {}>;
-  status:
-    | (microsoft_graph_security_caseOperationStatus | {})
-    | Array<microsoft_graph_security_caseOperationStatus | {}>;
-  additionalDataOptions:
-    | (microsoft_graph_security_additionalDataOptions | {})
-    | Array<microsoft_graph_security_additionalDataOptions | {}>;
-  cloudAttachmentVersion:
-    | (microsoft_graph_security_cloudAttachmentVersion | {})
-    | Array<microsoft_graph_security_cloudAttachmentVersion | {}>;
-  documentVersion:
-    | (microsoft_graph_security_documentVersion | {})
-    | Array<microsoft_graph_security_documentVersion | {}>;
-  itemsToInclude:
-    | (microsoft_graph_security_itemsToInclude | {})
-    | Array<microsoft_graph_security_itemsToInclude | {}>;
-  reviewSet:
-    | (microsoft_graph_security_ediscoveryReviewSet | {})
-    | Array<microsoft_graph_security_ediscoveryReviewSet | {}>;
-  search:
-    | (microsoft_graph_security_ediscoverySearch | {})
-    | Array<microsoft_graph_security_ediscoverySearch | {}>;
+  resultInfo: microsoft_graph_resultInfo;
+  status: microsoft_graph_security_caseOperationStatus;
+  additionalDataOptions: microsoft_graph_security_additionalDataOptions;
+  cloudAttachmentVersion: microsoft_graph_security_cloudAttachmentVersion;
+  documentVersion: microsoft_graph_security_documentVersion;
+  itemsToInclude: microsoft_graph_security_itemsToInclude;
+  reviewSet: microsoft_graph_security_ediscoveryReviewSet;
+  search: microsoft_graph_security_ediscoverySearch;
 }>;
 type microsoft_graph_security_caseAction =
   | 'contentExport'
@@ -6514,7 +5942,7 @@ type microsoft_graph_security_itemsToInclude =
   | 'unknownFutureValue';
 type microsoft_graph_security_ediscoveryReviewSet = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   description: string | null;
   displayName: string | null;
@@ -6530,12 +5958,10 @@ type microsoft_graph_security_dataSourceScopes =
   | 'unknownFutureValue';
 type microsoft_graph_security_dataSource = Partial<{
   id: string;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   displayName: string | null;
-  holdStatus:
-    | (microsoft_graph_security_dataSourceHoldStatus | {})
-    | Array<microsoft_graph_security_dataSourceHoldStatus | {}>;
+  holdStatus: microsoft_graph_security_dataSourceHoldStatus;
 }>;
 type microsoft_graph_security_dataSourceHoldStatus =
   | 'notApplied'
@@ -6555,20 +5981,12 @@ type microsoft_graph_security_ediscoveryNoncustodialDataSource = Partial<{
   id: string;
   createdDateTime: string | null;
   displayName: string | null;
-  holdStatus:
-    | (microsoft_graph_security_dataSourceHoldStatus | {})
-    | Array<microsoft_graph_security_dataSourceHoldStatus | {}>;
+  holdStatus: microsoft_graph_security_dataSourceHoldStatus;
   lastModifiedDateTime: string | null;
   releasedDateTime: string | null;
-  status:
-    | (microsoft_graph_security_dataSourceContainerStatus | {})
-    | Array<microsoft_graph_security_dataSourceContainerStatus | {}>;
-  dataSource:
-    | (microsoft_graph_security_dataSource | {})
-    | Array<microsoft_graph_security_dataSource | {}>;
-  lastIndexOperation:
-    | (microsoft_graph_security_ediscoveryIndexOperation | {})
-    | Array<microsoft_graph_security_ediscoveryIndexOperation | {}>;
+  status: microsoft_graph_security_dataSourceContainerStatus;
+  dataSource: microsoft_graph_security_dataSource;
+  lastIndexOperation: microsoft_graph_security_ediscoveryIndexOperation;
 }>;
 type microsoft_graph_security_dataSourceContainerStatus =
   | 'active'
@@ -6576,66 +5994,44 @@ type microsoft_graph_security_dataSourceContainerStatus =
   | 'unknownFutureValue';
 type microsoft_graph_security_ediscoveryIndexOperation = Partial<{
   id: string;
-  action:
-    | (microsoft_graph_security_caseAction | {})
-    | Array<microsoft_graph_security_caseAction | {}>;
+  action: microsoft_graph_security_caseAction;
   completedDateTime: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   percentProgress: number | null;
-  resultInfo: (microsoft_graph_resultInfo | {}) | Array<microsoft_graph_resultInfo | {}>;
-  status:
-    | (microsoft_graph_security_caseOperationStatus | {})
-    | Array<microsoft_graph_security_caseOperationStatus | {}>;
+  resultInfo: microsoft_graph_resultInfo;
+  status: microsoft_graph_security_caseOperationStatus;
 }>;
 type microsoft_graph_security_ediscoveryEstimateOperation = Partial<{
   id: string;
-  action:
-    | (microsoft_graph_security_caseAction | {})
-    | Array<microsoft_graph_security_caseAction | {}>;
+  action: microsoft_graph_security_caseAction;
   completedDateTime: string | null;
-  createdBy: (microsoft_graph_identitySet | {}) | Array<microsoft_graph_identitySet | {}>;
+  createdBy: microsoft_graph_identitySet;
   createdDateTime: string | null;
   percentProgress: number | null;
-  resultInfo: (microsoft_graph_resultInfo | {}) | Array<microsoft_graph_resultInfo | {}>;
-  status:
-    | (microsoft_graph_security_caseOperationStatus | {})
-    | Array<microsoft_graph_security_caseOperationStatus | {}>;
+  resultInfo: microsoft_graph_resultInfo;
+  status: microsoft_graph_security_caseOperationStatus;
   indexedItemCount: number | null;
   indexedItemsSize: number | null;
   mailboxCount: number | null;
   siteCount: number | null;
-  statisticsOptions:
-    | (microsoft_graph_security_statisticsOptions | {})
-    | Array<microsoft_graph_security_statisticsOptions | {}>;
+  statisticsOptions: microsoft_graph_security_statisticsOptions;
   unindexedItemCount: number | null;
   unindexedItemsSize: number | null;
-  search:
-    | (microsoft_graph_security_ediscoverySearch | {})
-    | Array<microsoft_graph_security_ediscoverySearch | {}>;
+  search: microsoft_graph_security_ediscoverySearch;
 }>;
 type microsoft_graph_security_ediscoveryReviewTag = Partial<{
-  childSelectability:
-    | (microsoft_graph_security_childSelectability | {})
-    | Array<microsoft_graph_security_childSelectability | {}>;
+  childSelectability: microsoft_graph_security_childSelectability;
   childTags: Array<microsoft_graph_security_ediscoveryReviewTag>;
-  parent:
-    | (microsoft_graph_security_ediscoveryReviewTag | {})
-    | Array<microsoft_graph_security_ediscoveryReviewTag | {}>;
+  parent: microsoft_graph_security_ediscoveryReviewTag;
 }>;
 type microsoft_graph_security_childSelectability = 'One' | 'Many' | 'unknownFutureValue';
 type microsoft_graph_security_ediscoverySearch = Partial<{
-  dataSourceScopes:
-    | (microsoft_graph_security_dataSourceScopes | {})
-    | Array<microsoft_graph_security_dataSourceScopes | {}>;
+  dataSourceScopes: microsoft_graph_security_dataSourceScopes;
   additionalSources: Array<microsoft_graph_security_dataSource>;
-  addToReviewSetOperation:
-    | (microsoft_graph_security_ediscoveryAddToReviewSetOperation | {})
-    | Array<microsoft_graph_security_ediscoveryAddToReviewSetOperation | {}>;
+  addToReviewSetOperation: microsoft_graph_security_ediscoveryAddToReviewSetOperation;
   custodianSources: Array<microsoft_graph_security_dataSource>;
-  lastEstimateStatisticsOperation:
-    | (microsoft_graph_security_ediscoveryEstimateOperation | {})
-    | Array<microsoft_graph_security_ediscoveryEstimateOperation | {}>;
+  lastEstimateStatisticsOperation: microsoft_graph_security_ediscoveryEstimateOperation;
   noncustodialSources: Array<microsoft_graph_security_ediscoveryNoncustodialDataSource>;
 }>;
 type microsoft_graph_security_host = Partial<{
@@ -6650,15 +6046,11 @@ type microsoft_graph_security_host = Partial<{
   passiveDns: Array<microsoft_graph_security_passiveDnsRecord>;
   passiveDnsReverse: Array<microsoft_graph_security_passiveDnsRecord>;
   ports: Array<microsoft_graph_security_hostPort>;
-  reputation:
-    | (microsoft_graph_security_hostReputation | {})
-    | Array<microsoft_graph_security_hostReputation | {}>;
+  reputation: microsoft_graph_security_hostReputation;
   sslCertificates: Array<microsoft_graph_security_hostSslCertificate>;
   subdomains: Array<microsoft_graph_security_subdomain>;
   trackers: Array<microsoft_graph_security_hostTracker>;
-  whois:
-    | (microsoft_graph_security_whoisRecord | {})
-    | Array<microsoft_graph_security_whoisRecord | {}>;
+  whois: microsoft_graph_security_whoisRecord;
 }>;
 type microsoft_graph_security_artifact = Partial<{
   id: string;
@@ -6677,7 +6069,7 @@ type microsoft_graph_security_hostPortStatus =
   | 'closed'
   | 'unknownFutureValue';
 type microsoft_graph_security_sslCertificateEntity = Partial<{
-  address: (microsoft_graph_physicalAddress | {}) | Array<microsoft_graph_physicalAddress | {}>;
+  address: microsoft_graph_physicalAddress;
   alternateNames: Array<string | null>;
   commonName: string | null;
   email: string | null;
@@ -6717,7 +6109,7 @@ type microsoft_graph_security_hostSslCertificatePort = Partial<{
   port: number | null;
 }>;
 type microsoft_graph_security_whoisContact = Partial<{
-  address: (microsoft_graph_physicalAddress | {}) | Array<microsoft_graph_physicalAddress | {}>;
+  address: microsoft_graph_physicalAddress;
   email: string | null;
   fax: string | null;
   name: string | null;
@@ -6756,28 +6148,20 @@ type microsoft_graph_security_hostPort = Partial<{
   lastScanDateTime: string | null;
   lastSeenDateTime: string | null;
   port: number;
-  protocol:
-    | (microsoft_graph_security_hostPortProtocol | {})
-    | Array<microsoft_graph_security_hostPortProtocol | {}>;
+  protocol: microsoft_graph_security_hostPortProtocol;
   services: Array<microsoft_graph_security_hostPortComponent>;
-  status:
-    | (microsoft_graph_security_hostPortStatus | {})
-    | Array<microsoft_graph_security_hostPortStatus | {}>;
+  status: microsoft_graph_security_hostPortStatus;
   timesObserved: number | null;
   host: microsoft_graph_security_host;
-  mostRecentSslCertificate:
-    | (microsoft_graph_security_sslCertificate | {})
-    | Array<microsoft_graph_security_sslCertificate | {}>;
+  mostRecentSslCertificate: microsoft_graph_security_sslCertificate;
 }>;
 type microsoft_graph_security_hostSslCertificate = Partial<{
   id: string;
   firstSeenDateTime: string | null;
   lastSeenDateTime: string | null;
   ports: Array<microsoft_graph_security_hostSslCertificatePort>;
-  host: (microsoft_graph_security_host | {}) | Array<microsoft_graph_security_host | {}>;
-  sslCertificate:
-    | (microsoft_graph_security_sslCertificate | {})
-    | Array<microsoft_graph_security_sslCertificate | {}>;
+  host: microsoft_graph_security_host;
+  sslCertificate: microsoft_graph_security_sslCertificate;
 }>;
 type microsoft_graph_security_hostTracker = Partial<{
   id: string;
@@ -6802,15 +6186,11 @@ type microsoft_graph_security_sslCertificate = Partial<{
   fingerprint: string | null;
   firstSeenDateTime: string | null;
   issueDateTime: string | null;
-  issuer:
-    | (microsoft_graph_security_sslCertificateEntity | {})
-    | Array<microsoft_graph_security_sslCertificateEntity | {}>;
+  issuer: microsoft_graph_security_sslCertificateEntity;
   lastSeenDateTime: string | null;
   serialNumber: string | null;
   sha1: string | null;
-  subject:
-    | (microsoft_graph_security_sslCertificateEntity | {})
-    | Array<microsoft_graph_security_sslCertificateEntity | {}>;
+  subject: microsoft_graph_security_sslCertificateEntity;
   relatedHosts: Array<microsoft_graph_security_host>;
 }>;
 type microsoft_graph_security_subdomain = Partial<{
@@ -6820,76 +6200,44 @@ type microsoft_graph_security_subdomain = Partial<{
 }>;
 type microsoft_graph_security_whoisHistoryRecord = Partial<{
   id: string;
-  abuse:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  admin:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  billing:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  abuse: microsoft_graph_security_whoisContact;
+  admin: microsoft_graph_security_whoisContact;
+  billing: microsoft_graph_security_whoisContact;
   domainStatus: string | null;
   expirationDateTime: string | null;
   firstSeenDateTime: string | null;
   lastSeenDateTime: string | null;
   lastUpdateDateTime: string | null;
   nameservers: Array<microsoft_graph_security_whoisNameserver>;
-  noc:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  noc: microsoft_graph_security_whoisContact;
   rawWhoisText: string | null;
-  registrant:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  registrar:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  registrant: microsoft_graph_security_whoisContact;
+  registrar: microsoft_graph_security_whoisContact;
   registrationDateTime: string | null;
-  technical:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  technical: microsoft_graph_security_whoisContact;
   whoisServer: string | null;
-  zone:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  zone: microsoft_graph_security_whoisContact;
   host: microsoft_graph_security_host;
 }>;
 type microsoft_graph_security_whoisRecord = Partial<{
   id: string;
-  abuse:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  admin:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  billing:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  abuse: microsoft_graph_security_whoisContact;
+  admin: microsoft_graph_security_whoisContact;
+  billing: microsoft_graph_security_whoisContact;
   domainStatus: string | null;
   expirationDateTime: string | null;
   firstSeenDateTime: string | null;
   lastSeenDateTime: string | null;
   lastUpdateDateTime: string | null;
   nameservers: Array<microsoft_graph_security_whoisNameserver>;
-  noc:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  noc: microsoft_graph_security_whoisContact;
   rawWhoisText: string | null;
-  registrant:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
-  registrar:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  registrant: microsoft_graph_security_whoisContact;
+  registrar: microsoft_graph_security_whoisContact;
   registrationDateTime: string | null;
-  technical:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  technical: microsoft_graph_security_whoisContact;
   whoisServer: string | null;
-  zone:
-    | (microsoft_graph_security_whoisContact | {})
-    | Array<microsoft_graph_security_whoisContact | {}>;
+  zone: microsoft_graph_security_whoisContact;
   host: microsoft_graph_security_host;
   history: Array<microsoft_graph_security_whoisHistoryRecord>;
 }>;
@@ -6904,14 +6252,10 @@ type microsoft_graph_security_containerEvidence = Partial<{
   args: Array<string | null>;
   command: Array<string | null>;
   containerId: string | null;
-  image:
-    | (microsoft_graph_security_containerImageEvidence | {})
-    | Array<microsoft_graph_security_containerImageEvidence | {}>;
+  image: microsoft_graph_security_containerImageEvidence;
   isPrivileged: boolean;
   name: string | null;
-  pod:
-    | (microsoft_graph_security_kubernetesPodEvidence | {})
-    | Array<microsoft_graph_security_kubernetesPodEvidence | {}>;
+  pod: microsoft_graph_security_kubernetesPodEvidence;
 }>;
 type microsoft_graph_security_evidenceRemediationStatus =
   | 'none'
@@ -6967,13 +6311,9 @@ type microsoft_graph_security_kubernetesControllerEvidence = Partial<{
   roles: Array<microsoft_graph_security_evidenceRole>;
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
-  labels:
-    | (microsoft_graph_security_dictionary | {})
-    | Array<microsoft_graph_security_dictionary | {}>;
+  labels: microsoft_graph_security_dictionary;
   name: string | null;
-  namespace:
-    | (microsoft_graph_security_kubernetesNamespaceEvidence | {})
-    | Array<microsoft_graph_security_kubernetesNamespaceEvidence | {}>;
+  namespace: microsoft_graph_security_kubernetesNamespaceEvidence;
   type: string | null;
 }>;
 type microsoft_graph_security_dictionary = Partial<{}>;
@@ -6985,12 +6325,8 @@ type microsoft_graph_security_kubernetesNamespaceEvidence = Partial<{
   roles: Array<microsoft_graph_security_evidenceRole>;
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
-  cluster:
-    | (microsoft_graph_security_kubernetesClusterEvidence | {})
-    | Array<microsoft_graph_security_kubernetesClusterEvidence | {}>;
-  labels:
-    | (microsoft_graph_security_dictionary | {})
-    | Array<microsoft_graph_security_dictionary | {}>;
+  cluster: microsoft_graph_security_kubernetesClusterEvidence;
+  labels: microsoft_graph_security_dictionary;
   name: string | null;
 }>;
 type microsoft_graph_security_kubernetesClusterEvidence = Partial<{
@@ -7001,14 +6337,10 @@ type microsoft_graph_security_kubernetesClusterEvidence = Partial<{
   roles: Array<microsoft_graph_security_evidenceRole>;
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
-  cloudResource:
-    | (microsoft_graph_security_alertEvidence | {})
-    | Array<microsoft_graph_security_alertEvidence | {}>;
+  cloudResource: microsoft_graph_security_alertEvidence;
   distribution: string | null;
   name: string | null;
-  platform:
-    | (microsoft_graph_security_kubernetesPlatform | {})
-    | Array<microsoft_graph_security_kubernetesPlatform | {}>;
+  platform: microsoft_graph_security_kubernetesPlatform;
   version: string | null;
 }>;
 type microsoft_graph_security_alertEvidence = Partial<{
@@ -7037,10 +6369,8 @@ type microsoft_graph_security_ipEvidence = Partial<{
   verdict: microsoft_graph_security_evidenceVerdict;
   countryLetterCode: string | null;
   ipAddress: string | null;
-  location:
-    | (microsoft_graph_security_geoLocation | {})
-    | Array<microsoft_graph_security_geoLocation | {}>;
-  stream: (microsoft_graph_security_stream | {}) | Array<microsoft_graph_security_stream | {}>;
+  location: microsoft_graph_security_geoLocation;
+  stream: microsoft_graph_security_stream;
 }>;
 type microsoft_graph_security_geoLocation = Partial<{
   city: string | null;
@@ -7061,9 +6391,7 @@ type microsoft_graph_security_kubernetesServiceAccountEvidence = Partial<{
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
   name: string | null;
-  namespace:
-    | (microsoft_graph_security_kubernetesNamespaceEvidence | {})
-    | Array<microsoft_graph_security_kubernetesNamespaceEvidence | {}>;
+  namespace: microsoft_graph_security_kubernetesNamespaceEvidence;
 }>;
 type microsoft_graph_security_containerImageEvidence = Partial<{
   createdDateTime: string;
@@ -7073,21 +6401,15 @@ type microsoft_graph_security_containerImageEvidence = Partial<{
   roles: Array<microsoft_graph_security_evidenceRole>;
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
-  digestImage:
-    | (microsoft_graph_security_containerImageEvidence | {})
-    | Array<microsoft_graph_security_containerImageEvidence | {}>;
+  digestImage: microsoft_graph_security_containerImageEvidence;
   imageId: string | null;
-  registry:
-    | (microsoft_graph_security_containerRegistryEvidence | {})
-    | Array<microsoft_graph_security_containerRegistryEvidence | {}>;
+  registry: microsoft_graph_security_containerRegistryEvidence;
 }>;
 type microsoft_graph_security_hostPortComponent = Partial<{
   firstSeenDateTime: string | null;
   isRecent: boolean | null;
   lastSeenDateTime: string | null;
-  component:
-    | (microsoft_graph_security_hostComponent | {})
-    | Array<microsoft_graph_security_hostComponent | {}>;
+  component: microsoft_graph_security_hostComponent;
 }>;
 type microsoft_graph_security_kubernetesPodEvidence = Partial<{
   createdDateTime: string;
@@ -7098,24 +6420,14 @@ type microsoft_graph_security_kubernetesPodEvidence = Partial<{
   tags: Array<string | null>;
   verdict: microsoft_graph_security_evidenceVerdict;
   containers: Array<microsoft_graph_security_containerEvidence>;
-  controller:
-    | (microsoft_graph_security_kubernetesControllerEvidence | {})
-    | Array<microsoft_graph_security_kubernetesControllerEvidence | {}>;
+  controller: microsoft_graph_security_kubernetesControllerEvidence;
   ephemeralContainers: Array<microsoft_graph_security_containerEvidence>;
   initContainers: Array<microsoft_graph_security_containerEvidence>;
-  labels:
-    | (microsoft_graph_security_dictionary | {})
-    | Array<microsoft_graph_security_dictionary | {}>;
+  labels: microsoft_graph_security_dictionary;
   name: string | null;
-  namespace:
-    | (microsoft_graph_security_kubernetesNamespaceEvidence | {})
-    | Array<microsoft_graph_security_kubernetesNamespaceEvidence | {}>;
-  podIp:
-    | (microsoft_graph_security_ipEvidence | {})
-    | Array<microsoft_graph_security_ipEvidence | {}>;
-  serviceAccount:
-    | (microsoft_graph_security_kubernetesServiceAccountEvidence | {})
-    | Array<microsoft_graph_security_kubernetesServiceAccountEvidence | {}>;
+  namespace: microsoft_graph_security_kubernetesNamespaceEvidence;
+  podIp: microsoft_graph_security_ipEvidence;
+  serviceAccount: microsoft_graph_security_kubernetesServiceAccountEvidence;
 }>;
 type microsoft_graph_security_whoisNameserver = Partial<{
   firstSeenDateTime: string | null;
@@ -7128,19 +6440,15 @@ type microsoft_graph_termStore_group = Partial<{
   description: string | null;
   displayName: string | null;
   parentSiteId: string | null;
-  scope:
-    | (microsoft_graph_termStore_termGroupScope | {})
-    | Array<microsoft_graph_termStore_termGroupScope | {}>;
+  scope: microsoft_graph_termStore_termGroupScope;
   sets: Array<microsoft_graph_termStore_set>;
 }>;
 type microsoft_graph_termStore_relation = Partial<{
   id: string;
-  relationship:
-    | (microsoft_graph_termStore_relationType | {})
-    | Array<microsoft_graph_termStore_relationType | {}>;
-  fromTerm: (microsoft_graph_termStore_term | {}) | Array<microsoft_graph_termStore_term | {}>;
-  set: (microsoft_graph_termStore_set | {}) | Array<microsoft_graph_termStore_set | {}>;
-  toTerm: (microsoft_graph_termStore_term | {}) | Array<microsoft_graph_termStore_term | {}>;
+  relationship: microsoft_graph_termStore_relationType;
+  fromTerm: microsoft_graph_termStore_term;
+  set: microsoft_graph_termStore_set;
+  toTerm: microsoft_graph_termStore_term;
 }>;
 type microsoft_graph_termStore_set = Partial<{
   id: string;
@@ -7162,7 +6470,7 @@ type microsoft_graph_termStore_term = Partial<{
   properties: Array<microsoft_graph_keyValue>;
   children: Array<microsoft_graph_termStore_term>;
   relations: Array<microsoft_graph_termStore_relation>;
-  set: (microsoft_graph_termStore_set | {}) | Array<microsoft_graph_termStore_set | {}>;
+  set: microsoft_graph_termStore_set;
 }>;
 
 const microsoft_graph_ODataErrors_ErrorDetails = z
@@ -7217,15 +6525,9 @@ const microsoft_graph_identity = z
   .strict();
 const microsoft_graph_identitySet = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
+    application: microsoft_graph_identity,
+    device: microsoft_graph_identity,
+    user: microsoft_graph_identity,
   })
   .partial()
   .strict();
@@ -7292,9 +6594,7 @@ const microsoft_graph_itemReference = z
         'A unique identifier for a shared resource that can be accessed via the Shares API.'
       )
       .nullable(),
-    sharepointIds: z
-      .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-      .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
+    sharepointIds: microsoft_graph_sharepointIds,
     siteId: z
       .string()
       .describe(
@@ -7449,11 +6749,7 @@ const microsoft_graph_dateTimeTimeZone = z
 const microsoft_graph_automaticRepliesStatus = z.enum(['disabled', 'alwaysEnabled', 'scheduled']);
 const microsoft_graph_automaticRepliesSetting = z
   .object({
-    externalAudience: z
-      .union([microsoft_graph_externalAudienceScope, z.object({}).partial().strict()])
-      .describe(
-        "The set of audience external to the signed-in user's organization who will receive the ExternalReplyMessage, if Status is AlwaysEnabled or Scheduled. The possible values are: none, contactsOnly, all."
-      ),
+    externalAudience: microsoft_graph_externalAudienceScope,
     externalReplyMessage: z
       .string()
       .describe(
@@ -7466,21 +6762,9 @@ const microsoft_graph_automaticRepliesSetting = z
         "The automatic reply to send to the audience internal to the signed-in user's organization, if Status is AlwaysEnabled or Scheduled."
       )
       .nullable(),
-    scheduledEndDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        'The date and time that automatic replies are set to end, if Status is set to Scheduled.'
-      ),
-    scheduledStartDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        'The date and time that automatic replies are set to begin, if Status is set to Scheduled.'
-      ),
-    status: z
-      .union([microsoft_graph_automaticRepliesStatus, z.object({}).partial().strict()])
-      .describe(
-        'Configurations status for automatic replies. The possible values are: disabled, alwaysEnabled, scheduled.'
-      ),
+    scheduledEndDateTime: microsoft_graph_dateTimeTimeZone,
+    scheduledStartDateTime: microsoft_graph_dateTimeTimeZone,
+    status: microsoft_graph_automaticRepliesStatus,
   })
   .partial()
   .strict();
@@ -7550,44 +6834,21 @@ const microsoft_graph_workingHours = z
       .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?$/)
       .describe('The time of the day that the user starts working.')
       .nullable(),
-    timeZone: z
-      .union([microsoft_graph_timeZoneBase, z.object({}).partial().strict()])
-      .describe('The time zone to which the working hours apply.'),
+    timeZone: microsoft_graph_timeZoneBase,
   })
   .partial()
   .strict();
 const microsoft_graph_mailboxSettings = z
   .object({
     archiveFolder: z.string().describe('Folder ID of an archive folder for the user.').nullable(),
-    automaticRepliesSetting: z
-      .union([microsoft_graph_automaticRepliesSetting, z.object({}).partial().strict()])
-      .describe(
-        'Configuration settings to automatically notify the sender of an incoming email with a message from the signed-in user.'
-      ),
+    automaticRepliesSetting: microsoft_graph_automaticRepliesSetting,
     dateFormat: z.string().describe("The date format for the user's mailbox.").nullable(),
-    delegateMeetingMessageDeliveryOptions: z
-      .union([
-        microsoft_graph_delegateMeetingMessageDeliveryOptions,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'If the user has a calendar delegate, this specifies whether the delegate, mailbox owner, or both receive meeting messages and meeting responses. Possible values are: sendToDelegateAndInformationToPrincipal, sendToDelegateAndPrincipal, sendToDelegateOnly.'
-      ),
-    language: z
-      .union([microsoft_graph_localeInfo, z.object({}).partial().strict()])
-      .describe(
-        'The locale information for the user, including the preferred language and country/region.'
-      ),
+    delegateMeetingMessageDeliveryOptions: microsoft_graph_delegateMeetingMessageDeliveryOptions,
+    language: microsoft_graph_localeInfo,
     timeFormat: z.string().describe("The time format for the user's mailbox.").nullable(),
     timeZone: z.string().describe("The default time zone for the user's mailbox.").nullable(),
-    userPurpose: z
-      .union([microsoft_graph_userPurpose, z.object({}).partial().strict()])
-      .describe(
-        'The purpose of the mailbox. Differentiates a mailbox for a single user from a shared mailbox and equipment mailbox in Exchange Online. Possible values are: user, linked, shared, room, equipment, others, unknownFutureValue. Read-only.'
-      ),
-    workingHours: z
-      .union([microsoft_graph_workingHours, z.object({}).partial().strict()])
-      .describe('The days of the week and hours in a specific time zone that the user works.'),
+    userPurpose: microsoft_graph_userPurpose,
+    workingHours: microsoft_graph_workingHours,
   })
   .partial()
   .strict();
@@ -7817,9 +7078,7 @@ const microsoft_graph_printerCapabilities = z
       .describe(
         'A list of supported content (MIME) types that the printer supports. It is not guaranteed that the Universal Print service supports printing all of these MIME types.'
       ),
-    copiesPerJob: z
-      .union([microsoft_graph_integerRange, z.object({}).partial().strict()])
-      .describe('The range of copies per job supported by the printer.'),
+    copiesPerJob: microsoft_graph_integerRange,
     dpis: z
       .array(z.number().gte(-2147483648).lte(2147483647).nullable())
       .describe('The list of print resolutions in DPI that are supported by the printer.'),
@@ -7896,11 +7155,7 @@ const microsoft_graph_printerCapabilities = z
   .strict();
 const microsoft_graph_printerDefaults = z
   .object({
-    colorMode: z
-      .union([microsoft_graph_printColorMode, z.object({}).partial().strict()])
-      .describe(
-        'The default color mode to use when printing the document. Valid values are described in the following table.'
-      ),
+    colorMode: microsoft_graph_printColorMode,
     contentType: z
       .string()
       .describe('The default content (MIME) type to use when processing documents.')
@@ -7917,11 +7172,7 @@ const microsoft_graph_printerDefaults = z
       .lte(2147483647)
       .describe('The default resolution in DPI to use when printing the job.')
       .nullable(),
-    duplexMode: z
-      .union([microsoft_graph_printDuplexMode, z.object({}).partial().strict()])
-      .describe(
-        'The default duplex (double-sided) configuration to use when printing a document. Valid values are described in the following table.'
-      ),
+    duplexMode: microsoft_graph_printDuplexMode,
     finishings: z
       .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().strict()]))
       .describe(
@@ -7951,16 +7202,8 @@ const microsoft_graph_printerDefaults = z
       .string()
       .describe('The default media (such as paper) type to print the document on.')
       .nullable(),
-    multipageLayout: z
-      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().strict()])
-      .describe(
-        'The default direction to lay out pages when multiple pages are being printed per sheet. Valid values are described in the following table.'
-      ),
-    orientation: z
-      .union([microsoft_graph_printOrientation, z.object({}).partial().strict()])
-      .describe(
-        'The default orientation to use when printing the document. Valid values are described in the following table.'
-      ),
+    multipageLayout: microsoft_graph_printMultipageLayout,
+    orientation: microsoft_graph_printOrientation,
     outputBin: z
       .string()
       .describe(
@@ -7973,16 +7216,8 @@ const microsoft_graph_printerDefaults = z
       .lte(2147483647)
       .describe('The default number of document pages to print on each sheet.')
       .nullable(),
-    quality: z
-      .union([microsoft_graph_printQuality, z.object({}).partial().strict()])
-      .describe(
-        'The default quality to use when printing the document. Valid values are described in the following table.'
-      ),
-    scaling: z
-      .union([microsoft_graph_printScaling, z.object({}).partial().strict()])
-      .describe(
-        'Specifies how the printer scales the document data to fit the requested media. Valid values are described in the following table.'
-      ),
+    quality: microsoft_graph_printQuality,
+    scaling: microsoft_graph_printScaling,
   })
   .partial()
   .strict();
@@ -8941,11 +8176,7 @@ const microsoft_graph_printJobConfiguration = z
         'Whether the printer should collate pages wehen printing multiple copies of a multi-page document.'
       )
       .nullable(),
-    colorMode: z
-      .union([microsoft_graph_printColorMode, z.object({}).partial().strict()])
-      .describe(
-        'The color mode the printer should use to print the job. Valid values are described in the table below. Read-only.'
-      ),
+    colorMode: microsoft_graph_printColorMode,
     copies: z
       .number()
       .gte(-2147483648)
@@ -8960,16 +8191,8 @@ const microsoft_graph_printJobConfiguration = z
         'The resolution to use when printing the job, expressed in dots per inch (DPI). Read-only.'
       )
       .nullable(),
-    duplexMode: z
-      .union([microsoft_graph_printDuplexMode, z.object({}).partial().strict()])
-      .describe(
-        'The duplex mode the printer should use when printing the job. Valid values are described in the table below. Read-only.'
-      ),
-    feedOrientation: z
-      .union([microsoft_graph_printerFeedOrientation, z.object({}).partial().strict()])
-      .describe(
-        'The orientation to use when feeding media into the printer. Valid values are described in the following table. Read-only.'
-      ),
+    duplexMode: microsoft_graph_printDuplexMode,
+    feedOrientation: microsoft_graph_printerFeedOrientation,
     finishings: z
       .array(z.union([microsoft_graph_printFinishing, z.object({}).partial().strict()]))
       .describe('Finishing processes to use when printing.'),
@@ -8985,9 +8208,7 @@ const microsoft_graph_printJobConfiguration = z
         "The input bin (tray) to use when printing. See the printer's capabilities for a list of supported input bins."
       )
       .nullable(),
-    margin: z
-      .union([microsoft_graph_printMargin, z.object({}).partial().strict()])
-      .describe('The margin settings to use when printing.'),
+    margin: microsoft_graph_printMargin,
     mediaSize: z
       .string()
       .describe(
@@ -8998,16 +8219,8 @@ const microsoft_graph_printJobConfiguration = z
       .string()
       .describe('The default media (such as paper) type to print the document on.')
       .nullable(),
-    multipageLayout: z
-      .union([microsoft_graph_printMultipageLayout, z.object({}).partial().strict()])
-      .describe(
-        'The direction to lay out pages when multiple pages are being printed per sheet. Valid values are described in the following table.'
-      ),
-    orientation: z
-      .union([microsoft_graph_printOrientation, z.object({}).partial().strict()])
-      .describe(
-        'The orientation setting the printer should use when printing the job. Valid values are described in the following table.'
-      ),
+    multipageLayout: microsoft_graph_printMultipageLayout,
+    orientation: microsoft_graph_printOrientation,
     outputBin: z
       .string()
       .describe(
@@ -9023,16 +8236,8 @@ const microsoft_graph_printJobConfiguration = z
       .lte(2147483647)
       .describe('The number of document pages to print on each sheet.')
       .nullable(),
-    quality: z
-      .union([microsoft_graph_printQuality, z.object({}).partial().strict()])
-      .describe(
-        'The print quality to use when printing the job. Valid values are described in the table below. Read-only.'
-      ),
-    scaling: z
-      .union([microsoft_graph_printScaling, z.object({}).partial().strict()])
-      .describe(
-        'Specifies how the printer should scale the document data to fit the requested media. Valid values are described in the following table.'
-      ),
+    quality: microsoft_graph_printQuality,
+    scaling: microsoft_graph_printScaling,
   })
   .partial()
   .strict();
@@ -9220,7 +8425,7 @@ const microsoft_graph_printJob = z
       .describe('The dateTimeOffset when the job was acknowledged. Read-only.')
       .nullable(),
     configuration: microsoft_graph_printJobConfiguration,
-    createdBy: z.union([microsoft_graph_userIdentity, z.object({}).partial().strict()]),
+    createdBy: microsoft_graph_userIdentity,
     createdDateTime: z
       .string()
       .regex(
@@ -9418,11 +8623,7 @@ const microsoft_graph_calendarPermission = z
       .describe(
         'List of allowed sharing or delegating permission levels for the calendar. Possible values are: none, freeBusyRead, limitedRead, read, write, delegateWithoutPrivateEventAccess, delegateWithPrivateEventAccess, custom.'
       ),
-    emailAddress: z
-      .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
-      .describe(
-        "Represents a share recipient or delegate who has access to the calendar. For the 'My Organization' share recipient, the address property is null. Read-only."
-      ),
+    emailAddress: microsoft_graph_emailAddress,
     isInsideOrganization: z
       .boolean()
       .describe(
@@ -9435,9 +8636,7 @@ const microsoft_graph_calendarPermission = z
         "True if the user can be removed from the list of recipients or delegates for the specified calendar, false otherwise. The 'My organization' user determines the permissions other people within your organization have to the given calendar. You can't remove 'My organization' as a share recipient to a calendar."
       )
       .nullable(),
-    role: z
-      .union([microsoft_graph_calendarRoleType, z.object({}).partial().strict()])
-      .describe('Current permission level of the calendar share recipient or delegate.'),
+    role: microsoft_graph_calendarRoleType,
   })
   .partial()
   .strict();
@@ -9455,11 +8654,7 @@ const microsoft_graph_responseType = z.enum([
 ]);
 const microsoft_graph_responseStatus = z
   .object({
-    response: z
-      .union([microsoft_graph_responseType, z.object({}).partial().strict()])
-      .describe(
-        "The response type. Possible values are: none, organizer, tentativelyAccepted, accepted, declined, notResponded.To differentiate between none and notResponded:  none – from organizer's perspective. This value is used when the status of an attendee/participant is reported to the organizer of a meeting.  notResponded – from attendee's perspective. Indicates the attendee has not responded to the meeting request.  Clients can treat notResponded == none.  As an example, if attendee Alex hasn't responded to a meeting request, getting Alex' response status for that event in Alex' calendar returns notResponded. Getting Alex' response from the calendar of any other attendee or the organizer's returns none. Getting the organizer's response for the event in anybody's calendar also returns none."
-      ),
+    response: microsoft_graph_responseType,
     time: z
       .string()
       .regex(
@@ -9474,27 +8669,14 @@ const microsoft_graph_responseStatus = z
   .partial()
   .strict();
 const microsoft_graph_attendee = z
-  .object({
-    proposedNewTime: z
-      .union([microsoft_graph_timeSlot, z.object({}).partial().strict()])
-      .describe(
-        "An alternate date/time proposed by the attendee for a meeting request to start and end. If the attendee hasn't proposed another time, then this property isn't included in a response of a GET event."
-      ),
-    status: z
-      .union([microsoft_graph_responseStatus, z.object({}).partial().strict()])
-      .describe(
-        "The attendee's response (none, accepted, declined, etc.) for the event and date-time that the response was sent."
-      ),
-  })
+  .object({ proposedNewTime: microsoft_graph_timeSlot, status: microsoft_graph_responseStatus })
   .partial()
   .strict();
 const microsoft_graph_bodyType = z.enum(['text', 'html']);
 const microsoft_graph_itemBody = z
   .object({
     content: z.string().describe('The content of the item.').nullable(),
-    contentType: z
-      .union([microsoft_graph_bodyType, z.object({}).partial().strict()])
-      .describe('The type of the content. Possible values are text and html.'),
+    contentType: microsoft_graph_bodyType,
   })
   .partial()
   .strict();
@@ -9562,24 +8744,14 @@ const microsoft_graph_locationUniqueIdType = z.enum([
 ]);
 const microsoft_graph_location = z
   .object({
-    address: z
-      .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
-      .describe('The street address of the location.'),
-    coordinates: z
-      .union([microsoft_graph_outlookGeoCoordinates, z.object({}).partial().strict()])
-      .describe('The geographic coordinates and elevation of the location.'),
+    address: microsoft_graph_physicalAddress,
+    coordinates: microsoft_graph_outlookGeoCoordinates,
     displayName: z.string().describe('The name associated with the location.').nullable(),
     locationEmailAddress: z.string().describe('Optional email address of the location.').nullable(),
-    locationType: z
-      .union([microsoft_graph_locationType, z.object({}).partial().strict()])
-      .describe(
-        'The type of location. The possible values are: default, conferenceRoom, homeAddress, businessAddress,geoCoordinates, streetAddress, hotel, restaurant, localBusiness, postalAddress. Read-only.'
-      ),
+    locationType: microsoft_graph_locationType,
     locationUri: z.string().describe('Optional URI representing the location.').nullable(),
     uniqueId: z.string().describe('For internal use only.').nullable(),
-    uniqueIdType: z
-      .union([microsoft_graph_locationUniqueIdType, z.object({}).partial().strict()])
-      .describe('For internal use only.'),
+    uniqueIdType: microsoft_graph_locationUniqueIdType,
   })
   .partial()
   .strict();
@@ -9600,11 +8772,7 @@ const microsoft_graph_phone = z
     language: z.string().nullable(),
     number: z.string().describe('The phone number.').nullable(),
     region: z.string().nullable(),
-    type: z
-      .union([microsoft_graph_phoneType, z.object({}).partial().strict()])
-      .describe(
-        'The type of phone number. The possible values are: home, business, mobile, other, assistant, homeFax, businessFax, otherFax, pager, radio.'
-      ),
+    type: microsoft_graph_phoneType,
   })
   .partial()
   .strict();
@@ -9632,11 +8800,7 @@ const microsoft_graph_onlineMeetingInfo = z
   .partial()
   .strict();
 const microsoft_graph_recipient = z
-  .object({
-    emailAddress: z
-      .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
-      .describe("The recipient's email address."),
-  })
+  .object({ emailAddress: microsoft_graph_emailAddress })
   .partial()
   .strict();
 const microsoft_graph_weekIndex = z.enum(['first', 'second', 'third', 'fourth', 'last']);
@@ -9662,16 +8826,8 @@ const microsoft_graph_recurrencePattern = z
       .describe(
         'A collection of the days of the week on which the event occurs. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday. If type is relativeMonthly or relativeYearly, and daysOfWeek specifies more than one day, the event falls on the first day that satisfies the pattern.  Required if type is weekly, relativeMonthly, or relativeYearly.'
       ),
-    firstDayOfWeek: z
-      .union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()])
-      .describe(
-        'The first day of the week. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday. Default is sunday. Required if type is weekly.'
-      ),
-    index: z
-      .union([microsoft_graph_weekIndex, z.object({}).partial().strict()])
-      .describe(
-        'Specifies on which instance of the allowed days specified in daysOfWeek the event occurs, counted from the first instance in the month. The possible values are: first, second, third, fourth, last. Default is first. Optional and used if type is relativeMonthly or relativeYearly.'
-      ),
+    firstDayOfWeek: microsoft_graph_dayOfWeek,
+    index: microsoft_graph_weekIndex,
     interval: z
       .number()
       .gte(-2147483648)
@@ -9684,11 +8840,7 @@ const microsoft_graph_recurrencePattern = z
       .gte(-2147483648)
       .lte(2147483647)
       .describe('The month in which the event occurs.  This is a number from 1 to 12.'),
-    type: z
-      .union([microsoft_graph_recurrencePatternType, z.object({}).partial().strict()])
-      .describe(
-        'The recurrence pattern type: daily, weekly, absoluteMonthly, relativeMonthly, absoluteYearly, relativeYearly. Required. For more information, see values of type property.'
-      ),
+    type: microsoft_graph_recurrencePatternType,
   })
   .partial()
   .strict();
@@ -9722,25 +8874,12 @@ const microsoft_graph_recurrenceRange = z
         'The date to start applying the recurrence pattern. The first occurrence of the meeting may be this date or later, depending on the recurrence pattern of the event. Must be the same value as the start property of the recurring event. Required.'
       )
       .nullable(),
-    type: z
-      .union([microsoft_graph_recurrenceRangeType, z.object({}).partial().strict()])
-      .describe(
-        'The recurrence range. The possible values are: endDate, noEnd, numbered. Required.'
-      ),
+    type: microsoft_graph_recurrenceRangeType,
   })
   .partial()
   .strict();
 const microsoft_graph_patternedRecurrence = z
-  .object({
-    pattern: z
-      .union([microsoft_graph_recurrencePattern, z.object({}).partial().strict()])
-      .describe(
-        'The frequency of an event.  For access reviews: Do not specify this property for a one-time access review.  Only interval, dayOfMonth, and type (weekly, absoluteMonthly) properties of recurrencePattern are supported.'
-      ),
-    range: z
-      .union([microsoft_graph_recurrenceRange, z.object({}).partial().strict()])
-      .describe('The duration of an event.'),
-  })
+  .object({ pattern: microsoft_graph_recurrencePattern, range: microsoft_graph_recurrenceRange })
   .partial()
   .strict();
 const microsoft_graph_sensitivity = z.enum(['normal', 'personal', 'private', 'confidential']);
@@ -9814,11 +8953,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
       attendees: z
         .array(microsoft_graph_attendee)
         .describe('The collection of attendees for the event.'),
-      body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-        .describe(
-          'The body of the message associated with the event. It can be in HTML or text format.'
-        ),
+      body: microsoft_graph_itemBody,
       bodyPreview: z
         .string()
         .describe("The preview of the message associated with the event. It's in text format.")
@@ -9828,11 +8963,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
         .describe(
           'Contains occurrenceId property values of canceled instances in a recurring series, if the event is the series master. Instances in a recurring series that are canceled are called canceled occurences.Returned only on $select in a Get operation which specifies the ID (seriesMasterId property value) of a series master event.'
         ),
-      end: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-        .describe(
-          'The date, time, and time zone that the event ends. By default, the end time is in UTC.'
-        ),
+      end: microsoft_graph_dateTimeTimeZone,
       hasAttachments: z.boolean().describe('Set to true if the event has attachments.').nullable(),
       hideAttendees: z
         .boolean()
@@ -9846,9 +8977,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           'A unique identifier for an event across calendars. This ID is different for each occurrence in a recurring series. Read-only.'
         )
         .nullable(),
-      importance: z
-        .union([microsoft_graph_importance, z.object({}).partial().strict()])
-        .describe('The importance of the event. The possible values are: low, normal, high.'),
+      importance: microsoft_graph_importance,
       isAllDay: z
         .boolean()
         .describe(
@@ -9878,33 +9007,21 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
         .boolean()
         .describe('Set to true if an alert is set to remind the user of the event.')
         .nullable(),
-      location: z
-        .union([microsoft_graph_location, z.object({}).partial().strict()])
-        .describe('The location of the event.'),
+      location: microsoft_graph_location,
       locations: z
         .array(microsoft_graph_location)
         .describe(
           'The locations where the event is held or attended from. The location and locations properties always correspond with each other. If you update the location property, any prior locations in the locations collection are removed and replaced by the new location value.'
         ),
-      onlineMeeting: z
-        .union([microsoft_graph_onlineMeetingInfo, z.object({}).partial().strict()])
-        .describe(
-          "Details for an attendee to join the meeting online. The default is null. Read-only. After you set the isOnlineMeeting and onlineMeetingProvider properties to enable a meeting online, Microsoft Graph initializes onlineMeeting. When set, the meeting remains available online, and you can't change the isOnlineMeeting, onlineMeetingProvider, and onlneMeeting properties again."
-        ),
-      onlineMeetingProvider: z
-        .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().strict()])
-        .describe(
-          "Represents the online meeting service provider. By default, onlineMeetingProvider is unknown. The possible values are unknown, teamsForBusiness, skypeForBusiness, and skypeForConsumer. Optional.  After you set onlineMeetingProvider, Microsoft Graph initializes onlineMeeting. Subsequently, you can't change onlineMeetingProvider again, and the meeting remains available online."
-        ),
+      onlineMeeting: microsoft_graph_onlineMeetingInfo,
+      onlineMeetingProvider: microsoft_graph_onlineMeetingProviderType,
       onlineMeetingUrl: z
         .string()
         .describe(
           'A URL for an online meeting. The property is set only when an organizer specifies in Outlook that an event is an online meeting such as Skype. Read-only.To access the URL to join an online meeting, use joinUrl which is exposed via the onlineMeeting property of the event. The onlineMeetingUrl property will be deprecated in the future.'
         )
         .nullable(),
-      organizer: z
-        .union([microsoft_graph_recipient, z.object({}).partial().strict()])
-        .describe('The organizer of the event.'),
+      organizer: microsoft_graph_recipient,
       originalEndTimeZone: z
         .string()
         .describe(
@@ -9927,9 +9044,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           'The start time zone that was set when the event was created. A value of tzone://Microsoft/Custom indicates that a legacy custom time zone was set in desktop Outlook.'
         )
         .nullable(),
-      recurrence: z
-        .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
-        .describe('The recurrence pattern for the event.'),
+      recurrence: microsoft_graph_patternedRecurrence,
       reminderMinutesBeforeStart: z
         .number()
         .gte(-2147483648)
@@ -9944,28 +9059,16 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           'Default is true, which represents the organizer would like an invitee to send a response to the event.'
         )
         .nullable(),
-      responseStatus: z
-        .union([microsoft_graph_responseStatus, z.object({}).partial().strict()])
-        .describe('Indicates the type of response sent in response to an event message.'),
-      sensitivity: z
-        .union([microsoft_graph_sensitivity, z.object({}).partial().strict()])
-        .describe('Possible values are: normal, personal, private, and confidential.'),
+      responseStatus: microsoft_graph_responseStatus,
+      sensitivity: microsoft_graph_sensitivity,
       seriesMasterId: z
         .string()
         .describe(
           'The ID for the recurring series master item, if this event is part of a recurring series.'
         )
         .nullable(),
-      showAs: z
-        .union([microsoft_graph_freeBusyStatus, z.object({}).partial().strict()])
-        .describe(
-          'The status to show. Possible values are: free, tentative, busy, oof, workingElsewhere, unknown.'
-        ),
-      start: z
-        .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-        .describe(
-          'The start date, time, and time zone of the event. By default, the start time is in UTC.'
-        ),
+      showAs: microsoft_graph_freeBusyStatus,
+      start: microsoft_graph_dateTimeTimeZone,
       subject: z.string().describe("The text of the event's subject line.").nullable(),
       transactionId: z
         .string()
@@ -9973,11 +9076,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
           "A custom identifier specified by a client app for the server to avoid redundant POST operations in case of client retries to create the same event. It's useful when low network connectivity causes the client to time out before receiving a response from the server for the client's prior create-event request. After you set transactionId when creating an event, you can't change transactionId in a subsequent update. This property is only returned in a response payload if an app has set it. Optional."
         )
         .nullable(),
-      type: z
-        .union([microsoft_graph_eventType, z.object({}).partial().strict()])
-        .describe(
-          'The event type. Possible values are: singleInstance, occurrence, exception, seriesMaster. Read-only'
-        ),
+      type: microsoft_graph_eventType,
       webLink: z
         .string()
         .describe(
@@ -9989,9 +9088,7 @@ const microsoft_graph_event: z.ZodType<microsoft_graph_event> = z.lazy(() =>
         .describe(
           'The collection of FileAttachment, ItemAttachment, and referenceAttachment attachments for the event. Navigation property. Read-only. Nullable.'
         ),
-      calendar: z
-        .union([microsoft_graph_calendar, z.object({}).partial().strict()])
-        .describe('The calendar that contains the event. Navigation property. Read-only.'),
+      calendar: microsoft_graph_calendar,
       exceptionOccurrences: z
         .array(microsoft_graph_event)
         .describe(
@@ -10054,16 +9151,8 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
           'Identifies the version of the calendar object. Every time the calendar is changed, changeKey changes as well. This allows Exchange to apply changes to the correct version of the object. Read-only.'
         )
         .nullable(),
-      color: z
-        .union([microsoft_graph_calendarColor, z.object({}).partial().strict()])
-        .describe(
-          'Specifies the color theme to distinguish the calendar from other calendars in a UI. The property values are: auto, lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor.'
-        ),
-      defaultOnlineMeetingProvider: z
-        .union([microsoft_graph_onlineMeetingProviderType, z.object({}).partial().strict()])
-        .describe(
-          'The default online meeting provider for meetings sent from this calendar. Possible values are: unknown, skypeForBusiness, skypeForConsumer, teamsForBusiness.'
-        ),
+      color: microsoft_graph_calendarColor,
+      defaultOnlineMeetingProvider: microsoft_graph_onlineMeetingProviderType,
       hexColor: z
         .string()
         .describe(
@@ -10087,11 +9176,7 @@ const microsoft_graph_calendar: z.ZodType<microsoft_graph_calendar> = z.lazy(() 
         )
         .nullable(),
       name: z.string().describe('The calendar name.').nullable(),
-      owner: z
-        .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
-        .describe(
-          'If set, this represents the user who created or added the calendar. For a calendar that the user created or added, the owner property is set to the user. For a calendar shared with the user, the owner property is set to the person who shared that calendar with the user.'
-        ),
+      owner: microsoft_graph_emailAddress,
       calendarPermissions: z
         .array(microsoft_graph_calendarPermission)
         .describe('The permissions of the users with whom the calendar is shared.'),
@@ -10148,11 +9233,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
           'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
         )
         .nullable(),
-      body: z
-        .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-        .describe(
-          'The contents of the post. This is a default property. This property can be null.'
-        ),
+      body: microsoft_graph_itemBody,
       conversationId: z.string().describe('Unique ID of the conversation. Read-only.').nullable(),
       conversationThreadId: z
         .string()
@@ -10176,11 +9257,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
         .describe(
           'Specifies when the post was received. The DateTimeOffset type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
         ),
-      sender: z
-        .union([microsoft_graph_recipient, z.object({}).partial().strict()])
-        .describe(
-          'Contains the address of the sender. The value of Sender is assumed to be the address of the authenticated user in the case when Sender is not specified. This is a default property.'
-        ),
+      sender: microsoft_graph_recipient,
       attachments: z
         .array(microsoft_graph_attachment)
         .describe('Read-only. Nullable. Supports $expand.'),
@@ -10189,9 +9266,7 @@ const microsoft_graph_post: z.ZodType<microsoft_graph_post> = z.lazy(() =>
         .describe(
           'The collection of open extensions defined for the post. Read-only. Nullable. Supports $expand.'
         ),
-      inReplyTo: z
-        .union([microsoft_graph_post, z.object({}).partial().strict()])
-        .describe('Read-only. Supports $expand.'),
+      inReplyTo: microsoft_graph_post,
       multiValueExtendedProperties: z
         .array(microsoft_graph_multiValueLegacyExtendedProperty)
         .describe(
@@ -10308,9 +9383,7 @@ const microsoft_graph_quota = z
       .string()
       .describe('Enumeration value that indicates the state of the storage space. Read-only.')
       .nullable(),
-    storagePlanInformation: z
-      .union([microsoft_graph_storagePlanInformation, z.object({}).partial().strict()])
-      .describe("Information about the drive's storage quota plans. Only in Personal OneDrive."),
+    storagePlanInformation: microsoft_graph_storagePlanInformation,
     total: z.number().describe('Total allowed storage space, in bytes. Read-only.').nullable(),
     used: z.number().describe('Total space used, in bytes. Read-only.').nullable(),
   })
@@ -10558,11 +9631,7 @@ const microsoft_graph_termStore_group: z.ZodType<microsoft_graph_termStore_group
         .nullable(),
       displayName: z.string().describe('Name of the group.').nullable(),
       parentSiteId: z.string().describe('ID of the parent site of this group.').nullable(),
-      scope: z
-        .union([microsoft_graph_termStore_termGroupScope, z.object({}).partial().strict()])
-        .describe(
-          'Returns the type of the group. Possible values are: global, system, and siteCollection.'
-        ),
+      scope: microsoft_graph_termStore_termGroupScope,
       sets: z
         .array(microsoft_graph_termStore_set)
         .describe('All sets under the group in a term [store].'),
@@ -10607,22 +9676,10 @@ const microsoft_graph_termStore_relation: z.ZodType<microsoft_graph_termStore_re
     z
       .object({
         id: z.string().describe('The unique identifier for an entity. Read-only.'),
-        relationship: z
-          .union([microsoft_graph_termStore_relationType, z.object({}).partial().strict()])
-          .describe('The type of relation. Possible values are: pin, reuse.'),
-        fromTerm: z
-          .union([microsoft_graph_termStore_term, z.object({}).partial().strict()])
-          .describe(
-            'The from [term] of the relation. The term from which the relationship is defined. A null value would indicate the relation is directly with the [set].'
-          ),
-        set: z
-          .union([microsoft_graph_termStore_set, z.object({}).partial().strict()])
-          .describe('The [set] in which the relation is relevant.'),
-        toTerm: z
-          .union([microsoft_graph_termStore_term, z.object({}).partial().strict()])
-          .describe(
-            'The to [term] of the relation. The term to which the relationship is defined.'
-          ),
+        relationship: microsoft_graph_termStore_relationType,
+        fromTerm: microsoft_graph_termStore_term,
+        set: microsoft_graph_termStore_set,
+        toTerm: microsoft_graph_termStore_term,
       })
       .partial()
       .strict()
@@ -10662,9 +9719,7 @@ const microsoft_graph_termStore_term: z.ZodType<microsoft_graph_termStore_term> 
         .describe(
           'To indicate which terms are related to the current term as either pinned or reused.'
         ),
-      set: z
-        .union([microsoft_graph_termStore_set, z.object({}).partial().strict()])
-        .describe('The [set] in which the term is created.'),
+      set: microsoft_graph_termStore_set,
     })
     .partial()
     .strict()
@@ -10679,8 +9734,8 @@ const microsoft_graph_termColumn = z
       .boolean()
       .describe('Specifies whether to display the entire term path or only the term label.')
       .nullable(),
-    parentTerm: z.union([microsoft_graph_termStore_term, z.object({}).partial().strict()]),
-    termSet: z.union([microsoft_graph_termStore_set, z.object({}).partial().strict()]),
+    parentTerm: microsoft_graph_termStore_term,
+    termSet: microsoft_graph_termStore_set,
   })
   .partial()
   .strict();
@@ -10773,49 +9828,31 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      boolean: z
-        .union([microsoft_graph_booleanColumn, z.object({}).partial().strict()])
-        .describe('This column stores Boolean values.'),
-      calculated: z
-        .union([microsoft_graph_calculatedColumn, z.object({}).partial().strict()])
-        .describe("This column's data is calculated based on other columns."),
-      choice: z
-        .union([microsoft_graph_choiceColumn, z.object({}).partial().strict()])
-        .describe('This column stores data from a list of choices.'),
+      boolean: microsoft_graph_booleanColumn,
+      calculated: microsoft_graph_calculatedColumn,
+      choice: microsoft_graph_choiceColumn,
       columnGroup: z
         .string()
         .describe(
           'For site columns, the name of the group this column belongs to. Helps organize related columns.'
         )
         .nullable(),
-      contentApprovalStatus: z
-        .union([microsoft_graph_contentApprovalStatusColumn, z.object({}).partial().strict()])
-        .describe('This column stores content approval status.'),
-      currency: z
-        .union([microsoft_graph_currencyColumn, z.object({}).partial().strict()])
-        .describe('This column stores currency values.'),
-      dateTime: z
-        .union([microsoft_graph_dateTimeColumn, z.object({}).partial().strict()])
-        .describe('This column stores DateTime values.'),
-      defaultValue: z
-        .union([microsoft_graph_defaultColumnValue, z.object({}).partial().strict()])
-        .describe('The default value for this column.'),
+      contentApprovalStatus: microsoft_graph_contentApprovalStatusColumn,
+      currency: microsoft_graph_currencyColumn,
+      dateTime: microsoft_graph_dateTimeColumn,
+      defaultValue: microsoft_graph_defaultColumnValue,
       description: z.string().describe('The user-facing description of the column.').nullable(),
       displayName: z.string().describe('The user-facing name of the column.').nullable(),
       enforceUniqueValues: z
         .boolean()
         .describe('If true, no two list items may have the same value for this column.')
         .nullable(),
-      geolocation: z
-        .union([microsoft_graph_geolocationColumn, z.object({}).partial().strict()])
-        .describe('This column stores a geolocation.'),
+      geolocation: microsoft_graph_geolocationColumn,
       hidden: z
         .boolean()
         .describe('Specifies whether the column is displayed in the user interface.')
         .nullable(),
-      hyperlinkOrPicture: z
-        .union([microsoft_graph_hyperlinkOrPictureColumn, z.object({}).partial().strict()])
-        .describe('This column stores hyperlink or picture values.'),
+      hyperlinkOrPicture: microsoft_graph_hyperlinkOrPictureColumn,
       indexed: z
         .boolean()
         .describe('Specifies whether the column values can be used for sorting and searching.')
@@ -10826,21 +9863,15 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
         .describe('Indicates whether values in the column can be reordered. Read-only.')
         .nullable(),
       isSealed: z.boolean().describe('Specifies whether the column can be changed.').nullable(),
-      lookup: z
-        .union([microsoft_graph_lookupColumn, z.object({}).partial().strict()])
-        .describe("This column's data is looked up from another source in the site."),
+      lookup: microsoft_graph_lookupColumn,
       name: z
         .string()
         .describe(
           'The API-facing name of the column as it appears in the fields on a listItem. For the user-facing name, see displayName.'
         )
         .nullable(),
-      number: z
-        .union([microsoft_graph_numberColumn, z.object({}).partial().strict()])
-        .describe('This column stores number values.'),
-      personOrGroup: z
-        .union([microsoft_graph_personOrGroupColumn, z.object({}).partial().strict()])
-        .describe('This column stores Person or Group values.'),
+      number: microsoft_graph_numberColumn,
+      personOrGroup: microsoft_graph_personOrGroupColumn,
       propagateChanges: z
         .boolean()
         .describe(
@@ -10855,38 +9886,20 @@ const microsoft_graph_columnDefinition: z.ZodType<microsoft_graph_columnDefiniti
         .boolean()
         .describe("Specifies whether the column value isn't optional.")
         .nullable(),
-      sourceContentType: z
-        .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
-        .describe(
-          'ContentType from which this column is inherited from. Present only in contentTypes columns response. Read-only.'
-        ),
-      term: z
-        .union([microsoft_graph_termColumn, z.object({}).partial().strict()])
-        .describe('This column stores taxonomy terms.'),
-      text: z
-        .union([microsoft_graph_textColumn, z.object({}).partial().strict()])
-        .describe('This column stores text values.'),
-      thumbnail: z
-        .union([microsoft_graph_thumbnailColumn, z.object({}).partial().strict()])
-        .describe('This column stores thumbnail values.'),
-      type: z
-        .union([microsoft_graph_columnTypes, z.object({}).partial().strict()])
-        .describe('For site columns, the type of column. Read-only.'),
-      validation: z
-        .union([microsoft_graph_columnValidation, z.object({}).partial().strict()])
-        .describe('This column stores validation formula and message for the column.'),
-      sourceColumn: z
-        .union([microsoft_graph_columnDefinition, z.object({}).partial().strict()])
-        .describe('The source column for the content type column.'),
+      sourceContentType: microsoft_graph_contentTypeInfo,
+      term: microsoft_graph_termColumn,
+      text: microsoft_graph_textColumn,
+      thumbnail: microsoft_graph_thumbnailColumn,
+      type: microsoft_graph_columnTypes,
+      validation: microsoft_graph_columnValidation,
+      sourceColumn: microsoft_graph_columnDefinition,
     })
     .partial()
     .strict()
 );
 const microsoft_graph_documentSetContent = z
   .object({
-    contentType: z
-      .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
-      .describe('Content type information of the file.'),
+    contentType: microsoft_graph_contentTypeInfo,
     fileName: z
       .string()
       .describe(
@@ -10953,14 +9966,8 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           'List of canonical URLs for hub sites with which this content type is associated to. This will contain all hub sites where this content type is queued to be enforced or is already enforced. Enforcing a content type means that the content type is applied to the lists in the enforced sites.'
         ),
       description: z.string().describe('The descriptive text for the item.').nullable(),
-      documentSet: z
-        .union([microsoft_graph_documentSet, z.object({}).partial().strict()])
-        .describe('Document Set metadata.'),
-      documentTemplate: z
-        .union([microsoft_graph_documentSetContent, z.object({}).partial().strict()])
-        .describe(
-          'Document template metadata. To make sure that documents have consistent content across a site and its subsites, you can associate a Word, Excel, or PowerPoint template with a site content type.'
-        ),
+      documentSet: microsoft_graph_documentSet,
+      documentTemplate: microsoft_graph_documentSetContent,
       group: z
         .string()
         .describe(
@@ -10971,19 +9978,13 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
         .boolean()
         .describe("Indicates whether the content type is hidden in the list's 'New' menu.")
         .nullable(),
-      inheritedFrom: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe(
-          'If this content type is inherited from another scope (like a site), provides a reference to the item where the content type is defined.'
-        ),
+      inheritedFrom: microsoft_graph_itemReference,
       isBuiltIn: z
         .boolean()
         .describe('Specifies if a content type is a built-in content type.')
         .nullable(),
       name: z.string().describe('The name of the content type.').nullable(),
-      order: z
-        .union([microsoft_graph_contentTypeOrder, z.object({}).partial().strict()])
-        .describe('Specifies the order in which the content type appears in the selection UI.'),
+      order: microsoft_graph_contentTypeOrder,
       parentId: z.string().describe('The unique identifier of the content type.').nullable(),
       propagateChanges: z
         .boolean()
@@ -11003,9 +10004,7 @@ const microsoft_graph_contentType: z.ZodType<microsoft_graph_contentType> = z.la
           "If true, the content type can't be modified by users or through push-down operations. Only site collection administrators can seal or unseal content types."
         )
         .nullable(),
-      base: z
-        .union([microsoft_graph_contentType, z.object({}).partial().strict()])
-        .describe('Parent contentType from which this content type is derived.'),
+      base: microsoft_graph_contentType,
       baseTypes: z
         .array(microsoft_graph_contentType)
         .describe('The collection of content types that are ancestors of this content type.'),
@@ -11061,9 +10060,7 @@ const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      access: z
-        .union([microsoft_graph_accessAction, z.object({}).partial().strict()])
-        .describe('An item was accessed.'),
+      access: microsoft_graph_accessAction,
       activityDateTime: z
         .string()
         .regex(
@@ -11072,12 +10069,8 @@ const microsoft_graph_itemActivity: z.ZodType<microsoft_graph_itemActivity> = z.
         .datetime({ offset: true })
         .describe('Details about when the activity took place. Read-only.')
         .nullable(),
-      actor: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of who performed the action. Read-only.'),
-      driveItem: z
-        .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
-        .describe('Exposes the driveItem that was the target of this activity.'),
+      actor: microsoft_graph_identitySet,
+      driveItem: microsoft_graph_driveItem,
     })
     .partial()
     .strict()
@@ -11086,18 +10079,10 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      access: z
-        .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
-        .describe('Statistics about the access actions in this interval. Read-only.'),
-      create: z
-        .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
-        .describe('Statistics about the create actions in this interval. Read-only.'),
-      delete: z
-        .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
-        .describe('Statistics about the delete actions in this interval. Read-only.'),
-      edit: z
-        .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
-        .describe('Statistics about the edit actions in this interval. Read-only.'),
+      access: microsoft_graph_itemActionStat,
+      create: microsoft_graph_itemActionStat,
+      delete: microsoft_graph_itemActionStat,
+      edit: microsoft_graph_itemActionStat,
       endDateTime: z
         .string()
         .regex(
@@ -11106,18 +10091,12 @@ const microsoft_graph_itemActivityStat: z.ZodType<microsoft_graph_itemActivitySt
         .datetime({ offset: true })
         .describe('When the interval ends. Read-only.')
         .nullable(),
-      incompleteData: z
-        .union([microsoft_graph_incompleteData, z.object({}).partial().strict()])
-        .describe(
-          'Indicates that the statistics in this interval are based on incomplete data. Read-only.'
-        ),
+      incompleteData: microsoft_graph_incompleteData,
       isTrending: z
         .boolean()
         .describe("Indicates whether the item is 'trending.' Read-only.")
         .nullable(),
-      move: z
-        .union([microsoft_graph_itemActionStat, z.object({}).partial().strict()])
-        .describe('Statistics about the move actions in this interval. Read-only.'),
+      move: microsoft_graph_itemActionStat,
       startDateTime: z
         .string()
         .regex(
@@ -11137,9 +10116,9 @@ const microsoft_graph_itemAnalytics: z.ZodType<microsoft_graph_itemAnalytics> = 
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      allTime: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().strict()]),
+      allTime: microsoft_graph_itemActivityStat,
       itemActivityStats: z.array(microsoft_graph_itemActivityStat),
-      lastSevenDays: z.union([microsoft_graph_itemActivityStat, z.object({}).partial().strict()]),
+      lastSevenDays: microsoft_graph_itemActivityStat,
     })
     .partial()
     .strict()
@@ -11155,9 +10134,7 @@ const microsoft_graph_documentSetVersionItem = z
 const microsoft_graph_documentSetVersion = z
   .object({
     comment: z.string().describe('Comment about the captured version.').nullable(),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('User who captured the version.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -11184,9 +10161,7 @@ const microsoft_graph_fieldValueSet = z
   .strict();
 const microsoft_graph_publicationFacet = z
   .object({
-    checkedOutBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('The user who checked out the file.'),
+    checkedOutBy: microsoft_graph_identitySet,
     level: z
       .string()
       .describe(
@@ -11205,9 +10180,7 @@ const microsoft_graph_publicationFacet = z
 const microsoft_graph_listItemVersion = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user which last modified the version. Read-only.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -11216,12 +10189,8 @@ const microsoft_graph_listItemVersion = z
       .datetime({ offset: true })
       .describe('Date and time the version was last modified. Read-only.')
       .nullable(),
-    publication: z
-      .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
-      .describe('Indicates the publication status of this particular version. Read-only.'),
-    fields: z
-      .union([microsoft_graph_fieldValueSet, z.object({}).partial().strict()])
-      .describe('A collection of the fields and values for this version of the list item.'),
+    publication: microsoft_graph_publicationFacet,
+    fields: microsoft_graph_fieldValueSet,
   })
   .partial()
   .strict();
@@ -11229,9 +10198,7 @@ const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() 
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -11244,11 +10211,7 @@ const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() 
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -11257,41 +10220,25 @@ const microsoft_graph_listItem: z.ZodType<microsoft_graph_listItem> = z.lazy(() 
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
-      contentType: z
-        .union([microsoft_graph_contentTypeInfo, z.object({}).partial().strict()])
-        .describe('The content type of this list item'),
-      sharepointIds: z
-        .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-        .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-      analytics: z
-        .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
-        .describe('Analytics about the view activities that took place on this item.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
+      contentType: microsoft_graph_contentTypeInfo,
+      sharepointIds: microsoft_graph_sharepointIds,
+      analytics: microsoft_graph_itemAnalytics,
       documentSetVersions: z
         .array(microsoft_graph_documentSetVersion)
         .describe('Version information for a document set version created by a user.'),
-      driveItem: z
-        .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
-        .describe(
-          'For document libraries, the driveItem relationship exposes the listItem as a driveItem'
-        ),
-      fields: z
-        .union([microsoft_graph_fieldValueSet, z.object({}).partial().strict()])
-        .describe('The values of the columns set on this list item.'),
+      driveItem: microsoft_graph_driveItem,
+      fields: microsoft_graph_fieldValueSet,
       versions: z
         .array(microsoft_graph_listItemVersion)
         .describe('The list of previous versions of the list item.'),
@@ -11327,9 +10274,7 @@ const microsoft_graph_publicError = z
   .object({
     code: z.string().describe('Represents the error code.').nullable(),
     details: z.array(microsoft_graph_publicErrorDetail).describe('Details of the error.'),
-    innerError: z
-      .union([microsoft_graph_publicInnerError, z.object({}).partial().strict()])
-      .describe('Details of the inner error.'),
+    innerError: microsoft_graph_publicInnerError,
     message: z.string().describe('A non-localized message for the developer.').nullable(),
     target: z.string().describe('The target of the error.').nullable(),
   })
@@ -11362,15 +10307,9 @@ const microsoft_graph_richLongRunningOperation = z
       .string()
       .describe('URI of the resource that the operation is performed on.')
       .nullable(),
-    status: z
-      .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().strict()])
-      .describe(
-        'The status of the operation. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue.'
-      ),
+    status: microsoft_graph_longRunningOperationStatus,
     statusDetail: z.string().describe('Details about the status of the operation.').nullable(),
-    error: z
-      .union([microsoft_graph_publicError, z.object({}).partial().strict()])
-      .describe('Error that caused the operation to fail.'),
+    error: microsoft_graph_publicError,
     percentageComplete: z
       .number()
       .gte(-2147483648)
@@ -11427,7 +10366,7 @@ const microsoft_graph_subscription = z
       )
       .datetime({ offset: true })
       .describe(
-        'Required. Specifies the date and time when the webhook subscription expires. The time is in UTC, and can be an amount of time from subscription creation that varies for the resource subscribed to. For the maximum supported subscription length of time, see Subscription lifetime.'
+        'Required. Specifies the date and time when the webhook subscription expires. The time is in UTC, and can be an amount of time from subscription creation that varies for the resource subscribed to. Any value under 45 minutes after the time of the request is automatically set to 45 minutes after the request time. For the maximum supported subscription length of time, see Subscription lifetime.'
       ),
     includeResourceData: z
       .boolean()
@@ -11476,9 +10415,7 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -11491,11 +10428,7 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -11504,42 +10437,28 @@ const microsoft_graph_list: z.ZodType<microsoft_graph_list> = z.lazy(() =>
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
       displayName: z.string().describe('The displayable title of the list.').nullable(),
-      list: z
-        .union([microsoft_graph_listInfo, z.object({}).partial().strict()])
-        .describe('Contains more details about the list.'),
-      sharepointIds: z
-        .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-        .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-      system: z
-        .union([microsoft_graph_systemFacet, z.object({}).partial().strict()])
-        .describe('If present, indicates that the list is system-managed. Read-only.'),
+      list: microsoft_graph_listInfo,
+      sharepointIds: microsoft_graph_sharepointIds,
+      system: microsoft_graph_systemFacet,
       columns: z
         .array(microsoft_graph_columnDefinition)
         .describe('The collection of field definitions for this list.'),
       contentTypes: z
         .array(microsoft_graph_contentType)
         .describe('The collection of content types present in this list.'),
-      drive: z
-        .union([microsoft_graph_drive, z.object({}).partial().strict()])
-        .describe(
-          'Allows access to the list as a drive resource with driveItems. Only present on document libraries.'
-        ),
+      drive: microsoft_graph_drive,
       items: z.array(microsoft_graph_listItem).describe('All items contained in the list.'),
       operations: z
         .array(microsoft_graph_richLongRunningOperation)
@@ -11555,9 +10474,7 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -11570,11 +10487,7 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -11583,37 +10496,27 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
       driveType: z
         .string()
         .describe(
           'Describes the type of drive represented by this resource. OneDrive personal drives return personal. OneDrive for Business returns business. SharePoint document libraries return documentLibrary. Read-only.'
         )
         .nullable(),
-      owner: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Optional. The user account that owns the drive. Read-only.'),
-      quota: z
-        .union([microsoft_graph_quota, z.object({}).partial().strict()])
-        .describe("Optional. Information about the drive's storage space quota. Read-only."),
-      sharePointIds: z.union([microsoft_graph_sharepointIds, z.object({}).partial().strict()]),
-      system: z
-        .union([microsoft_graph_systemFacet, z.object({}).partial().strict()])
-        .describe("If present, indicates that it's a system-managed drive. Read-only."),
+      owner: microsoft_graph_identitySet,
+      quota: microsoft_graph_quota,
+      sharePointIds: microsoft_graph_sharepointIds,
+      system: microsoft_graph_systemFacet,
       bundles: z
         .array(microsoft_graph_driveItem)
         .describe(
@@ -11625,14 +10528,8 @@ const microsoft_graph_drive: z.ZodType<microsoft_graph_drive> = z.lazy(() =>
       items: z
         .array(microsoft_graph_driveItem)
         .describe('All items contained in the drive. Read-only. Nullable.'),
-      list: z
-        .union([microsoft_graph_list, z.object({}).partial().strict()])
-        .describe(
-          'For drives in SharePoint, the underlying document library list. Read-only. Nullable.'
-        ),
-      root: z
-        .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
-        .describe('The root folder of the drive. Read-only.'),
+      list: microsoft_graph_list,
+      root: microsoft_graph_driveItem,
       special: z
         .array(microsoft_graph_driveItem)
         .describe('Collection of common folders available in OneDrive. Read-only. Nullable.'),
@@ -11672,35 +10569,23 @@ const microsoft_graph_externalLink = z
   .strict();
 const microsoft_graph_notebookLinks = z
   .object({
-    oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe("Opens the notebook in the OneNote native client if it's installed."),
-    oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe('Opens the notebook in OneNote on the web.'),
+    oneNoteClientUrl: microsoft_graph_externalLink,
+    oneNoteWebUrl: microsoft_graph_externalLink,
   })
   .partial()
   .strict();
 const microsoft_graph_onenoteUserRole = z.enum(['None', 'Owner', 'Contributor', 'Reader']);
 const microsoft_graph_sectionLinks = z
   .object({
-    oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe("Opens the section in the OneNote native client if it's installed."),
-    oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe('Opens the section in OneNote on the web.'),
+    oneNoteClientUrl: microsoft_graph_externalLink,
+    oneNoteWebUrl: microsoft_graph_externalLink,
   })
   .partial()
   .strict();
 const microsoft_graph_pageLinks = z
   .object({
-    oneNoteClientUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe("Opens the page in the OneNote native client if it's installed."),
-    oneNoteWebUrl: z
-      .union([microsoft_graph_externalLink, z.object({}).partial().strict()])
-      .describe('Opens the page in OneNote on the web.'),
+    oneNoteClientUrl: microsoft_graph_externalLink,
+    oneNoteWebUrl: microsoft_graph_externalLink,
   })
   .partial()
   .strict();
@@ -11747,11 +10632,7 @@ const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.la
         .lte(2147483647)
         .describe('The indentation level of the page. Read-only.')
         .nullable(),
-      links: z
-        .union([microsoft_graph_pageLinks, z.object({}).partial().strict()])
-        .describe(
-          "Links for opening the page. The oneNoteClientURL link opens the page in the OneNote native client if it 's installed. The oneNoteWebUrl link opens the page in OneNote on the web. Read-only."
-        ),
+      links: microsoft_graph_pageLinks,
       order: z
         .number()
         .gte(-2147483648)
@@ -11760,12 +10641,8 @@ const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.la
         .nullable(),
       title: z.string().describe('The title of the page.').nullable(),
       userTags: z.array(z.string().nullable()),
-      parentNotebook: z
-        .union([microsoft_graph_notebook, z.object({}).partial().strict()])
-        .describe('The notebook that contains the page.  Read-only.'),
-      parentSection: z
-        .union([microsoft_graph_onenoteSection, z.object({}).partial().strict()])
-        .describe('The section that contains the page. Read-only.'),
+      parentNotebook: microsoft_graph_notebook,
+      parentSection: microsoft_graph_onenoteSection,
     })
     .partial()
     .strict()
@@ -11773,17 +10650,9 @@ const microsoft_graph_onenotePage: z.ZodType<microsoft_graph_onenotePage> = z.la
 const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> = z.lazy(() =>
   z
     .object({
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that created the item. Read-only.'
-        ),
+      createdBy: microsoft_graph_identitySet,
       displayName: z.string().describe('The name of the notebook.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that created the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -11798,11 +10667,7 @@ const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> 
         .boolean()
         .describe("Indicates whether this is the user's default section. Read-only.")
         .nullable(),
-      links: z
-        .union([microsoft_graph_sectionLinks, z.object({}).partial().strict()])
-        .describe(
-          "Links for opening the section. The oneNoteClientURL link opens the section in the OneNote native client if it's installed. The oneNoteWebURL link opens the section in OneNote on the web."
-        ),
+      links: microsoft_graph_sectionLinks,
       pagesUrl: z
         .string()
         .describe(
@@ -11812,12 +10677,8 @@ const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> 
       pages: z
         .array(microsoft_graph_onenotePage)
         .describe('The collection of pages in the section.  Read-only. Nullable.'),
-      parentNotebook: z
-        .union([microsoft_graph_notebook, z.object({}).partial().strict()])
-        .describe('The notebook that contains the section.  Read-only.'),
-      parentSectionGroup: z
-        .union([microsoft_graph_sectionGroup, z.object({}).partial().strict()])
-        .describe('The section group that contains the section.  Read-only.'),
+      parentNotebook: microsoft_graph_notebook,
+      parentSectionGroup: microsoft_graph_sectionGroup,
     })
     .partial()
     .strict()
@@ -11825,17 +10686,9 @@ const microsoft_graph_onenoteSection: z.ZodType<microsoft_graph_onenoteSection> 
 const microsoft_graph_sectionGroup: z.ZodType<microsoft_graph_sectionGroup> = z.lazy(() =>
   z
     .object({
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that created the item. Read-only.'
-        ),
+      createdBy: microsoft_graph_identitySet,
       displayName: z.string().describe('The name of the notebook.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that created the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -11858,12 +10711,8 @@ const microsoft_graph_sectionGroup: z.ZodType<microsoft_graph_sectionGroup> = z.
           'The URL for the sections navigation property, which returns all the sections in the section group. Read-only.'
         )
         .nullable(),
-      parentNotebook: z
-        .union([microsoft_graph_notebook, z.object({}).partial().strict()])
-        .describe('The notebook that contains the section group. Read-only.'),
-      parentSectionGroup: z
-        .union([microsoft_graph_sectionGroup, z.object({}).partial().strict()])
-        .describe('The section group that contains the section group. Read-only.'),
+      parentNotebook: microsoft_graph_notebook,
+      parentSectionGroup: microsoft_graph_sectionGroup,
       sectionGroups: z
         .array(microsoft_graph_sectionGroup)
         .describe('The section groups in the section. Read-only. Nullable.'),
@@ -11887,11 +10736,7 @@ const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() 
           'Indicates whether the notebook is shared. If true, the contents of the notebook can be seen by people other than the owner. Read-only.'
         )
         .nullable(),
-      links: z
-        .union([microsoft_graph_notebookLinks, z.object({}).partial().strict()])
-        .describe(
-          "Links for opening the notebook. The oneNoteClientURL link opens the notebook in the OneNote native client if it's installed. The oneNoteWebURL link opens the notebook in OneNote on the web."
-        ),
+      links: microsoft_graph_notebookLinks,
       sectionGroupsUrl: z
         .string()
         .describe(
@@ -11904,11 +10749,7 @@ const microsoft_graph_notebook: z.ZodType<microsoft_graph_notebook> = z.lazy(() 
           'The URL for the sections navigation property, which returns all the sections in the notebook. Read-only.'
         )
         .nullable(),
-      userRole: z
-        .union([microsoft_graph_onenoteUserRole, z.object({}).partial().strict()])
-        .describe(
-          'Possible values are: Owner, Contributor, Reader, None. Owner represents owner-level access to the notebook. Contributor represents read/write access to the notebook. Reader represents read-only access to the notebook. Read-only.'
-        ),
+      userRole: microsoft_graph_onenoteUserRole,
       sectionGroups: z
         .array(microsoft_graph_sectionGroup)
         .describe('The section groups in the notebook. Read-only. Nullable.'),
@@ -11928,9 +10769,7 @@ const microsoft_graph_onenoteOperationError = z
   .strict();
 const microsoft_graph_onenoteOperation = z
   .object({
-    error: z
-      .union([microsoft_graph_onenoteOperationError, z.object({}).partial().strict()])
-      .describe('The error returned by the operation.'),
+    error: microsoft_graph_onenoteOperationError,
     percentComplete: z
       .string()
       .describe('The operation percent complete if the operation is still in running status.')
@@ -12056,11 +10895,7 @@ const microsoft_graph_plannerPlanContainer = z
       .string()
       .describe('The identifier of the resource that contains the plan. Optional.')
       .nullable(),
-    type: z
-      .union([microsoft_graph_plannerContainerType, z.object({}).partial().strict()])
-      .describe(
-        'The type of the resource that contains the plan. For supported types, see the previous table. Possible values are: group, unknownFutureValue, roster. Use the Prefer: include-unknown-enum-members request header to get the following value in this evolvable enum: roster. Optional.'
-      ),
+    type: microsoft_graph_plannerContainerType,
     url: z.string().describe('The full canonical URL of the container. Optional.').nullable(),
   })
   .partial()
@@ -12078,11 +10913,7 @@ const microsoft_graph_plannerOrderHintsByAssignee = z.object({}).partial().stric
 const microsoft_graph_plannerAssignedToTaskBoardTaskFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    orderHintsByAssignee: z
-      .union([microsoft_graph_plannerOrderHintsByAssignee, z.object({}).partial().strict()])
-      .describe(
-        'Dictionary of hints used to order tasks on the AssignedTo view of the Task Board. The key of each entry is one of the users the task is assigned to and the value is the order hint. The format of each value is defined as outlined here.'
-      ),
+    orderHintsByAssignee: microsoft_graph_plannerOrderHintsByAssignee,
     unassignedOrderHint: z
       .string()
       .describe(
@@ -12109,18 +10940,10 @@ const microsoft_graph_plannerExternalReferences = z.object({}).partial().strict(
 const microsoft_graph_plannerTaskDetails = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    checklist: z
-      .union([microsoft_graph_plannerChecklistItems, z.object({}).partial().strict()])
-      .describe('The collection of checklist items on the task.'),
+    checklist: microsoft_graph_plannerChecklistItems,
     description: z.string().describe('Description of the task.').nullable(),
-    previewType: z
-      .union([microsoft_graph_plannerPreviewType, z.object({}).partial().strict()])
-      .describe(
-        'This sets the type of preview that shows up on the task. The possible values are: automatic, noPreview, checklist, description, reference. When set to automatic the displayed preview is chosen by the app viewing the task.'
-      ),
-    references: z
-      .union([microsoft_graph_plannerExternalReferences, z.object({}).partial().strict()])
-      .describe('The collection of references on the task.'),
+    previewType: microsoft_graph_plannerPreviewType,
+    references: microsoft_graph_plannerExternalReferences,
   })
   .partial()
   .strict();
@@ -12145,20 +10968,14 @@ const microsoft_graph_plannerTask = z
       .lte(2147483647)
       .describe('Number of checklist items with value set to false, representing incomplete items.')
       .nullable(),
-    appliedCategories: z
-      .union([microsoft_graph_plannerAppliedCategories, z.object({}).partial().strict()])
-      .describe(
-        'The categories to which the task has been applied. See applied Categories for possible values.'
-      ),
+    appliedCategories: microsoft_graph_plannerAppliedCategories,
     assigneePriority: z
       .string()
       .describe(
         'Hint used to order items of this type in a list view. The format is defined as outlined here.'
       )
       .nullable(),
-    assignments: z
-      .union([microsoft_graph_plannerAssignments, z.object({}).partial().strict()])
-      .describe('The set of assignees the task is assigned to.'),
+    assignments: microsoft_graph_plannerAssignments,
     bucketId: z
       .string()
       .describe(
@@ -12171,9 +10988,7 @@ const microsoft_graph_plannerTask = z
       .lte(2147483647)
       .describe('Number of checklist items that are present on the task.')
       .nullable(),
-    completedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user that completed the task.'),
+    completedBy: microsoft_graph_identitySet,
     completedDateTime: z
       .string()
       .regex(
@@ -12190,9 +11005,7 @@ const microsoft_graph_plannerTask = z
         'Thread ID of the conversation on the task. This is the ID of the conversation thread object created in the group.'
       )
       .nullable(),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user that created the task.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -12232,11 +11045,7 @@ const microsoft_graph_plannerTask = z
       .describe('Percentage of task completion. When set to 100, the task is considered completed.')
       .nullable(),
     planId: z.string().describe('Plan ID to which the task belongs.').nullable(),
-    previewType: z
-      .union([microsoft_graph_plannerPreviewType, z.object({}).partial().strict()])
-      .describe(
-        'This sets the type of preview that shows up on the task. The possible values are: automatic, noPreview, checklist, description, reference.'
-      ),
+    previewType: microsoft_graph_plannerPreviewType,
     priority: z
       .number()
       .gte(-2147483648)
@@ -12262,27 +11071,10 @@ const microsoft_graph_plannerTask = z
       )
       .nullable(),
     title: z.string().describe('Title of the task.'),
-    assignedToTaskBoardFormat: z
-      .union([
-        microsoft_graph_plannerAssignedToTaskBoardTaskFormat,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by assignedTo.'
-      ),
-    bucketTaskBoardFormat: z
-      .union([microsoft_graph_plannerBucketTaskBoardTaskFormat, z.object({}).partial().strict()])
-      .describe(
-        'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by bucket.'
-      ),
-    details: z
-      .union([microsoft_graph_plannerTaskDetails, z.object({}).partial().strict()])
-      .describe('Read-only. Nullable. More details about the task.'),
-    progressTaskBoardFormat: z
-      .union([microsoft_graph_plannerProgressTaskBoardTaskFormat, z.object({}).partial().strict()])
-      .describe(
-        'Read-only. Nullable. Used to render the task correctly in the task board view when grouped by progress.'
-      ),
+    assignedToTaskBoardFormat: microsoft_graph_plannerAssignedToTaskBoardTaskFormat,
+    bucketTaskBoardFormat: microsoft_graph_plannerBucketTaskBoardTaskFormat,
+    details: microsoft_graph_plannerTaskDetails,
+    progressTaskBoardFormat: microsoft_graph_plannerProgressTaskBoardTaskFormat,
   })
   .partial()
   .strict();
@@ -12337,30 +11129,16 @@ const microsoft_graph_plannerUserIds = z.object({}).partial().strict();
 const microsoft_graph_plannerPlanDetails = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    categoryDescriptions: z
-      .union([microsoft_graph_plannerCategoryDescriptions, z.object({}).partial().strict()])
-      .describe(
-        'An object that specifies the descriptions of the 25 categories that can be associated with tasks in the plan.'
-      ),
-    sharedWith: z
-      .union([microsoft_graph_plannerUserIds, z.object({}).partial().strict()])
-      .describe(
-        "Set of user IDs that this plan is shared with. If you're using Microsoft 365 groups, use the Groups API to manage group membership to share the group's plan. You can also add existing members of the group to this collection, although it isn't required for them to access the plan owned by the group."
-      ),
+    categoryDescriptions: microsoft_graph_plannerCategoryDescriptions,
+    sharedWith: microsoft_graph_plannerUserIds,
   })
   .partial()
   .strict();
 const microsoft_graph_plannerPlan = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    container: z
-      .union([microsoft_graph_plannerPlanContainer, z.object({}).partial().strict()])
-      .describe(
-        "Identifies the container of the plan. Specify only the url, the containerId and type, or all properties. After it's set, this property can’t be updated. Required."
-      ),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Read-only. The user who created the plan.'),
+    container: microsoft_graph_plannerPlanContainer,
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -12381,9 +11159,7 @@ const microsoft_graph_plannerPlan = z
     buckets: z
       .array(microsoft_graph_plannerBucket)
       .describe('Read-only. Nullable. Collection of buckets in the plan.'),
-    details: z
-      .union([microsoft_graph_plannerPlanDetails, z.object({}).partial().strict()])
-      .describe('Read-only. Nullable. Extra details about the plan.'),
+    details: microsoft_graph_plannerPlanDetails,
     tasks: z
       .array(microsoft_graph_plannerTask)
       .describe('Read-only. Nullable. Collection of tasks in the plan.'),
@@ -12438,22 +11214,12 @@ const microsoft_graph_siteArchiveStatus = z.enum([
   'unknownFutureValue',
 ]);
 const microsoft_graph_siteArchivalDetails = z
-  .object({
-    archiveStatus: z
-      .union([microsoft_graph_siteArchiveStatus, z.object({}).partial().strict()])
-      .describe(
-        'Represents the current archive status of the site collection. Returned only on $select. The possible values are: recentlyArchived, fullyArchived, reactivating, unknownFutureValue.'
-      ),
-  })
+  .object({ archiveStatus: microsoft_graph_siteArchiveStatus })
   .partial()
   .strict();
 const microsoft_graph_siteCollection = z
   .object({
-    archivalDetails: z
-      .union([microsoft_graph_siteArchivalDetails, z.object({}).partial().strict()])
-      .describe(
-        'Represents whether the site collection is recently archived, fully archived, or reactivating. Possible values are: recentlyArchived, fullyArchived, reactivating, unknownFutureValue.'
-      ),
+    archivalDetails: microsoft_graph_siteArchivalDetails,
     dataLocationCode: z
       .string()
       .describe(
@@ -12461,11 +11227,7 @@ const microsoft_graph_siteCollection = z
       )
       .nullable(),
     hostname: z.string().describe('The hostname for the site collection. Read-only.').nullable(),
-    root: z
-      .union([microsoft_graph_root, z.object({}).partial().strict()])
-      .describe(
-        'If present, indicates that this is a root site collection in SharePoint. Read-only.'
-      ),
+    root: microsoft_graph_root,
   })
   .partial()
   .strict();
@@ -12473,9 +11235,7 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -12488,11 +11248,7 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -12501,21 +11257,17 @@ const microsoft_graph_baseItem: z.ZodType<microsoft_graph_baseItem> = z.lazy(() 
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
     })
     .partial()
     .strict()
@@ -12530,9 +11282,7 @@ const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -12545,11 +11295,7 @@ const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -12558,29 +11304,19 @@ const microsoft_graph_baseSitePage: z.ZodType<microsoft_graph_baseSitePage> = z.
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
-      pageLayout: z
-        .union([microsoft_graph_pageLayoutType, z.object({}).partial().strict()])
-        .describe(
-          'The name of the page layout of the page. The possible values are: microsoftReserved, article, home, unknownFutureValue.'
-        ),
-      publishingState: z
-        .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
-        .describe('The publishing status and the MM.mm version of the page.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
+      pageLayout: microsoft_graph_pageLayoutType,
+      publishingState: microsoft_graph_publicationFacet,
       title: z.string().describe('Title of the sitePage.').nullable(),
     })
     .partial()
@@ -12606,24 +11342,12 @@ const microsoft_graph_sharePointIdentity = z
   .strict();
 const microsoft_graph_sharePointIdentitySet = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
-    group: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('The group associated with this action. Optional.'),
-    siteGroup: z
-      .union([microsoft_graph_sharePointIdentity, z.object({}).partial().strict()])
-      .describe('The SharePoint group associated with this action. Optional.'),
-    siteUser: z
-      .union([microsoft_graph_sharePointIdentity, z.object({}).partial().strict()])
-      .describe('The SharePoint user associated with this action. Optional.'),
+    application: microsoft_graph_identity,
+    device: microsoft_graph_identity,
+    user: microsoft_graph_identity,
+    group: microsoft_graph_identity,
+    siteGroup: microsoft_graph_sharePointIdentity,
+    siteUser: microsoft_graph_sharePointIdentity,
   })
   .partial()
   .strict();
@@ -12635,11 +11359,7 @@ const microsoft_graph_sharingInvitation = z
         'The email address provided for the recipient of the sharing invitation. Read-only.'
       )
       .nullable(),
-    invitedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe(
-        'Provides information about who sent the invitation that created this permission, if that information is available. Read-only.'
-      ),
+    invitedBy: microsoft_graph_identitySet,
     redeemedBy: z.string().nullable(),
     signInRequired: z
       .boolean()
@@ -12652,9 +11372,7 @@ const microsoft_graph_sharingInvitation = z
   .strict();
 const microsoft_graph_sharingLink = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('The app the link is associated with.'),
+    application: microsoft_graph_identity,
     preventsDownload: z
       .boolean()
       .describe(
@@ -12694,11 +11412,7 @@ const microsoft_graph_permission = z
         "A format of yyyy-MM-ddTHH:mm:ssZ of DateTimeOffset indicates the expiration time of the permission. DateTime.MinValue indicates there's no expiration set for this permission. Optional."
       )
       .nullable(),
-    grantedTo: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe(
-        'For user type permissions, the details of the users and applications for this permission. Read-only.'
-      ),
+    grantedTo: microsoft_graph_identitySet,
     grantedToIdentities: z
       .array(microsoft_graph_identitySet)
       .describe(
@@ -12709,30 +11423,16 @@ const microsoft_graph_permission = z
       .describe(
         'For link type permissions, the details of the users to whom permission was granted. Read-only.'
       ),
-    grantedToV2: z
-      .union([microsoft_graph_sharePointIdentitySet, z.object({}).partial().strict()])
-      .describe(
-        'For user type permissions, the details of the users and applications for this permission. Read-only.'
-      ),
+    grantedToV2: microsoft_graph_sharePointIdentitySet,
     hasPassword: z
       .boolean()
       .describe(
         'Indicates whether the password is set for this permission. This property only appears in the response. Optional. Read-only. For OneDrive Personal only..'
       )
       .nullable(),
-    inheritedFrom: z
-      .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-      .describe(
-        "Provides a reference to the ancestor of the current permission, if it's inherited from an ancestor. Read-only."
-      ),
-    invitation: z
-      .union([microsoft_graph_sharingInvitation, z.object({}).partial().strict()])
-      .describe('Details of any associated sharing invitation for this permission. Read-only.'),
-    link: z
-      .union([microsoft_graph_sharingLink, z.object({}).partial().strict()])
-      .describe(
-        "Provides the link details of the current permission, if it's a link type permission. Read-only."
-      ),
+    inheritedFrom: microsoft_graph_itemReference,
+    invitation: microsoft_graph_sharingInvitation,
+    link: microsoft_graph_sharingLink,
     roles: z
       .array(z.string().nullable())
       .describe(
@@ -12767,9 +11467,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -12782,11 +11480,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -12795,50 +11489,34 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
       displayName: z.string().describe('The full title for the site. Read-only.').nullable(),
-      error: z.union([microsoft_graph_publicError, z.object({}).partial().strict()]),
+      error: microsoft_graph_publicError,
       isPersonalSite: z
         .boolean()
         .describe('Identifies whether the site is personal or not. Read-only.')
         .nullable(),
-      root: z
-        .union([microsoft_graph_root, z.object({}).partial().strict()])
-        .describe('If present, provides the root site in the site collection. Read-only.'),
-      sharepointIds: z
-        .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-        .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
-      siteCollection: z
-        .union([microsoft_graph_siteCollection, z.object({}).partial().strict()])
-        .describe(
-          "Provides details about the site's site collection. Available only on the root site. Read-only."
-        ),
-      analytics: z
-        .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
-        .describe('Analytics about the view activities that took place on this site.'),
+      root: microsoft_graph_root,
+      sharepointIds: microsoft_graph_sharepointIds,
+      siteCollection: microsoft_graph_siteCollection,
+      analytics: microsoft_graph_itemAnalytics,
       columns: z
         .array(microsoft_graph_columnDefinition)
         .describe('The collection of column definitions reusable across lists under this site.'),
       contentTypes: z
         .array(microsoft_graph_contentType)
         .describe('The collection of content types defined for this site.'),
-      drive: z
-        .union([microsoft_graph_drive, z.object({}).partial().strict()])
-        .describe('The default drive (document library) for this site.'),
+      drive: microsoft_graph_drive,
       drives: z
         .array(microsoft_graph_drive)
         .describe('The collection of drives (document libraries) under this site.'),
@@ -12849,9 +11527,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
           "Used to address any item contained in this site. This collection can't be enumerated."
         ),
       lists: z.array(microsoft_graph_list).describe('The collection of lists under this site.'),
-      onenote: z
-        .union([microsoft_graph_onenote, z.object({}).partial().strict()])
-        .describe('Calls the OneNote service for notebook related operations.'),
+      onenote: microsoft_graph_onenote,
       operations: z
         .array(microsoft_graph_richLongRunningOperation)
         .describe('The collection of long-running operations on the site.'),
@@ -12864,9 +11540,7 @@ const microsoft_graph_site: z.ZodType<microsoft_graph_site> = z.lazy(() =>
       sites: z
         .array(microsoft_graph_site)
         .describe('The collection of the sub-sites under this site.'),
-      termStore: z
-        .union([microsoft_graph_termStore_store, z.object({}).partial().strict()])
-        .describe('The default termStore under this site.'),
+      termStore: microsoft_graph_termStore_store,
       termStores: z
         .array(microsoft_graph_termStore_store)
         .describe('The collection of termStores under this site.'),
@@ -12886,9 +11560,7 @@ const microsoft_graph_teamFunSettings = z
       .boolean()
       .describe('If set to true, enables users to include stickers and memes.')
       .nullable(),
-    giphyContentRating: z
-      .union([microsoft_graph_giphyRatingType, z.object({}).partial().strict()])
-      .describe('Giphy content rating. Possible values are: moderate, strict.'),
+    giphyContentRating: microsoft_graph_giphyRatingType,
   })
   .partial()
   .strict();
@@ -13101,15 +11773,9 @@ const microsoft_graph_channelIdentity = z
 const microsoft_graph_eventMessageDetail = z.object({}).partial().strict();
 const microsoft_graph_chatMessageFromIdentitySet = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
+    application: microsoft_graph_identity,
+    device: microsoft_graph_identity,
+    user: microsoft_graph_identity,
   })
   .partial()
   .strict();
@@ -13139,30 +11805,16 @@ const microsoft_graph_teamworkConversationIdentity = z
         "Unique identifier for the identity or actor. For example, in the access reviews decisions API, this property might record the id of the principal, that is, the group, user, or application that's subject to review."
       )
       .nullable(),
-    conversationIdentityType: z
-      .union([microsoft_graph_teamworkConversationIdentityType, z.object({}).partial().strict()])
-      .describe(
-        'Type of conversation. Possible values are: team, channel, chat, and unknownFutureValue.'
-      ),
+    conversationIdentityType: microsoft_graph_teamworkConversationIdentityType,
   })
   .partial()
   .strict();
 const microsoft_graph_chatMessageMentionedIdentitySet = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
-    conversation: z
-      .union([microsoft_graph_teamworkConversationIdentity, z.object({}).partial().strict()])
-      .describe(
-        'If present, represents a conversation (for example, team, channel, or chat) @mentioned in a message.'
-      ),
+    application: microsoft_graph_identity,
+    device: microsoft_graph_identity,
+    user: microsoft_graph_identity,
+    conversation: microsoft_graph_teamworkConversationIdentity,
   })
   .partial()
   .strict();
@@ -13176,9 +11828,7 @@ const microsoft_graph_chatMessageMention = z
         "Index of an entity being mentioned in the specified chatMessage. Matches the {index} value in the corresponding <at id='{index}'> tag in the message body."
       )
       .nullable(),
-    mentioned: z
-      .union([microsoft_graph_chatMessageMentionedIdentitySet, z.object({}).partial().strict()])
-      .describe('The entity (user, application, team, channel, or chat) that was @mentioned.'),
+    mentioned: microsoft_graph_chatMessageMentionedIdentitySet,
     mentionText: z
       .string()
       .describe(
@@ -13196,15 +11846,9 @@ const microsoft_graph_chatMessageActions = z.enum([
 ]);
 const microsoft_graph_chatMessageReactionIdentitySet = z
   .object({
-    application: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The application associated with this action.'),
-    device: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The device associated with this action.'),
-    user: z
-      .union([microsoft_graph_identity, z.object({}).partial().strict()])
-      .describe('Optional. The user associated with this action.'),
+    application: microsoft_graph_identity,
+    device: microsoft_graph_identity,
+    user: microsoft_graph_identity,
   })
   .partial()
   .strict();
@@ -13243,9 +11887,7 @@ const microsoft_graph_chatMessageHistoryItem = z
       )
       .datetime({ offset: true })
       .describe('The date and time when the message was modified.'),
-    reaction: z
-      .union([microsoft_graph_chatMessageReaction, z.object({}).partial().strict()])
-      .describe('The reaction in the modified message.'),
+    reaction: microsoft_graph_chatMessageReaction,
   })
   .partial()
   .strict();
@@ -13295,41 +11937,16 @@ const microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes = z.enum([
 ]);
 const microsoft_graph_chatMessagePolicyViolation = z
   .object({
-    dlpAction: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'The action taken by the DLP provider on the message with sensitive content. Supported values are: NoneNotifySender -- Inform the sender of the violation but allow readers to read the message.BlockAccess -- Block readers from reading the message.BlockAccessExternal -- Block users outside the organization from reading the message, while allowing users within the organization to read the message.'
-      ),
+    dlpAction: microsoft_graph_chatMessagePolicyViolationDlpActionTypes,
     justificationText: z
       .string()
       .describe(
         'Justification text provided by the sender of the message when overriding a policy violation.'
       )
       .nullable(),
-    policyTip: z
-      .union([microsoft_graph_chatMessagePolicyViolationPolicyTip, z.object({}).partial().strict()])
-      .describe(
-        'Information to display to the message sender about why the message was flagged as a violation.'
-      ),
-    userAction: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationUserActionTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        "Indicates the action taken by the user on a message blocked by the DLP provider. Supported values are: NoneOverrideReportFalsePositiveWhen the DLP provider is updating the message for blocking sensitive content, userAction isn't required."
-      ),
-    verdictDetails: z
-      .union([
-        microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'Indicates what actions the sender may take in response to the policy violation. Supported values are: NoneAllowFalsePositiveOverride -- Allows the sender to declare the policyViolation to be an error in the DLP app and its rules, and allow readers to see the message again if the dlpAction hides it.AllowOverrideWithoutJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, without needing to provide an explanation for doing so. AllowOverrideWithJustification -- Allows the sender to override the DLP violation and allow readers to see the message again if the dlpAction hides it, after providing an explanation for doing so.AllowOverrideWithoutJustification and AllowOverrideWithJustification are mutually exclusive.'
-      ),
+    policyTip: microsoft_graph_chatMessagePolicyViolationPolicyTip,
+    userAction: microsoft_graph_chatMessagePolicyViolationUserActionTypes,
+    verdictDetails: microsoft_graph_chatMessagePolicyViolationVerdictDetailsTypes,
   })
   .partial()
   .strict();
@@ -13342,9 +11959,7 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
         .array(microsoft_graph_chatMessageAttachment)
         .describe('References to attached objects like files, tabs, meetings etc.'),
       body: microsoft_graph_itemBody,
-      channelIdentity: z
-        .union([microsoft_graph_channelIdentity, z.object({}).partial().strict()])
-        .describe('If the message was sent in a channel, represents identity of the channel.'),
+      channelIdentity: microsoft_graph_channelIdentity,
       chatId: z
         .string()
         .describe('If the message was sent in a chat, represents the identity of the chat.')
@@ -13368,14 +11983,8 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
         )
         .nullable(),
       etag: z.string().describe('Read-only. Version number of the chat message.').nullable(),
-      eventDetail: z
-        .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
-        .describe(
-          'Read-only. If present, represents details of an event that happened in a chat, a channel, or a team, for example, adding new members. For event messages, the messageType property will be set to systemEventMessage.'
-        ),
-      from: z
-        .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
-        .describe('Details of the sender of the chat message. Can only be set during migration.'),
+      eventDetail: microsoft_graph_eventMessageDetail,
+      from: microsoft_graph_chatMessageFromIdentitySet,
       importance: microsoft_graph_chatMessageImportance,
       lastEditedDateTime: z
         .string()
@@ -13411,11 +12020,7 @@ const microsoft_graph_chatMessage: z.ZodType<microsoft_graph_chatMessage> = z.la
           'List of activity history of a message item, including modification time and actions, such as reactionAdded, reactionRemoved, or reaction changes, on the message.'
         ),
       messageType: microsoft_graph_chatMessageType,
-      policyViolation: z
-        .union([microsoft_graph_chatMessagePolicyViolation, z.object({}).partial().strict()])
-        .describe(
-          'Defines the properties of a policy violation set by a data loss prevention (DLP) application.'
-        ),
+      policyViolation: microsoft_graph_chatMessagePolicyViolation,
       reactions: z
         .array(microsoft_graph_chatMessageReaction)
         .describe('Reactions for this chat message (for example, Like).'),
@@ -13488,12 +12093,7 @@ const microsoft_graph_teamsAppResourceSpecificPermissionType = z.enum([
 ]);
 const microsoft_graph_teamsAppResourceSpecificPermission = z
   .object({
-    permissionType: z
-      .union([
-        microsoft_graph_teamsAppResourceSpecificPermissionType,
-        z.object({}).partial().strict(),
-      ])
-      .describe('The type of resource-specific permission.'),
+    permissionType: microsoft_graph_teamsAppResourceSpecificPermissionType,
     permissionValue: z
       .string()
       .describe('The name of the resource-specific permission.')
@@ -13515,9 +12115,7 @@ const microsoft_graph_teamsAppAuthorization = z
       .string()
       .describe('The registration ID of the Microsoft Entra app ID associated with the teamsApp.')
       .nullable(),
-    requiredPermissionSet: z
-      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
-      .describe('Set of permissions required by the teamsApp.'),
+    requiredPermissionSet: microsoft_graph_teamsAppPermissionSet,
   })
   .partial()
   .strict();
@@ -13534,10 +12132,8 @@ const microsoft_graph_teamworkBot = z
 const microsoft_graph_teamsAppDefinition = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    authorization: z
-      .union([microsoft_graph_teamsAppAuthorization, z.object({}).partial().strict()])
-      .describe('Authorization requirements specified in the Teams app manifest.'),
-    createdBy: z.union([microsoft_graph_identitySet, z.object({}).partial().strict()]),
+    authorization: microsoft_graph_teamsAppAuthorization,
+    createdBy: microsoft_graph_identitySet,
     description: z.string().describe('Verbose description of the application.').nullable(),
     displayName: z
       .string()
@@ -13550,17 +12146,11 @@ const microsoft_graph_teamsAppDefinition = z
       )
       .datetime({ offset: true })
       .nullable(),
-    publishingState: z
-      .union([microsoft_graph_teamsAppPublishingState, z.object({}).partial().strict()])
-      .describe(
-        'The published status of a specific version of a Teams app. Possible values are:submitted—The specific version of the Teams app was submitted and is under review.published—The request to publish the specific version of the Teams app was approved by the admin and the app is published.rejected—The admin rejected the request to publish the specific version of the Teams app.'
-      ),
+    publishingState: microsoft_graph_teamsAppPublishingState,
     shortDescription: z.string().describe('Short description of the application.').nullable(),
     teamsAppId: z.string().describe('The ID from the Teams app manifest.').nullable(),
     version: z.string().describe('The version number of the application.').nullable(),
-    bot: z
-      .union([microsoft_graph_teamworkBot, z.object({}).partial().strict()])
-      .describe('The details of the bot specified in the Teams app manifest.'),
+    bot: microsoft_graph_teamworkBot,
   })
   .partial()
   .strict();
@@ -13573,9 +12163,7 @@ const microsoft_graph_teamsApp = z
         'The name of the catalog app provided by the app developer in the Microsoft Teams zip app package.'
       )
       .nullable(),
-    distributionMethod: z
-      .union([microsoft_graph_teamsAppDistributionMethod, z.object({}).partial().strict()])
-      .describe('The method of distribution for the app. Read-only.'),
+    distributionMethod: microsoft_graph_teamsAppDistributionMethod,
     externalId: z
       .string()
       .describe(
@@ -13591,18 +12179,10 @@ const microsoft_graph_teamsApp = z
 const microsoft_graph_teamsTab = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    configuration: z
-      .union([microsoft_graph_teamsTabConfiguration, z.object({}).partial().strict()])
-      .describe(
-        'Container for custom settings applied to a tab. The tab is considered configured only once this property is set.'
-      ),
+    configuration: microsoft_graph_teamsTabConfiguration,
     displayName: z.string().describe('Name of the tab.').nullable(),
     webUrl: z.string().describe('Deep link URL of the tab instance. Read only.').nullable(),
-    teamsApp: z
-      .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
-      .describe(
-        "The application that is linked to the tab. This can't be changed after tab creation."
-      ),
+    teamsApp: microsoft_graph_teamsApp,
   })
   .partial()
   .strict();
@@ -13638,16 +12218,8 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
           'Indicates whether the channel should be marked as recommended for all members of the team to show in their channel list. Note: All recommended channels automatically show in the channels list for education and frontline worker users. The property can only be set programmatically via the Create team method. The default value is false.'
         )
         .nullable(),
-      membershipType: z
-        .union([microsoft_graph_channelMembershipType, z.object({}).partial().strict()])
-        .describe(
-          "The type of the channel. Can be set during creation and can't be changed. The possible values are: standard, private, unknownFutureValue, shared. The default value is standard. Use the Prefer: include-unknown-enum-members request header to get the following value in this evolvable enum: shared."
-        ),
-      summary: z
-        .union([microsoft_graph_channelSummary, z.object({}).partial().strict()])
-        .describe(
-          'Contains summary information about the channel, including number of owners, members, guests, and an indicator for members from other tenants. The summary property will only be returned if it is specified in the $select clause of the Get channel method.'
-        ),
+      membershipType: microsoft_graph_channelMembershipType,
+      summary: microsoft_graph_channelSummary,
       tenantId: z.string().describe('The ID of the Microsoft Entra tenant.').nullable(),
       webUrl: z
         .string()
@@ -13660,9 +12232,7 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
         .describe(
           'A collection of membership records associated with the channel, including both direct and indirect members of shared channels.'
         ),
-      filesFolder: z
-        .union([microsoft_graph_driveItem, z.object({}).partial().strict()])
-        .describe("Metadata for the location where the channel's files are stored."),
+      filesFolder: microsoft_graph_driveItem,
       members: z
         .array(microsoft_graph_conversationMember)
         .describe('A collection of membership records associated with the channel.'),
@@ -13684,17 +12254,9 @@ const microsoft_graph_channel: z.ZodType<microsoft_graph_channel> = z.lazy(() =>
 const microsoft_graph_teamsAppInstallation = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    consentedPermissionSet: z
-      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
-      .describe(
-        'The set of resource-specific permissions consented to while installing or upgrading the teamsApp.'
-      ),
-    teamsApp: z
-      .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
-      .describe('The app that is installed.'),
-    teamsAppDefinition: z
-      .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().strict()])
-      .describe('The details of this version of the app.'),
+    consentedPermissionSet: microsoft_graph_teamsAppPermissionSet,
+    teamsApp: microsoft_graph_teamsApp,
+    teamsAppDefinition: microsoft_graph_teamsAppDefinition,
   })
   .partial()
   .strict();
@@ -13742,9 +12304,7 @@ const microsoft_graph_teamsAsyncOperation = z
       )
       .datetime({ offset: true })
       .describe('Time when the operation was created.'),
-    error: z
-      .union([microsoft_graph_operationError, z.object({}).partial().strict()])
-      .describe('Any error that causes the async operation to fail.'),
+    error: microsoft_graph_operationError,
     lastActionDateTime: z
       .string()
       .regex(
@@ -13794,19 +12354,13 @@ const microsoft_graph_geoCoordinates = z
   .partial()
   .strict();
 const microsoft_graph_timeClockSettings = z
-  .object({
-    approvedLocation: z
-      .union([microsoft_graph_geoCoordinates, z.object({}).partial().strict()])
-      .describe('The approved location of the timeClock.'),
-  })
+  .object({ approvedLocation: microsoft_graph_geoCoordinates })
   .partial()
   .strict();
 const microsoft_graph_dayNote = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -13817,9 +12371,7 @@ const microsoft_graph_dayNote = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -13835,16 +12387,8 @@ const microsoft_graph_dayNote = z
       .regex(/^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/)
       .describe('The date of the day note.')
       .nullable(),
-    draftDayNote: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        'The draft version of this day note that is viewable by managers. Only contentType text is supported.'
-      ),
-    sharedDayNote: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        'The shared version of this day note that is viewable by both employees and managers. Only contentType text is supported.'
-      ),
+    draftDayNote: microsoft_graph_itemBody,
+    sharedDayNote: microsoft_graph_itemBody,
   })
   .partial()
   .strict();
@@ -13884,9 +12428,7 @@ const microsoft_graph_openShiftItem = z
 const microsoft_graph_openShift = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -13897,9 +12439,7 @@ const microsoft_graph_openShift = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -13910,11 +12450,7 @@ const microsoft_graph_openShift = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    draftOpenShift: z
-      .union([microsoft_graph_openShiftItem, z.object({}).partial().strict()])
-      .describe(
-        "Draft changes in the openShift are only visible to managers until they're shared."
-      ),
+    draftOpenShift: microsoft_graph_openShiftItem,
     isStagedForDeletion: z
       .boolean()
       .describe(
@@ -13925,20 +12461,14 @@ const microsoft_graph_openShift = z
       .string()
       .describe('The ID of the schedulingGroup that contains the openShift.')
       .nullable(),
-    sharedOpenShift: z
-      .union([microsoft_graph_openShiftItem, z.object({}).partial().strict()])
-      .describe(
-        'The shared version of this openShift that is viewable by both employees and managers.'
-      ),
+    sharedOpenShift: microsoft_graph_openShiftItem,
   })
   .partial()
   .strict();
 const microsoft_graph_schedulingGroup = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -13949,9 +12479,7 @@ const microsoft_graph_schedulingGroup = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14063,9 +12591,7 @@ const microsoft_graph_shiftItem = z
 const microsoft_graph_shift = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -14076,9 +12602,7 @@ const microsoft_graph_shift = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14089,11 +12613,7 @@ const microsoft_graph_shift = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    draftShift: z
-      .union([microsoft_graph_shiftItem, z.object({}).partial().strict()])
-      .describe(
-        "Draft changes in the shift. Draft changes are only visible to managers. The changes are visible to employees when they're shared, which copies the changes from the draftShift to the sharedShift property."
-      ),
+    draftShift: microsoft_graph_shiftItem,
     isStagedForDeletion: z
       .boolean()
       .describe(
@@ -14104,11 +12624,7 @@ const microsoft_graph_shift = z
       .string()
       .describe('ID of the scheduling group the shift is part of. Required.')
       .nullable(),
-    sharedShift: z
-      .union([microsoft_graph_shiftItem, z.object({}).partial().strict()])
-      .describe(
-        'The shared version of this shift that is viewable by both employees and managers. Updates to the sharedShift property send notifications to users in the Teams client.'
-      ),
+    sharedShift: microsoft_graph_shiftItem,
     userId: z.string().describe('ID of the user assigned to the shift. Required.').nullable(),
   })
   .partial()
@@ -14146,21 +12662,15 @@ const microsoft_graph_timeCardEvent = z
       .boolean()
       .describe('Indicates whether this action happens at an approved location.')
       .nullable(),
-    notes: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe('Notes about the timeCardEvent.'),
+    notes: microsoft_graph_itemBody,
   })
   .partial()
   .strict();
 const microsoft_graph_timeCardBreak = z
   .object({
     breakId: z.string().describe('ID of the timeCardBreak.').nullable(),
-    end: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
-      .describe('The start event of the timeCardBreak.'),
-    notes: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe('Notes about the timeCardBreak.'),
+    end: microsoft_graph_timeCardEvent,
+    notes: microsoft_graph_itemBody,
     start: microsoft_graph_timeCardEvent,
   })
   .partial()
@@ -14169,12 +12679,8 @@ const microsoft_graph_confirmedBy = z.enum(['none', 'user', 'manager', 'unknownF
 const microsoft_graph_timeCardEntry = z
   .object({
     breaks: z.array(microsoft_graph_timeCardBreak).describe('The clock-in event of the timeCard.'),
-    clockInEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
-      .describe('The clock-out event of the timeCard.'),
-    clockOutEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
-      .describe('The list of breaks associated with the timeCard.'),
+    clockInEvent: microsoft_graph_timeCardEvent,
+    clockOutEvent: microsoft_graph_timeCardEvent,
   })
   .partial()
   .strict();
@@ -14187,9 +12693,7 @@ const microsoft_graph_timeCardState = z.enum([
 const microsoft_graph_timeCard = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -14200,9 +12704,7 @@ const microsoft_graph_timeCard = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14216,28 +12718,12 @@ const microsoft_graph_timeCard = z
     breaks: z
       .array(microsoft_graph_timeCardBreak)
       .describe('The list of breaks associated with the timeCard.'),
-    clockInEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
-      .describe('The clock-in event of the timeCard.'),
-    clockOutEvent: z
-      .union([microsoft_graph_timeCardEvent, z.object({}).partial().strict()])
-      .describe('The clock-out event of the timeCard.'),
-    confirmedBy: z
-      .union([microsoft_graph_confirmedBy, z.object({}).partial().strict()])
-      .describe(
-        'Indicates whether this timeCard entry is confirmed. Possible values are: none, user, manager, unknownFutureValue.'
-      ),
-    notes: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe('Notes about the timeCard.'),
-    originalEntry: z
-      .union([microsoft_graph_timeCardEntry, z.object({}).partial().strict()])
-      .describe('The original timeCardEntry of the timeCard before it was edited.'),
-    state: z
-      .union([microsoft_graph_timeCardState, z.object({}).partial().strict()])
-      .describe(
-        'The current state of the timeCard during its life cycle. The possible values are: clockedIn, onBreak, clockedOut, unknownFutureValue.'
-      ),
+    clockInEvent: microsoft_graph_timeCardEvent,
+    clockOutEvent: microsoft_graph_timeCardEvent,
+    confirmedBy: microsoft_graph_confirmedBy,
+    notes: microsoft_graph_itemBody,
+    originalEntry: microsoft_graph_timeCardEntry,
+    state: microsoft_graph_timeCardState,
     userId: z.string().describe('User ID to which the timeCard belongs.').nullable(),
   })
   .partial()
@@ -14269,9 +12755,7 @@ const microsoft_graph_timeOffReasonIconType = z.enum([
 const microsoft_graph_timeOffReason = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -14282,9 +12766,7 @@ const microsoft_graph_timeOffReason = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14302,11 +12784,7 @@ const microsoft_graph_timeOffReason = z
       )
       .nullable(),
     displayName: z.string().describe('The name of the timeOffReason. Required.').nullable(),
-    iconType: z
-      .union([microsoft_graph_timeOffReasonIconType, z.object({}).partial().strict()])
-      .describe(
-        'Supported icon types are: none, car, calendar, running, plane, firstAid, doctor, notWorking, clock, juryDuty, globe, cup, phone, weather, umbrella, piggyBank, dog, cake, trafficCone, pin, sunny. Required.'
-      ),
+    iconType: microsoft_graph_timeOffReasonIconType,
     isActive: z
       .boolean()
       .describe(
@@ -14332,9 +12810,7 @@ const microsoft_graph_scheduleChangeState = z.enum([
 const microsoft_graph_timeOffRequest = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -14345,9 +12821,7 @@ const microsoft_graph_timeOffRequest = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14358,11 +12832,7 @@ const microsoft_graph_timeOffRequest = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    assignedTo: z
-      .union([microsoft_graph_scheduleChangeRequestActor, z.object({}).partial().strict()])
-      .describe(
-        'Indicates who the request is assigned to. Possible values are: sender, recipient, manager, system, unknownFutureValue.'
-      ),
+    assignedTo: microsoft_graph_scheduleChangeRequestActor,
     managerActionDateTime: z
       .string()
       .regex(
@@ -14399,11 +12869,7 @@ const microsoft_graph_timeOffRequest = z
       .string()
       .describe('The user ID of the sender of the scheduleChangeRequest.')
       .nullable(),
-    state: z
-      .union([microsoft_graph_scheduleChangeState, z.object({}).partial().strict()])
-      .describe(
-        'The state of the scheduleChangeRequest. Possible values are: pending, approved, declined, unknownFutureValue.'
-      ),
+    state: microsoft_graph_scheduleChangeState,
     endDateTime: z
       .string()
       .regex(
@@ -14451,9 +12917,7 @@ const microsoft_graph_timeOffItem = z
 const microsoft_graph_timeOff = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -14464,9 +12928,7 @@ const microsoft_graph_timeOff = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -14477,22 +12939,14 @@ const microsoft_graph_timeOff = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    draftTimeOff: z
-      .union([microsoft_graph_timeOffItem, z.object({}).partial().strict()])
-      .describe(
-        "The draft version of this timeOff item that is viewable by managers. It must be shared before it's visible to team members. Required."
-      ),
+    draftTimeOff: microsoft_graph_timeOffItem,
     isStagedForDeletion: z
       .boolean()
       .describe(
         'The timeOff is marked for deletion, a process that is finalized when the schedule is shared.'
       )
       .nullable(),
-    sharedTimeOff: z
-      .union([microsoft_graph_timeOffItem, z.object({}).partial().strict()])
-      .describe(
-        'The shared version of this timeOff that is viewable by both employees and managers. Updates to the sharedTimeOff property send notifications to users in the Teams client. Required.'
-      ),
+    sharedTimeOff: microsoft_graph_timeOffItem,
     userId: z.string().describe('ID of the user assigned to the timeOff. Required.').nullable(),
   })
   .partial()
@@ -14516,20 +12970,12 @@ const microsoft_graph_schedule = z
       .boolean()
       .describe('Indicates whether open shifts are enabled for the schedule.')
       .nullable(),
-    provisionStatus: z
-      .union([microsoft_graph_operationStatus, z.object({}).partial().strict()])
-      .describe(
-        'The status of the schedule provisioning. The possible values are notStarted, running, completed, failed.'
-      ),
+    provisionStatus: microsoft_graph_operationStatus,
     provisionStatusCode: z
       .string()
       .describe('Additional information about why schedule provisioning failed.')
       .nullable(),
-    startDayOfWeek: z
-      .union([microsoft_graph_dayOfWeek, z.object({}).partial().strict()])
-      .describe(
-        'Indicates the start day of the week. The possible values are: sunday, monday, tuesday, wednesday, thursday, friday, saturday.'
-      ),
+    startDayOfWeek: microsoft_graph_dayOfWeek,
     swapShiftsRequestsEnabled: z
       .boolean()
       .describe('Indicates whether swap shifts requests are enabled for the schedule.')
@@ -14538,9 +12984,7 @@ const microsoft_graph_schedule = z
       .boolean()
       .describe('Indicates whether time clock is enabled for the schedule.')
       .nullable(),
-    timeClockSettings: z
-      .union([microsoft_graph_timeClockSettings, z.object({}).partial().strict()])
-      .describe('The time clock location settings for this schedule.'),
+    timeClockSettings: microsoft_graph_timeClockSettings,
     timeOffRequestsEnabled: z
       .boolean()
       .describe('Indicates whether time off requests are enabled for the schedule.')
@@ -14614,9 +13058,7 @@ const microsoft_graph_teamworkTag = z
       .lte(2147483647)
       .describe('The number of users assigned to the tag.')
       .nullable(),
-    tagType: z
-      .union([microsoft_graph_teamworkTagType, z.object({}).partial().strict()])
-      .describe('The type of the tag. Default is standard.'),
+    tagType: microsoft_graph_teamworkTagType,
     teamId: z.string().describe('ID of the team in which the tag is defined.').nullable(),
     members: z.array(microsoft_graph_teamworkTagMember).describe('Users assigned to the tag.'),
   })
@@ -14655,14 +13097,8 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
           "The name of the first channel in the team. This is an optional property, only used during team creation and isn't returned in methods to get and list teams."
         )
         .nullable(),
-      funSettings: z
-        .union([microsoft_graph_teamFunSettings, z.object({}).partial().strict()])
-        .describe('Settings to configure use of Giphy, memes, and stickers in the team.'),
-      guestSettings: z
-        .union([microsoft_graph_teamGuestSettings, z.object({}).partial().strict()])
-        .describe(
-          'Settings to configure whether guests can create, update, or delete channels in the team.'
-        ),
+      funSettings: microsoft_graph_teamFunSettings,
+      guestSettings: microsoft_graph_teamGuestSettings,
       internalId: z
         .string()
         .describe(
@@ -14670,28 +13106,12 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
         )
         .nullable(),
       isArchived: z.boolean().describe('Whether this team is in read-only mode.').nullable(),
-      memberSettings: z
-        .union([microsoft_graph_teamMemberSettings, z.object({}).partial().strict()])
-        .describe(
-          'Settings to configure whether members can perform certain actions, for example, create channels and add bots, in the team.'
-        ),
-      messagingSettings: z
-        .union([microsoft_graph_teamMessagingSettings, z.object({}).partial().strict()])
-        .describe('Settings to configure messaging and mentions in the team.'),
-      specialization: z
-        .union([microsoft_graph_teamSpecialization, z.object({}).partial().strict()])
-        .describe(
-          'Optional. Indicates whether the team is intended for a particular use case. Each team specialization has access to unique behaviors and experiences targeted to its use case.'
-        ),
-      summary: z
-        .union([microsoft_graph_teamSummary, z.object({}).partial().strict()])
-        .describe(
-          'Contains summary information about the team, including number of owners, members, and guests.'
-        ),
+      memberSettings: microsoft_graph_teamMemberSettings,
+      messagingSettings: microsoft_graph_teamMessagingSettings,
+      specialization: microsoft_graph_teamSpecialization,
+      summary: microsoft_graph_teamSummary,
       tenantId: z.string().describe('The ID of the Microsoft Entra tenant.').nullable(),
-      visibility: z
-        .union([microsoft_graph_teamVisibilityType, z.object({}).partial().strict()])
-        .describe('The visibility of the group and team. Defaults to Public.'),
+      visibility: microsoft_graph_teamVisibilityType,
       webUrl: z
         .string()
         .describe(
@@ -14704,7 +13124,7 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
       channels: z
         .array(microsoft_graph_channel)
         .describe('The collection of channels and messages associated with the team.'),
-      group: z.union([microsoft_graph_group, z.object({}).partial().strict()]),
+      group: microsoft_graph_group.describe('Represents a Microsoft Entra group.'),
       incomingChannels: z
         .array(microsoft_graph_channel)
         .describe('List of channels shared with the team.'),
@@ -14720,19 +13140,11 @@ const microsoft_graph_team: z.ZodType<microsoft_graph_team> = z.lazy(() =>
       permissionGrants: z
         .array(microsoft_graph_resourceSpecificPermissionGrant)
         .describe('A collection of permissions granted to apps to access the team.'),
-      photo: z
-        .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
-        .describe('The profile photo for the team.'),
-      primaryChannel: z
-        .union([microsoft_graph_channel, z.object({}).partial().strict()])
-        .describe('The general channel for the team.'),
-      schedule: z
-        .union([microsoft_graph_schedule, z.object({}).partial().strict()])
-        .describe('The schedule of shifts for this team.'),
+      photo: microsoft_graph_profilePhoto,
+      primaryChannel: microsoft_graph_channel,
+      schedule: microsoft_graph_schedule,
       tags: z.array(microsoft_graph_teamworkTag).describe('The tags associated with the team.'),
-      template: z
-        .union([microsoft_graph_teamsTemplate, z.object({}).partial().strict()])
-        .describe('The template this team was created from. See available templates.'),
+      template: microsoft_graph_teamsTemplate,
     })
     .partial()
     .strict()
@@ -14853,11 +13265,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
           'Indicates whether the signed-in user is subscribed to receive email conversations. The default value is true. Returned only on $select. Supported only on the Get group API (GET /groups/{ID}).'
         )
         .nullable(),
-      licenseProcessingState: z
-        .union([microsoft_graph_licenseProcessingState, z.object({}).partial().strict()])
-        .describe(
-          'Indicates the status of the group license assignment to all group members. The default value is false. Read-only. Possible values: QueuedForProcessing, ProcessingInProgress, and ProcessingComplete.Returned only on $select. Read-only.'
-        ),
+      licenseProcessingState: microsoft_graph_licenseProcessingState,
       mail: z
         .string()
         .describe(
@@ -15013,21 +13421,13 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
         .describe(
           'Represents the app roles granted to a group for an application. Supports $expand.'
         ),
-      calendar: z
-        .union([microsoft_graph_calendar, z.object({}).partial().strict()])
-        .describe("The group's calendar. Read-only."),
+      calendar: microsoft_graph_calendar,
       calendarView: z
         .array(microsoft_graph_event)
         .describe('The calendar view for the calendar. Read-only.'),
       conversations: z.array(microsoft_graph_conversation).describe("The group's conversations."),
-      createdOnBehalfOf: z
-        .union([microsoft_graph_directoryObject, z.object({}).partial().strict()])
-        .describe(
-          "The user (or application) that created the group. NOTE: This property isn't set if the user is an administrator. Read-only."
-        ),
-      drive: z
-        .union([microsoft_graph_drive, z.object({}).partial().strict()])
-        .describe("The group's default drive. Read-only."),
+      createdOnBehalfOf: microsoft_graph_directoryObject,
+      drive: microsoft_graph_drive,
       drives: z.array(microsoft_graph_drive).describe("The group's drives. Read-only."),
       events: z.array(microsoft_graph_event).describe("The group's calendar events."),
       extensions: z
@@ -15051,22 +13451,18 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
         .describe(
           'A list of group members with license errors from this group-based license assignment. Read-only.'
         ),
-      onenote: z.union([microsoft_graph_onenote, z.object({}).partial().strict()]),
+      onenote: microsoft_graph_onenote,
       owners: z
         .array(microsoft_graph_directoryObject)
         .describe(
           "The owners of the group who can be users or service principals. Limited to 100 owners. Nullable. If this property isn't specified when creating a Microsoft 365 group the calling user (admin or non-admin) is automatically assigned as the group owner. A non-admin user can't explicitly add themselves to this collection when they're creating the group. For more information, see the related known issue. For security groups, the admin user isn't automatically added to this collection. For more information, see the related known issue. Supports $filter (/$count eq 0, /$count ne 0, /$count eq 1, /$count ne 1); Supports $expand including nested $select. For example, /groups?$filter=startsWith(displayName,'Role')&$select=id,displayName&$expand=owners($select=id,userPrincipalName,displayName)."
         ),
       permissionGrants: z.array(microsoft_graph_resourceSpecificPermissionGrant),
-      photo: z
-        .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
-        .describe("The group's profile photo"),
+      photo: microsoft_graph_profilePhoto,
       photos: z
         .array(microsoft_graph_profilePhoto)
         .describe('The profile photos owned by the group. Read-only. Nullable.'),
-      planner: z
-        .union([microsoft_graph_plannerGroup, z.object({}).partial().strict()])
-        .describe('Entry-point to Planner resource that might exist for a Unified Group.'),
+      planner: microsoft_graph_plannerGroup,
       rejectedSenders: z
         .array(microsoft_graph_directoryObject)
         .describe(
@@ -15082,9 +13478,7 @@ const microsoft_graph_group: z.ZodType<microsoft_graph_group> = z.lazy(() =>
         .describe(
           'The list of SharePoint sites in this group. Access the default site with /sites/root.'
         ),
-      team: z
-        .union([microsoft_graph_team, z.object({}).partial().strict()])
-        .describe('The team associated with this group.'),
+      team: microsoft_graph_team,
       threads: z
         .array(microsoft_graph_conversationThread)
         .describe("The group's conversation threads. Nullable."),
@@ -15106,9 +13500,7 @@ const microsoft_graph_printConnector = z
     appVersion: z.string().describe("The connector's version."),
     displayName: z.string().describe('The name of the connector.'),
     fullyQualifiedDomainName: z.string().describe("The connector machine's hostname."),
-    location: z
-      .union([microsoft_graph_printerLocation, z.object({}).partial().strict()])
-      .describe('The physical and/or organizational location of the connector.'),
+    location: microsoft_graph_printerLocation,
     operatingSystem: z.string().describe("The connector machine's operating system version."),
     registeredDateTime: z
       .string()
@@ -15163,12 +13555,8 @@ const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      capabilities: z
-        .union([microsoft_graph_printerCapabilities, z.object({}).partial().strict()])
-        .describe('The capabilities of the printer/printerShare.'),
-      defaults: z
-        .union([microsoft_graph_printerDefaults, z.object({}).partial().strict()])
-        .describe('The default print settings of printer/printerShare.'),
+      capabilities: microsoft_graph_printerCapabilities,
+      defaults: microsoft_graph_printerDefaults,
       displayName: z.string().describe('The name of the printer/printerShare.'),
       isAcceptingJobs: z
         .boolean()
@@ -15176,9 +13564,7 @@ const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.
           'Specifies whether the printer/printerShare is currently accepting new print jobs.'
         )
         .nullable(),
-      location: z
-        .union([microsoft_graph_printerLocation, z.object({}).partial().strict()])
-        .describe('The physical and/or organizational location of the printer/printerShare.'),
+      location: microsoft_graph_printerLocation,
       manufacturer: z.string().describe('The manufacturer of the printer/printerShare.').nullable(),
       model: z.string().describe('The model name of the printer/printerShare.').nullable(),
       status: microsoft_graph_printerStatus,
@@ -15197,18 +13583,14 @@ const microsoft_graph_printerShare: z.ZodType<microsoft_graph_printerShare> = z.
         )
         .datetime({ offset: true })
         .describe('The DateTimeOffset when the printer share was created. Read-only.'),
-      viewPoint: z
-        .union([microsoft_graph_printerShareViewpoint, z.object({}).partial().strict()])
-        .describe('Additional data for a printer share as viewed by the signed-in user.'),
+      viewPoint: microsoft_graph_printerShareViewpoint,
       allowedGroups: z
         .array(microsoft_graph_group)
         .describe('The groups whose users have access to print using the printer.'),
       allowedUsers: z
         .array(microsoft_graph_user)
         .describe('The users who have access to print using the printer.'),
-      printer: z
-        .union([microsoft_graph_printer, z.object({}).partial().strict()])
-        .describe('The printer that this printer share is related to.'),
+      printer: microsoft_graph_printer,
     })
     .partial()
     .strict()
@@ -15318,11 +13700,7 @@ const microsoft_graph_imageInfo = z
   .strict();
 const microsoft_graph_visualInfo = z
   .object({
-    attribution: z
-      .union([microsoft_graph_imageInfo, z.object({}).partial().strict()])
-      .describe(
-        'Optional. JSON object used to represent an icon which represents the application used to generate the activity'
-      ),
+    attribution: microsoft_graph_imageInfo,
     backgroundColor: z
       .string()
       .describe(
@@ -15408,11 +13786,7 @@ const microsoft_graph_activityHistoryItem: z.ZodType<microsoft_graph_activityHis
           .describe(
             'Required. UTC DateTime when the activityHistoryItem (activity session) was started. Required for timeline history.'
           ),
-        status: z
-          .union([microsoft_graph_status, z.object({}).partial().strict()])
-          .describe(
-            'Set by the server. A status code used to identify valid objects. Values: active, updated, deleted, ignored.'
-          ),
+        status: microsoft_graph_status,
         userTimezone: z
           .string()
           .describe(
@@ -15488,11 +13862,7 @@ const microsoft_graph_userActivity: z.ZodType<microsoft_graph_userActivity> = z.
         .datetime({ offset: true })
         .describe('Set by the server. DateTime in UTC when the object was modified on the server.')
         .nullable(),
-      status: z
-        .union([microsoft_graph_status, z.object({}).partial().strict()])
-        .describe(
-          'Set by the server. A status code used to identify valid objects. Values: active, updated, deleted, ignored.'
-        ),
+      status: microsoft_graph_status,
       userTimezone: z
         .string()
         .describe(
@@ -15560,11 +13930,7 @@ const microsoft_graph_agreementAcceptance = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z.'
       )
       .nullable(),
-    state: z
-      .union([microsoft_graph_agreementAcceptanceState, z.object({}).partial().strict()])
-      .describe(
-        'The state of the agreement acceptance. Possible values are: accepted, declined. Supports $filter (eq).'
-      ),
+    state: microsoft_graph_agreementAcceptanceState,
     userDisplayName: z
       .string()
       .describe('Display name of the user when the acceptance was recorded.')
@@ -15604,11 +13970,7 @@ const microsoft_graph_fido2AuthenticationMethod = z
     attestationCertificates: z
       .array(z.string().nullable())
       .describe('The attestation certificate(s) attached to this security key.'),
-    attestationLevel: z
-      .union([microsoft_graph_attestationLevel, z.object({}).partial().strict()])
-      .describe(
-        'The attestation level of this FIDO2 security key. Possible values are: attested, or notAttested.'
-      ),
+    attestationLevel: microsoft_graph_attestationLevel,
     createdDateTime: z
       .string()
       .regex(
@@ -15861,11 +14223,7 @@ const microsoft_graph_microsoftAuthenticatorAuthenticationMethod = z
       .string()
       .describe('Numerical version of this instance of the Authenticator app.')
       .nullable(),
-    device: z
-      .union([microsoft_graph_device, z.object({}).partial().strict()])
-      .describe(
-        "The registered device on which Microsoft Authenticator resides. This property is null if the device isn't registered for passwordless Phone Sign-In."
-      ),
+    device: microsoft_graph_device,
   })
   .partial()
   .strict();
@@ -15896,11 +14254,7 @@ const microsoft_graph_longRunningOperation = z
       .string()
       .describe('URI of the resource that the operation is performed on.')
       .nullable(),
-    status: z
-      .union([microsoft_graph_longRunningOperationStatus, z.object({}).partial().strict()])
-      .describe(
-        'The status of the operation. The possible values are: notStarted, running, succeeded, failed, unknownFutureValue.'
-      ),
+    status: microsoft_graph_longRunningOperationStatus,
     statusDetail: z.string().describe('Details about the status of the operation.').nullable(),
   })
   .partial()
@@ -15951,14 +14305,8 @@ const microsoft_graph_phoneAuthenticationMethod = z
         "The phone number to text or call for authentication. Phone numbers use the format +{country code} {number}x{extension}, with extension optional. For example, +1 5555551234 or +1 5555551234x123 are valid. Numbers are rejected when creating or updating if they don't match the required format."
       )
       .nullable(),
-    phoneType: z
-      .union([microsoft_graph_authenticationPhoneType, z.object({}).partial().strict()])
-      .describe('The type of this phone. Possible values are: mobile, alternateMobile, or office.'),
-    smsSignInState: z
-      .union([microsoft_graph_authenticationMethodSignInState, z.object({}).partial().strict()])
-      .describe(
-        'Whether a phone is ready to be used for SMS sign-in or not. Possible values are: notSupported, notAllowedByPolicy, notEnabled, phoneNumberNotUnique, ready, or notConfigured, unknownFutureValue.'
-      ),
+    phoneType: microsoft_graph_authenticationPhoneType,
+    smsSignInState: microsoft_graph_authenticationMethodSignInState,
   })
   .partial()
   .strict();
@@ -15987,21 +14335,9 @@ const microsoft_graph_platformCredentialAuthenticationMethod = z
       .string()
       .describe('The name of the device on which Platform Credential is registered.')
       .nullable(),
-    keyStrength: z
-      .union([microsoft_graph_authenticationMethodKeyStrength, z.object({}).partial().strict()])
-      .describe(
-        'Key strength of this Platform Credential key. Possible values are: normal, weak, unknown.'
-      ),
-    platform: z
-      .union([microsoft_graph_authenticationMethodPlatform, z.object({}).partial().strict()])
-      .describe(
-        'Platform on which this Platform Credential key is present. Possible values are: unknown, windows, macOS,iOS, android, linux.'
-      ),
-    device: z
-      .union([microsoft_graph_device, z.object({}).partial().strict()])
-      .describe(
-        "The registered device on which this Platform Credential resides. Supports $expand. When you get a user's Platform Credential registration information, this property is returned only on a single GET and when you specify ?$expand. For example, GET /users/admin@contoso.com/authentication/platformCredentialAuthenticationMethod/_jpuR-TGZtk6aQCLF3BQjA2?$expand=device."
-      ),
+    keyStrength: microsoft_graph_authenticationMethodKeyStrength,
+    platform: microsoft_graph_authenticationMethodPlatform,
+    device: microsoft_graph_device,
   })
   .partial()
   .strict();
@@ -16083,16 +14419,8 @@ const microsoft_graph_windowsHelloForBusinessAuthenticationMethod = z
       .string()
       .describe('The name of the device on which Windows Hello for Business is registered')
       .nullable(),
-    keyStrength: z
-      .union([microsoft_graph_authenticationMethodKeyStrength, z.object({}).partial().strict()])
-      .describe(
-        'Key strength of this Windows Hello for Business key. Possible values are: normal, weak, unknown.'
-      ),
-    device: z
-      .union([microsoft_graph_device, z.object({}).partial().strict()])
-      .describe(
-        "The registered device on which this Windows Hello for Business key resides. Supports $expand. When you get a user's Windows Hello for Business registration information, this property is returned only on a single GET and when you specify ?$expand. For example, GET /users/admin@contoso.com/authentication/windowsHelloForBusinessMethods/_jpuR-TGZtk6aQCLF3BQjA2?$expand=device."
-      ),
+    keyStrength: microsoft_graph_authenticationMethodKeyStrength,
+    device: microsoft_graph_device,
   })
   .partial()
   .strict();
@@ -16195,11 +14523,7 @@ const microsoft_graph_teamworkUserIdentity = z
         "Unique identifier for the identity or actor. For example, in the access reviews decisions API, this property might record the id of the principal, that is, the group, user, or application that's subject to review."
       )
       .nullable(),
-    userIdentityType: z
-      .union([microsoft_graph_teamworkUserIdentityType, z.object({}).partial().strict()])
-      .describe(
-        'Type of user. Possible values are: aadUser, onPremiseAadUser, anonymousGuest, federatedUser, personalMicrosoftAccountUser, skypeUser, phoneUser, unknownFutureValue and emailUser.'
-      ),
+    userIdentityType: microsoft_graph_teamworkUserIdentityType,
   })
   .partial()
   .strict();
@@ -16213,9 +14537,7 @@ const microsoft_graph_teamworkOnlineMeetingInfo = z
       .string()
       .describe('The URL that users click to join or uniquely identify the meeting.')
       .nullable(),
-    organizer: z
-      .union([microsoft_graph_teamworkUserIdentity, z.object({}).partial().strict()])
-      .describe('The organizer of the meeting.'),
+    organizer: microsoft_graph_teamworkUserIdentity,
   })
   .partial()
   .strict();
@@ -16241,11 +14563,7 @@ const microsoft_graph_chatViewpoint = z
 const microsoft_graph_chatMessageInfo = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    body: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        "Body of the chatMessage. This will still contain markers for @mentions and attachments even though the object doesn't return @mentions and attachments."
-      ),
+    body: microsoft_graph_itemBody,
     createdDateTime: z
       .string()
       .regex(
@@ -16254,14 +14572,8 @@ const microsoft_graph_chatMessageInfo = z
       .datetime({ offset: true })
       .describe('Date time object representing the time at which message was created.')
       .nullable(),
-    eventDetail: z
-      .union([microsoft_graph_eventMessageDetail, z.object({}).partial().strict()])
-      .describe(
-        'Read-only.  If present, represents details of an event that happened in a chat, a channel, or a team, for example, members were added, and so on. For event messages, the messageType property is set to systemEventMessage.'
-      ),
-    from: z
-      .union([microsoft_graph_chatMessageFromIdentitySet, z.object({}).partial().strict()])
-      .describe('Information about the sender of the message.'),
+    eventDetail: microsoft_graph_eventMessageDetail,
+    from: microsoft_graph_chatMessageFromIdentitySet,
     isDeleted: z
       .boolean()
       .describe('If set to true, the original message has been deleted.')
@@ -16273,9 +14585,7 @@ const microsoft_graph_chatMessageInfo = z
 const microsoft_graph_pinnedChatMessageInfo = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    message: z
-      .union([microsoft_graph_chatMessage, z.object({}).partial().strict()])
-      .describe('Represents details about the chat message that is pinned.'),
+    message: microsoft_graph_chatMessage,
   })
   .partial()
   .strict();
@@ -16305,11 +14615,7 @@ const microsoft_graph_chat = z
         'Date and time at which the chat was renamed or the list of members was last changed. Read-only.'
       )
       .nullable(),
-    onlineMeetingInfo: z
-      .union([microsoft_graph_teamworkOnlineMeetingInfo, z.object({}).partial().strict()])
-      .describe(
-        "Represents details about an online meeting. If the chat isn't associated with an online meeting, the property is empty. Read-only."
-      ),
+    onlineMeetingInfo: microsoft_graph_teamworkOnlineMeetingInfo,
     tenantId: z
       .string()
       .describe('The identifier of the tenant in which the chat was created. Read-only.')
@@ -16318,11 +14624,7 @@ const microsoft_graph_chat = z
       .string()
       .describe('(Optional) Subject or topic for the chat. Only available for group chats.')
       .nullable(),
-    viewpoint: z
-      .union([microsoft_graph_chatViewpoint, z.object({}).partial().strict()])
-      .describe(
-        'Represents caller-specific information about the chat, such as the last message read date and time. This property is populated only when the request is made in a delegated context.'
-      ),
+    viewpoint: microsoft_graph_chatViewpoint,
     webUrl: z
       .string()
       .describe(
@@ -16332,11 +14634,7 @@ const microsoft_graph_chat = z
     installedApps: z
       .array(microsoft_graph_teamsAppInstallation)
       .describe('A collection of all the apps in the chat. Nullable.'),
-    lastMessagePreview: z
-      .union([microsoft_graph_chatMessageInfo, z.object({}).partial().strict()])
-      .describe(
-        'Preview of the last message sent in the chat. Null if no messages were sent in the chat. Currently, only the list chats operation supports this property.'
-      ),
+    lastMessagePreview: microsoft_graph_chatMessageInfo,
     members: z
       .array(microsoft_graph_conversationMember)
       .describe('A collection of all the members in the chat. Nullable.'),
@@ -16423,9 +14721,7 @@ const microsoft_graph_contact = z
         "The contact's birthday. The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z"
       )
       .nullable(),
-    businessAddress: z
-      .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
-      .describe("The contact's business address."),
+    businessAddress: microsoft_graph_physicalAddress,
     businessHomePage: z.string().describe('The business home page of the contact.').nullable(),
     businessPhones: z
       .array(z.string().nullable())
@@ -16445,9 +14741,7 @@ const microsoft_graph_contact = z
     fileAs: z.string().describe('The name the contact is filed under.').nullable(),
     generation: z.string().describe("The contact's suffix.").nullable(),
     givenName: z.string().describe("The contact's given name.").nullable(),
-    homeAddress: z
-      .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
-      .describe("The contact's home address."),
+    homeAddress: microsoft_graph_physicalAddress,
     homePhones: z.array(z.string().nullable()).describe("The contact's home phone numbers."),
     imAddresses: z
       .array(z.string().nullable())
@@ -16459,9 +14753,7 @@ const microsoft_graph_contact = z
     mobilePhone: z.string().describe("The contact's mobile phone number.").nullable(),
     nickName: z.string().describe("The contact's nickname.").nullable(),
     officeLocation: z.string().describe("The location of the contact's office.").nullable(),
-    otherAddress: z
-      .union([microsoft_graph_physicalAddress, z.object({}).partial().strict()])
-      .describe('Other addresses for the contact.'),
+    otherAddress: microsoft_graph_physicalAddress,
     parentFolderId: z.string().describe("The ID of the contact's parent folder.").nullable(),
     personalNotes: z.string().describe("The user's notes about the contact.").nullable(),
     profession: z.string().describe("The contact's profession.").nullable(),
@@ -16488,9 +14780,7 @@ const microsoft_graph_contact = z
       .describe(
         'The collection of multi-value extended properties defined for the contact. Read-only. Nullable.'
       ),
-    photo: z
-      .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
-      .describe('Optional contact picture. You can get or set a photo for a contact.'),
+    photo: microsoft_graph_profilePhoto,
     singleValueExtendedProperties: z
       .array(microsoft_graph_singleValueLegacyExtendedProperty)
       .describe(
@@ -16578,11 +14868,7 @@ const microsoft_graph_learningCourseActivity = z
       .string()
       .describe('The registration ID of the provider. Required.')
       .nullable(),
-    status: z
-      .union([microsoft_graph_courseStatus, z.object({}).partial().strict()])
-      .describe(
-        'The status of the course activity. Possible values are: notStarted, inProgress, completed. Required.'
-      ),
+    status: microsoft_graph_courseStatus,
   })
   .partial()
   .strict();
@@ -16597,14 +14883,8 @@ const microsoft_graph_inferenceClassificationType = z.enum(['focused', 'other'])
 const microsoft_graph_inferenceClassificationOverride = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    classifyAs: z
-      .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().strict()])
-      .describe(
-        'Specifies how incoming messages from a specific sender should always be classified as. The possible values are: focused, other.'
-      ),
-    senderEmailAddress: z
-      .union([microsoft_graph_emailAddress, z.object({}).partial().strict()])
-      .describe('The email address information of the sender for whom the override is created.'),
+    classifyAs: microsoft_graph_inferenceClassificationType,
+    senderEmailAddress: microsoft_graph_emailAddress,
   })
   .partial()
   .strict();
@@ -16694,9 +14974,7 @@ const microsoft_graph_messageRuleActions = z
       .boolean()
       .describe('Indicates whether a message should be marked as read.')
       .nullable(),
-    markImportance: z
-      .union([microsoft_graph_importance, z.object({}).partial().strict()])
-      .describe('Sets the importance of the message, which can be: low, normal, high.'),
+    markImportance: microsoft_graph_importance,
     moveToFolder: z
       .string()
       .describe('The ID of the folder that a message will be moved to.')
@@ -16763,11 +15041,7 @@ const microsoft_graph_messageRulePredicates = z
       .describe(
         'Represents the strings that appear in the headers of an incoming message in order for the condition or exception to apply.'
       ),
-    importance: z
-      .union([microsoft_graph_importance, z.object({}).partial().strict()])
-      .describe(
-        'The importance that is stamped on an incoming message in order for the condition or exception to apply: low, normal, high.'
-      ),
+    importance: microsoft_graph_importance,
     isApprovalRequest: z
       .boolean()
       .describe(
@@ -16834,11 +15108,7 @@ const microsoft_graph_messageRulePredicates = z
         'Indicates whether an incoming message must be a voice mail in order for the condition or exception to apply.'
       )
       .nullable(),
-    messageActionFlag: z
-      .union([microsoft_graph_messageActionFlag, z.object({}).partial().strict()])
-      .describe(
-        'Represents the flag-for-action value that appears on an incoming message in order for the condition or exception to apply. The possible values are: any, call, doNotForward, followUp, fyi, forward, noResponseNecessary, read, reply, replyToAll, review.'
-      ),
+    messageActionFlag: microsoft_graph_messageActionFlag,
     notSentToMe: z
       .boolean()
       .describe(
@@ -16855,11 +15125,7 @@ const microsoft_graph_messageRulePredicates = z
       .describe(
         'Represents the strings that appear in the from property of an incoming message in order for the condition or exception to apply.'
       ),
-    sensitivity: z
-      .union([microsoft_graph_sensitivity, z.object({}).partial().strict()])
-      .describe(
-        'Represents the sensitivity level that must be stamped on an incoming message in order for the condition or exception to apply. The possible values are: normal, personal, private, confidential.'
-      ),
+    sensitivity: microsoft_graph_sensitivity,
     sentCcMe: z
       .boolean()
       .describe(
@@ -16878,18 +15144,14 @@ const microsoft_graph_messageRulePredicates = z
 const microsoft_graph_messageRule = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    actions: z
-      .union([microsoft_graph_messageRuleActions, z.object({}).partial().strict()])
-      .describe(
-        'Actions to be taken on a message when the corresponding conditions are fulfilled.'
-      ),
-    conditions: z
-      .union([microsoft_graph_messageRulePredicates, z.object({}).partial().strict()])
-      .describe('Conditions that when fulfilled trigger the corresponding actions for that rule.'),
+    actions: microsoft_graph_messageRuleActions,
+    conditions: microsoft_graph_messageRulePredicates.describe(
+      '[Simplified: showing 25 of 30 properties]'
+    ),
     displayName: z.string().describe('The display name of the rule.').nullable(),
-    exceptions: z
-      .union([microsoft_graph_messageRulePredicates, z.object({}).partial().strict()])
-      .describe('Exception conditions for the rule.'),
+    exceptions: microsoft_graph_messageRulePredicates.describe(
+      '[Simplified: showing 25 of 30 properties]'
+    ),
     hasError: z
       .boolean()
       .describe('Indicates whether the rule is in an error condition. Read-only.')
@@ -16916,22 +15178,10 @@ const microsoft_graph_messageRule = z
 const microsoft_graph_followupFlagStatus = z.enum(['notFlagged', 'complete', 'flagged']);
 const microsoft_graph_followupFlag = z
   .object({
-    completedDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe('The date and time that the follow-up was finished.'),
-    dueDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        'The date and time that the follow-up is to be finished. Note: To set the due date, you must also specify the startDateTime; otherwise, you get a 400 Bad Request response.'
-      ),
-    flagStatus: z
-      .union([microsoft_graph_followupFlagStatus, z.object({}).partial().strict()])
-      .describe(
-        'The status for follow-up for an item. Possible values are notFlagged, complete, and flagged.'
-      ),
-    startDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe('The date and time that the follow-up is to begin.'),
+    completedDateTime: microsoft_graph_dateTimeTimeZone,
+    dueDateTime: microsoft_graph_dateTimeTimeZone,
+    flagStatus: microsoft_graph_followupFlagStatus,
+    startDateTime: microsoft_graph_dateTimeTimeZone,
   })
   .partial()
   .strict();
@@ -16947,11 +15197,7 @@ const microsoft_graph_message = z
     bccRecipients: z
       .array(microsoft_graph_recipient)
       .describe('The Bcc: recipients for the message.'),
-    body: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        'The body of the message. It can be in HTML or text format. Find out about safe HTML in a message body.'
-      ),
+    body: microsoft_graph_itemBody,
     bodyPreview: z
       .string()
       .describe('The first 255 characters of the message body. It is in text format.')
@@ -16967,28 +15213,16 @@ const microsoft_graph_message = z
       .string()
       .describe('Indicates the position of the message within the conversation.')
       .nullable(),
-    flag: z
-      .union([microsoft_graph_followupFlag, z.object({}).partial().strict()])
-      .describe('Indicates the status, start date, due date, or completion date for the message.'),
-    from: z
-      .union([microsoft_graph_recipient, z.object({}).partial().strict()])
-      .describe(
-        'The owner of the mailbox from which the message is sent. In most cases, this value is the same as the sender property, except for sharing or delegation scenarios. The value must correspond to the actual mailbox used. Find out more about setting the from and sender properties of a message.'
-      ),
+    flag: microsoft_graph_followupFlag,
+    from: microsoft_graph_recipient,
     hasAttachments: z
       .boolean()
       .describe(
         "Indicates whether the message has attachments. This property doesn't include inline attachments, so if a message contains only inline attachments, this property is false. To verify the existence of inline attachments, parse the body property to look for a src attribute, such as <IMG src='cid:image001.jpg@01D26CD8.6C05F070'>."
       )
       .nullable(),
-    importance: z
-      .union([microsoft_graph_importance, z.object({}).partial().strict()])
-      .describe('The importance of the message. The possible values are: low, normal, and high.'),
-    inferenceClassification: z
-      .union([microsoft_graph_inferenceClassificationType, z.object({}).partial().strict()])
-      .describe(
-        'The classification of the message for the user, based on inferred relevance or importance, or on an explicit override. The possible values are: focused or other.'
-      ),
+    importance: microsoft_graph_importance,
+    inferenceClassification: microsoft_graph_inferenceClassificationType,
     internetMessageHeaders: z
       .array(microsoft_graph_internetMessageHeader)
       .describe(
@@ -17030,11 +15264,7 @@ const microsoft_graph_message = z
     replyTo: z
       .array(microsoft_graph_recipient)
       .describe('The email addresses to use when replying.'),
-    sender: z
-      .union([microsoft_graph_recipient, z.object({}).partial().strict()])
-      .describe(
-        'The account that is used to generate the message. In most cases, this value is the same as the from property. You can set this property to a different value when sending a message from a shared mailbox, for a shared calendar, or as a delegate. In any case, the value must correspond to the actual mailbox used. Find out more about setting the from and sender properties of a message.'
-      ),
+    sender: microsoft_graph_recipient,
     sentDateTime: z
       .string()
       .regex(
@@ -17049,11 +15279,7 @@ const microsoft_graph_message = z
     toRecipients: z
       .array(microsoft_graph_recipient)
       .describe('The To: recipients for the message.'),
-    uniqueBody: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        'The part of the body of the message that is unique to the current message. uniqueBody is not returned by default but can be retrieved for a given message by use of the ?$select=uniqueBody query. It can be in HTML or text format.'
-      ),
+    uniqueBody: microsoft_graph_itemBody,
     webLink: z
       .string()
       .describe(
@@ -17179,9 +15405,7 @@ const microsoft_graph_managedAppOperation = z
 const microsoft_graph_managedAppRegistration = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    appIdentifier: z
-      .union([microsoft_graph_mobileAppIdentifier, z.object({}).partial().strict()])
-      .describe('The app package Identifier'),
+    appIdentifier: microsoft_graph_mobileAppIdentifier.describe('The identifier for a mobile app.'),
     applicationVersion: z.string().describe('App version').nullable(),
     createdDateTime: z
       .string()
@@ -17771,11 +15995,7 @@ const microsoft_graph_windowsDeviceMalwareState = z
       .string()
       .describe('Information URL to learn more about the malware')
       .nullable(),
-    category: z
-      .union([microsoft_graph_windowsMalwareCategory, z.object({}).partial().strict()])
-      .describe(
-        'Category of the malware. Possible values are: invalid, adware, spyware, passwordStealer, trojanDownloader, worm, backdoor, remoteAccessTrojan, trojan, emailFlooder, keylogger, dialer, monitoringSoftware, browserModifier, cookie, browserPlugin, aolExploit, nuker, securityDisabler, jokeProgram, hostileActiveXControl, softwareBundler, stealthNotifier, settingsModifier, toolBar, remoteControlSoftware, trojanFtp, potentialUnwantedSoftware, icqExploit, trojanTelnet, exploit, filesharingProgram, malwareCreationTool, remoteControlSoftware, tool, trojanDenialOfService, trojanDropper, trojanMassMailer, trojanMonitoringSoftware, trojanProxyServer, virus, known, unknown, spp, behavior, vulnerability, policy, enterpriseUnwantedSoftware, ransom, hipsRule.'
-      ),
+    category: microsoft_graph_windowsMalwareCategory.describe('Malware category id'),
     detectionCount: z
       .number()
       .gte(-2147483648)
@@ -17783,11 +16003,9 @@ const microsoft_graph_windowsDeviceMalwareState = z
       .describe('Number of times the malware is detected')
       .nullable(),
     displayName: z.string().describe('Malware name').nullable(),
-    executionState: z
-      .union([microsoft_graph_windowsMalwareExecutionState, z.object({}).partial().strict()])
-      .describe(
-        'Execution status of the malware like blocked/executing etc. Possible values are: unknown, blocked, allowed, running, notRunning.'
-      ),
+    executionState: microsoft_graph_windowsMalwareExecutionState.describe(
+      'Malware execution status'
+    ),
     initialDetectionDateTime: z
       .string()
       .regex(
@@ -17804,21 +16022,9 @@ const microsoft_graph_windowsDeviceMalwareState = z
       .datetime({ offset: true })
       .describe('The last time this particular threat was changed')
       .nullable(),
-    severity: z
-      .union([microsoft_graph_windowsMalwareSeverity, z.object({}).partial().strict()])
-      .describe(
-        'Severity of the malware. Possible values are: unknown, low, moderate, high, severe.'
-      ),
-    state: z
-      .union([microsoft_graph_windowsMalwareState, z.object({}).partial().strict()])
-      .describe(
-        'Current status of the malware like cleaned/quarantined/allowed etc. Possible values are: unknown, detected, cleaned, quarantined, removed, allowed, blocked, cleanFailed, quarantineFailed, removeFailed, allowFailed, abandoned, blockFailed.'
-      ),
-    threatState: z
-      .union([microsoft_graph_windowsMalwareThreatState, z.object({}).partial().strict()])
-      .describe(
-        'Current status of the malware like cleaned/quarantined/allowed etc. Possible values are: active, actionFailed, manualStepsRequired, fullScanRequired, rebootRequired, remediatedWithNonCriticalFailures, quarantined, removed, cleaned, allowed, noStatusCleared.'
-      ),
+    severity: microsoft_graph_windowsMalwareSeverity.describe('Malware severity'),
+    state: microsoft_graph_windowsMalwareState.describe('Malware current status'),
+    threatState: microsoft_graph_windowsMalwareThreatState.describe('Malware threat status'),
   })
   .partial()
   .strict();
@@ -17826,11 +16032,9 @@ const microsoft_graph_windowsProtectionState = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
     antiMalwareVersion: z.string().describe('Current anti malware version').nullable(),
-    deviceState: z
-      .union([microsoft_graph_windowsDeviceHealthState, z.object({}).partial().strict()])
-      .describe(
-        "Indicates device's health state. Possible values are: clean, fullScanPending, rebootPending, manualStepsPending, offlineScanPending, critical. Possible values are: clean, fullScanPending, rebootPending, manualStepsPending, offlineScanPending, critical."
-      ),
+    deviceState: microsoft_graph_windowsDeviceHealthState.describe(
+      'Computer endpoint protection state'
+    ),
     engineVersion: z.string().describe("Current endpoint protection engine's version").nullable(),
     fullScanOverdue: z
       .boolean()
@@ -17894,11 +16098,9 @@ const microsoft_graph_windowsProtectionState = z
         'When TRUE indicates network inspection system enabled, when FALSE indicates network inspection system is not enabled. Defaults to setting on client device.'
       )
       .nullable(),
-    productStatus: z
-      .union([microsoft_graph_windowsDefenderProductStatus, z.object({}).partial().strict()])
-      .describe(
-        'Product Status of Windows Defender Antivirus. Possible values are: noStatus, serviceNotRunning, serviceStartedWithoutMalwareProtection, pendingFullScanDueToThreatAction, pendingRebootDueToThreatAction, pendingManualStepsDueToThreatAction, avSignaturesOutOfDate, asSignaturesOutOfDate, noQuickScanHappenedForSpecifiedPeriod, noFullScanHappenedForSpecifiedPeriod, systemInitiatedScanInProgress, systemInitiatedCleanInProgress, samplesPendingSubmission, productRunningInEvaluationMode, productRunningInNonGenuineMode, productExpired, offlineScanRequired, serviceShutdownAsPartOfSystemShutdown, threatRemediationFailedCritically, threatRemediationFailedNonCritically, noStatusFlagsSet, platformOutOfDate, platformUpdateInProgress, platformAboutToBeOutdated, signatureOrPlatformEndOfLifeIsPastOrIsImpending, windowsSModeSignaturesInUseOnNonWin10SInstall. Possible values are: noStatus, serviceNotRunning, serviceStartedWithoutMalwareProtection, pendingFullScanDueToThreatAction, pendingRebootDueToThreatAction, pendingManualStepsDueToThreatAction, avSignaturesOutOfDate, asSignaturesOutOfDate, noQuickScanHappenedForSpecifiedPeriod, noFullScanHappenedForSpecifiedPeriod, systemInitiatedScanInProgress, systemInitiatedCleanInProgress, samplesPendingSubmission, productRunningInEvaluationMode, productRunningInNonGenuineMode, productExpired, offlineScanRequired, serviceShutdownAsPartOfSystemShutdown, threatRemediationFailedCritically, threatRemediationFailedNonCritically, noStatusFlagsSet, platformOutOfDate, platformUpdateInProgress, platformAboutToBeOutdated, signatureOrPlatformEndOfLifeIsPastOrIsImpending, windowsSModeSignaturesInUseOnNonWin10SInstall.'
-      ),
+    productStatus: microsoft_graph_windowsDefenderProductStatus.describe(
+      'Product Status of Windows Defender'
+    ),
     quickScanOverdue: z
       .boolean()
       .describe(
@@ -17972,12 +16174,10 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
           'The DateTime when device compliance grace period expires. This property is read-only.'
         ),
       complianceState: microsoft_graph_complianceState.describe('Compliance state.'),
-      configurationManagerClientEnabledFeatures: z
-        .union([
-          microsoft_graph_configurationManagerClientEnabledFeatures,
-          z.object({}).partial().strict(),
-        ])
-        .describe('ConfigrMgr client enabled features. This property is read-only.'),
+      configurationManagerClientEnabledFeatures:
+        microsoft_graph_configurationManagerClientEnabledFeatures.describe(
+          'configuration Manager client enabled features'
+        ),
       deviceActionResults: z
         .array(microsoft_graph_deviceActionResult)
         .describe('List of ComplexType deviceActionResult objects. This property is read-only.'),
@@ -17990,9 +16190,9 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
       deviceEnrollmentType: microsoft_graph_deviceEnrollmentType.describe(
         'Possible ways of adding a mobile device to management.'
       ),
-      deviceHealthAttestationState: z
-        .union([microsoft_graph_deviceHealthAttestationState, z.object({}).partial().strict()])
-        .describe('The device health attestation state. This property is read-only.'),
+      deviceHealthAttestationState: microsoft_graph_deviceHealthAttestationState.describe(
+        '[Simplified: showing 25 of 32 properties]'
+      ),
       deviceName: z.string().describe('Name of the device. This property is read-only.').nullable(),
       deviceRegistrationState: microsoft_graph_deviceRegistrationState.describe(
         'Device registration status.'
@@ -18179,9 +16379,9 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
         .describe('Device user principal name. This property is read-only.')
         .nullable(),
       wiFiMacAddress: z.string().describe('Wi-Fi MAC. This property is read-only.').nullable(),
-      deviceCategory: z
-        .union([microsoft_graph_deviceCategory, z.object({}).partial().strict()])
-        .describe('Device category'),
+      deviceCategory: microsoft_graph_deviceCategory.describe(
+        'Device categories provides a way to organize your devices. Using device categories, company administrators can define their own categories that make sense to their company. These categories can then be applied to a device in the Intune Azure console or selected by a user during device enrollment. You can filter reports and create dynamic Azure Active Directory device groups based on device categories.'
+      ),
       deviceCompliancePolicyStates: z
         .array(microsoft_graph_deviceCompliancePolicyState)
         .describe('Device compliance policy states for this device.'),
@@ -18194,9 +16394,9 @@ const microsoft_graph_managedDevice: z.ZodType<microsoft_graph_managedDevice> = 
       users: z
         .array(microsoft_graph_user)
         .describe('The primary users associated with the managed device.'),
-      windowsProtectionState: z
-        .union([microsoft_graph_windowsProtectionState, z.object({}).partial().strict()])
-        .describe('The device protection status. This property is read-only.'),
+      windowsProtectionState: microsoft_graph_windowsProtectionState.describe(
+        'Device protection status entity.'
+      ),
     })
     .partial()
     .strict()
@@ -18256,14 +16456,8 @@ const microsoft_graph_broadcastMeetingCaptionSettings = z
   .strict();
 const microsoft_graph_broadcastMeetingSettings = z
   .object({
-    allowedAudience: z
-      .union([microsoft_graph_broadcastMeetingAudience, z.object({}).partial().strict()])
-      .describe(
-        'Defines who can join the Teams live event. Possible values are listed in the following table.'
-      ),
-    captions: z
-      .union([microsoft_graph_broadcastMeetingCaptionSettings, z.object({}).partial().strict()])
-      .describe('Caption settings of a Teams live event.'),
+    allowedAudience: microsoft_graph_broadcastMeetingAudience,
+    captions: microsoft_graph_broadcastMeetingCaptionSettings,
     isAttendeeReportEnabled: z
       .boolean()
       .describe(
@@ -18300,12 +16494,8 @@ const microsoft_graph_onlineMeetingRole = z.enum([
 ]);
 const microsoft_graph_meetingParticipantInfo = z
   .object({
-    identity: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity information of the participant.'),
-    role: z
-      .union([microsoft_graph_onlineMeetingRole, z.object({}).partial().strict()])
-      .describe("Specifies the participant's role in the meeting."),
+    identity: microsoft_graph_identitySet,
+    role: microsoft_graph_onlineMeetingRole,
     upn: z.string().describe('User principal name of the participant.').nullable(),
   })
   .partial()
@@ -18315,9 +16505,7 @@ const microsoft_graph_meetingParticipants = z
     attendees: z
       .array(microsoft_graph_meetingParticipantInfo)
       .describe('Information about the meeting attendees.'),
-    organizer: z
-      .union([microsoft_graph_meetingParticipantInfo, z.object({}).partial().strict()])
-      .describe('Information about the meeting organizer.'),
+    organizer: microsoft_graph_meetingParticipantInfo,
   })
   .partial()
   .strict();
@@ -18359,11 +16547,7 @@ const microsoft_graph_callRecording = z
       .string()
       .describe('The unique identifier of the onlineMeeting related to this recording. Read-only.')
       .nullable(),
-    meetingOrganizer: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe(
-        'The identity information of the organizer of the onlineMeeting related to this recording. Read-only.'
-      ),
+    meetingOrganizer: microsoft_graph_identitySet,
     recordingContentUrl: z
       .string()
       .describe('The URL that can be used to access the content of the recording. Read-only.')
@@ -18411,11 +16595,7 @@ const microsoft_graph_callTranscript = z
         'The unique identifier of the online meeting related to this transcript. Read-only.'
       )
       .nullable(),
-    meetingOrganizer: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe(
-        'The identity information of the organizer of the onlineMeeting related to this transcript. Read-only.'
-      ),
+    meetingOrganizer: microsoft_graph_identitySet,
     metadataContent: z
       .string()
       .describe('The time-aligned metadata of the utterances in the transcript. Read-only.')
@@ -18435,9 +16615,7 @@ const microsoft_graph_onlineMeeting = z
         'The content stream of the attendee report of a Microsoft Teams live event. Read-only.'
       )
       .nullable(),
-    broadcastSettings: z
-      .union([microsoft_graph_broadcastMeetingSettings, z.object({}).partial().strict()])
-      .describe('Settings related to a live event.'),
+    broadcastSettings: microsoft_graph_broadcastMeetingSettings,
     creationDateTime: z
       .string()
       .regex(
@@ -18460,11 +16638,7 @@ const microsoft_graph_onlineMeeting = z
       .describe('Indicates whether this meeting is a Teams live event.')
       .nullable(),
     meetingTemplateId: z.string().describe('The ID of the meeting template.').nullable(),
-    participants: z
-      .union([microsoft_graph_meetingParticipants, z.object({}).partial().strict()])
-      .describe(
-        'The participants associated with the online meeting, including the organizer and the attendees.'
-      ),
+    participants: microsoft_graph_meetingParticipants,
     startDateTime: z
       .string()
       .regex(
@@ -18513,11 +16687,7 @@ const microsoft_graph_categoryColor = z.enum([
 const microsoft_graph_outlookCategory = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    color: z
-      .union([microsoft_graph_categoryColor, z.object({}).partial().strict()])
-      .describe(
-        'A pre-set color constant that characterizes a category, and that is mapped to one of 25 predefined colors. For more details, see the following note.'
-      ),
+    color: microsoft_graph_categoryColor,
     displayName: z
       .string()
       .describe(
@@ -18557,10 +16727,7 @@ const microsoft_graph_scoredEmailAddress = z
         'The relevance score of the email address. A relevance score is used as a sort key, in relation to the other returned results. A higher relevance score value corresponds to a more relevant result. Relevance is determined by the user’s communication and collaboration patterns and business relationships. [Simplified from 3 options]'
       )
       .nullable(),
-    selectionLikelihood: z.union([
-      microsoft_graph_selectionLikelihoodInfo,
-      z.object({}).partial().strict(),
-    ]),
+    selectionLikelihood: microsoft_graph_selectionLikelihoodInfo,
   })
   .partial()
   .strict();
@@ -18569,9 +16736,7 @@ const microsoft_graph_website = z
   .object({
     address: z.string().describe('The URL of the website.').nullable(),
     displayName: z.string().describe('The display name of the web site.').nullable(),
-    type: z
-      .union([microsoft_graph_websiteType, z.object({}).partial().strict()])
-      .describe('The possible values are: other, home, work, blog, profile.'),
+    type: microsoft_graph_websiteType,
   })
   .partial()
   .strict();
@@ -18599,9 +16764,7 @@ const microsoft_graph_person = z
       .string()
       .describe('Free-form notes that the user has taken about this person.')
       .nullable(),
-    personType: z
-      .union([microsoft_graph_personType, z.object({}).partial().strict()])
-      .describe('The type of person.'),
+    personType: microsoft_graph_personType,
     phones: z.array(microsoft_graph_phone).describe("The person's phone numbers."),
     postalAddresses: z.array(microsoft_graph_location).describe("The person's addresses."),
     profession: z.string().describe("The person's profession.").nullable(),
@@ -18637,16 +16800,8 @@ const microsoft_graph_plannerUser = z
   .strict();
 const microsoft_graph_presenceStatusMessage = z
   .object({
-    expiryDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        "Time in which the status message expires.If not provided, the status message doesn't expire.expiryDateTime.dateTime shouldn't include time zone.expiryDateTime isn't available when you request the presence of another user."
-      ),
-    message: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe(
-        "Status message item. The only supported format currently is message.contentType = 'text'."
-      ),
+    expiryDateTime: microsoft_graph_dateTimeTimeZone,
+    message: microsoft_graph_itemBody,
     publishedDateTime: z
       .string()
       .regex(
@@ -18675,9 +16830,7 @@ const microsoft_graph_presence = z
         'The base presence information for a user. Possible values are Available, AvailableIdle,  Away, BeRightBack, Busy, BusyIdle, DoNotDisturb, Offline, PresenceUnknown'
       )
       .nullable(),
-    statusMessage: z
-      .union([microsoft_graph_presenceStatusMessage, z.object({}).partial().strict()])
-      .describe('The presence status message of a user.'),
+    statusMessage: microsoft_graph_presenceStatusMessage,
   })
   .partial()
   .strict();
@@ -18722,9 +16875,7 @@ const microsoft_graph_timeRange = z
   .strict();
 const microsoft_graph_shiftAvailability = z
   .object({
-    recurrence: z
-      .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
-      .describe('Specifies the pattern for recurrence'),
+    recurrence: microsoft_graph_patternedRecurrence,
     timeSlots: z
       .array(microsoft_graph_timeRange)
       .describe('The time slot(s) preferred by the user.'),
@@ -18735,9 +16886,7 @@ const microsoft_graph_shiftAvailability = z
 const microsoft_graph_shiftPreferences = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the creator of the entity.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -18748,9 +16897,7 @@ const microsoft_graph_shiftPreferences = z
         'The Timestamp type represents date and time information using ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2014 is 2014-01-01T00:00:00Z'
       )
       .nullable(),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the person who last modified the entity.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -18784,7 +16931,7 @@ const microsoft_graph_unifiedStorageQuota = z
 const microsoft_graph_userStorage = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    quota: z.union([microsoft_graph_unifiedStorageQuota, z.object({}).partial().strict()]),
+    quota: microsoft_graph_unifiedStorageQuota,
   })
   .partial()
   .strict();
@@ -18857,13 +17004,9 @@ const microsoft_graph_userSettings = z
       .describe(
         "When set to true, the delegate access to the user's trending API is disabled. When set to true, documents in the user's Office Delve are disabled. When set to true, the relevancy of the content displayed in Microsoft 365, for example in Suggested sites in SharePoint Home and the Discover view in OneDrive for work or school is affected. Users can control this setting in Office Delve."
       ),
-    itemInsights: z
-      .union([microsoft_graph_userInsightsSettings, z.object({}).partial().strict()])
-      .describe(
-        "The user's settings for the visibility of meeting hour insights, and insights derived between a user and other items in Microsoft 365, such as documents or sites. Get userInsightsSettings through this navigation property."
-      ),
-    shiftPreferences: z.union([microsoft_graph_shiftPreferences, z.object({}).partial().strict()]),
-    storage: z.union([microsoft_graph_userStorage, z.object({}).partial().strict()]),
+    itemInsights: microsoft_graph_userInsightsSettings,
+    shiftPreferences: microsoft_graph_shiftPreferences,
+    storage: microsoft_graph_userStorage,
     windows: z.array(microsoft_graph_windowsSetting),
   })
   .partial()
@@ -18875,9 +17018,7 @@ const microsoft_graph_workingTimeSchedule = z
 const microsoft_graph_userSolutionRoot = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    workingTimeSchedule: z
-      .union([microsoft_graph_workingTimeSchedule, z.object({}).partial().strict()])
-      .describe('The working time schedule entity associated with the solution.'),
+    workingTimeSchedule: microsoft_graph_workingTimeSchedule,
   })
   .partial()
   .strict();
@@ -18885,20 +17026,10 @@ const microsoft_graph_associatedTeamInfo = z.object({}).partial().strict();
 const microsoft_graph_userScopeTeamsAppInstallation = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    consentedPermissionSet: z
-      .union([microsoft_graph_teamsAppPermissionSet, z.object({}).partial().strict()])
-      .describe(
-        'The set of resource-specific permissions consented to while installing or upgrading the teamsApp.'
-      ),
-    teamsApp: z
-      .union([microsoft_graph_teamsApp, z.object({}).partial().strict()])
-      .describe('The app that is installed.'),
-    teamsAppDefinition: z
-      .union([microsoft_graph_teamsAppDefinition, z.object({}).partial().strict()])
-      .describe('The details of this version of the app.'),
-    chat: z
-      .union([microsoft_graph_chat, z.object({}).partial().strict()])
-      .describe('The chat between the user and Teams app.'),
+    consentedPermissionSet: microsoft_graph_teamsAppPermissionSet,
+    teamsApp: microsoft_graph_teamsApp,
+    teamsAppDefinition: microsoft_graph_teamsAppDefinition,
+    chat: microsoft_graph_chat,
   })
   .partial()
   .strict();
@@ -19034,9 +17165,7 @@ const microsoft_graph_linkedResource = z
 const microsoft_graph_todoTask = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    body: z
-      .union([microsoft_graph_itemBody, z.object({}).partial().strict()])
-      .describe('The task body that typically contains information about the task.'),
+    body: microsoft_graph_itemBody,
     bodyLastModifiedDateTime: z
       .string()
       .regex(
@@ -19051,9 +17180,7 @@ const microsoft_graph_todoTask = z
       .describe(
         'The categories associated with the task. Each category corresponds to the displayName property of an outlookCategory that the user has defined.'
       ),
-    completedDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe('The date and time in the specified time zone that the task was finished.'),
+    completedDateTime: microsoft_graph_dateTimeTimeZone,
     createdDateTime: z
       .string()
       .regex(
@@ -19063,9 +17190,7 @@ const microsoft_graph_todoTask = z
       .describe(
         "The date and time when the task was created. By default, it is in UTC. You can provide a custom time zone in the request header. The property value uses ISO 8601 format. For example, midnight UTC on Jan 1, 2020 would look like this: '2020-01-01T00:00:00Z'."
       ),
-    dueDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe('The date and time in the specified time zone that the task is to be finished.'),
+    dueDateTime: microsoft_graph_dateTimeTimeZone,
     hasAttachments: z.boolean().describe('Indicates whether the task has attachments.').nullable(),
     importance: microsoft_graph_importance,
     isReminderOn: z
@@ -19080,19 +17205,9 @@ const microsoft_graph_todoTask = z
       .describe(
         "The date and time when the task was last modified. By default, it is in UTC. You can provide a custom time zone in the request header. The property value uses ISO 8601 format and is always in UTC time. For example, midnight UTC on Jan 1, 2020 would look like this: '2020-01-01T00:00:00Z'."
       ),
-    recurrence: z
-      .union([microsoft_graph_patternedRecurrence, z.object({}).partial().strict()])
-      .describe('The recurrence pattern for the task.'),
-    reminderDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        'The date and time in the specified time zone for a reminder alert of the task to occur.'
-      ),
-    startDateTime: z
-      .union([microsoft_graph_dateTimeTimeZone, z.object({}).partial().strict()])
-      .describe(
-        'The date and time in the specified time zone at which the task is scheduled to start.'
-      ),
+    recurrence: microsoft_graph_patternedRecurrence,
+    reminderDateTime: microsoft_graph_dateTimeTimeZone,
+    startDateTime: microsoft_graph_dateTimeTimeZone,
     status: microsoft_graph_taskStatus,
     title: z.string().describe('A brief description of the task.').nullable(),
     attachments: z
@@ -19176,10 +17291,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         .describe(
           'The plans that are assigned to the user. Read-only. Not nullable. Returned only on $select. Supports $filter (eq and not).'
         ),
-      authorizationInfo: z.union([
-        microsoft_graph_authorizationInfo,
-        z.object({}).partial().strict(),
-      ]),
+      authorizationInfo: microsoft_graph_authorizationInfo,
       birthday: z
         .string()
         .regex(
@@ -19234,11 +17346,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'Indicates whether the user account was created through one of the following methods:  As a regular school or work account (null). As an external account (Invitation). As a local account for an Azure Active Directory B2C tenant (LocalAccount). Through self-service sign-up by an internal user using email verification (EmailVerified). Through self-service sign-up by a guest signing up through a link that is part of a user flow (SelfServiceSignUp). Read-only.Returned only on $select. Supports $filter (eq, ne, not, in).'
         )
         .nullable(),
-      customSecurityAttributes: z
-        .union([microsoft_graph_customSecurityAttributeValue, z.object({}).partial().strict()])
-        .describe(
-          'An open complex type that holds the value of a custom security attribute that is assigned to a directory object. Nullable. Returned only on $select. Supports $filter (eq, ne, not, startsWith). The filter value is case-sensitive. To read this property, the calling app must be assigned the CustomSecAttributeAssignment.Read.All permission. To write this property, the calling app must be assigned the CustomSecAttributeAssignment.ReadWrite.All permissions. To read or write this property in delegated scenarios, the admin must be assigned the Attribute Assignment Administrator role.'
-        ),
+      customSecurityAttributes: microsoft_graph_customSecurityAttributeValue,
       department: z
         .string()
         .describe(
@@ -19284,11 +17392,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'The date and time when the user left or will leave the organization. To read this property, the calling app must be assigned the User-LifeCycleInfo.Read.All permission. To write this property, the calling app must be assigned the User.Read.All and User-LifeCycleInfo.ReadWrite.All permissions. To read this property in delegated scenarios, the admin needs at least one of the following Microsoft Entra roles: Lifecycle Workflows Administrator (least privilege), Global Reader. To write this property in delegated scenarios, the admin needs the Global Administrator role. Supports $filter (eq, ne, not , ge, le, in). For more information, see Configure the employeeLeaveDateTime property for a user.'
         )
         .nullable(),
-      employeeOrgData: z
-        .union([microsoft_graph_employeeOrgData, z.object({}).partial().strict()])
-        .describe(
-          'Represents organization data (for example, division and costCenter) associated with a user. Returned only on $select. Supports $filter (eq, ne, not , ge, le, in).'
-        ),
+      employeeOrgData: microsoft_graph_employeeOrgData,
       employeeType: z
         .string()
         .describe(
@@ -19380,11 +17484,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           "The SMTP address for the user, for example, jeff@contoso.com. Changes to this property update the user's proxyAddresses collection to include the value as an SMTP address. This property can't contain accent characters.  NOTE: We don't recommend updating this property for Azure AD B2C user profiles. Use the otherMails property instead. Returned by default. Supports $filter (eq, ne, not, ge, le, in, startsWith, endsWith, and eq on null values)."
         )
         .nullable(),
-      mailboxSettings: z
-        .union([microsoft_graph_mailboxSettings, z.object({}).partial().strict()])
-        .describe(
-          'Settings for the primary mailbox of the signed-in user. You can get or update settings for sending automatic replies to incoming messages, locale, and time zone. Returned only on $select.'
-        ),
+      mailboxSettings: microsoft_graph_mailboxSettings,
       mailNickname: z
         .string()
         .describe(
@@ -19419,11 +17519,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'Contains the on-premises domainFQDN, also called dnsDomainName synchronized from the on-premises directory. The property is only populated for customers who are synchronizing their on-premises directory to Microsoft Entra ID via Microsoft Entra Connect. Read-only. Returned only on $select.'
         )
         .nullable(),
-      onPremisesExtensionAttributes: z
-        .union([microsoft_graph_onPremisesExtensionAttributes, z.object({}).partial().strict()])
-        .describe(
-          'Contains extensionAttributes1-15 for the user. These extension attributes are also known as Exchange custom attributes 1-15. Each attribute can store up to 1024 characters. For an onPremisesSyncEnabled user, the source of authority for this set of properties is the on-premises and is read-only. For a cloud-only user (where onPremisesSyncEnabled is false), these properties can be set during the creation or update of a user object.  For a cloud-only user previously synced from on-premises Active Directory, these properties are read-only in Microsoft Graph but can be fully managed through the Exchange Admin Center or the Exchange Online V2 module in PowerShell. Returned only on $select. Supports $filter (eq, ne, not, in).'
-        ),
+      onPremisesExtensionAttributes: microsoft_graph_onPremisesExtensionAttributes,
       onPremisesImmutableId: z
         .string()
         .describe(
@@ -19480,11 +17576,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'Specifies password policies for the user. This value is an enumeration with one possible value being DisableStrongPassword, which allows weaker passwords than the default policy to be specified. DisablePasswordExpiration can also be specified. The two might be specified together; for example: DisablePasswordExpiration, DisableStrongPassword. Returned only on $select. For more information on the default password policies, see Microsoft Entra password policies. Supports $filter (ne, not, and eq on null values).'
         )
         .nullable(),
-      passwordProfile: z
-        .union([microsoft_graph_passwordProfile, z.object({}).partial().strict()])
-        .describe(
-          "Specifies the password profile for the user. The profile contains the user's password. This property is required when a user is created. The password in the profile must satisfy minimum requirements as specified by the passwordPolicies property. By default, a strong password is required. Returned only on $select. Supports $filter (eq, ne, not, in, and eq on null values). To update this property:  User-PasswordProfile.ReadWrite.All is the least privileged permission to update this property.  In delegated scenarios, the User Administrator Microsoft Entra role is the least privileged admin role supported to update this property for nonadmin users. Privileged Authentication Administrator is the least privileged role that's allowed to update this property for all administrators in the tenant. In general, the signed-in user must have a higher privileged administrator role as indicated in Who can reset passwords.  In app-only scenarios, the calling app must be assigned a supported permission and at least the User Administrator Microsoft Entra role."
-        ),
+      passwordProfile: microsoft_graph_passwordProfile,
       pastProjects: z
         .array(z.string().nullable())
         .describe(
@@ -19514,7 +17606,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'The preferred name for the user. Not Supported. This attribute returns an empty string.Returned only on $select.'
         )
         .nullable(),
-      print: z.union([microsoft_graph_userPrint, z.object({}).partial().strict()]),
+      print: microsoft_graph_userPrint,
       provisionedPlans: z
         .array(microsoft_graph_provisionedPlan)
         .describe(
@@ -19552,11 +17644,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'Do not use in Microsoft Graph. Manage this property through the Microsoft 365 admin center instead. Represents whether the user should be included in the Outlook global address list. See Known issue.'
         )
         .nullable(),
-      signInActivity: z
-        .union([microsoft_graph_signInActivity, z.object({}).partial().strict()])
-        .describe(
-          "Get the last signed-in date and request ID of the sign-in for a given user. Read-only.Returned only on $select. Supports $filter (eq, ne, not, ge, le) but not with any other filterable properties. Note: Details for this property require a Microsoft Entra ID P1 or P2 license and the AuditLog.Read.All permission.This property isn't returned for a user who never signed in or last signed in before April 2020."
-        ),
+      signInActivity: microsoft_graph_signInActivity,
       signInSessionsValidFromDateTime: z
         .string()
         .regex(
@@ -19617,12 +17705,8 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         .describe(
           'Represents the app roles a user is granted for an application. Supports $expand.'
         ),
-      authentication: z
-        .union([microsoft_graph_authentication, z.object({}).partial().strict()])
-        .describe('The authentication methods that are supported for the user.'),
-      calendar: z
-        .union([microsoft_graph_calendar, z.object({}).partial().strict()])
-        .describe("The user's primary calendar. Read-only."),
+      authentication: microsoft_graph_authentication,
+      calendar: microsoft_graph_calendar,
       calendarGroups: z
         .array(microsoft_graph_calendarGroup)
         .describe("The user's calendar groups. Read-only. Nullable."),
@@ -19633,10 +17717,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         .array(microsoft_graph_event)
         .describe('The calendar view for the calendar. Read-only. Nullable.'),
       chats: z.array(microsoft_graph_chat),
-      cloudClipboard: z.union([
-        microsoft_graph_cloudClipboardRoot,
-        z.object({}).partial().strict(),
-      ]),
+      cloudClipboard: microsoft_graph_cloudClipboardRoot,
       contactFolders: z
         .array(microsoft_graph_contactFolder)
         .describe("The user's contacts folders. Read-only. Nullable."),
@@ -19654,16 +17735,11 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         .describe(
           'The users and contacts that report to the user. (The users and contacts that have their manager property set to this user.) Read-only. Nullable. Supports $expand.'
         ),
-      drive: z
-        .union([microsoft_graph_drive, z.object({}).partial().strict()])
-        .describe("The user's OneDrive. Read-only."),
+      drive: microsoft_graph_drive,
       drives: z
         .array(microsoft_graph_drive)
         .describe('A collection of drives available for this user. Read-only.'),
-      employeeExperience: z.union([
-        microsoft_graph_employeeExperienceUser,
-        z.object({}).partial().strict(),
-      ]),
+      employeeExperience: microsoft_graph_employeeExperienceUser,
       events: z
         .array(microsoft_graph_event)
         .describe(
@@ -19675,16 +17751,8 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
           'The collection of open extensions defined for the user. Read-only. Supports $expand. Nullable.'
         ),
       followedSites: z.array(microsoft_graph_site),
-      inferenceClassification: z
-        .union([microsoft_graph_inferenceClassification, z.object({}).partial().strict()])
-        .describe(
-          "Relevance classification of the user's messages based on explicit designations that override inferred relevance or importance."
-        ),
-      insights: z
-        .union([microsoft_graph_itemInsights, z.object({}).partial().strict()])
-        .describe(
-          'Represents relationships between a user and items such as OneDrive for work or school documents, calculated using advanced analytics and machine learning techniques. Read-only. Nullable.'
-        ),
+      inferenceClassification: microsoft_graph_inferenceClassification,
+      insights: microsoft_graph_itemInsights,
       joinedTeams: z.array(microsoft_graph_team),
       licenseDetails: z
         .array(microsoft_graph_licenseDetails)
@@ -19698,9 +17766,7 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
       managedDevices: z
         .array(microsoft_graph_managedDevice)
         .describe('The managed devices associated with the user.'),
-      manager: z
-        .union([microsoft_graph_directoryObject, z.object({}).partial().strict()])
-        .describe("The user or contact that is this user's manager. Read-only. Supports $expand."),
+      manager: microsoft_graph_directoryObject,
       memberOf: z
         .array(microsoft_graph_directoryObject)
         .describe(
@@ -19710,13 +17776,13 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
         .array(microsoft_graph_message)
         .describe('The messages in a mailbox or folder. Read-only. Nullable.'),
       oauth2PermissionGrants: z.array(microsoft_graph_oAuth2PermissionGrant),
-      onenote: z.union([microsoft_graph_onenote, z.object({}).partial().strict()]),
+      onenote: microsoft_graph_onenote,
       onlineMeetings: z
         .array(microsoft_graph_onlineMeeting)
         .describe(
           'Information about a meeting, including the URL used to join a meeting, the attendees list, and the description.'
         ),
-      outlook: z.union([microsoft_graph_outlookUser, z.object({}).partial().strict()]),
+      outlook: microsoft_graph_outlookUser,
       ownedDevices: z
         .array(microsoft_graph_directoryObject)
         .describe(
@@ -19733,41 +17799,27 @@ const microsoft_graph_user: z.ZodType<microsoft_graph_user> = z.lazy(() =>
       permissionGrants: z
         .array(microsoft_graph_resourceSpecificPermissionGrant)
         .describe('List all resource-specific permission grants of a user.'),
-      photo: z
-        .union([microsoft_graph_profilePhoto, z.object({}).partial().strict()])
-        .describe("The user's profile photo. Read-only."),
+      photo: microsoft_graph_profilePhoto,
       photos: z
         .array(microsoft_graph_profilePhoto)
         .describe("The collection of the user's profile photos in different sizes. Read-only."),
-      planner: z
-        .union([microsoft_graph_plannerUser, z.object({}).partial().strict()])
-        .describe('Entry-point to the Planner resource that might exist for a user. Read-only.'),
-      presence: z.union([microsoft_graph_presence, z.object({}).partial().strict()]),
+      planner: microsoft_graph_plannerUser,
+      presence: microsoft_graph_presence,
       registeredDevices: z
         .array(microsoft_graph_directoryObject)
         .describe(
           'Devices that are registered for the user. Read-only. Nullable. Supports $expand and returns up to 100 objects.'
         ),
       scopedRoleMemberOf: z.array(microsoft_graph_scopedRoleMembership),
-      settings: z.union([microsoft_graph_userSettings, z.object({}).partial().strict()]),
-      solutions: z
-        .union([microsoft_graph_userSolutionRoot, z.object({}).partial().strict()])
-        .describe(
-          'The identifier that relates the user to the working time schedule triggers. Read-Only. Nullable'
-        ),
+      settings: microsoft_graph_userSettings,
+      solutions: microsoft_graph_userSolutionRoot,
       sponsors: z
         .array(microsoft_graph_directoryObject)
         .describe(
           "The users and groups responsible for this guest's privileges in the tenant and keeping the guest's information and access updated. (HTTP Methods: GET, POST, DELETE.). Supports $expand."
         ),
-      teamwork: z
-        .union([microsoft_graph_userTeamwork, z.object({}).partial().strict()])
-        .describe(
-          'A container for Microsoft Teams features available for the user. Read-only. Nullable.'
-        ),
-      todo: z
-        .union([microsoft_graph_todo, z.object({}).partial().strict()])
-        .describe('Represents the To Do services available to a user.'),
+      teamwork: microsoft_graph_userTeamwork,
+      todo: microsoft_graph_todo,
       transitiveMemberOf: z
         .array(microsoft_graph_directoryObject)
         .describe(
@@ -19846,9 +17898,7 @@ const microsoft_graph_album = z
   .strict();
 const microsoft_graph_bundle = z
   .object({
-    album: z
-      .union([microsoft_graph_album, z.object({}).partial().strict()])
-      .describe('If the bundle is an album, then the album property is included'),
+    album: microsoft_graph_album,
     childCount: z
       .number()
       .gte(-2147483648)
@@ -19884,9 +17934,7 @@ const microsoft_graph_hashes = z
   .strict();
 const microsoft_graph_file = z
   .object({
-    hashes: z
-      .union([microsoft_graph_hashes, z.object({}).partial().strict()])
-      .describe("Hashes of the file's binary content, if available. Read-only."),
+    hashes: microsoft_graph_hashes,
     mimeType: z
       .string()
       .describe(
@@ -19952,9 +18000,7 @@ const microsoft_graph_folder = z
       .lte(2147483647)
       .describe('Number of children contained immediately within this container.')
       .nullable(),
-    view: z
-      .union([microsoft_graph_folderView, z.object({}).partial().strict()])
-      .describe('A collection of properties defining the recommended view for the folder.'),
+    view: microsoft_graph_folderView,
   })
   .partial()
   .strict();
@@ -20009,13 +18055,7 @@ const microsoft_graph_pendingContentUpdate = z
   .partial()
   .strict();
 const microsoft_graph_pendingOperations = z
-  .object({
-    pendingContentUpdate: z
-      .union([microsoft_graph_pendingContentUpdate, z.object({}).partial().strict()])
-      .describe(
-        'A property that indicates that an operation that might update the binary content of a file is pending completion.'
-      ),
-  })
+  .object({ pendingContentUpdate: microsoft_graph_pendingContentUpdate })
   .partial()
   .strict();
 const microsoft_graph_photo = z
@@ -20067,18 +18107,14 @@ const microsoft_graph_photo = z
   .strict();
 const microsoft_graph_shared = z
   .object({
-    owner: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('The identity of the owner of the shared item. Read-only.'),
+    owner: microsoft_graph_identitySet,
     scope: z
       .string()
       .describe(
         'Indicates the scope of how the item is shared. The possible values are: anonymous, organization, or users. Read-only.'
       )
       .nullable(),
-    sharedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('The identity of the user who shared the item. Read-only.'),
+    sharedBy: microsoft_graph_identitySet,
     sharedDateTime: z
       .string()
       .regex(
@@ -20149,9 +18185,7 @@ const microsoft_graph_video = z
   .strict();
 const microsoft_graph_remoteItem = z
   .object({
-    createdBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user, device, and application which created the item. Read-only.'),
+    createdBy: microsoft_graph_identitySet,
     createdDateTime: z
       .string()
       .regex(
@@ -20160,27 +18194,15 @@ const microsoft_graph_remoteItem = z
       .datetime({ offset: true })
       .describe('Date and time of item creation. Read-only.')
       .nullable(),
-    file: z
-      .union([microsoft_graph_file, z.object({}).partial().strict()])
-      .describe('Indicates that the remote item is a file. Read-only.'),
-    fileSystemInfo: z
-      .union([microsoft_graph_fileSystemInfo, z.object({}).partial().strict()])
-      .describe('Information about the remote item from the local file system. Read-only.'),
-    folder: z
-      .union([microsoft_graph_folder, z.object({}).partial().strict()])
-      .describe('Indicates that the remote item is a folder. Read-only.'),
+    file: microsoft_graph_file,
+    fileSystemInfo: microsoft_graph_fileSystemInfo,
+    folder: microsoft_graph_folder,
     id: z
       .string()
       .describe('Unique identifier for the remote item in its drive. Read-only.')
       .nullable(),
-    image: z
-      .union([microsoft_graph_image, z.object({}).partial().strict()])
-      .describe('Image metadata, if the item is an image. Read-only.'),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe(
-        'Identity of the user, device, and application which last modified the item. Read-only.'
-      ),
+    image: microsoft_graph_image,
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -20190,33 +18212,13 @@ const microsoft_graph_remoteItem = z
       .describe('Date and time the item was last modified. Read-only.')
       .nullable(),
     name: z.string().describe('Optional. Filename of the remote item. Read-only.').nullable(),
-    package: z
-      .union([microsoft_graph_package, z.object({}).partial().strict()])
-      .describe(
-        'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
-      ),
-    parentReference: z
-      .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-      .describe('Properties of the parent of the remote item. Read-only.'),
-    shared: z
-      .union([microsoft_graph_shared, z.object({}).partial().strict()])
-      .describe(
-        'Indicates that the item has been shared with others and provides information about the shared state of the item. Read-only.'
-      ),
-    sharepointIds: z
-      .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-      .describe(
-        'Provides interop between items in OneDrive for Business and SharePoint with the full set of item identifiers. Read-only.'
-      ),
+    package: microsoft_graph_package,
+    parentReference: microsoft_graph_itemReference,
+    shared: microsoft_graph_shared,
+    sharepointIds: microsoft_graph_sharepointIds,
     size: z.number().describe('Size of the remote item. Read-only.').nullable(),
-    specialFolder: z
-      .union([microsoft_graph_specialFolder, z.object({}).partial().strict()])
-      .describe(
-        'If the current item is also available as a special folder, this facet is returned. Read-only.'
-      ),
-    video: z
-      .union([microsoft_graph_video, z.object({}).partial().strict()])
-      .describe('Video metadata, if the item is a video. Read-only.'),
+    specialFolder: microsoft_graph_specialFolder,
+    video: microsoft_graph_video,
     webDavUrl: z.string().describe('DAV compatible URL for the item.').nullable(),
     webUrl: z
       .string()
@@ -20245,14 +18247,7 @@ const microsoft_graph_security_behaviorDuringRetentionPeriod = z.enum([
 ]);
 const microsoft_graph_retentionLabelSettings = z
   .object({
-    behaviorDuringRetentionPeriod: z
-      .union([
-        microsoft_graph_security_behaviorDuringRetentionPeriod,
-        z.object({}).partial().strict(),
-      ])
-      .describe(
-        'Describes the item behavior during retention period. Possible values are: doNotRetain, retain, retainAsRecord, retainAsRegulatoryRecord, unknownFutureValue. Read-only.'
-      ),
+    behaviorDuringRetentionPeriod: microsoft_graph_security_behaviorDuringRetentionPeriod,
     isContentUpdateAllowed: z
       .boolean()
       .describe('Specifies whether updates to document content are allowed. Read-only.')
@@ -20289,9 +18284,7 @@ const microsoft_graph_itemRetentionLabel = z
         'Specifies whether the label is applied explicitly on the item. True indicates that the label is applied explicitly; otherwise, the label is inherited from its parent. Read-only.'
       )
       .nullable(),
-    labelAppliedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user who applied the label. Read-only.'),
+    labelAppliedBy: microsoft_graph_identitySet,
     labelAppliedDateTime: z
       .string()
       .regex(
@@ -20303,9 +18296,7 @@ const microsoft_graph_itemRetentionLabel = z
       )
       .nullable(),
     name: z.string().describe('The retention label on the document. Read-write.').nullable(),
-    retentionSettings: z
-      .union([microsoft_graph_retentionLabelSettings, z.object({}).partial().strict()])
-      .describe('The retention settings enforced on the item. Read-write.'),
+    retentionSettings: microsoft_graph_retentionLabelSettings,
   })
   .partial()
   .strict();
@@ -20337,29 +18328,17 @@ const microsoft_graph_thumbnail = z
 const microsoft_graph_thumbnailSet = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    large: z
-      .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
-      .describe('A 1920x1920 scaled thumbnail.'),
-    medium: z
-      .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
-      .describe('A 176x176 scaled thumbnail.'),
-    small: z
-      .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
-      .describe('A 48x48 cropped thumbnail.'),
-    source: z
-      .union([microsoft_graph_thumbnail, z.object({}).partial().strict()])
-      .describe(
-        'A custom thumbnail image or the original image used to generate other thumbnails.'
-      ),
+    large: microsoft_graph_thumbnail,
+    medium: microsoft_graph_thumbnail,
+    small: microsoft_graph_thumbnail,
+    source: microsoft_graph_thumbnail,
   })
   .partial()
   .strict();
 const microsoft_graph_driveItemVersion = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    lastModifiedBy: z
-      .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-      .describe('Identity of the user which last modified the version. Read-only.'),
+    lastModifiedBy: microsoft_graph_identitySet,
     lastModifiedDateTime: z
       .string()
       .regex(
@@ -20368,9 +18347,7 @@ const microsoft_graph_driveItemVersion = z
       .datetime({ offset: true })
       .describe('Date and time the version was last modified. Read-only.')
       .nullable(),
-    publication: z
-      .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
-      .describe('Indicates the publication status of this particular version. Read-only.'),
+    publication: microsoft_graph_publicationFacet,
     content: z.string().describe('The content stream for this version of the item.').nullable(),
     size: z
       .number()
@@ -20450,23 +18427,15 @@ const microsoft_graph_workbookChartLineFormat = z
 const microsoft_graph_workbookChartAxisFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes (font name, font size, color, etc.) for a chart axis element. Read-only.'
-      ),
-    line: z
-      .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
-      .describe('Represents chart line formatting. Read-only.'),
+    font: microsoft_graph_workbookChartFont,
+    line: microsoft_graph_workbookChartLineFormat,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartGridlinesFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    line: z
-      .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
-      .describe('Represents chart line formatting. Read-only.'),
+    line: microsoft_graph_workbookChartLineFormat,
   })
   .partial()
   .strict();
@@ -20474,20 +18443,14 @@ const microsoft_graph_workbookChartGridlines = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
     visible: z.boolean().describe('Indicates whether the axis gridlines are visible.'),
-    format: z
-      .union([microsoft_graph_workbookChartGridlinesFormat, z.object({}).partial().strict()])
-      .describe('Represents the formatting of chart gridlines. Read-only.'),
+    format: microsoft_graph_workbookChartGridlinesFormat,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartAxisTitleFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes, such as font name, font size, color, etc. of chart axis title object. Read-only.'
-      ),
+    font: microsoft_graph_workbookChartFont,
   })
   .partial()
   .strict();
@@ -20496,9 +18459,7 @@ const microsoft_graph_workbookChartAxisTitle = z
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
     text: z.string().describe('Represents the axis title.').nullable(),
     visible: z.boolean().describe('A Boolean that specifies the visibility of an axis title.'),
-    format: z
-      .union([microsoft_graph_workbookChartAxisTitleFormat, z.object({}).partial().strict()])
-      .describe('Represents the formatting of chart axis title. Read-only.'),
+    format: microsoft_graph_workbookChartAxisTitleFormat,
   })
   .partial()
   .strict();
@@ -20525,39 +18486,19 @@ const microsoft_graph_workbookChartAxis = z
       .describe(
         "Represents the interval between two minor tick marks. 'Can be set to a numeric value or an empty string (for automatic axis values). The returned value is always a number."
       ),
-    format: z
-      .union([microsoft_graph_workbookChartAxisFormat, z.object({}).partial().strict()])
-      .describe(
-        'Represents the formatting of a chart object, which includes line and font formatting. Read-only.'
-      ),
-    majorGridlines: z
-      .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().strict()])
-      .describe(
-        'Returns a gridlines object that represents the major gridlines for the specified axis. Read-only.'
-      ),
-    minorGridlines: z
-      .union([microsoft_graph_workbookChartGridlines, z.object({}).partial().strict()])
-      .describe(
-        'Returns a Gridlines object that represents the minor gridlines for the specified axis. Read-only.'
-      ),
-    title: z
-      .union([microsoft_graph_workbookChartAxisTitle, z.object({}).partial().strict()])
-      .describe('Represents the axis title. Read-only.'),
+    format: microsoft_graph_workbookChartAxisFormat,
+    majorGridlines: microsoft_graph_workbookChartGridlines,
+    minorGridlines: microsoft_graph_workbookChartGridlines,
+    title: microsoft_graph_workbookChartAxisTitle,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartAxes = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    categoryAxis: z
-      .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
-      .describe('Represents the category axis in a chart. Read-only.'),
-    seriesAxis: z
-      .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
-      .describe('Represents the series axis of a 3-dimensional chart. Read-only.'),
-    valueAxis: z
-      .union([microsoft_graph_workbookChartAxis, z.object({}).partial().strict()])
-      .describe('Represents the value axis in an axis. Read-only.'),
+    categoryAxis: microsoft_graph_workbookChartAxis,
+    seriesAxis: microsoft_graph_workbookChartAxis,
+    valueAxis: microsoft_graph_workbookChartAxis,
   })
   .partial()
   .strict();
@@ -20568,14 +18509,8 @@ const microsoft_graph_workbookChartFill = z
 const microsoft_graph_workbookChartDataLabelFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe('Represents the fill format of the current chart data label. Read-only.'),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes (font name, font size, color, etc.) for a chart data label. Read-only.'
-      ),
+    fill: microsoft_graph_workbookChartFill,
+    font: microsoft_graph_workbookChartFont,
   })
   .partial()
   .strict();
@@ -20616,43 +18551,23 @@ const microsoft_graph_workbookChartDataLabels = z
       .boolean()
       .describe('Boolean value that represents whether the data label value is visible.')
       .nullable(),
-    format: z
-      .union([microsoft_graph_workbookChartDataLabelFormat, z.object({}).partial().strict()])
-      .describe(
-        'Represents the format of chart data labels, which includes fill and font formatting. Read-only.'
-      ),
+    format: microsoft_graph_workbookChartDataLabelFormat,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartAreaFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe(
-        'Represents the fill format of an object, which includes background formatting information. Read-only.'
-      ),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
-      ),
+    fill: microsoft_graph_workbookChartFill,
+    font: microsoft_graph_workbookChartFont,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartLegendFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe(
-        'Represents the fill format of an object, which includes background formating information. Read-only.'
-      ),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes such as font name, font size, color, etc. of a chart legend. Read-only.'
-      ),
+    fill: microsoft_graph_workbookChartFill,
+    font: microsoft_graph_workbookChartFont,
   })
   .partial()
   .strict();
@@ -20672,36 +18587,22 @@ const microsoft_graph_workbookChartLegend = z
       )
       .nullable(),
     visible: z.boolean().describe('Indicates whether the chart legend is visible.'),
-    format: z
-      .union([microsoft_graph_workbookChartLegendFormat, z.object({}).partial().strict()])
-      .describe(
-        'Represents the formatting of a chart legend, which includes fill and font formatting. Read-only.'
-      ),
+    format: microsoft_graph_workbookChartLegendFormat,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartSeriesFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe(
-        'Represents the fill format of a chart series, which includes background formatting information. Read-only.'
-      ),
-    line: z
-      .union([microsoft_graph_workbookChartLineFormat, z.object({}).partial().strict()])
-      .describe('Represents line formatting. Read-only.'),
+    fill: microsoft_graph_workbookChartFill,
+    line: microsoft_graph_workbookChartLineFormat,
   })
   .partial()
   .strict();
 const microsoft_graph_workbookChartPointFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe(
-        'Represents the fill format of a chart, which includes background formatting information. Read-only.'
-      ),
+    fill: microsoft_graph_workbookChartFill,
   })
   .partial()
   .strict();
@@ -20709,9 +18610,7 @@ const microsoft_graph_workbookChartPoint = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
     value: z.unknown().describe('The value of a chart point. Read-only.'),
-    format: z
-      .union([microsoft_graph_workbookChartPointFormat, z.object({}).partial().strict()])
-      .describe('The format properties of the chart point. Read-only.'),
+    format: microsoft_graph_workbookChartPointFormat,
   })
   .partial()
   .strict();
@@ -20719,11 +18618,7 @@ const microsoft_graph_workbookChartSeries = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
     name: z.string().describe('The name of a series in a chart.').nullable(),
-    format: z
-      .union([microsoft_graph_workbookChartSeriesFormat, z.object({}).partial().strict()])
-      .describe(
-        'The formatting of a chart series, which includes fill and line formatting. Read-only.'
-      ),
+    format: microsoft_graph_workbookChartSeriesFormat,
     points: z
       .array(microsoft_graph_workbookChartPoint)
       .describe('A collection of all points in the series. Read-only.'),
@@ -20733,16 +18628,8 @@ const microsoft_graph_workbookChartSeries = z
 const microsoft_graph_workbookChartTitleFormat = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookChartFill, z.object({}).partial().strict()])
-      .describe(
-        'Represents the fill format of an object, which includes background formatting information. Read-only.'
-      ),
-    font: z
-      .union([microsoft_graph_workbookChartFont, z.object({}).partial().strict()])
-      .describe(
-        'Represents the font attributes (font name, font size, color, etc.) for the current object. Read-only.'
-      ),
+    fill: microsoft_graph_workbookChartFill,
+    font: microsoft_graph_workbookChartFont,
   })
   .partial()
   .strict();
@@ -20755,11 +18642,7 @@ const microsoft_graph_workbookChartTitle = z
       .nullable(),
     text: z.string().describe('The title text of the chart.').nullable(),
     visible: z.boolean().describe('Indicates whether the chart title is visible.'),
-    format: z
-      .union([microsoft_graph_workbookChartTitleFormat, z.object({}).partial().strict()])
-      .describe(
-        'The formatting of a chart title, which includes fill and font formatting. Read-only.'
-      ),
+    format: microsoft_graph_workbookChartTitleFormat,
   })
   .partial()
   .strict();
@@ -20784,31 +18667,17 @@ const microsoft_graph_workbookChart: z.ZodType<microsoft_graph_workbookChart> = 
       width: z
         .union([z.number(), z.string(), ReferenceNumeric])
         .describe('Represents the width, in points, of the chart object.'),
-      axes: z
-        .union([microsoft_graph_workbookChartAxes, z.object({}).partial().strict()])
-        .describe('Represents chart axes. Read-only.'),
-      dataLabels: z
-        .union([microsoft_graph_workbookChartDataLabels, z.object({}).partial().strict()])
-        .describe('Represents the data labels on the chart. Read-only.'),
-      format: z
-        .union([microsoft_graph_workbookChartAreaFormat, z.object({}).partial().strict()])
-        .describe('Encapsulates the format properties for the chart area. Read-only.'),
-      legend: z
-        .union([microsoft_graph_workbookChartLegend, z.object({}).partial().strict()])
-        .describe('Represents the legend for the chart. Read-only.'),
+      axes: microsoft_graph_workbookChartAxes,
+      dataLabels: microsoft_graph_workbookChartDataLabels,
+      format: microsoft_graph_workbookChartAreaFormat,
+      legend: microsoft_graph_workbookChartLegend,
       series: z
         .array(microsoft_graph_workbookChartSeries)
         .describe(
           'Represents either a single series or collection of series in the chart. Read-only.'
         ),
-      title: z
-        .union([microsoft_graph_workbookChartTitle, z.object({}).partial().strict()])
-        .describe(
-          'Represents the title of the specified chart, including the text, visibility, position and formatting of the title. Read-only.'
-        ),
-      worksheet: z
-        .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
-        .describe('The worksheet containing the current chart. Read-only.'),
+      title: microsoft_graph_workbookChartTitle,
+      worksheet: microsoft_graph_workbookWorksheet,
     })
     .partial()
     .strict()
@@ -20819,9 +18688,7 @@ const microsoft_graph_workbookPivotTable: z.ZodType<microsoft_graph_workbookPivo
       .object({
         id: z.string().describe('The unique identifier for an entity. Read-only.'),
         name: z.string().describe('The name of the pivot table.').nullable(),
-        worksheet: z
-          .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
-          .describe('The worksheet that contains the current pivot table. Read-only.'),
+        worksheet: microsoft_graph_workbookWorksheet,
       })
       .partial()
       .strict()
@@ -20831,49 +18698,65 @@ const microsoft_graph_workbookWorksheetProtectionOptions = z
     allowAutoFilter: z
       .boolean()
       .describe(
-        'Represents the worksheet protection option of allowing using auto filter feature.'
+        'Indicates whether the worksheet protection option to allow the use of the autofilter feature is enabled.'
       ),
     allowDeleteColumns: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing deleting columns.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow deleting columns is enabled.'
+      ),
     allowDeleteRows: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing deleting rows.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow deleting rows is enabled.'
+      ),
     allowFormatCells: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting cells.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow formatting cells is enabled.'
+      ),
     allowFormatColumns: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting columns.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow formatting columns is enabled.'
+      ),
     allowFormatRows: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing formatting rows.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow formatting rows is enabled.'
+      ),
     allowInsertColumns: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting columns.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow inserting columns is enabled.'
+      ),
     allowInsertHyperlinks: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting hyperlinks.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow inserting hyperlinks is enabled.'
+      ),
     allowInsertRows: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing inserting rows.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow inserting rows is enabled.'
+      ),
     allowPivotTables: z
       .boolean()
       .describe(
-        'Represents the worksheet protection option of allowing using pivot table feature.'
+        'Indicates whether the worksheet protection option to allow the use of the pivot table feature is enabled.'
       ),
     allowSort: z
       .boolean()
-      .describe('Represents the worksheet protection option of allowing using sort feature.'),
+      .describe(
+        'Indicates whether the worksheet protection option to allow the use of the sort feature is enabled.'
+      ),
   })
   .partial()
   .strict();
 const microsoft_graph_workbookWorksheetProtection = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    options: z
-      .union([microsoft_graph_workbookWorksheetProtectionOptions, z.object({}).partial().strict()])
-      .describe('Worksheet protection options. Read-only.'),
+    options: microsoft_graph_workbookWorksheetProtectionOptions,
     protected: z.boolean().describe('Indicates whether the worksheet is protected.  Read-only.'),
   })
   .partial()
@@ -20900,9 +18783,7 @@ const microsoft_graph_workbookFilterCriteria = z
     criterion2: z.string().describe('A custom criterion.').nullable(),
     dynamicCriteria: z.string().describe('A dynamic formula specified in a custom filter.'),
     filterOn: z.string().describe('Indicates whether a filter is applied to a column.'),
-    icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().strict()])
-      .describe('An icon applied to a cell via conditional formatting.'),
+    icon: microsoft_graph_workbookIcon,
     operator: z.string().describe('An operator in a cell; for example, =, >, <, <=, or <>.'),
     values: z.unknown().describe('The values that appear in the cell.'),
   })
@@ -20911,9 +18792,7 @@ const microsoft_graph_workbookFilterCriteria = z
 const microsoft_graph_workbookFilter = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    criteria: z
-      .union([microsoft_graph_workbookFilterCriteria, z.object({}).partial().strict()])
-      .describe('The currently applied filter on the given column. Read-only.'),
+    criteria: microsoft_graph_workbookFilterCriteria,
   })
   .partial()
   .strict();
@@ -20933,9 +18812,7 @@ const microsoft_graph_workbookTableColumn = z
       .describe(
         'TRepresents the raw values of the specified range. The data returned could be of type string, number, or a Boolean. Cell that contain an error will return the error string.'
       ),
-    filter: z
-      .union([microsoft_graph_workbookFilter, z.object({}).partial().strict()])
-      .describe('The filter applied to the column. Read-only.'),
+    filter: microsoft_graph_workbookFilter,
   })
   .partial()
   .strict();
@@ -20973,11 +18850,7 @@ const microsoft_graph_workbookSortField = z
       .describe(
         'Represents additional sorting options for this field. The possible values are: Normal, TextAsNumber.'
       ),
-    icon: z
-      .union([microsoft_graph_workbookIcon, z.object({}).partial().strict()])
-      .describe(
-        "Represents the icon that is the target of the condition if the sorting is on the cell's icon."
-      ),
+    icon: microsoft_graph_workbookIcon,
     key: z
       .number()
       .gte(-2147483648)
@@ -21064,12 +18937,8 @@ const microsoft_graph_workbookTable: z.ZodType<microsoft_graph_workbookTable> = 
       rows: z
         .array(microsoft_graph_workbookTableRow)
         .describe('The list of all the rows in the table. Read-only.'),
-      sort: z
-        .union([microsoft_graph_workbookTableSort, z.object({}).partial().strict()])
-        .describe('The sorting for the table. Read-only.'),
-      worksheet: z
-        .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
-        .describe('The worksheet containing the current table. Read-only.'),
+      sort: microsoft_graph_workbookTableSort,
+      worksheet: microsoft_graph_workbookWorksheet,
     })
     .partial()
     .strict()
@@ -21098,9 +18967,7 @@ const microsoft_graph_workbookWorksheet: z.ZodType<microsoft_graph_workbookWorks
       pivotTables: z
         .array(microsoft_graph_workbookPivotTable)
         .describe('The list of piot tables that are part of the worksheet.'),
-      protection: z
-        .union([microsoft_graph_workbookWorksheetProtection, z.object({}).partial().strict()])
-        .describe('The sheet protection object for a worksheet. Read-only.'),
+      protection: microsoft_graph_workbookWorksheetProtection,
       tables: z
         .array(microsoft_graph_workbookTable)
         .describe('The list of tables that are part of the worksheet. Read-only.'),
@@ -21131,11 +18998,7 @@ const microsoft_graph_workbookNamedItem: z.ZodType<microsoft_graph_workbookNamed
           'The formula that the name is defined to refer to. For example, =Sheet14!$B$2:$H$12 and =4.75. Read-only.'
         ),
       visible: z.boolean().describe('Indicates whether the object is visible.'),
-      worksheet: z
-        .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
-        .describe(
-          'Returns the worksheet to which the named item is scoped. Available only if the item is scoped to the worksheet. Read-only.'
-        ),
+      worksheet: microsoft_graph_workbookWorksheet,
     })
     .partial()
     .strict()
@@ -21145,10 +19008,7 @@ const microsoft_graph_workbookOperationError: z.ZodType<microsoft_graph_workbook
     z
       .object({
         code: z.string().describe('The error code.').nullable(),
-        innerError: z.union([
-          microsoft_graph_workbookOperationError,
-          z.object({}).partial().strict(),
-        ]),
+        innerError: microsoft_graph_workbookOperationError,
         message: z.string().describe('The error message.').nullable(),
       })
       .partial()
@@ -21163,9 +19023,7 @@ const microsoft_graph_workbookOperationStatus = z.enum([
 const microsoft_graph_workbookOperation = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    error: z
-      .union([microsoft_graph_workbookOperationError, z.object({}).partial().strict()])
-      .describe('The error returned by the operation.'),
+    error: microsoft_graph_workbookOperationError,
     resourceLocation: z.string().describe('The resource URI for the result.').nullable(),
     status: microsoft_graph_workbookOperationStatus,
   })
@@ -21174,11 +19032,11 @@ const microsoft_graph_workbookOperation = z
 const microsoft_graph_workbook = z
   .object({
     id: z.string().describe('The unique identifier for an entity. Read-only.'),
-    application: z.union([microsoft_graph_workbookApplication, z.object({}).partial().strict()]),
+    application: microsoft_graph_workbookApplication,
     comments: z
       .array(microsoft_graph_workbookComment)
       .describe('Represents a collection of comments in a workbook.'),
-    functions: z.union([microsoft_graph_workbookFunctions, z.object({}).partial().strict()]),
+    functions: microsoft_graph_workbookFunctions,
     names: z
       .array(microsoft_graph_workbookNamedItem)
       .describe(
@@ -21202,9 +19060,7 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
   z
     .object({
       id: z.string().describe('The unique identifier for an entity. Read-only.'),
-      createdBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe('Identity of the user, device, or application that created the item. Read-only.'),
+      createdBy: microsoft_graph_identitySet,
       createdDateTime: z
         .string()
         .regex(
@@ -21217,11 +19073,7 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
         .describe('Provides a user-visible description of the item. Optional.')
         .nullable(),
       eTag: z.string().describe('ETag for the item. Read-only.').nullable(),
-      lastModifiedBy: z
-        .union([microsoft_graph_identitySet, z.object({}).partial().strict()])
-        .describe(
-          'Identity of the user, device, and application that last modified the item. Read-only.'
-        ),
+      lastModifiedBy: microsoft_graph_identitySet,
       lastModifiedDateTime: z
         .string()
         .regex(
@@ -21230,29 +19082,19 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
         .datetime({ offset: true })
         .describe('Date and time the item was last modified. Read-only.'),
       name: z.string().describe('The name of the item. Read-write.').nullable(),
-      parentReference: z
-        .union([microsoft_graph_itemReference, z.object({}).partial().strict()])
-        .describe('Parent information, if the item has a parent. Read-write.'),
+      parentReference: microsoft_graph_itemReference,
       webUrl: z
         .string()
         .describe(
           'URL that either displays the resource in the browser (for Office file formats), or is a direct link to the file (for other formats). Read-only.'
         )
         .nullable(),
-      createdByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who created the item. Read-only.'),
-      lastModifiedByUser: z
-        .union([microsoft_graph_user, z.object({}).partial().strict()])
-        .describe('Identity of the user who last modified the item. Read-only.'),
-      audio: z
-        .union([microsoft_graph_audio, z.object({}).partial().strict()])
-        .describe(
-          'Audio metadata, if the item is an audio file. Read-only. Read-only. Only on OneDrive Personal.'
-        ),
-      bundle: z
-        .union([microsoft_graph_bundle, z.object({}).partial().strict()])
-        .describe('Bundle metadata, if the item is a bundle. Read-only.'),
+      createdByUser: microsoft_graph_user.describe('Represents a Microsoft Entra user account.'),
+      lastModifiedByUser: microsoft_graph_user.describe(
+        'Represents a Microsoft Entra user account.'
+      ),
+      audio: microsoft_graph_audio,
+      bundle: microsoft_graph_bundle,
       content: z.string().describe('The content stream, if the item represents a file.').nullable(),
       cTag: z
         .string()
@@ -21260,97 +19102,37 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
           "An eTag for the content of the item. This eTag isn't changed if only the metadata is changed. Note This property isn't returned if the item is a folder. Read-only."
         )
         .nullable(),
-      deleted: z
-        .union([microsoft_graph_deleted, z.object({}).partial().strict()])
-        .describe('Information about the deleted state of the item. Read-only.'),
-      file: z
-        .union([microsoft_graph_file, z.object({}).partial().strict()])
-        .describe('File metadata, if the item is a file. Read-only.'),
-      fileSystemInfo: z
-        .union([microsoft_graph_fileSystemInfo, z.object({}).partial().strict()])
-        .describe('File system information on client. Read-write.'),
-      folder: z
-        .union([microsoft_graph_folder, z.object({}).partial().strict()])
-        .describe('Folder metadata, if the item is a folder. Read-only.'),
-      image: z
-        .union([microsoft_graph_image, z.object({}).partial().strict()])
-        .describe('Image metadata, if the item is an image. Read-only.'),
-      location: z
-        .union([microsoft_graph_geoCoordinates, z.object({}).partial().strict()])
-        .describe('Location metadata, if the item has location data. Read-only.'),
-      malware: z
-        .union([microsoft_graph_malware, z.object({}).partial().strict()])
-        .describe('Malware metadata, if the item was detected to contain malware. Read-only.'),
-      package: z
-        .union([microsoft_graph_package, z.object({}).partial().strict()])
-        .describe(
-          'If present, indicates that this item is a package instead of a folder or file. Packages are treated like files in some contexts and folders in others. Read-only.'
-        ),
-      pendingOperations: z
-        .union([microsoft_graph_pendingOperations, z.object({}).partial().strict()])
-        .describe(
-          'If present, indicates that one or more operations that might affect the state of the driveItem are pending completion. Read-only.'
-        ),
-      photo: z
-        .union([microsoft_graph_photo, z.object({}).partial().strict()])
-        .describe('Photo metadata, if the item is a photo. Read-only.'),
-      publication: z
-        .union([microsoft_graph_publicationFacet, z.object({}).partial().strict()])
-        .describe(
-          "Provides information about the published or checked-out state of an item, in locations that support such actions. This property isn't returned by default. Read-only."
-        ),
-      remoteItem: z
-        .union([microsoft_graph_remoteItem, z.object({}).partial().strict()])
-        .describe(
-          'Remote item data, if the item is shared from a drive other than the one being accessed. Read-only.'
-        ),
-      root: z
-        .union([microsoft_graph_root, z.object({}).partial().strict()])
-        .describe(
-          'If this property is non-null, it indicates that the driveItem is the top-most driveItem in the drive.'
-        ),
-      searchResult: z
-        .union([microsoft_graph_searchResult, z.object({}).partial().strict()])
-        .describe('Search metadata, if the item is from a search result. Read-only.'),
-      shared: z
-        .union([microsoft_graph_shared, z.object({}).partial().strict()])
-        .describe(
-          'Indicates that the item was shared with others and provides information about the shared state of the item. Read-only.'
-        ),
-      sharepointIds: z
-        .union([microsoft_graph_sharepointIds, z.object({}).partial().strict()])
-        .describe('Returns identifiers useful for SharePoint REST compatibility. Read-only.'),
+      deleted: microsoft_graph_deleted,
+      file: microsoft_graph_file,
+      fileSystemInfo: microsoft_graph_fileSystemInfo,
+      folder: microsoft_graph_folder,
+      image: microsoft_graph_image,
+      location: microsoft_graph_geoCoordinates,
+      malware: microsoft_graph_malware,
+      package: microsoft_graph_package,
+      pendingOperations: microsoft_graph_pendingOperations,
+      photo: microsoft_graph_photo,
+      publication: microsoft_graph_publicationFacet,
+      remoteItem: microsoft_graph_remoteItem,
+      root: microsoft_graph_root,
+      searchResult: microsoft_graph_searchResult,
+      shared: microsoft_graph_shared,
+      sharepointIds: microsoft_graph_sharepointIds,
       size: z.number().describe('Size of the item in bytes. Read-only.').nullable(),
-      specialFolder: z
-        .union([microsoft_graph_specialFolder, z.object({}).partial().strict()])
-        .describe(
-          'If the current item is also available as a special folder, this facet is returned. Read-only.'
-        ),
-      video: z
-        .union([microsoft_graph_video, z.object({}).partial().strict()])
-        .describe('Video metadata, if the item is a video. Read-only.'),
+      specialFolder: microsoft_graph_specialFolder,
+      video: microsoft_graph_video,
       webDavUrl: z.string().describe('WebDAV compatible URL for the item.').nullable(),
-      analytics: z
-        .union([microsoft_graph_itemAnalytics, z.object({}).partial().strict()])
-        .describe('Analytics about the view activities that took place on this item.'),
+      analytics: microsoft_graph_itemAnalytics,
       children: z
         .array(microsoft_graph_driveItem)
         .describe(
           'Collection containing Item objects for the immediate children of Item. Only items representing folders have children. Read-only. Nullable.'
         ),
-      listItem: z
-        .union([microsoft_graph_listItem, z.object({}).partial().strict()])
-        .describe(
-          'For drives in SharePoint, the associated document library list item. Read-only. Nullable.'
-        ),
+      listItem: microsoft_graph_listItem,
       permissions: z
         .array(microsoft_graph_permission)
         .describe('The set of permissions for the item. Read-only. Nullable.'),
-      retentionLabel: z
-        .union([microsoft_graph_itemRetentionLabel, z.object({}).partial().strict()])
-        .describe(
-          'Information about retention label and settings enforced on the driveItem. Read-write.'
-        ),
+      retentionLabel: microsoft_graph_itemRetentionLabel,
       subscriptions: z
         .array(microsoft_graph_subscription)
         .describe('The set of subscriptions on the item. Only supported on the root of a drive.'),
@@ -21364,11 +19146,7 @@ const microsoft_graph_driveItem: z.ZodType<microsoft_graph_driveItem> = z.lazy((
         .describe(
           'The list of previous versions of the item. For more info, see getting previous versions. Read-only. Nullable.'
         ),
-      workbook: z
-        .union([microsoft_graph_workbook, z.object({}).partial().strict()])
-        .describe(
-          "For files that are Excel spreadsheets, access to the workbook API to work with the spreadsheet's contents. Nullable."
-        ),
+      workbook: microsoft_graph_workbook,
     })
     .partial()
     .strict()
@@ -21509,15 +19287,9 @@ const microsoft_graph_workbookRangeFormat = z
     borders: z
       .array(microsoft_graph_workbookRangeBorder)
       .describe('Collection of border objects that apply to the overall range selected Read-only.'),
-    fill: z
-      .union([microsoft_graph_workbookRangeFill, z.object({}).partial().strict()])
-      .describe('Returns the fill object defined on the overall range. Read-only.'),
-    font: z
-      .union([microsoft_graph_workbookRangeFont, z.object({}).partial().strict()])
-      .describe('Returns the font object defined on the overall range selected Read-only.'),
-    protection: z
-      .union([microsoft_graph_workbookFormatProtection, z.object({}).partial().strict()])
-      .describe('Returns the format protection object for a range. Read-only.'),
+    fill: microsoft_graph_workbookRangeFill,
+    font: microsoft_graph_workbookRangeFont,
+    protection: microsoft_graph_workbookFormatProtection,
   })
   .partial()
   .strict();
@@ -21602,17 +19374,9 @@ const microsoft_graph_workbookRange = z
       .describe(
         'Represents the type of data of each cell. The possible values are: Unknown, Empty, String, Integer, Double, Boolean, Error. Read-only.'
       ),
-    format: z
-      .union([microsoft_graph_workbookRangeFormat, z.object({}).partial().strict()])
-      .describe(
-        "Returns a format object, encapsulating the range's font, fill, borders, alignment, and other properties. Read-only."
-      ),
-    sort: z
-      .union([microsoft_graph_workbookRangeSort, z.object({}).partial().strict()])
-      .describe('The worksheet containing the current range. Read-only.'),
-    worksheet: z
-      .union([microsoft_graph_workbookWorksheet, z.object({}).partial().strict()])
-      .describe('The worksheet containing the current range. Read-only.'),
+    format: microsoft_graph_workbookRangeFormat,
+    sort: microsoft_graph_workbookRangeSort,
+    worksheet: microsoft_graph_workbookWorksheet,
   })
   .partial()
   .strict();
@@ -22479,7 +20243,7 @@ const endpoints = makeApi([
       {
         status: NaN,
         description: `Success`,
-        schema: z.union([microsoft_graph_workbookChart, z.object({}).partial().strict()]),
+        schema: microsoft_graph_workbookChart,
       },
       {
         status: NaN,
@@ -22573,7 +20337,7 @@ const endpoints = makeApi([
       {
         status: NaN,
         description: `Success`,
-        schema: z.union([microsoft_graph_workbookRange, z.object({}).partial().strict()]),
+        schema: microsoft_graph_workbookRange,
       },
       {
         status: NaN,
@@ -23161,8 +20925,13 @@ get the instances of an event. Currently, this operation returns event bodies in
     method: 'post',
     path: '/me/events',
     alias: 'create-calendar-event',
-    description: `Create one or more multi-value extended properties in a new or existing instance of a resource. The following user resources are supported: The following group resources are supported: See Extended properties overview for more information about when to use
-open extensions or extended properties, and how to specify extended properties.`,
+    description: `Create an event in the user&#x27;s default calendar or specified calendar. By default, the allowNewTimeProposals property is set to true when an event is created, which means invitees can propose a different date/time for the event. See Propose new meeting times for more information on how to propose a time, and how to receive and accept a new time proposal. You can specify the time zone for each of the start and end times of the event as part of their values, because the
+start and end properties are of dateTimeTimeZone type. First find the supported time zones to make sure you set only time zones that have been configured for the user&#x27;s mailbox server. When an event is sent, the server sends invitations to all the attendees. Setting the location in an event An Exchange administrator can set up a mailbox and an email address for a resource such as a meeting room, or equipment
+like a projector. Users can then invite the resource as an attendee to a meeting. On behalf of the resource, the server accepts or rejects
+the meeting request based on the free/busy schedule of the resource.
+If the server accepts a meeting for the resource, it creates an event for the meeting in the resource&#x27;s calendar. If the meeting is rescheduled,
+the server automatically updates the event in the resource&#x27;s calendar. Another advantage of setting up a mailbox for a resource is to control scheduling of the resource, for example, only executives
+or their delegates can book a private meeting room. If you&#x27;re organizing an event that involves a meeting location: Additionally, if the meeting location has been set up as a resource, or if the event involves some equipment that has been set up as a resource:`,
     requestFormat: 'json',
     parameters: [
       {
@@ -23431,7 +21200,7 @@ open extensions or extended properties, and how to specify extended properties.`
     method: 'get',
     path: '/me/messages',
     alias: 'list-mail-messages',
-    description: `Get the messages in the signed-in user&#x27;s mailbox (including the Deleted Items and Clutter folders). Depending on the page size and mailbox data, getting messages from a mailbox can incur multiple requests. The default page size is 10 messages. Use $top to customize the page size, within the range of 1 and 1000. To improve the operation response time, use $select to specify the exact properties you need; see example 1 below. Fine-tune the values for $select and $top, especially when you must use a larger page size, as returning a page with hundreds of messages each with a full response payload may trigger the gateway timeout (HTTP 504). To get the next page of messages, simply apply the entire URL returned in @odata.nextLink to the next get-messages request. This URL includes any query parameters you may have specified in the initial request. Do not try to extract the $skip value from the @odata.nextLink URL to manipulate responses. This API uses the $skip value to keep count of all the items it has gone through in the user&#x27;s mailbox to return a page of message-type items. It&#x27;s therefore possible that even in the initial response, the $skip value is larger than the page size. For more information, see Paging Microsoft Graph data in your app. Currently, this operation returns message bodies in only HTML format. There are two scenarios where an app can get messages in another user&#x27;s mail folder:`,
+    description: `Get an open extension (openTypeExtension object) identified by name or fully qualified name. The table in the Permissions section lists the resources that support open extensions. The following table lists the three scenarios where you can get an open extension from a supported resource instance.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -23540,7 +21309,7 @@ open extensions or extended properties, and how to specify extended properties.`
     method: 'delete',
     path: '/me/messages/:messageId',
     alias: 'delete-mail-message',
-    description: `Delete a message in the specified user&#x27;s mailbox, or delete a relationship of the message.`,
+    description: `Delete eventMessage.`,
     requestFormat: 'json',
     parameters: [
       {

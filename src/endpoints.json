@@ -3,373 +3,281 @@
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "get",
     "toolName": "get-mail-message",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/sendMail",
     "method": "post",
     "toolName": "send-mail",
-    "scopes": [
-      "Mail.Send"
-    ]
+    "scopes": ["Mail.Send"]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
-    "scopes": [
-      "Calendars.Read"
-    ]
+    "scopes": ["Calendars.Read"]
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
-    "scopes": [
-      "Calendars.Read"
-    ]
+    "scopes": ["Calendars.Read"]
   },
   {
     "pathPattern": "/me/events",
     "method": "post",
     "toolName": "create-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ]
+    "scopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "patch",
     "toolName": "update-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ]
+    "scopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "delete",
     "toolName": "delete-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ]
+    "scopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
-    "scopes": [
-      "Calendars.Read"
-    ]
+    "scopes": ["Calendars.Read"]
   },
   {
     "pathPattern": "/me/calendars",
     "method": "get",
     "toolName": "list-calendars",
-    "scopes": [
-      "Calendars.Read"
-    ]
+    "scopes": ["Calendars.Read"]
   },
   {
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-root-folder",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format",
     "method": "patch",
     "toolName": "format-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
     "method": "patch",
     "toolName": "sort-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
     "method": "get",
     "toolName": "get-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets",
     "method": "get",
     "toolName": "list-excel-worksheets",
     "isExcelOp": true,
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/me/onenote/notebooks",
     "method": "get",
     "toolName": "list-onenote-notebooks",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-onenote-notebook-sections",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-onenote-section-pages",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
-    "scopes": [
-      "Notes.Create"
-    ]
+    "scopes": ["Notes.Create"]
   },
   {
     "pathPattern": "/me/todo/lists",
     "method": "get",
     "toolName": "list-todo-task-lists",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "get",
     "toolName": "get-todo-task",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "post",
     "toolName": "create-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "patch",
     "toolName": "update-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "delete",
     "toolName": "delete-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/planner/tasks",
     "method": "get",
     "toolName": "list-planner-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}",
     "method": "get",
     "toolName": "get-planner-plan",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}/tasks",
     "method": "get",
     "toolName": "list-plan-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "get",
     "toolName": "get-planner-task",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/tasks",
     "method": "post",
     "toolName": "create-planner-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
-    "scopes": [
-      "Contacts.Read"
-    ]
+    "scopes": ["Contacts.Read"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "get",
     "toolName": "get-outlook-contact",
-    "scopes": [
-      "Contacts.Read"
-    ]
+    "scopes": ["Contacts.Read"]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "post",
     "toolName": "create-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "patch",
     "toolName": "update-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "delete",
     "toolName": "delete-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me",
     "method": "get",
     "toolName": "get-current-user",
-    "scopes": [
-      "User.Read"
-    ]
+    "scopes": ["User.Read"]
   }
 ]

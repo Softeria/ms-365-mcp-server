@@ -45,10 +45,7 @@ Edit the config file under Settings > Developer:
   "mcpServers": {
     "ms365": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@softeria/ms-365-mcp-server"
-      ]
+      "args": ["-y", "@softeria/ms-365-mcp-server"]
     }
   }
 }
@@ -74,13 +71,13 @@ The server supports two authentication methods:
 For interactive authentication via device code:
 
 - **MCP client login**:
-    - Call the `login` tool (auto-checks existing token)
-    - If needed, get URL+code, visit in browser
-    - Use `verify-login` tool to confirm
+  - Call the `login` tool (auto-checks existing token)
+  - If needed, get URL+code, visit in browser
+  - Use `verify-login` tool to confirm
 - **CLI login**:
-   ```bash
-   npx @softeria/ms-365-mcp-server --login
-   ```
+  ```bash
+  npx @softeria/ms-365-mcp-server --login
+  ```
   Follow the URL and code prompt in the terminal.
 
 Tokens are cached securely in your OS credential store (fallback to file).

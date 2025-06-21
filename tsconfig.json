@@ -7,10 +7,6 @@
     "strict": true,
     "resolveJsonModule": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "test/**/*"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["test/**/*"]
 }

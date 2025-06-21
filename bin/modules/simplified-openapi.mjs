@@ -34,6 +34,11 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
     flattenComplexSchemasRecursively(openApiSpec.components.schemas);
   }
 
+  if (openApiSpec.paths) {
+    removeODataTypeRecursively(openApiSpec.paths);
+    simplifyAnyOfInPaths(openApiSpec.paths);
+  }
+
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
 }
 
@@ -146,13 +151,35 @@ function flattenComplexSchemasRecursively(schemas) {
       }
     }
 
-    if (schema.anyOf && Array.isArray(schema.anyOf) && schema.anyOf.length > 2) {
-      console.log(`Simplifying anyOf in ${schemaName} (${schema.anyOf.length} -> 1 option)`);
-      const simplified = { ...schema.anyOf[0] };
-      simplified.nullable = true;
-      simplified.description = `Simplified from ${schema.anyOf.length} anyOf options`;
-      schemas[schemaName] = simplified;
-      flattenedCount++;
+    if (schema.anyOf && Array.isArray(schema.anyOf)) {
+      if (schema.anyOf.length === 2) {
+        const hasRef = schema.anyOf.some((item) => item.$ref);
+        const hasNullableObject = schema.anyOf.some(
+          (item) =>
+            item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+        );
+
+        if (hasRef && hasNullableObject) {
+          console.log(`Simplifying anyOf in ${schemaName} (ref + nullable object pattern)`);
+          const refItem = schema.anyOf.find((item) => item.$ref);
+          const simplified = { ...refItem };
+          simplified.nullable = true;
+          Object.keys(schema).forEach((key) => {
+            if (!['anyOf'].includes(key) && !simplified[key]) {
+              simplified[key] = schema[key];
+            }
+          });
+          schemas[schemaName] = simplified;
+          flattenedCount++;
+        }
+      } else if (schema.anyOf.length > 2) {
+        console.log(`Simplifying anyOf in ${schemaName} (${schema.anyOf.length} -> 1 option)`);
+        const simplified = { ...schema.anyOf[0] };
+        simplified.nullable = true;
+        simplified.description = `Simplified from ${schema.anyOf.length} anyOf options`;
+        schemas[schemaName] = simplified;
+        flattenedCount++;
+      }
     }
 
     if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 2) {
@@ -197,7 +224,111 @@ function flattenComplexSchemasRecursively(schemas) {
     }
   });
 
+  Object.keys(schemas).forEach((schemaName) => {
+    const schema = schemas[schemaName];
+    if (schema.properties) {
+      Object.keys(schema.properties).forEach((propName) => {
+        const prop = schema.properties[propName];
+        if (prop && prop.anyOf && Array.isArray(prop.anyOf) && prop.anyOf.length === 2) {
+          const hasRef = prop.anyOf.some((item) => item.$ref);
+          const hasNullableObject = prop.anyOf.some(
+            (item) =>
+              item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+          );
+
+          if (hasRef && hasNullableObject) {
+            console.log(
+              `Simplifying anyOf in ${schemaName}.${propName} (ref + nullable object pattern)`
+            );
+            const refItem = prop.anyOf.find((item) => item.$ref);
+            delete prop.anyOf;
+            prop.$ref = refItem.$ref;
+            prop.nullable = true;
+            flattenedCount++;
+          }
+        }
+      });
+    }
+  });
+
   console.log(`Flattened ${flattenedCount} complex schemas`);
+}
+
+function simplifyAnyOfInPaths(paths) {
+  console.log('Simplifying anyOf patterns in API paths...');
+  let simplifiedCount = 0;
+
+  Object.keys(paths).forEach((path) => {
+    const pathItem = paths[path];
+    Object.keys(pathItem).forEach((method) => {
+      const operation = pathItem[method];
+      if (operation && typeof operation === 'object') {
+        if (operation.responses) {
+          Object.keys(operation.responses).forEach((statusCode) => {
+            const response = operation.responses[statusCode];
+            if (response && response.content) {
+              Object.keys(response.content).forEach((contentType) => {
+                const mediaType = response.content[contentType];
+                if (mediaType && mediaType.schema) {
+                  simplifiedCount += simplifyAnyOfPattern(
+                    mediaType.schema,
+                    `${path}.${method}.${statusCode}`
+                  );
+                }
+              });
+            }
+          });
+        }
+
+        if (operation.requestBody && operation.requestBody.content) {
+          Object.keys(operation.requestBody.content).forEach((contentType) => {
+            const mediaType = operation.requestBody.content[contentType];
+            if (mediaType && mediaType.schema) {
+              simplifiedCount += simplifyAnyOfPattern(
+                mediaType.schema,
+                `${path}.${method}.requestBody`
+              );
+            }
+          });
+        }
+      }
+    });
+  });
+
+  console.log(`Simplified ${simplifiedCount} anyOf patterns in paths`);
+}
+
+function simplifyAnyOfPattern(obj, context = '') {
+  let count = 0;
+
+  if (!obj || typeof obj !== 'object') return count;
+
+  if (obj.anyOf && Array.isArray(obj.anyOf) && obj.anyOf.length === 2) {
+    const hasRef = obj.anyOf.some((item) => item.$ref);
+    const hasNullableObject = obj.anyOf.some(
+      (item) => item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+    );
+
+    if (hasRef && hasNullableObject) {
+      console.log(`Simplifying anyOf in ${context} (ref + nullable object pattern)`);
+      const refItem = obj.anyOf.find((item) => item.$ref);
+      Object.keys(obj).forEach((key) => {
+        if (key !== 'anyOf') delete obj[key];
+      });
+      Object.assign(obj, refItem);
+      obj.nullable = true;
+      delete obj.anyOf;
+      count++;
+    }
+  }
+
+  Object.keys(obj).forEach((key) => {
+    if (typeof obj[key] === 'object' && obj[key] !== null) {
+      count += simplifyAnyOfPattern(obj[key], context ? `${context}.${key}` : key);
+    }
+  });
+
+  return count;
 }
 
 function simplifyNestedPropertiesRecursively(properties, currentDepth, maxDepth) {
@@ -219,12 +350,28 @@ function simplifyNestedPropertiesRecursively(properties, currentDepth, maxDepth)
         simplifyNestedPropertiesRecursively(prop.properties, currentDepth + 1, maxDepth);
       }
 
-      if (prop.anyOf && Array.isArray(prop.anyOf) && prop.anyOf.length > 2) {
-        prop.type = prop.anyOf[0].type || 'object';
-        prop.nullable = true;
-        prop.description =
-          `${prop.description || ''} [Simplified from ${prop.anyOf.length} options]`.trim();
-        delete prop.anyOf;
+      if (prop.anyOf && Array.isArray(prop.anyOf)) {
+        if (prop.anyOf.length === 2) {
+          const hasRef = prop.anyOf.some((item) => item.$ref);
+          const hasNullableObject = prop.anyOf.some(
+            (item) =>
+              item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+          );
+
+          if (hasRef && hasNullableObject) {
+            console.log(`Simplifying anyOf in property ${key} (ref + nullable object pattern)`);
+            const refItem = prop.anyOf.find((item) => item.$ref);
+            delete prop.anyOf;
+            prop.$ref = refItem.$ref;
+            prop.nullable = true;
+          }
+        } else if (prop.anyOf.length > 2) {
+          prop.type = prop.anyOf[0].type || 'object';
+          prop.nullable = true;
+          prop.description =
+            `${prop.description || ''} [Simplified from ${prop.anyOf.length} options]`.trim();
+          delete prop.anyOf;
+        }
       }
 
       if (prop.oneOf && Array.isArray(prop.oneOf) && prop.oneOf.length > 2) {
