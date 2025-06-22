@@ -98,14 +98,7 @@ This mode:
 - Validates tokens with Microsoft Graph API
 - **Disables** login/logout tools by default (use `--enable-auth-tools` to enable them)
 
-MCP clients will automatically handle the OAuth flow when they see the advertised capabilities. For manual testing:
-
-```bash
-curl -X POST http://localhost:3000/mcp \
-  -H "Authorization: Bearer YOUR_MICROSOFT_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc": "2.0", "method": "initialize", "params": {"protocolVersion": "1.0.0", "capabilities": {}}, "id": 1}'
-```
+MCP clients will automatically handle the OAuth flow when they see the advertised capabilities.
 
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
 >
