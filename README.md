@@ -4,7 +4,7 @@
 
 Microsoft 365 MCP Server
 
-A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API.
+A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Microsoft Office services through the Graph API.
 
 ## Prerequisites
 
