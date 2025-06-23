@@ -62,7 +62,6 @@ class MicrosoftGraphServer {
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager);
 
       app.use(
-        '/auth',
         mcpAuthRouter({
           provider: oauthProvider,
           issuerUrl: new URL(`http://localhost:${port}`),
