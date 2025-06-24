@@ -384,5 +384,89 @@
     "toolName": "reply-to-chat-message",
     "scopes": ["ChatMessage.Send"],
     "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites",
+    "method": "get",
+    "toolName": "search-sharepoint-sites",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/drives",
+    "method": "get",
+    "toolName": "list-sharepoint-site-drives",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/drives/{drive-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-drive-by-id",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/items",
+    "method": "get",
+    "toolName": "list-sharepoint-site-items",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-item",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists",
+    "method": "get",
+    "toolName": "list-sharepoint-site-lists",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-list",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
+    "method": "get",
+    "toolName": "list-sharepoint-site-list-items",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-list-item",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
+    "method": "get",
+    "toolName": "get-sharepoint-site-by-path",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
+  },
+  {
+    "pathPattern": "/sites/delta()",
+    "method": "get",
+    "toolName": "get-sharepoint-sites-delta",
+    "scopes": ["Sites.Read.All"],
+    "requiresWorkAccount": true
   }
 ]
