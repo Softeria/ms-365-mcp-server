@@ -96,6 +96,13 @@ export function registerGraphTools(
       }
     }
 
+    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/')) {
+      paramSchema['fetchAllPages'] = z
+        .boolean()
+        .describe('Automatically fetch all pages of results')
+        .optional();
+    }
+
     server.tool(
       tool.alias,
       tool.description ?? '',
@@ -116,6 +123,11 @@ export function registerGraphTools(
           const headers: Record<string, string> = {};
           let body: any = null;
           for (let [paramName, paramValue] of Object.entries(params)) {
+            // Skip pagination control parameter - it's not part of the Microsoft Graph API - I think 🤷
+            if (paramName === 'fetchAllPages') {
+              continue;
+            }
+
             // Ok, so, MCP clients (such as claude code) doesn't support $ in parameter names,
             // and others might not support __, so we strip them in hack.ts and restore them here
             const odataParams = [
@@ -201,7 +213,62 @@ export function registerGraphTools(
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
-          const response = await graphClient.graphRequest(path, options);
+          let response = await graphClient.graphRequest(path, options);
+
+          const fetchAllPages = params.fetchAllPages === true;
+          if (fetchAllPages && response && response.content && response.content.length > 0) {
+            try {
+              let combinedResponse = JSON.parse(response.content[0].text);
+              let allItems = combinedResponse.value || [];
+              let nextLink = combinedResponse['@odata.nextLink'];
+              let pageCount = 1;
+
+              while (nextLink) {
+                logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
+
+                const url = new URL(nextLink);
+                const nextPath = url.pathname.replace('/v1.0', '');
+                const nextOptions = { ...options };
+
+                const nextQueryParams: Record<string, string> = {};
+                for (const [key, value] of url.searchParams.entries()) {
+                  nextQueryParams[key] = value;
+                }
+                nextOptions.queryParams = nextQueryParams;
+
+                const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
+                if (nextResponse && nextResponse.content && nextResponse.content.length > 0) {
+                  const nextJsonResponse = JSON.parse(nextResponse.content[0].text);
+                  if (nextJsonResponse.value && Array.isArray(nextJsonResponse.value)) {
+                    allItems = allItems.concat(nextJsonResponse.value);
+                  }
+                  nextLink = nextJsonResponse['@odata.nextLink'];
+                  pageCount++;
+
+                  if (pageCount > 100) {
+                    logger.warn(`Reached maximum page limit (100) for pagination`);
+                    break;
+                  }
+                } else {
+                  break;
+                }
+              }
+
+              combinedResponse.value = allItems;
+              if (combinedResponse['@odata.count']) {
+                combinedResponse['@odata.count'] = allItems.length;
+              }
+              delete combinedResponse['@odata.nextLink'];
+
+              response.content[0].text = JSON.stringify(combinedResponse);
+
+              logger.info(
+                `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
+              );
+            } catch (e) {
+              logger.error(`Error during pagination: ${e}`);
+            }
+          }
 
           if (response && response.content && response.content.length > 0) {
             const responseText = response.content[0].text;
