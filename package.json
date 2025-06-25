@@ -8,7 +8,7 @@
     "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/index.ts",
