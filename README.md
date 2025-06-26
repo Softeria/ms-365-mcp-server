@@ -4,7 +4,8 @@
 
 Microsoft 365 MCP Server
 
-A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Microsoft Office services through the Graph API.
+A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Microsoft Office services through the Graph
+API.
 
 ## Prerequisites
 
@@ -13,14 +14,65 @@ A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Mic
 ## Features
 
 - Authentication via Microsoft Authentication Library (MSAL)
-- Excel file operations
-- Calendar event management
-- Mail operations
-- OneDrive file management
-- OneNote notebooks and pages
-- To Do tasks and task lists
-- Planner plans and tasks
-- Outlook contacts
+- Comprehensive Microsoft 365 service integration
+- Read-only mode support for safe operations
+- Tool filtering for granular access control
+
+## Supported Services & Tools
+
+#### Email (Outlook)
+
+`list-mail-messages`, `list-mail-folders`, `list-mail-folder-messages`, `get-mail-message`, `send-mail`,
+`delete-mail-message`
+
+### Calendar
+
+`list-calendars`, `list-calendar-events`, `get-calendar-event`, `get-calendar-view`, `create-calendar-event`,
+`update-calendar-event`, `delete-calendar-event`
+
+### OneDrive & SharePoint Files
+
+`list-drives`, `get-drive-root-item`, `list-folder-files`, `download-onedrive-file-content`, `upload-file-content`,
+`upload-new-file`, `delete-onedrive-file`
+
+### Excel Operations
+
+`list-excel-worksheets`, `get-excel-range`, `create-excel-chart`, `format-excel-range`, `sort-excel-range`
+
+### OneNote
+
+`list-onenote-notebooks`, `list-onenote-notebook-sections`, `list-onenote-section-pages`, `get-onenote-page-content`,
+`create-onenote-page`
+
+### To Do Tasks
+
+`list-todo-task-lists`, `list-todo-tasks`, `get-todo-task`, `create-todo-task`, `update-todo-task`, `delete-todo-task`
+
+### Planner
+
+`list-planner-tasks`, `get-planner-plan`, `list-plan-tasks`, `get-planner-task`, `create-planner-task`
+
+### Contacts
+
+`list-outlook-contacts`, `get-outlook-contact`, `create-outlook-contact`, `update-outlook-contact`,
+`delete-outlook-contact`
+
+### Teams & Chats (Work/School accounts only)
+
+`list-chats`, `get-chat`, `list-chat-messages`, `get-chat-message`, `send-chat-message`, `list-chat-message-replies`,
+`reply-to-chat-message`, `list-joined-teams`, `get-team`, `list-team-channels`, `get-team-channel`,
+`list-channel-messages`, `get-channel-message`, `send-channel-message`, `list-team-members`
+
+### SharePoint Sites (Work/School accounts only)
+
+`search-sharepoint-sites`, `get-sharepoint-site`, `get-sharepoint-site-by-path`, `list-sharepoint-site-drives`,
+`get-sharepoint-site-drive-by-id`, `list-sharepoint-site-items`, `get-sharepoint-site-item`,
+`list-sharepoint-site-lists`, `get-sharepoint-site-list`, `list-sharepoint-site-list-items`,
+`get-sharepoint-site-list-item`, `get-sharepoint-sites-delta`
+
+### User Profile
+
+`get-current-user`
 
 ## Quick Start Example
 
@@ -45,7 +97,10 @@ Edit the config file under Settings > Developer:
   "mcpServers": {
     "ms365": {
       "command": "npx",
-      "args": ["-y", "@softeria/ms-365-mcp-server"]
+      "args": [
+        "-y",
+        "@softeria/ms-365-mcp-server"
+      ]
     }
   }
 }
@@ -71,9 +126,9 @@ The server supports two authentication methods:
 For interactive authentication via device code:
 
 - **MCP client login**:
-  - Call the `login` tool (auto-checks existing token)
-  - If needed, get URL+code, visit in browser
-  - Use `verify-login` tool to confirm
+    - Call the `login` tool (auto-checks existing token)
+    - If needed, get URL+code, visit in browser
+    - Use `verify-login` tool to confirm
 - **CLI login**:
   ```bash
   npx @softeria/ms-365-mcp-server --login
