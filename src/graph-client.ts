@@ -93,7 +93,8 @@ class GraphClient {
         !endpoint.startsWith('/me') &&
         !endpoint.startsWith('/teams') &&
         !endpoint.startsWith('/chats') &&
-        !endpoint.startsWith('/planner')
+        !endpoint.startsWith('/planner') &&
+        !endpoint.startsWith('/sites')
       ) {
         sessionId = this.sessions.get(options.excelFile) || null;
 
@@ -108,7 +109,8 @@ class GraphClient {
         endpoint.startsWith('/me') ||
         endpoint.startsWith('/teams') ||
         endpoint.startsWith('/chats') ||
-        endpoint.startsWith('/planner')
+        endpoint.startsWith('/planner') ||
+        endpoint.startsWith('/sites')
       ) {
         url = `https://graph.microsoft.com/v1.0${endpoint}`;
       } else {
@@ -149,7 +151,8 @@ class GraphClient {
           !endpoint.startsWith('/me') &&
           !endpoint.startsWith('/teams') &&
           !endpoint.startsWith('/chats') &&
-          !endpoint.startsWith('/planner')
+          !endpoint.startsWith('/planner') &&
+          !endpoint.startsWith('/sites')
         ) {
           sessionId = await this.createSession(options.excelFile);
         }
@@ -162,7 +165,8 @@ class GraphClient {
           !endpoint.startsWith('/me') &&
           !endpoint.startsWith('/teams') &&
           !endpoint.startsWith('/chats') &&
-          !endpoint.startsWith('/planner')
+          !endpoint.startsWith('/planner') &&
+          !endpoint.startsWith('/sites')
         ) {
           headers['workbook-session-id'] = sessionId;
         }
