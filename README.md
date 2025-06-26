@@ -20,59 +20,38 @@ API.
 
 ## Supported Services & Tools
 
-#### Email (Outlook)
+**Email (Outlook)**  
+<sub>list-mail-messages, list-mail-folders, list-mail-folder-messages, get-mail-message, send-mail, delete-mail-message</sub>
 
-`list-mail-messages`, `list-mail-folders`, `list-mail-folder-messages`, `get-mail-message`, `send-mail`,
-`delete-mail-message`
+**Calendar**  
+<sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event, update-calendar-event, delete-calendar-event</sub>
 
-### Calendar
+**OneDrive & SharePoint Files**  
+<sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content, upload-new-file, delete-onedrive-file</sub>
 
-`list-calendars`, `list-calendar-events`, `get-calendar-event`, `get-calendar-view`, `create-calendar-event`,
-`update-calendar-event`, `delete-calendar-event`
+**Excel Operations**  
+<sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
 
-### OneDrive & SharePoint Files
+**OneNote**  
+<sub>list-onenote-notebooks, list-onenote-notebook-sections, list-onenote-section-pages, get-onenote-page-content, create-onenote-page</sub>
 
-`list-drives`, `get-drive-root-item`, `list-folder-files`, `download-onedrive-file-content`, `upload-file-content`,
-`upload-new-file`, `delete-onedrive-file`
+**To Do Tasks**  
+<sub>list-todo-task-lists, list-todo-tasks, get-todo-task, create-todo-task, update-todo-task, delete-todo-task</sub>
 
-### Excel Operations
+**Planner**  
+<sub>list-planner-tasks, get-planner-plan, list-plan-tasks, get-planner-task, create-planner-task</sub>
 
-`list-excel-worksheets`, `get-excel-range`, `create-excel-chart`, `format-excel-range`, `sort-excel-range`
+**Contacts**  
+<sub>list-outlook-contacts, get-outlook-contact, create-outlook-contact, update-outlook-contact, delete-outlook-contact</sub>
 
-### OneNote
+**Teams & Chats** (Work/School accounts only)  
+<sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies, reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages, get-channel-message, send-channel-message, list-team-members</sub>
 
-`list-onenote-notebooks`, `list-onenote-notebook-sections`, `list-onenote-section-pages`, `get-onenote-page-content`,
-`create-onenote-page`
+**SharePoint Sites** (Work/School accounts only)  
+<sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives, get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site-item, list-sharepoint-site-lists, get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item, get-sharepoint-sites-delta</sub>
 
-### To Do Tasks
-
-`list-todo-task-lists`, `list-todo-tasks`, `get-todo-task`, `create-todo-task`, `update-todo-task`, `delete-todo-task`
-
-### Planner
-
-`list-planner-tasks`, `get-planner-plan`, `list-plan-tasks`, `get-planner-task`, `create-planner-task`
-
-### Contacts
-
-`list-outlook-contacts`, `get-outlook-contact`, `create-outlook-contact`, `update-outlook-contact`,
-`delete-outlook-contact`
-
-### Teams & Chats (Work/School accounts only)
-
-`list-chats`, `get-chat`, `list-chat-messages`, `get-chat-message`, `send-chat-message`, `list-chat-message-replies`,
-`reply-to-chat-message`, `list-joined-teams`, `get-team`, `list-team-channels`, `get-team-channel`,
-`list-channel-messages`, `get-channel-message`, `send-channel-message`, `list-team-members`
-
-### SharePoint Sites (Work/School accounts only)
-
-`search-sharepoint-sites`, `get-sharepoint-site`, `get-sharepoint-site-by-path`, `list-sharepoint-site-drives`,
-`get-sharepoint-site-drive-by-id`, `list-sharepoint-site-items`, `get-sharepoint-site-item`,
-`list-sharepoint-site-lists`, `get-sharepoint-site-list`, `list-sharepoint-site-list-items`,
-`get-sharepoint-site-list-item`, `get-sharepoint-sites-delta`
-
-### User Profile
-
-`get-current-user`
+**User Profile**  
+<sub>get-current-user</sub>
 
 ## Quick Start Example
 
