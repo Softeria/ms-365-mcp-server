@@ -42,6 +42,12 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}/move",
+    "method": "post",
+    "toolName": "move-mail-message",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
