@@ -106,6 +106,14 @@ function flattenComplexSchemasRecursively(schemas) {
         for (const subSchema of schema.allOf) {
           if (subSchema.$ref && subSchema.$ref.startsWith('#/components/schemas/')) {
             const refName = subSchema.$ref.replace('#/components/schemas/', '');
+            if (schemaName === 'microsoft.graph.attendee') {
+              console.log(
+                `Processing ref ${refName} for attendee, exists: ${!!schemas[refName]}, has properties: ${!!schemas[refName]?.properties}`
+              );
+              if (schemas[refName]?.properties) {
+                console.log(`Properties in ${refName}:`, Object.keys(schemas[refName].properties));
+              }
+            }
             if (schemas[refName] && schemas[refName].properties) {
               Object.assign(flattened.properties, schemas[refName].properties);
               if (schemas[refName].required) {
@@ -146,6 +154,21 @@ function flattenComplexSchemasRecursively(schemas) {
 
         schemas[schemaName] = flattened;
         flattenedCount++;
+
+        if (schemaName === 'microsoft.graph.attendee') {
+          console.log('Ensuring attendee has all required properties from attendeeBase');
+          const attendeeBase = schemas['microsoft.graph.attendeeBase'];
+          if (attendeeBase && attendeeBase.properties) {
+            if (!flattened.properties.emailAddress && attendeeBase.properties.emailAddress) {
+              flattened.properties.emailAddress = attendeeBase.properties.emailAddress;
+              console.log('Added emailAddress property to attendee');
+            }
+            if (!flattened.properties.type && attendeeBase.properties.type) {
+              flattened.properties.type = attendeeBase.properties.type;
+              console.log('Added type property to attendee');
+            }
+          }
+        }
       } catch (error) {
         console.warn(`Warning: Could not flatten schema ${schemaName}:`, error.message);
       }
@@ -252,6 +275,21 @@ function flattenComplexSchemasRecursively(schemas) {
   });
 
   console.log(`Flattened ${flattenedCount} complex schemas`);
+
+  console.log('Second pass: Fixing inheritance dependencies...');
+  if (schemas['microsoft.graph.attendee'] && schemas['microsoft.graph.attendeeBase']) {
+    const attendee = schemas['microsoft.graph.attendee'];
+    const attendeeBase = schemas['microsoft.graph.attendeeBase'];
+
+    if (!attendee.properties.emailAddress && attendeeBase.properties?.emailAddress) {
+      attendee.properties.emailAddress = attendeeBase.properties.emailAddress;
+      console.log('Fixed: Added emailAddress to attendee from attendeeBase');
+    }
+    if (!attendee.properties.type && attendeeBase.properties?.type) {
+      attendee.properties.type = attendeeBase.properties.type;
+      console.log('Fixed: Added type to attendee from attendeeBase');
+    }
+  }
 }
 
 function simplifyAnyOfInPaths(paths) {

@@ -263,6 +263,8 @@ type microsoft_graph_calendarRoleType =
 type microsoft_graph_attendee = Partial<{
   proposedNewTime: microsoft_graph_timeSlot;
   status: microsoft_graph_responseStatus;
+  emailAddress: microsoft_graph_emailAddress;
+  type: microsoft_graph_attendeeType;
 }>;
 type microsoft_graph_timeSlot = Partial<{
   end: microsoft_graph_dateTimeTimeZone;
@@ -3294,6 +3296,7 @@ type microsoft_graph_chat = Partial<{
   pinnedMessages: Array<microsoft_graph_pinnedChatMessageInfo>;
   tabs: Array<microsoft_graph_teamsTab>;
 }>;
+type microsoft_graph_attendeeType = 'required' | 'optional' | 'resource';
 type microsoft_graph_chatType = 'oneOnOne' | 'group' | 'meeting' | 'unknownFutureValue';
 type microsoft_graph_teamworkOnlineMeetingInfo = Partial<{
   calendarEventId: string | null;
@@ -6473,6 +6476,7 @@ type microsoft_graph_termStore_term = Partial<{
   set: microsoft_graph_termStore_set;
 }>;
 
+const microsoft_graph_attendeeType = z.enum(['required', 'optional', 'resource']);
 const microsoft_graph_chatType = z.enum(['oneOnOne', 'group', 'meeting', 'unknownFutureValue']);
 const microsoft_graph_teamworkUserIdentityType = z.enum([
   'aadUser',
@@ -9359,7 +9363,12 @@ const microsoft_graph_responseStatus = z
   .partial()
   .strict();
 const microsoft_graph_attendee = z
-  .object({ proposedNewTime: microsoft_graph_timeSlot, status: microsoft_graph_responseStatus })
+  .object({ 
+    proposedNewTime: microsoft_graph_timeSlot, 
+    status: microsoft_graph_responseStatus,
+    emailAddress: microsoft_graph_emailAddress,
+    type: microsoft_graph_attendeeType
+  })
   .partial()
   .strict();
 const microsoft_graph_importance = z.enum(['low', 'normal', 'high']);
@@ -19525,6 +19534,7 @@ const microsoft_graph_conversationMemberCollectionResponse = z
   .strict();
 
 export const schemas = {
+  microsoft_graph_attendeeType,
   microsoft_graph_chatType,
   microsoft_graph_teamworkUserIdentityType,
   microsoft_graph_teamworkUserIdentity,
