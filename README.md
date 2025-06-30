@@ -167,7 +167,7 @@ Environment variables:
 - `READ_ONLY=true|1`: Alternative to --read-only flag
 - `ENABLED_TOOLS`: Filter tools using regex pattern (alternative to --enabled-tools flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
-- `SILENT=true`: Disable console output
+- `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
 

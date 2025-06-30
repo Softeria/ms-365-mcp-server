@@ -35,7 +35,7 @@ export const enableConsoleLogging = (): void => {
   logger.add(
     new winston.transports.Console({
       format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
-      silent: process.env.SILENT === 'true',
+      silent: process.env.SILENT === 'true' || process.env.SILENT === '1',
     })
   );
 };
