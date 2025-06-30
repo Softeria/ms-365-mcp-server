@@ -30,6 +30,10 @@ program
   .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
+  )
+  .option(
+    '--force-work-scopes',
+    'Force inclusion of work account scopes during login (includes Teams, SharePoint, etc.)'
   );
 
 export interface CommandOptions {
@@ -41,6 +45,7 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
+  forceWorkScopes?: boolean;
 
   [key: string]: any;
 }
@@ -55,6 +60,13 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.ENABLED_TOOLS) {
     options.enabledTools = process.env.ENABLED_TOOLS;
+  }
+
+  if (
+    process.env.MS365_MCP_FORCE_WORK_SCOPES === 'true' ||
+    process.env.MS365_MCP_FORCE_WORK_SCOPES === '1'
+  ) {
+    options.forceWorkScopes = true;
   }
 
   return options;

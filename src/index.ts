@@ -5,12 +5,14 @@ import logger from './logger.js';
 import AuthManager from './auth.js';
 import MicrosoftGraphServer from './server.js';
 import { version } from './version.js';
+import { buildScopesFromEndpoints } from './auth.js';
 
 async function main(): Promise<void> {
   try {
     const args = parseArgs();
 
-    const authManager = new AuthManager();
+    const scopes = buildScopesFromEndpoints(args.forceWorkScopes);
+    const authManager = new AuthManager(undefined, scopes);
     await authManager.loadTokenCache();
 
     if (args.login) {

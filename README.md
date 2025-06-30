@@ -21,19 +21,23 @@ API.
 ## Supported Services & Tools
 
 **Email (Outlook)**  
-<sub>list-mail-messages, list-mail-folders, list-mail-folder-messages, get-mail-message, send-mail, delete-mail-message</sub>
+<sub>list-mail-messages, list-mail-folders, list-mail-folder-messages, get-mail-message, send-mail,
+delete-mail-message</sub>
 
 **Calendar**  
-<sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event, update-calendar-event, delete-calendar-event</sub>
+<sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event,
+update-calendar-event, delete-calendar-event</sub>
 
 **OneDrive & SharePoint Files**  
-<sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content, upload-new-file, delete-onedrive-file</sub>
+<sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content,
+upload-new-file, delete-onedrive-file</sub>
 
 **Excel Operations**  
 <sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
 
 **OneNote**  
-<sub>list-onenote-notebooks, list-onenote-notebook-sections, list-onenote-section-pages, get-onenote-page-content, create-onenote-page</sub>
+<sub>list-onenote-notebooks, list-onenote-notebook-sections, list-onenote-section-pages, get-onenote-page-content,
+create-onenote-page</sub>
 
 **To Do Tasks**  
 <sub>list-todo-task-lists, list-todo-tasks, get-todo-task, create-todo-task, update-todo-task, delete-todo-task</sub>
@@ -42,13 +46,19 @@ API.
 <sub>list-planner-tasks, get-planner-plan, list-plan-tasks, get-planner-task, create-planner-task</sub>
 
 **Contacts**  
-<sub>list-outlook-contacts, get-outlook-contact, create-outlook-contact, update-outlook-contact, delete-outlook-contact</sub>
+<sub>list-outlook-contacts, get-outlook-contact, create-outlook-contact, update-outlook-contact,
+delete-outlook-contact</sub>
 
 **Teams & Chats** (Work/School accounts only)  
-<sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies, reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages, get-channel-message, send-channel-message, list-team-members</sub>
+<sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies,
+reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages,
+get-channel-message, send-channel-message, list-team-members</sub>
 
 **SharePoint Sites** (Work/School accounts only)  
-<sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives, get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site-item, list-sharepoint-site-lists, get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item, get-sharepoint-sites-delta</sub>
+<sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives,
+get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site-item, list-sharepoint-site-lists,
+get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item,
+get-sharepoint-sites-delta</sub>
 
 **User Profile**  
 <sub>get-current-user</sub>
@@ -147,6 +157,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --login           Login using device code flow
 --logout          Log out and clear saved credentials
 --verify-login    Verify login without starting the server
+--force-work-scopes Force inclusion of work account scopes during login (includes Teams, SharePoint, etc.)
 ```
 
 ### Server Options
@@ -166,6 +177,7 @@ Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
 - `ENABLED_TOOLS`: Filter tools using regex pattern (alternative to --enabled-tools flag)
+- `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Force inclusion of work account scopes (alternative to --force-work-scopes flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
