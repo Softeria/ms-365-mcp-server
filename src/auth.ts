@@ -89,8 +89,10 @@ class AuthManager {
     this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
-    this.oauthToken = null;
-    this.isOAuthMode = false;
+
+    const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
+    this.oauthToken = oauthTokenFromEnv ?? null;
+    this.isOAuthMode = oauthTokenFromEnv != null;
   }
 
   async loadTokenCache(): Promise<void> {

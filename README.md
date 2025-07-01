@@ -108,7 +108,7 @@ integration method.
 
 > ⚠️ You must authenticate before using tools.
 
-The server supports two authentication methods:
+The server supports three authentication methods:
 
 #### 1. Device Code Flow (Default)
 
@@ -143,6 +143,19 @@ This mode:
 - **Disables** login/logout tools by default (use `--enable-auth-tools` to enable them)
 
 MCP clients will automatically handle the OAuth flow when they see the advertised capabilities.
+
+#### 3. Bring Your Own Token (BYOT)
+
+If you are running ms-365-mcp-server as part of a larger system that manages Microsoft OAuth tokens externally, you can provide an access token directly to this MCP server:
+
+```bash
+MS365_MCP_OAUTH_TOKEN=your_oauth_token npx @softeria/ms-365-mcp-server
+```
+
+This method:
+- Bypasses the interactive authentication flows
+- Uses your pre-existing OAuth token for Microsoft Graph API requests
+- Does not handle token refresh (token lifecycle management is your responsibility)
 
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
 >
@@ -182,6 +195,7 @@ Environment variables:
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
+- `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
 
 ## Support
 
