@@ -144,6 +144,35 @@ This mode:
 
 MCP clients will automatically handle the OAuth flow when they see the advertised capabilities.
 
+##### Setting up Azure AD for OAuth Testing
+
+To use OAuth mode with custom Azure credentials (recommended for production), you'll need to set up an Azure AD app registration:
+
+1. **Create Azure AD App Registration**:
+   - Go to [Azure Portal](https://portal.azure.com)
+   - Navigate to Azure Active Directory → App registrations → New registration
+   - Set name: "MS365 MCP Server"
+
+2. **Configure Redirect URIs**:
+   Add these redirect URIs for testing with MCP Inspector:
+   - `http://localhost:6274/oauth/callback`
+   - `http://localhost:6274/oauth/callback/debug`
+   - `http://localhost:3000/callback` (optional, for server callback)
+
+3. **Get Credentials**:
+   - Copy the **Application (client) ID** from Overview page
+   - Go to Certificates & secrets → New client secret → Copy the secret value
+
+4. **Configure Environment Variables**:
+   Create a `.env` file in your project root:
+   ```env
+   MS365_MCP_CLIENT_ID=your-azure-ad-app-client-id-here
+   MS365_MCP_CLIENT_SECRET=your-azure-ad-app-client-secret-here
+   MS365_MCP_TENANT_ID=common
+   ```
+
+With these configured, the server will use your custom Azure app instead of the built-in one.
+
 #### 3. Bring Your Own Token (BYOT)
 
 If you are running ms-365-mcp-server as part of a larger system that manages Microsoft OAuth tokens externally, you can provide an access token directly to this MCP server:
