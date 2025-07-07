@@ -12,7 +12,18 @@ async function main(): Promise<void> {
   try {
     const args = parseArgs();
 
-    const scopes = buildScopesFromEndpoints(args.forceWorkScopes);
+    let includeWorkScopes = args.forceWorkScopes;
+    if (!includeWorkScopes) {
+      const tempAuthManager = new AuthManager(undefined, buildScopesFromEndpoints(false));
+      await tempAuthManager.loadTokenCache();
+      const hasWorkPermissions = await tempAuthManager.hasWorkAccountPermissions();
+      if (hasWorkPermissions) {
+        includeWorkScopes = true;
+        logger.info('Detected existing work account permissions, including work scopes');
+      }
+    }
+
+    const scopes = buildScopesFromEndpoints(includeWorkScopes);
     const authManager = new AuthManager(undefined, scopes);
     await authManager.loadTokenCache();
 
