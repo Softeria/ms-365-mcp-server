@@ -60,6 +60,29 @@ get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site
 get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item,
 get-sharepoint-sites-delta</sub>
 
+### Work Scopes Issues
+
+If you're having issues accessing work/school features (Teams, SharePoint, etc.), you should pass the
+`--force-work-scopes` flag!
+
+```json
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@softeria/ms-365-mcp-server",
+        "--force-work-scopes"
+      ]
+    }
+  }
+}
+```
+
+While the server should attempt to force a re-login when work scopes are needed, passing the flag explicitly is safer
+and ensures proper scope permissions from the start.
+
 **User Profile**  
 <sub>get-current-user</sub>
 
@@ -146,22 +169,23 @@ MCP clients will automatically handle the OAuth flow when they see the advertise
 
 ##### Setting up Azure AD for OAuth Testing
 
-To use OAuth mode with custom Azure credentials (recommended for production), you'll need to set up an Azure AD app registration:
+To use OAuth mode with custom Azure credentials (recommended for production), you'll need to set up an Azure AD app
+registration:
 
 1. **Create Azure AD App Registration**:
-   - Go to [Azure Portal](https://portal.azure.com)
-   - Navigate to Azure Active Directory → App registrations → New registration
-   - Set name: "MS365 MCP Server"
+    - Go to [Azure Portal](https://portal.azure.com)
+    - Navigate to Azure Active Directory → App registrations → New registration
+    - Set name: "MS365 MCP Server"
 
 2. **Configure Redirect URIs**:
    Add these redirect URIs for testing with MCP Inspector:
-   - `http://localhost:6274/oauth/callback`
-   - `http://localhost:6274/oauth/callback/debug`
-   - `http://localhost:3000/callback` (optional, for server callback)
+    - `http://localhost:6274/oauth/callback`
+    - `http://localhost:6274/oauth/callback/debug`
+    - `http://localhost:3000/callback` (optional, for server callback)
 
 3. **Get Credentials**:
-   - Copy the **Application (client) ID** from Overview page
-   - Go to Certificates & secrets → New client secret → Copy the secret value
+    - Copy the **Application (client) ID** from Overview page
+    - Go to Certificates & secrets → New client secret → Copy the secret value
 
 4. **Configure Environment Variables**:
    Create a `.env` file in your project root:
@@ -175,13 +199,15 @@ With these configured, the server will use your custom Azure app instead of the 
 
 #### 3. Bring Your Own Token (BYOT)
 
-If you are running ms-365-mcp-server as part of a larger system that manages Microsoft OAuth tokens externally, you can provide an access token directly to this MCP server:
+If you are running ms-365-mcp-server as part of a larger system that manages Microsoft OAuth tokens externally, you can
+provide an access token directly to this MCP server:
 
 ```bash
 MS365_MCP_OAUTH_TOKEN=your_oauth_token npx @softeria/ms-365-mcp-server
 ```
 
 This method:
+
 - Bypasses the interactive authentication flows
 - Uses your pre-existing OAuth token for Microsoft Graph API requests
 - Does not handle token refresh (token lifecycle management is your responsibility)
