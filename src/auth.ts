@@ -192,8 +192,9 @@ class AuthManager {
 
     try {
       logger.info('Requesting device code...');
-      logger.info(`Scopes are: ${this.scopes.join(', ')}`);
+      logger.info(`Requesting scopes: ${this.scopes.join(', ')}`);
       const response = await this.msalApp.acquireTokenByDeviceCode(deviceCodeRequest);
+      logger.info(`Granted scopes: ${response?.scopes?.join(', ') || 'none'}`);
       logger.info('Device code login successful');
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;

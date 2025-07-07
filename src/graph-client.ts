@@ -90,7 +90,8 @@ class GraphClient {
 
   async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<any> {
     // Use OAuth tokens if available, otherwise fall back to authManager
-    let accessToken = options.accessToken || this.accessToken || await this.authManager.getToken();
+    let accessToken =
+      options.accessToken || this.accessToken || (await this.authManager.getToken());
     let refreshToken = options.refreshToken || this.refreshToken;
 
     if (!accessToken) {
@@ -99,19 +100,40 @@ class GraphClient {
 
     try {
       const response = await this.performRequest(endpoint, accessToken, options);
-      
+
       if (response.status === 401 && refreshToken) {
         // Token expired, try to refresh
         await this.refreshAccessToken(refreshToken);
-        
+
         // Update token for retry
         accessToken = this.accessToken || accessToken;
         if (!accessToken) {
           throw new Error('Failed to refresh access token');
         }
-        
+
         // Retry the request with new token
         return this.performRequest(endpoint, accessToken, options);
+      }
+
+      if (response.status === 403) {
+        const errorText = await response.text();
+        if (errorText.includes('scope') || errorText.includes('permission')) {
+          const hasWorkPermissions = await this.authManager.hasWorkAccountPermissions();
+          if (!hasWorkPermissions) {
+            logger.info('403 scope error detected, attempting to expand to work account scopes...');
+            const expanded = await this.authManager.expandToWorkAccountScopes();
+            if (expanded) {
+              const newToken = await this.authManager.getToken();
+              if (newToken) {
+                logger.info('Retrying request with expanded scopes...');
+                return this.performRequest(endpoint, newToken, options);
+              }
+            }
+          }
+        }
+        throw new Error(
+          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
       if (!response.ok) {
@@ -141,7 +163,11 @@ class GraphClient {
     }
   }
 
-  private async performRequest(endpoint: string, accessToken: string, options: GraphRequestOptions): Promise<Response> {
+  private async performRequest(
+    endpoint: string,
+    accessToken: string,
+    options: GraphRequestOptions
+  ): Promise<Response> {
     let url: string;
     let sessionId: string | null = null;
 
@@ -175,7 +201,7 @@ class GraphClient {
     }
 
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       ...(sessionId && { 'workbook-session-id': sessionId }),
       ...options.headers,
@@ -191,10 +217,10 @@ class GraphClient {
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
       logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
-      
+
       // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
-      
+
       return this.formatJsonResponse(result, options.rawResponse);
     } catch (error) {
       logger.error(`Error in Graph API request: ${error}`);
