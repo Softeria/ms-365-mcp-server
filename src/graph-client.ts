@@ -31,7 +31,7 @@ interface McpResponse {
 
 class GraphClient {
   private authManager: AuthManager;
-  private sessions: Map<string, string>;
+  private sessions: Map<string, Map<string, string>>; // accountId -> (filePath -> sessionId)
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
@@ -45,6 +45,34 @@ class GraphClient {
     this.refreshToken = refreshToken || null;
   }
 
+  private async getCurrentAccountId(): Promise<string | null> {
+    const currentAccount = await this.authManager.getCurrentAccount();
+    return currentAccount?.homeAccountId || null;
+  }
+
+  private getAccountSessions(accountId: string): Map<string, string> {
+    if (!this.sessions.has(accountId)) {
+      this.sessions.set(accountId, new Map());
+    }
+    return this.sessions.get(accountId)!;
+  }
+
+  private async getSessionForFile(filePath: string): Promise<string | null> {
+    const accountId = await this.getCurrentAccountId();
+    if (!accountId) return null;
+    
+    const accountSessions = this.getAccountSessions(accountId);
+    return accountSessions.get(filePath) || null;
+  }
+
+  private async setSessionForFile(filePath: string, sessionId: string): Promise<void> {
+    const accountId = await this.getCurrentAccountId();
+    if (!accountId) return;
+    
+    const accountSessions = this.getAccountSessions(accountId);
+    accountSessions.set(filePath, sessionId);
+  }
+
   async createSession(filePath: string): Promise<string | null> {
     try {
       if (!filePath) {
@@ -52,8 +80,9 @@ class GraphClient {
         return null;
       }
 
-      if (this.sessions.has(filePath)) {
-        return this.sessions.get(filePath) || null;
+      const existingSession = await this.getSessionForFile(filePath);
+      if (existingSession) {
+        return existingSession;
       }
 
       logger.info(`Creating new Excel session for file: ${filePath}`);
@@ -80,7 +109,7 @@ class GraphClient {
       const result = await response.json();
       logger.info(`Session created successfully for file: ${filePath}`);
 
-      this.sessions.set(filePath, result.id);
+      await this.setSessionForFile(filePath, result.id);
       return result.id;
     } catch (error) {
       logger.error(`Error creating Excel session: ${error}`);
@@ -180,7 +209,7 @@ class GraphClient {
       !endpoint.startsWith('/chats') &&
       !endpoint.startsWith('/planner')
     ) {
-      sessionId = this.sessions.get(options.excelFile) || null;
+      sessionId = await this.getSessionForFile(options.excelFile);
 
       if (!sessionId) {
         sessionId = await this.createSessionWithToken(options.excelFile, accessToken);
@@ -238,8 +267,9 @@ class GraphClient {
         return null;
       }
 
-      if (this.sessions.has(filePath)) {
-        return this.sessions.get(filePath) || null;
+      const existingSession = await this.getSessionForFile(filePath);
+      if (existingSession) {
+        return existingSession;
       }
 
       logger.info(`Creating new Excel session for file: ${filePath}`);
@@ -265,7 +295,7 @@ class GraphClient {
       const result = await response.json();
       logger.info(`Session created successfully for file: ${filePath}`);
 
-      this.sessions.set(filePath, result.id);
+      await this.setSessionForFile(filePath, result.id);
       return result.id;
     } catch (error) {
       logger.error(`Error creating Excel session: ${error}`);
@@ -324,7 +354,7 @@ class GraphClient {
         !endpoint.startsWith('/planner') &&
         !endpoint.startsWith('/sites')
       ) {
-        sessionId = this.sessions.get(options.excelFile) || null;
+        sessionId = await this.getSessionForFile(options.excelFile);
 
         if (!sessionId) {
           sessionId = await this.createSession(options.excelFile);
@@ -520,7 +550,9 @@ class GraphClient {
   }
 
   async closeSession(filePath: string): Promise<McpResponse> {
-    if (!filePath || !this.sessions.has(filePath)) {
+    const sessionId = await this.getSessionForFile(filePath);
+    
+    if (!filePath || !sessionId) {
       return {
         content: [
           {
@@ -531,8 +563,6 @@ class GraphClient {
       };
     }
 
-    const sessionId = this.sessions.get(filePath);
-
     try {
       const accessToken = await this.authManager.getToken();
       const response = await fetch(
@@ -542,13 +572,17 @@ class GraphClient {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
-            'workbook-session-id': sessionId!,
+            'workbook-session-id': sessionId,
           },
         }
       );
 
       if (response.ok) {
-        this.sessions.delete(filePath);
+        const accountId = await this.getCurrentAccountId();
+        if (accountId) {
+          const accountSessions = this.getAccountSessions(accountId);
+          accountSessions.delete(filePath);
+        }
         return {
           content: [
             {
@@ -576,10 +610,14 @@ class GraphClient {
 
   async closeAllSessions(): Promise<McpResponse> {
     const results: McpResponse[] = [];
+    const accountId = await this.getCurrentAccountId();
 
-    for (const [filePath] of this.sessions) {
-      const result = await this.closeSession(filePath);
-      results.push(result);
+    if (accountId) {
+      const accountSessions = this.getAccountSessions(accountId);
+      for (const [filePath] of accountSessions) {
+        const result = await this.closeSession(filePath);
+        results.push(result);
+      }
     }
 
     return {

@@ -1,4 +1,4 @@
-import type { Configuration } from '@azure/msal-node';
+import type { Configuration, AccountInfo } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
 import { fileURLToPath } from 'url';
@@ -12,8 +12,10 @@ const endpoints = await import('./endpoints.json', {
 
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
+const SELECTED_ACCOUNT_KEY = 'selected-account';
 const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
 const FALLBACK_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
+const SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
 
 const DEFAULT_CONFIG: Configuration = {
   auth: {
@@ -78,6 +80,7 @@ class AuthManager {
   private tokenExpiry: number | null;
   private oauthToken: string | null;
   private isOAuthMode: boolean;
+  private selectedAccountId: string | null;
 
   constructor(
     config: Configuration = DEFAULT_CONFIG,
@@ -89,6 +92,7 @@ class AuthManager {
     this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
+    this.selectedAccountId = null;
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
@@ -117,8 +121,40 @@ class AuthManager {
       if (cacheData) {
         this.msalApp.getTokenCache().deserialize(cacheData);
       }
+
+      // Load selected account
+      await this.loadSelectedAccount();
     } catch (error) {
       logger.error(`Error loading token cache: ${(error as Error).message}`);
+    }
+  }
+
+  private async loadSelectedAccount(): Promise<void> {
+    try {
+      let selectedAccountData: string | undefined;
+
+      try {
+        const cachedData = await keytar.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
+        if (cachedData) {
+          selectedAccountData = cachedData;
+        }
+      } catch (keytarError) {
+        logger.warn(
+          `Keychain access failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
+        );
+      }
+
+      if (!selectedAccountData && fs.existsSync(SELECTED_ACCOUNT_PATH)) {
+        selectedAccountData = fs.readFileSync(SELECTED_ACCOUNT_PATH, 'utf8');
+      }
+
+      if (selectedAccountData) {
+        const parsed = JSON.parse(selectedAccountData);
+        this.selectedAccountId = parsed.accountId;
+        logger.info(`Loaded selected account: ${this.selectedAccountId}`);
+      }
+    } catch (error) {
+      logger.error(`Error loading selected account: ${(error as Error).message}`);
     }
   }
 
@@ -140,6 +176,24 @@ class AuthManager {
     }
   }
 
+  private async saveSelectedAccount(): Promise<void> {
+    try {
+      const selectedAccountData = JSON.stringify({ accountId: this.selectedAccountId });
+
+      try {
+        await keytar.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, selectedAccountData);
+      } catch (keytarError) {
+        logger.warn(
+          `Keychain save failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
+        );
+
+        fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData);
+      }
+    } catch (error) {
+      logger.error(`Error saving selected account: ${(error as Error).message}`);
+    }
+  }
+
   async setOAuthToken(token: string): Promise<void> {
     this.oauthToken = token;
     this.isOAuthMode = true;
@@ -154,11 +208,11 @@ class AuthManager {
       return this.accessToken;
     }
 
-    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
-
-    if (accounts.length > 0) {
+    const currentAccount = await this.getCurrentAccount();
+    
+    if (currentAccount) {
       const silentRequest = {
-        account: accounts[0],
+        account: currentAccount,
         scopes: this.scopes,
       };
 
@@ -174,6 +228,26 @@ class AuthManager {
     }
 
     throw new Error('No valid token found');
+  }
+
+  async getCurrentAccount(): Promise<AccountInfo | null> {
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+    
+    if (accounts.length === 0) {
+      return null;
+    }
+
+    // If a specific account is selected, find it
+    if (this.selectedAccountId) {
+      const selectedAccount = accounts.find((account: AccountInfo) => account.homeAccountId === this.selectedAccountId);
+      if (selectedAccount) {
+        return selectedAccount;
+      }
+      logger.warn(`Selected account ${this.selectedAccountId} not found, falling back to first account`);
+    }
+
+    // Fall back to first account (backward compatibility)
+    return accounts[0];
   }
 
   async acquireTokenByDeviceCode(hack?: (message: string) => void): Promise<string | null> {
@@ -198,6 +272,14 @@ class AuthManager {
       logger.info('Device code login successful');
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
+      
+      // Set the newly authenticated account as selected if no account is currently selected
+      if (!this.selectedAccountId && response?.account) {
+        this.selectedAccountId = response.account.homeAccountId;
+        await this.saveSelectedAccount();
+        logger.info(`Auto-selected new account: ${response.account.username}`);
+      }
+      
       await this.saveTokenCache();
       return this.accessToken;
     } catch (error) {
@@ -271,15 +353,21 @@ class AuthManager {
       }
       this.accessToken = null;
       this.tokenExpiry = null;
+      this.selectedAccountId = null;
 
       try {
         await keytar.deletePassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
+        await keytar.deletePassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
       } catch (keytarError) {
         logger.warn(`Keychain deletion failed: ${(keytarError as Error).message}`);
       }
 
       if (fs.existsSync(FALLBACK_PATH)) {
         fs.unlinkSync(FALLBACK_PATH);
+      }
+
+      if (fs.existsSync(SELECTED_ACCOUNT_PATH)) {
+        fs.unlinkSync(SELECTED_ACCOUNT_PATH);
       }
 
       return true;
@@ -291,8 +379,8 @@ class AuthManager {
 
   async hasWorkAccountPermissions(): Promise<boolean> {
     try {
-      const accounts = await this.msalApp.getTokenCache().getAllAccounts();
-      if (accounts.length === 0) {
+      const currentAccount = await this.getCurrentAccount();
+      if (!currentAccount) {
         return false;
       }
 
@@ -303,7 +391,7 @@ class AuthManager {
       try {
         await this.msalApp.acquireTokenSilent({
           scopes: workScopes.slice(0, 1),
-          account: accounts[0],
+          account: currentAccount,
         });
         return true;
       } catch {
@@ -347,12 +435,98 @@ class AuthManager {
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
       this.scopes = allScopes;
 
+      // Update selected account if this is a new account
+      if (response?.account) {
+        this.selectedAccountId = response.account.homeAccountId;
+        await this.saveSelectedAccount();
+        logger.info(`Updated selected account after scope expansion: ${response.account.username}`);
+      }
+
       await this.saveTokenCache();
       return true;
     } catch (error) {
       logger.error(`Error expanding to work account scopes: ${(error as Error).message}`);
       return false;
     }
+  }
+
+  // Multi-account support methods
+  async listAccounts(): Promise<AccountInfo[]> {
+    return await this.msalApp.getTokenCache().getAllAccounts();
+  }
+
+  async selectAccount(accountId: string): Promise<boolean> {
+    const accounts = await this.listAccounts();
+    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
+    
+    if (!account) {
+      logger.error(`Account with ID ${accountId} not found`);
+      return false;
+    }
+
+    this.selectedAccountId = accountId;
+    await this.saveSelectedAccount();
+    
+    // Clear cached tokens to force refresh with new account
+    this.accessToken = null;
+    this.tokenExpiry = null;
+    
+    logger.info(`Selected account: ${account.username} (${accountId})`);
+    return true;
+  }
+
+  async getTokenForAccount(accountId: string): Promise<string | null> {
+    const accounts = await this.listAccounts();
+    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
+    
+    if (!account) {
+      throw new Error(`Account with ID ${accountId} not found`);
+    }
+
+    const silentRequest = {
+      account: account,
+      scopes: this.scopes,
+    };
+
+    try {
+      const response = await this.msalApp.acquireTokenSilent(silentRequest);
+      return response.accessToken;
+    } catch (error) {
+      logger.error(`Failed to get token for account ${accountId}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  async removeAccount(accountId: string): Promise<boolean> {
+    const accounts = await this.listAccounts();
+    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
+    
+    if (!account) {
+      logger.error(`Account with ID ${accountId} not found`);
+      return false;
+    }
+
+    try {
+      await this.msalApp.getTokenCache().removeAccount(account);
+      
+      // If this was the selected account, clear the selection
+      if (this.selectedAccountId === accountId) {
+        this.selectedAccountId = null;
+        await this.saveSelectedAccount();
+        this.accessToken = null;
+        this.tokenExpiry = null;
+      }
+      
+      logger.info(`Removed account: ${account.username} (${accountId})`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to remove account ${accountId}: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  getSelectedAccountId(): string | null {
+    return this.selectedAccountId;
   }
 
   requiresWorkAccountScope(toolName: string): boolean {
