@@ -7,6 +7,9 @@ vi.mock('zod', () => {
         describe: () => 'mocked-zod-boolean',
       }),
     }),
+    string: () => ({
+      describe: () => 'mocked-zod-string',
+    }),
     object: () => ({
       strict: () => 'mocked-zod-object',
     }),
