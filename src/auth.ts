@@ -1,4 +1,4 @@
-import type { Configuration, AccountInfo } from '@azure/msal-node';
+import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
 import { fileURLToPath } from 'url';
@@ -6,9 +6,20 @@ import path from 'path';
 import fs from 'fs';
 import logger from './logger.js';
 
-const endpoints = await import('./endpoints.json', {
-  with: { type: 'json' },
-});
+interface EndpointConfig {
+  pathPattern: string;
+  method: string;
+  toolName: string;
+  scopes?: string[];
+  requiresWorkAccount?: boolean;
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const endpointsPath = path.join(__dirname, 'endpoints.json');
+const endpoints = {
+  default: JSON.parse(fs.readFileSync(endpointsPath, 'utf8')) as EndpointConfig[],
+};
 
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
@@ -209,7 +220,7 @@ class AuthManager {
     }
 
     const currentAccount = await this.getCurrentAccount();
-    
+
     if (currentAccount) {
       const silentRequest = {
         account: currentAccount,
@@ -232,18 +243,22 @@ class AuthManager {
 
   async getCurrentAccount(): Promise<AccountInfo | null> {
     const accounts = await this.msalApp.getTokenCache().getAllAccounts();
-    
+
     if (accounts.length === 0) {
       return null;
     }
 
     // If a specific account is selected, find it
     if (this.selectedAccountId) {
-      const selectedAccount = accounts.find((account: AccountInfo) => account.homeAccountId === this.selectedAccountId);
+      const selectedAccount = accounts.find(
+        (account: AccountInfo) => account.homeAccountId === this.selectedAccountId
+      );
       if (selectedAccount) {
         return selectedAccount;
       }
-      logger.warn(`Selected account ${this.selectedAccountId} not found, falling back to first account`);
+      logger.warn(
+        `Selected account ${this.selectedAccountId} not found, falling back to first account`
+      );
     }
 
     // Fall back to first account (backward compatibility)
@@ -272,14 +287,14 @@ class AuthManager {
       logger.info('Device code login successful');
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
-      
+
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
         this.selectedAccountId = response.account.homeAccountId;
         await this.saveSelectedAccount();
         logger.info(`Auto-selected new account: ${response.account.username}`);
       }
-      
+
       await this.saveTokenCache();
       return this.accessToken;
     } catch (error) {
@@ -458,7 +473,7 @@ class AuthManager {
   async selectAccount(accountId: string): Promise<boolean> {
     const accounts = await this.listAccounts();
     const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
-    
+
     if (!account) {
       logger.error(`Account with ID ${accountId} not found`);
       return false;
@@ -466,11 +481,11 @@ class AuthManager {
 
     this.selectedAccountId = accountId;
     await this.saveSelectedAccount();
-    
+
     // Clear cached tokens to force refresh with new account
     this.accessToken = null;
     this.tokenExpiry = null;
-    
+
     logger.info(`Selected account: ${account.username} (${accountId})`);
     return true;
   }
@@ -478,7 +493,7 @@ class AuthManager {
   async getTokenForAccount(accountId: string): Promise<string | null> {
     const accounts = await this.listAccounts();
     const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
-    
+
     if (!account) {
       throw new Error(`Account with ID ${accountId} not found`);
     }
@@ -500,7 +515,7 @@ class AuthManager {
   async removeAccount(accountId: string): Promise<boolean> {
     const accounts = await this.listAccounts();
     const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
-    
+
     if (!account) {
       logger.error(`Account with ID ${accountId} not found`);
       return false;
@@ -508,7 +523,7 @@ class AuthManager {
 
     try {
       await this.msalApp.getTokenCache().removeAccount(account);
-      
+
       // If this was the selected account, clear the selection
       if (this.selectedAccountId === accountId) {
         this.selectedAccountId = null;
@@ -516,7 +531,7 @@ class AuthManager {
         this.accessToken = null;
         this.tokenExpiry = null;
       }
-      
+
       logger.info(`Removed account: ${account.username} (${accountId})`);
       return true;
     } catch (error) {
