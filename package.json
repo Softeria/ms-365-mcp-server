@@ -1,6 +1,6 @@
 {
   "name": "@softeria/ms-365-mcp-server",
-  "version": "0.11.4",
+  "version": "0.0.0-development",
   "description": "Microsoft 365 MCP Server",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,6 @@
     "dev": "tsx src/index.ts",
     "dev:http": "tsx --watch src/index.ts --http 3000 -v",
     "format": "prettier --write \"**/*.{ts,mts,js,mjs,json,md}\"",
-    "release": "ts-node --esm bin/release.mts",
     "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts",
     "prepublishOnly": "npm run build"
   },
@@ -42,16 +41,21 @@
   },
   "devDependencies": {
     "@redocly/cli": "^1.34.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.3",
+    "@semantic-release/npm": "^12.0.2",
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.15",
     "prettier": "^3.5.3",
+    "semantic-release": "^24.2.7",
     "tsup": "^8.5.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   },
   "engines": {
-    "node": ">=14"
+    "node": ">=18"
   },
   "repository": {
     "type": "git",
