@@ -1,10 +1,10 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
+import logger from './logger.js';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import fs from 'fs';
-import logger from './logger.js';
 
 interface EndpointConfig {
   pathPattern: string;
@@ -16,9 +16,12 @@ interface EndpointConfig {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const endpointsPath = path.join(__dirname, 'endpoints.json');
+const endpointsData = JSON.parse(
+  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
+) as EndpointConfig[];
+
 const endpoints = {
-  default: JSON.parse(fs.readFileSync(endpointsPath, 'utf8')) as EndpointConfig[],
+  default: endpointsData,
 };
 
 const SERVICE_NAME = 'ms-365-mcp-server';
@@ -125,8 +128,8 @@ class AuthManager {
         );
       }
 
-      if (!cacheData && fs.existsSync(FALLBACK_PATH)) {
-        cacheData = fs.readFileSync(FALLBACK_PATH, 'utf8');
+      if (!cacheData && existsSync(FALLBACK_PATH)) {
+        cacheData = readFileSync(FALLBACK_PATH, 'utf8');
       }
 
       if (cacheData) {
@@ -155,8 +158,8 @@ class AuthManager {
         );
       }
 
-      if (!selectedAccountData && fs.existsSync(SELECTED_ACCOUNT_PATH)) {
-        selectedAccountData = fs.readFileSync(SELECTED_ACCOUNT_PATH, 'utf8');
+      if (!selectedAccountData && existsSync(SELECTED_ACCOUNT_PATH)) {
+        selectedAccountData = readFileSync(SELECTED_ACCOUNT_PATH, 'utf8');
       }
 
       if (selectedAccountData) {

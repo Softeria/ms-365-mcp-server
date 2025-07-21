@@ -9,7 +9,8 @@ API.
 
 ## Prerequisites
 
-- Node.js >= 14
+- Node.js >= 20 (recommended)
+- Node.js 14+ may work with dependency warnings
 
 ## Features
 

@@ -8,7 +8,7 @@
     "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc && cp src/endpoints.json dist/ && chmod +x dist/index.js",
+    "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/index.ts",
@@ -45,9 +45,13 @@
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.15",
     "prettier": "^3.5.3",
+    "tsup": "^8.5.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=14"
   },
   "repository": {
     "type": "git",
