@@ -263,6 +263,18 @@
     "scopes": ["Tasks.ReadWrite"]
   },
   {
+    "pathPattern": "/planner/tasks/{plannerTask-id}",
+    "method": "patch",
+    "toolName": "update-planner-task",
+    "scopes": ["Tasks.ReadWrite"]
+  },
+  {
+    "pathPattern": "/planner/tasks/{plannerTask-id}/details",
+    "method": "patch",
+    "toolName": "update-planner-task-details",
+    "scopes": ["Tasks.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
