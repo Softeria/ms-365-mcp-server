@@ -23,6 +23,9 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
         const eo = e.find((ep) => ep.method.toLowerCase() === method);
         if (eo) {
           operation.operationId = eo.toolName;
+          if (!operation.description && operation.summary) {
+            operation.description = operation.summary;
+          }
         } else {
           delete value[method];
         }

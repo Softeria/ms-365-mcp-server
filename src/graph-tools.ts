@@ -105,7 +105,7 @@ export function registerGraphTools(
 
     server.tool(
       tool.alias,
-      tool.description ?? '',
+      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
       paramSchema,
       {
         title: tool.alias,

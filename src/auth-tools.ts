@@ -5,6 +5,7 @@ import AuthManager from './auth.js';
 export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
   server.tool(
     'login',
+    'Authenticate with Microsoft using device code flow',
     {
       force: z.boolean().default(false).describe('Force a new login even if already logged in'),
     },
@@ -51,7 +52,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     }
   );
 
-  server.tool('logout', {}, async () => {
+  server.tool('logout', 'Log out from Microsoft account', {}, async () => {
     try {
       await authManager.logout();
       return {
@@ -74,7 +75,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     }
   });
 
-  server.tool('verify-login', async () => {
+  server.tool('verify-login', 'Check current Microsoft authentication status', {}, async () => {
     const testResult = await authManager.testLogin();
 
     return {
@@ -87,15 +88,15 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     };
   });
 
-  server.tool('list-accounts', {}, async () => {
+  server.tool('list-accounts', 'List all available Microsoft accounts', {}, async () => {
     try {
       const accounts = await authManager.listAccounts();
       const selectedAccountId = authManager.getSelectedAccountId();
-      const result = accounts.map(account => ({
+      const result = accounts.map((account) => ({
         id: account.homeAccountId,
         username: account.username,
         name: account.name,
-        selected: account.homeAccountId === selectedAccountId
+        selected: account.homeAccountId === selectedAccountId,
       }));
 
       return {
@@ -120,6 +121,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
 
   server.tool(
     'select-account',
+    'Select a specific Microsoft account to use',
     {
       accountId: z.string().describe('The account ID to select'),
     },
@@ -150,7 +152,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ error: `Failed to select account: ${(error as Error).message}` }),
+              text: JSON.stringify({
+                error: `Failed to select account: ${(error as Error).message}`,
+              }),
             },
           ],
         };
@@ -160,6 +164,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
 
   server.tool(
     'remove-account',
+    'Remove a Microsoft account from the cache',
     {
       accountId: z.string().describe('The account ID to remove'),
     },
@@ -190,7 +195,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ error: `Failed to remove account: ${(error as Error).message}` }),
+              text: JSON.stringify({
+                error: `Failed to remove account: ${(error as Error).message}`,
+              }),
             },
           ],
         };

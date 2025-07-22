@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { registerAuthTools } from '../src/auth-tools.js';
 
 vi.mock('zod', () => {
   const mockZod = {
@@ -17,8 +18,6 @@ vi.mock('zod', () => {
   return { z: mockZod };
 });
 
-import { registerAuthTools } from '../src/auth-tools.js';
-
 describe('Auth Tools', () => {
   let server: any;
   let authManager: any;
@@ -28,7 +27,7 @@ describe('Auth Tools', () => {
     loginTool = vi.fn();
 
     server = {
-      tool: vi.fn((name, schema, handler) => {
+      tool: vi.fn((name, description, schema, handler) => {
         if (name === 'login') {
           loginTool = handler;
         }
