@@ -2,7 +2,8 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 
 export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, openapiTrimmedFile) {
-  const endpoints = JSON.parse(fs.readFileSync(endpointsFile, 'utf8'));
+  const allEndpoints = JSON.parse(fs.readFileSync(endpointsFile, 'utf8'));
+  const endpoints = allEndpoints.filter((endpoint) => !endpoint.disabled);
 
   const spec = fs.readFileSync(openapiFile, 'utf8');
   const openApiSpec = yaml.load(spec);
@@ -39,6 +40,10 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
     simplifyAnyOfInPaths(openApiSpec.paths);
   }
 
+  console.log('🧹 Pruning unused schemas...');
+  const usedSchemas = findUsedSchemas(openApiSpec);
+  pruneUnusedSchemas(openApiSpec, usedSchemas);
+
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
 }
 
@@ -50,327 +55,256 @@ function removeODataTypeRecursively(obj) {
     return;
   }
 
-  if (obj.properties && obj.properties['@odata.type']) {
-    delete obj.properties['@odata.type'];
-  }
-
-  if (obj.required && Array.isArray(obj.required)) {
-    const typeIndex = obj.required.indexOf('@odata.type');
-    if (typeIndex !== -1) {
-      obj.required.splice(typeIndex, 1);
-      if (obj.required.length === 0) {
-        delete obj.required;
-      }
-    }
-  }
-
-  if (obj.properties) {
-    removeODataTypeRecursively(obj.properties);
-    Object.values(obj.properties).forEach((prop) => removeODataTypeRecursively(prop));
-  }
-
-  if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {
-    removeODataTypeRecursively(obj.additionalProperties);
-  }
-
-  if (obj.items) {
-    removeODataTypeRecursively(obj.items);
-  }
-
-  ['allOf', 'anyOf', 'oneOf'].forEach((key) => {
-    if (obj[key] && Array.isArray(obj[key])) {
-      obj[key].forEach((item) => removeODataTypeRecursively(item));
-    }
-  });
-
   Object.keys(obj).forEach((key) => {
-    if (typeof obj[key] === 'object' && obj[key] !== null) {
+    if (key === '@odata.type') {
+      delete obj[key];
+    } else {
       removeODataTypeRecursively(obj[key]);
     }
   });
 }
 
-function flattenComplexSchemasRecursively(schemas) {
-  console.log('Flattening complex schemas for better client compatibility...');
-
-  let flattenedCount = 0;
-
-  Object.keys(schemas).forEach((schemaName) => {
-    const schema = schemas[schemaName];
-
-    if (schema.allOf && Array.isArray(schema.allOf) && schema.allOf.length <= 5) {
-      try {
-        const flattened = { type: 'object', properties: {} };
-        const required = new Set();
-
-        for (const subSchema of schema.allOf) {
-          if (subSchema.$ref && subSchema.$ref.startsWith('#/components/schemas/')) {
-            const refName = subSchema.$ref.replace('#/components/schemas/', '');
-            if (schemaName === 'microsoft.graph.attendee') {
-              console.log(
-                `Processing ref ${refName} for attendee, exists: ${!!schemas[refName]}, has properties: ${!!schemas[refName]?.properties}`
-              );
-              if (schemas[refName]?.properties) {
-                console.log(`Properties in ${refName}:`, Object.keys(schemas[refName].properties));
-              }
-            }
-            if (schemas[refName] && schemas[refName].properties) {
-              Object.assign(flattened.properties, schemas[refName].properties);
-              if (schemas[refName].required) {
-                schemas[refName].required.forEach((req) => required.add(req));
-              }
-            }
-          } else if (subSchema.properties) {
-            Object.assign(flattened.properties, subSchema.properties);
-            if (subSchema.required) {
-              subSchema.required.forEach((req) => required.add(req));
-            }
-          }
-
-          Object.keys(subSchema).forEach((key) => {
-            if (!['allOf', 'properties', 'required', '$ref'].includes(key) && !flattened[key]) {
-              flattened[key] = subSchema[key];
-            }
-          });
-        }
-
-        if (schema.properties) {
-          Object.assign(flattened.properties, schema.properties);
-        }
-
-        if (schema.required) {
-          schema.required.forEach((req) => required.add(req));
-        }
-
-        Object.keys(schema).forEach((key) => {
-          if (!['allOf', 'properties', 'required'].includes(key) && !flattened[key]) {
-            flattened[key] = schema[key];
-          }
-        });
-
-        if (required.size > 0) {
-          flattened.required = Array.from(required);
-        }
-
-        schemas[schemaName] = flattened;
-        flattenedCount++;
-
-        if (schemaName === 'microsoft.graph.attendee') {
-          console.log('Ensuring attendee has all required properties from attendeeBase');
-          const attendeeBase = schemas['microsoft.graph.attendeeBase'];
-          if (attendeeBase && attendeeBase.properties) {
-            if (!flattened.properties.emailAddress && attendeeBase.properties.emailAddress) {
-              flattened.properties.emailAddress = attendeeBase.properties.emailAddress;
-              console.log('Added emailAddress property to attendee');
-            }
-            if (!flattened.properties.type && attendeeBase.properties.type) {
-              flattened.properties.type = attendeeBase.properties.type;
-              console.log('Added type property to attendee');
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(`Warning: Could not flatten schema ${schemaName}:`, error.message);
-      }
-    }
-
-    if (schema.anyOf && Array.isArray(schema.anyOf)) {
-      if (schema.anyOf.length === 2) {
-        const hasRef = schema.anyOf.some((item) => item.$ref);
-        const hasNullableObject = schema.anyOf.some(
-          (item) =>
-            item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
-        );
-
-        if (hasRef && hasNullableObject) {
-          console.log(`Simplifying anyOf in ${schemaName} (ref + nullable object pattern)`);
-          const refItem = schema.anyOf.find((item) => item.$ref);
-          const simplified = { ...refItem };
-          simplified.nullable = true;
-          Object.keys(schema).forEach((key) => {
-            if (!['anyOf'].includes(key) && !simplified[key]) {
-              simplified[key] = schema[key];
-            }
-          });
-          schemas[schemaName] = simplified;
-          flattenedCount++;
-        }
-      } else if (schema.anyOf.length > 2) {
-        console.log(`Simplifying anyOf in ${schemaName} (${schema.anyOf.length} -> 1 option)`);
-        const simplified = { ...schema.anyOf[0] };
-        simplified.nullable = true;
-        simplified.description = `Simplified from ${schema.anyOf.length} anyOf options`;
-        schemas[schemaName] = simplified;
-        flattenedCount++;
-      }
-    }
-
-    if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 2) {
-      console.log(`Simplifying oneOf in ${schemaName} (${schema.oneOf.length} -> 1 option)`);
-      const simplified = { ...schema.oneOf[0] };
-      simplified.nullable = true;
-      simplified.description = `Simplified from ${schema.oneOf.length} oneOf options`;
-      schemas[schemaName] = simplified;
-      flattenedCount++;
-    }
-
-    if (schema.properties && Object.keys(schema.properties).length > 25) {
-      console.log(
-        `Reducing properties in ${schemaName} (${Object.keys(schema.properties).length} -> 25)`
-      );
-      const priorityProperties = {};
-      const allKeys = Object.keys(schema.properties);
-
-      if (schema.required) {
-        schema.required.forEach((key) => {
-          if (schema.properties[key]) {
-            priorityProperties[key] = schema.properties[key];
-          }
-        });
-      }
-
-      const remainingSlots = 25 - Object.keys(priorityProperties).length;
-      allKeys.slice(0, remainingSlots).forEach((key) => {
-        if (!priorityProperties[key]) {
-          priorityProperties[key] = schema.properties[key];
-        }
-      });
-
-      schema.properties = priorityProperties;
-      schema.description =
-        `${schema.description || ''} [Simplified: showing ${Object.keys(priorityProperties).length} of ${allKeys.length} properties]`.trim();
-      flattenedCount++;
-    }
-
-    if (schema.properties) {
-      simplifyNestedPropertiesRecursively(schema.properties, 0, 4);
-    }
-  });
-
-  Object.keys(schemas).forEach((schemaName) => {
-    const schema = schemas[schemaName];
-    if (schema.properties) {
-      Object.keys(schema.properties).forEach((propName) => {
-        const prop = schema.properties[propName];
-        if (prop && prop.anyOf && Array.isArray(prop.anyOf) && prop.anyOf.length === 2) {
-          const hasRef = prop.anyOf.some((item) => item.$ref);
-          const hasNullableObject = prop.anyOf.some(
-            (item) =>
-              item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
-          );
-
-          if (hasRef && hasNullableObject) {
-            console.log(
-              `Simplifying anyOf in ${schemaName}.${propName} (ref + nullable object pattern)`
-            );
-            const refItem = prop.anyOf.find((item) => item.$ref);
-            delete prop.anyOf;
-            prop.$ref = refItem.$ref;
-            prop.nullable = true;
-            flattenedCount++;
-          }
-        }
-      });
-    }
-  });
-
-  console.log(`Flattened ${flattenedCount} complex schemas`);
-
-  console.log('Second pass: Fixing inheritance dependencies...');
-  if (schemas['microsoft.graph.attendee'] && schemas['microsoft.graph.attendeeBase']) {
-    const attendee = schemas['microsoft.graph.attendee'];
-    const attendeeBase = schemas['microsoft.graph.attendeeBase'];
-
-    if (!attendee.properties.emailAddress && attendeeBase.properties?.emailAddress) {
-      attendee.properties.emailAddress = attendeeBase.properties.emailAddress;
-      console.log('Fixed: Added emailAddress to attendee from attendeeBase');
-    }
-    if (!attendee.properties.type && attendeeBase.properties?.type) {
-      attendee.properties.type = attendeeBase.properties.type;
-      console.log('Fixed: Added type to attendee from attendeeBase');
-    }
-  }
-}
-
 function simplifyAnyOfInPaths(paths) {
-  console.log('Simplifying anyOf patterns in API paths...');
-  let simplifiedCount = 0;
+  Object.entries(paths).forEach(([pathKey, pathItem]) => {
+    if (!pathItem || typeof pathItem !== 'object') return;
 
-  Object.keys(paths).forEach((path) => {
-    const pathItem = paths[path];
-    Object.keys(pathItem).forEach((method) => {
-      const operation = pathItem[method];
-      if (operation && typeof operation === 'object') {
-        if (operation.responses) {
-          Object.keys(operation.responses).forEach((statusCode) => {
-            const response = operation.responses[statusCode];
-            if (response && response.content) {
-              Object.keys(response.content).forEach((contentType) => {
-                const mediaType = response.content[contentType];
-                if (mediaType && mediaType.schema) {
-                  simplifiedCount += simplifyAnyOfPattern(
-                    mediaType.schema,
-                    `${path}.${method}.${statusCode}`
-                  );
-                }
-              });
-            }
-          });
-        }
+    Object.entries(pathItem).forEach(([method, operation]) => {
+      if (!operation || typeof operation !== 'object') return;
 
-        if (operation.requestBody && operation.requestBody.content) {
-          Object.keys(operation.requestBody.content).forEach((contentType) => {
-            const mediaType = operation.requestBody.content[contentType];
-            if (mediaType && mediaType.schema) {
-              simplifiedCount += simplifyAnyOfPattern(
-                mediaType.schema,
-                `${path}.${method}.requestBody`
-              );
-            }
-          });
-        }
+      if (operation.parameters && Array.isArray(operation.parameters)) {
+        operation.parameters.forEach((param) => {
+          if (param.schema && param.schema.anyOf) {
+            simplifyAnyOfSchema(param.schema, `Path ${pathKey} ${method} parameter`);
+          }
+        });
+      }
+
+      if (operation.requestBody && operation.requestBody.content) {
+        Object.entries(operation.requestBody.content).forEach(([mediaType, mediaTypeObj]) => {
+          if (mediaTypeObj.schema && mediaTypeObj.schema.anyOf) {
+            simplifyAnyOfSchema(
+              mediaTypeObj.schema,
+              `Path ${pathKey} ${method} requestBody ${mediaType}`
+            );
+          }
+        });
+      }
+
+      if (operation.responses) {
+        Object.entries(operation.responses).forEach(([statusCode, response]) => {
+          if (response.content) {
+            Object.entries(response.content).forEach(([mediaType, mediaTypeObj]) => {
+              if (mediaTypeObj.schema && mediaTypeObj.schema.anyOf) {
+                simplifyAnyOfSchema(
+                  mediaTypeObj.schema,
+                  `Path ${pathKey} ${method} response ${statusCode} ${mediaType}`
+                );
+              }
+            });
+          }
+        });
       }
     });
   });
-
-  console.log(`Simplified ${simplifiedCount} anyOf patterns in paths`);
 }
 
-function simplifyAnyOfPattern(obj, context = '') {
-  let count = 0;
+function simplifyAnyOfSchema(schema, context) {
+  if (!schema.anyOf || !Array.isArray(schema.anyOf)) return;
 
-  if (!obj || typeof obj !== 'object') return count;
+  const anyOfItems = schema.anyOf;
 
-  if (obj.anyOf && Array.isArray(obj.anyOf) && obj.anyOf.length === 2) {
-    const hasRef = obj.anyOf.some((item) => item.$ref);
-    const hasNullableObject = obj.anyOf.some(
+  if (anyOfItems.length === 2) {
+    const hasRef = anyOfItems.some((item) => item.$ref);
+    const hasNullableObject = anyOfItems.some(
       (item) => item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
     );
 
     if (hasRef && hasNullableObject) {
       console.log(`Simplifying anyOf in ${context} (ref + nullable object pattern)`);
-      const refItem = obj.anyOf.find((item) => item.$ref);
-      Object.keys(obj).forEach((key) => {
-        if (key !== 'anyOf') delete obj[key];
-      });
-      Object.assign(obj, refItem);
-      obj.nullable = true;
-      delete obj.anyOf;
-      count++;
+      const refItem = anyOfItems.find((item) => item.$ref);
+      delete schema.anyOf;
+      schema.$ref = refItem.$ref;
+      schema.nullable = true;
+    }
+  } else if (anyOfItems.length > 2) {
+    console.log(`Simplifying anyOf in ${context} (multiple options)`);
+    schema.type = anyOfItems[0].type || 'object';
+    schema.nullable = true;
+    schema.description = `${schema.description || ''} [Simplified from ${
+      anyOfItems.length
+    } options]`.trim();
+    delete schema.anyOf;
+  }
+}
+
+function flattenComplexSchemasRecursively(schemas) {
+  Object.entries(schemas).forEach(([schemaName, schema]) => {
+    if (!schema || typeof schema !== 'object') return;
+
+    flattenComplexSchema(schema, schemaName);
+
+    if (schema.allOf) {
+      const flattenedSchema = mergeAllOfSchemas(schema.allOf, schemas);
+      Object.assign(schema, flattenedSchema);
+      delete schema.allOf;
+    }
+
+    if (schema.properties && shouldReduceProperties(schema)) {
+      reduceProperties(schema, schemaName);
+    }
+
+    if (schema.properties) {
+      simplifyNestedPropertiesRecursively(schema.properties);
+    }
+  });
+}
+
+function flattenComplexSchema(schema, schemaName) {
+  if (schema.anyOf && Array.isArray(schema.anyOf)) {
+    if (schema.anyOf.length === 2) {
+      const hasRef = schema.anyOf.some((item) => item.$ref);
+      const hasNullableObject = schema.anyOf.some(
+        (item) => item.type === 'object' && item.nullable === true && Object.keys(item).length <= 2
+      );
+
+      if (hasRef && hasNullableObject) {
+        console.log(`Simplifying anyOf in ${schemaName} (ref + nullable object pattern)`);
+        const refItem = schema.anyOf.find((item) => item.$ref);
+        delete schema.anyOf;
+        schema.$ref = refItem.$ref;
+        schema.nullable = true;
+      }
+    } else if (schema.anyOf.length > 2) {
+      console.log(`Simplifying anyOf in ${schemaName} (${schema.anyOf.length} options)`);
+      const firstOption = schema.anyOf[0];
+      schema.type = firstOption.type || 'object';
+      schema.nullable = true;
+      schema.description = `${schema.description || ''} [Simplified from ${
+        schema.anyOf.length
+      } options]`.trim();
+      delete schema.anyOf;
     }
   }
 
-  Object.keys(obj).forEach((key) => {
-    if (typeof obj[key] === 'object' && obj[key] !== null) {
-      count += simplifyAnyOfPattern(obj[key], context ? `${context}.${key}` : key);
+  if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 2) {
+    console.log(`Simplifying oneOf in ${schemaName} (${schema.oneOf.length} options)`);
+    const firstOption = schema.oneOf[0];
+    schema.type = firstOption.type || 'object';
+    schema.nullable = true;
+    schema.description = `${schema.description || ''} [Simplified from ${
+      schema.oneOf.length
+    } options]`.trim();
+    delete schema.oneOf;
+  }
+}
+
+function shouldReduceProperties(schema) {
+  if (!schema.properties) return false;
+  const propertyCount = Object.keys(schema.properties).length;
+  return propertyCount > 25;
+}
+
+function reduceProperties(schema, schemaName) {
+  const properties = schema.properties;
+  const propertyCount = Object.keys(properties).length;
+
+  if (propertyCount > 25) {
+    console.log(`Reducing properties in ${schemaName} (${propertyCount} -> 25)`);
+
+    const priorityProperties = [
+      'id',
+      'name',
+      'displayName',
+      'description',
+      'createdDateTime',
+      'lastModifiedDateTime',
+      'status',
+      'state',
+      'type',
+      'value',
+      'email',
+      'userPrincipalName',
+      'title',
+      'content',
+      'body',
+      'subject',
+      'message',
+      'error',
+      'code',
+      'details',
+      'url',
+      'href',
+      'path',
+      'method',
+      'enabled',
+    ];
+
+    const keptProperties = {};
+    const propertyKeys = Object.keys(properties);
+
+    priorityProperties.forEach((key) => {
+      if (properties[key]) {
+        keptProperties[key] = properties[key];
+      }
+    });
+
+    const remainingSlots = 25 - Object.keys(keptProperties).length;
+    const otherKeys = propertyKeys.filter((key) => !keptProperties[key]);
+
+    otherKeys.slice(0, remainingSlots).forEach((key) => {
+      keptProperties[key] = properties[key];
+    });
+
+    schema.properties = keptProperties;
+    schema.additionalProperties = true;
+    schema.description = `${
+      schema.description || ''
+    } [Note: Simplified from ${propertyCount} properties to 25 most common ones]`.trim();
+  }
+}
+
+function mergeAllOfSchemas(allOfArray, allSchemas) {
+  const merged = {
+    type: 'object',
+    properties: {},
+  };
+
+  allOfArray.forEach((item) => {
+    if (item.$ref) {
+      const refSchemaName = item.$ref.replace('#/components/schemas/', '');
+      const refSchema = allSchemas[refSchemaName];
+      if (refSchema) {
+        console.log(
+          `Processing ref ${refSchemaName} for ${item.title}, exists: true, has properties: ${!!refSchema.properties}`
+        );
+        if (refSchema.properties) {
+          console.log(`Ensuring ${item.title} has all required properties from ${refSchemaName}`);
+          Object.assign(merged.properties, refSchema.properties);
+        }
+        if (refSchema.required) {
+          merged.required = [...(merged.required || []), ...refSchema.required];
+        }
+        if (refSchema.description && !merged.description) {
+          merged.description = refSchema.description;
+        }
+      }
+    } else if (item.properties) {
+      Object.assign(merged.properties, item.properties);
+      if (item.required) {
+        merged.required = [...(merged.required || []), ...item.required];
+      }
     }
   });
 
-  return count;
+  if (merged.required) {
+    merged.required = [...new Set(merged.required)];
+  }
+
+  return merged;
 }
 
-function simplifyNestedPropertiesRecursively(properties, currentDepth, maxDepth) {
-  if (currentDepth >= maxDepth) {
+function simplifyNestedPropertiesRecursively(properties, currentDepth = 0, maxDepth = 3) {
+  if (!properties || typeof properties !== 'object' || currentDepth >= maxDepth) {
     return;
   }
 
@@ -421,4 +355,261 @@ function simplifyNestedPropertiesRecursively(properties, currentDepth, maxDepth)
       }
     }
   });
+}
+
+function findUsedSchemas(openApiSpec) {
+  const usedSchemas = new Set();
+  const schemasToProcess = [];
+  const schemas = openApiSpec.components?.schemas || {};
+  const responses = openApiSpec.components?.responses || {};
+  const paths = openApiSpec.paths || {};
+
+  Object.entries(paths).forEach(([, pathItem]) => {
+    Object.entries(pathItem).forEach(([, operation]) => {
+      if (typeof operation !== 'object') return;
+
+      if (operation.requestBody?.content) {
+        Object.values(operation.requestBody.content).forEach((content) => {
+          if (content.schema?.$ref) {
+            const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
+            schemasToProcess.push(schemaName);
+          }
+        });
+      }
+
+      if (operation.responses) {
+        Object.entries(operation.responses).forEach(([, response]) => {
+          if (response.$ref) {
+            const responseName = response.$ref.replace('#/components/responses/', '');
+            const responseDefinition = responses[responseName];
+            if (responseDefinition?.content) {
+              Object.values(responseDefinition.content).forEach((content) => {
+                if (content.schema?.$ref) {
+                  const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
+                  schemasToProcess.push(schemaName);
+                }
+              });
+            }
+          }
+
+          if (response.content) {
+            Object.values(response.content).forEach((content) => {
+              if (content.schema?.$ref) {
+                const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
+                schemasToProcess.push(schemaName);
+              }
+            });
+          }
+        });
+      }
+
+      if (operation.parameters) {
+        operation.parameters.forEach((param) => {
+          if (param.schema?.$ref) {
+            const schemaName = param.schema.$ref.replace('#/components/schemas/', '');
+            schemasToProcess.push(schemaName);
+          }
+        });
+      }
+    });
+  });
+
+  const visited = new Set();
+
+  function processSchema(schemaName) {
+    if (visited.has(schemaName)) return;
+    visited.add(schemaName);
+
+    const schema = schemas[schemaName];
+    if (!schema) {
+      console.log(`⚠️  Warning: Schema ${schemaName} not found`);
+      return;
+    }
+
+    usedSchemas.add(schemaName);
+
+    findRefsInObject(schema, (ref) => {
+      const refSchemaName = ref.replace('#/components/schemas/', '');
+      if (schemas[refSchemaName]) {
+        processSchema(refSchemaName);
+      } else {
+        console.log(`⚠️  Schema ${schemaName} references missing schema: ${refSchemaName}`);
+      }
+    });
+  }
+
+  schemasToProcess.forEach((schemaName) => processSchema(schemaName));
+
+  [
+    'microsoft.graph.ODataErrors.ODataError',
+    'microsoft.graph.ODataErrors.MainError',
+    'microsoft.graph.ODataErrors.ErrorDetails',
+    'microsoft.graph.ODataErrors.InnerError',
+  ].forEach((errorSchema) => {
+    if (schemas[errorSchema]) {
+      processSchema(errorSchema);
+    }
+  });
+
+  console.log(
+    `   Found ${usedSchemas.size} used schemas out of ${Object.keys(schemas).length} total schemas`
+  );
+
+  return usedSchemas;
+}
+
+function findRefsInObject(obj, callback, visited = new Set()) {
+  if (!obj || typeof obj !== 'object' || visited.has(obj)) return;
+  visited.add(obj);
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item) => findRefsInObject(item, callback, visited));
+    return;
+  }
+
+  Object.entries(obj).forEach(([key, value]) => {
+    if (key === '$ref' && typeof value === 'string' && value.startsWith('#/components/schemas/')) {
+      callback(value);
+    } else if (typeof value === 'object') {
+      findRefsInObject(value, callback, visited);
+    }
+  });
+}
+
+function cleanBrokenRefs(obj, availableSchemas, visited = new Set()) {
+  if (!obj || typeof obj !== 'object' || visited.has(obj)) return;
+  visited.add(obj);
+
+  if (Array.isArray(obj)) {
+    for (let i = obj.length - 1; i >= 0; i--) {
+      const item = obj[i];
+      if (item && typeof item === 'object' && item.$ref) {
+        const refSchemaName = item.$ref.replace('#/components/schemas/', '');
+        if (!availableSchemas[refSchemaName]) {
+          console.log(`   Removing broken reference: ${refSchemaName}`);
+          obj.splice(i, 1);
+        }
+      } else if (typeof item === 'object') {
+        cleanBrokenRefs(item, availableSchemas, visited);
+      }
+    }
+    return;
+  }
+
+  Object.entries(obj).forEach(([key, value]) => {
+    if (key === '$ref' && typeof value === 'string' && value.startsWith('#/components/schemas/')) {
+      const refSchemaName = value.replace('#/components/schemas/', '');
+      if (!availableSchemas[refSchemaName]) {
+        console.log(`   Removing broken $ref: ${refSchemaName}`);
+        delete obj[key];
+        if (Object.keys(obj).length === 0) {
+          obj.type = 'object';
+        }
+      }
+    } else if (typeof value === 'object') {
+      cleanBrokenRefs(value, availableSchemas, visited);
+    }
+  });
+}
+
+function pruneUnusedSchemas(openApiSpec, usedSchemas) {
+  const schemas = openApiSpec.components?.schemas || {};
+  const originalCount = Object.keys(schemas).length;
+
+  Object.keys(schemas).forEach((schemaName) => {
+    if (!usedSchemas.has(schemaName)) {
+      delete schemas[schemaName];
+    }
+  });
+
+  Object.values(schemas).forEach((schema) => {
+    if (schema) {
+      cleanBrokenRefs(schema, schemas);
+    }
+  });
+
+  if (openApiSpec.components?.responses) {
+    Object.values(openApiSpec.components.responses).forEach((response) => {
+      if (response) {
+        cleanBrokenRefs(response, schemas);
+      }
+    });
+  }
+
+  if (openApiSpec.paths) {
+    Object.values(openApiSpec.paths).forEach((pathItem) => {
+      if (pathItem) {
+        cleanBrokenRefs(pathItem, schemas);
+      }
+    });
+  }
+
+  const newCount = Object.keys(schemas).length;
+  const reduction = (((originalCount - newCount) / originalCount) * 100).toFixed(1);
+
+  console.log(`   Removed ${originalCount - newCount} unused schemas (${reduction}% reduction)`);
+  console.log(`   Final schema count: ${newCount} (from ${originalCount})`);
+
+  if (openApiSpec.components?.responses) {
+    const usedResponses = new Set();
+
+    Object.values(openApiSpec.paths || {}).forEach((pathItem) => {
+      Object.values(pathItem).forEach((operation) => {
+        if (operation.responses) {
+          Object.values(operation.responses).forEach((response) => {
+            if (response.$ref) {
+              const responseName = response.$ref.replace('#/components/responses/', '');
+              usedResponses.add(responseName);
+            }
+          });
+        }
+      });
+    });
+
+    usedResponses.add('error');
+
+    const responses = openApiSpec.components.responses;
+    const originalResponseCount = Object.keys(responses).length;
+
+    Object.keys(responses).forEach((responseName) => {
+      if (!usedResponses.has(responseName)) {
+        delete responses[responseName];
+      }
+    });
+
+    const newResponseCount = Object.keys(responses).length;
+    console.log(
+      `   Removed ${originalResponseCount - newResponseCount} unused responses (from ${originalResponseCount} to ${newResponseCount})`
+    );
+  }
+
+  if (openApiSpec.components?.requestBodies) {
+    const usedRequestBodies = new Set();
+
+    Object.values(openApiSpec.paths || {}).forEach((pathItem) => {
+      Object.values(pathItem).forEach((operation) => {
+        if (operation.requestBody?.$ref) {
+          const requestBodyName = operation.requestBody.$ref.replace(
+            '#/components/requestBodies/',
+            ''
+          );
+          usedRequestBodies.add(requestBodyName);
+        }
+      });
+    });
+
+    const requestBodies = openApiSpec.components.requestBodies;
+    const originalRequestBodyCount = Object.keys(requestBodies).length;
+
+    Object.keys(requestBodies).forEach((requestBodyName) => {
+      if (!usedRequestBodies.has(requestBodyName)) {
+        delete requestBodies[requestBodyName];
+      }
+    });
+
+    const newRequestBodyCount = Object.keys(requestBodies).length;
+    console.log(
+      `   Removed ${originalRequestBodyCount - newRequestBodyCount} unused request bodies (from ${originalRequestBodyCount} to ${newRequestBodyCount})`
+    );
+  }
 }
