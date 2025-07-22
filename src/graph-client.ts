@@ -60,7 +60,7 @@ class GraphClient {
   private async getSessionForFile(filePath: string): Promise<string | null> {
     const accountId = await this.getCurrentAccountId();
     if (!accountId) return null;
-    
+
     const accountSessions = this.getAccountSessions(accountId);
     return accountSessions.get(filePath) || null;
   }
@@ -68,7 +68,7 @@ class GraphClient {
   private async setSessionForFile(filePath: string, sessionId: string): Promise<void> {
     const accountId = await this.getCurrentAccountId();
     if (!accountId) return;
-    
+
     const accountSessions = this.getAccountSessions(accountId);
     accountSessions.set(filePath, sessionId);
   }
@@ -169,7 +169,16 @@ class GraphClient {
         throw new Error(`Microsoft Graph API error: ${response.status} ${response.statusText}`);
       }
 
-      return response.json();
+      const text = await response.text();
+      if (text === '') {
+        return { message: 'OK!' };
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch (jsonError) {
+        return { message: 'OK!', rawResponse: text };
+      }
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
@@ -551,7 +560,7 @@ class GraphClient {
 
   async closeSession(filePath: string): Promise<McpResponse> {
     const sessionId = await this.getSessionForFile(filePath);
-    
+
     if (!filePath || !sessionId) {
       return {
         content: [
