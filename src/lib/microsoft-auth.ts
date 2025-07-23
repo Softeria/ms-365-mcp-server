@@ -16,14 +16,14 @@ export const microsoftBearerTokenAuthMiddleware = (
     res.status(401).json({ error: 'Missing or invalid access token' });
     return;
   }
-  
+
   const accessToken = authHeader.substring(7);
 
   // For Microsoft Graph, we don't validate the token here - we'll let the API calls fail if it's invalid
   // and handle token refresh in the GraphClient
-  
+
   // Extract refresh token from a custom header (if provided)
-  const refreshToken = req.headers['x-microsoft-refresh-token'] as string || '';
+  const refreshToken = (req.headers['x-microsoft-refresh-token'] as string) || '';
 
   // Store tokens in request for later use
   req.microsoftAuth = {
@@ -69,7 +69,7 @@ export async function exchangeCodeForToken(
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: params
+    body: params,
   });
 
   if (!response.ok) {
@@ -106,7 +106,7 @@ export async function refreshAccessToken(
       refresh_token: refreshToken,
       client_id: clientId,
       client_secret: clientSecret,
-    })
+    }),
   });
 
   if (!response.ok) {
@@ -116,4 +116,4 @@ export async function refreshAccessToken(
   }
 
   return response.json();
-} 
+}

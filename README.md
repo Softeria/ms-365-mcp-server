@@ -77,11 +77,7 @@ To access work/school features (Teams, SharePoint, etc.), enable organization mo
   "mcpServers": {
     "ms365": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@softeria/ms-365-mcp-server",
-        "--org-mode"
-      ]
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--org-mode"]
     }
   }
 }
@@ -113,10 +109,7 @@ Edit the config file under Settings > Developer:
   "mcpServers": {
     "ms365": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@softeria/ms-365-mcp-server"
-      ]
+      "args": ["-y", "@softeria/ms-365-mcp-server"]
     }
   }
 }
@@ -142,9 +135,9 @@ The server supports three authentication methods:
 For interactive authentication via device code:
 
 - **MCP client login**:
-    - Call the `login` tool (auto-checks existing token)
-    - If needed, get URL+code, visit in browser
-    - Use `verify-login` tool to confirm
+  - Call the `login` tool (auto-checks existing token)
+  - If needed, get URL+code, visit in browser
+  - Use `verify-login` tool to confirm
 - **CLI login**:
   ```bash
   npx @softeria/ms-365-mcp-server --login
@@ -177,21 +170,24 @@ To use OAuth mode with custom Azure credentials (recommended for production), yo
 registration:
 
 1. **Create Azure AD App Registration**:
-    - Go to [Azure Portal](https://portal.azure.com)
-    - Navigate to Azure Active Directory → App registrations → New registration
-    - Set name: "MS365 MCP Server"
 
-2. **Configure Redirect URIs**:
-   Add these redirect URIs for testing with MCP Inspector:
-    - `http://localhost:6274/oauth/callback`
-    - `http://localhost:6274/oauth/callback/debug`
-    - `http://localhost:3000/callback` (optional, for server callback)
+- Go to [Azure Portal](https://portal.azure.com)
+- Navigate to Azure Active Directory → App registrations → New registration
+- Set name: "MS365 MCP Server"
 
-3. **Get Credentials**:
-    - Copy the **Application (client) ID** from Overview page
-    - Go to Certificates & secrets → New client secret → Copy the secret value
+1. **Configure Redirect URIs**:
+   Add these redirect URIs for testing with MCP Inspector (`npm run inspector`):
 
-4. **Configure Environment Variables**:
+- `http://localhost:6274/oauth/callback`
+- `http://localhost:6274/oauth/callback/debug`
+- `http://localhost:3000/callback` (optional, for server callback)
+
+1. **Get Credentials**:
+
+- Copy the **Application (client) ID** from Overview page
+- Go to Certificates & secrets → New client secret → Copy the secret value
+
+1. **Configure Environment Variables**:
    Create a `.env` file in your project root:
    ```env
    MS365_MCP_CLIENT_ID=your-azure-ad-app-client-id-here
@@ -213,7 +209,7 @@ MS365_MCP_OAUTH_TOKEN=your_oauth_token npx @softeria/ms-365-mcp-server
 This method:
 
 - Bypasses the interactive authentication flows
-- Uses your pre-existing OAuth token for Microsoft Graph API requests
+- Use your pre-existing OAuth token for Microsoft Graph API requests
 - Does not handle token refresh (token lifecycle management is your responsibility)
 
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
@@ -250,7 +246,7 @@ When running as an MCP server, the following options can be used:
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
-- `ENABLED_TOOLS`: Filter tools using regex pattern (alternative to --enabled-tools flag)
+- `ENABLED_TOOLS`: Filter tools using a regex pattern (alternative to --enabled-tools flag)
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `LOG_LEVEL`: Set logging level (default: 'info')
@@ -258,6 +254,16 @@ Environment variables:
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
+
+## Contributing
+
+We welcome contributions! Before submitting a pull request, please ensure your changes meet our quality standards.
+
+Run the verification script to check all code quality requirements:
+
+```bash
+npm run verify
+```
 
 ## Support
 
