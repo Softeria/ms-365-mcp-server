@@ -63,7 +63,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           },
         ],
       };
-    } catch (error) {
+    } catch {
       return {
         content: [
           {

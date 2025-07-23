@@ -38,7 +38,7 @@ describe('Graph API Functions', () => {
 
         const result = await response.json();
         return result.id;
-      } catch (error) {
+      } catch {
         return null;
       }
     }

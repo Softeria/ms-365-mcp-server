@@ -231,7 +231,7 @@ class AuthManager {
         this.accessToken = response.accessToken;
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
         return this.accessToken;
-      } catch (error) {
+      } catch {
         logger.error('Silent token acquisition failed');
         throw new Error('Silent token acquisition failed');
       }

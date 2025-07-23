@@ -319,7 +319,7 @@ class MicrosoftGraphServer {
       );
 
       // Microsoft Graph MCP endpoints with bearer token auth
-      app.post('/mcp', microsoftBearerTokenAuthMiddleware, async (req: any, res) => {
+      app.post('/mcp', microsoftBearerTokenAuthMiddleware, async (req: Request, res) => {
         try {
           // Set OAuth tokens in the GraphClient if available
           if (req.microsoftAuth) {

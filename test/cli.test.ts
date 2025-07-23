@@ -25,7 +25,7 @@ vi.mock('../src/auth.js', () => {
   };
 });
 vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {});
+vi.spyOn(process, 'exit').mockImplementation(() => {});
 
 describe('CLI Module', () => {
   beforeEach(() => {

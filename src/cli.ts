@@ -57,7 +57,7 @@ export interface CommandOptions {
   workMode?: boolean;
   forceWorkScopes?: boolean;
 
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function parseArgs(): CommandOptions {

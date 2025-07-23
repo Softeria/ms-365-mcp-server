@@ -8,7 +8,7 @@ const testEndpoint: Endpoint = {
   description: 'Test endpoint',
   requestFormat: 'json',
   parameters: [],
-  response: {} as any,
+  response: {} as Record<string, unknown>,
 };
 
 const zodios = new Zodios([testEndpoint]);

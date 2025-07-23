@@ -19,9 +19,9 @@ vi.mock('zod', () => {
 });
 
 describe('Auth Tools', () => {
-  let server: any;
-  let authManager: any;
-  let loginTool: any;
+  let server: { tool: ReturnType<typeof vi.fn> };
+  let authManager: { logout: ReturnType<typeof vi.fn>; testLogin: ReturnType<typeof vi.fn> };
+  let loginTool: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     loginTool = vi.fn();

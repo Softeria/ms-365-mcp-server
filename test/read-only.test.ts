@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../src/cli.js';
 import { registerGraphTools } from '../src/graph-tools.js';
+import type { GraphClient } from '../src/graph-client.js';
 
 vi.mock('../src/cli.js', () => {
   const parseArgsMock = vi.fn();
@@ -46,7 +47,7 @@ vi.mock('../src/logger.js', () => {
 });
 
 describe('Read-Only Mode', () => {
-  let mockServer: any;
+  let mockServer: { tool: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,32 +64,32 @@ describe('Read-Only Mode', () => {
   });
 
   it('should respect --read-only flag from CLI', () => {
-    vi.mocked(parseArgs).mockReturnValue({ readOnly: true } as any);
+    vi.mocked(parseArgs).mockReturnValue({ readOnly: true } as ReturnType<typeof parseArgs>);
 
     const options = parseArgs();
     expect(options.readOnly).toBe(true);
 
-    registerGraphTools(mockServer, {} as any, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
     expect(mockServer.tool).toHaveBeenCalledTimes(1);
 
-    const toolCalls = mockServer.tool.mock.calls.map((call: any[]) => call[0]);
+    const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
     expect(toolCalls).not.toContain('send-mail');
     expect(toolCalls).not.toContain('delete-mail-message');
   });
 
   it('should register all endpoints when not in read-only mode', () => {
-    vi.mocked(parseArgs).mockReturnValue({ readOnly: false } as any);
+    vi.mocked(parseArgs).mockReturnValue({ readOnly: false } as ReturnType<typeof parseArgs>);
 
     const options = parseArgs();
     expect(options.readOnly).toBe(false);
 
-    registerGraphTools(mockServer, {} as any, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
     expect(mockServer.tool).toHaveBeenCalledTimes(3);
 
-    const toolCalls = mockServer.tool.mock.calls.map((call: any[]) => call[0]);
+    const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
     expect(toolCalls).toContain('send-mail');
     expect(toolCalls).toContain('delete-mail-message');

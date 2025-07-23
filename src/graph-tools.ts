@@ -88,7 +88,7 @@ export function registerGraphTools(
     try {
       enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
       logger.info(`Tool filtering enabled with pattern: ${enabledToolsPattern}`);
-    } catch (error) {
+    } catch {
       logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Ignoring filter.`);
     }
   }
@@ -110,7 +110,7 @@ export function registerGraphTools(
       continue;
     }
 
-    const paramSchema: Record<string, any> = {};
+    const paramSchema: Record<string, unknown> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
         if (param.type === 'Body' && param.schema) {
@@ -136,7 +136,7 @@ export function registerGraphTools(
         title: tool.alias,
         readOnlyHint: tool.method.toUpperCase() === 'GET',
       },
-      async (params, extra) => {
+      async (params) => {
         logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
         try {
           logger.info(`params: ${JSON.stringify(params)}`);
@@ -146,7 +146,7 @@ export function registerGraphTools(
           let path = tool.path;
           const queryParams: Record<string, string> = {};
           const headers: Record<string, string> = {};
-          let body: any = null;
+          let body: unknown = null;
           for (let [paramName, paramValue] of Object.entries(params)) {
             // Skip pagination control parameter - it's not part of the Microsoft Graph API - I think 🤷
             if (paramName === 'fetchAllPages') {
@@ -187,7 +187,7 @@ export function registerGraphTools(
                   if (typeof paramValue === 'string') {
                     try {
                       body = JSON.parse(paramValue);
-                    } catch (e) {
+                    } catch {
                       body = paramValue;
                     }
                   } else {
@@ -203,7 +203,7 @@ export function registerGraphTools(
               if (typeof paramValue === 'string') {
                 try {
                   body = JSON.parse(paramValue);
-                } catch (e) {
+                } catch {
                   body = paramValue;
                 }
               } else {
@@ -220,7 +220,7 @@ export function registerGraphTools(
             path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
           }
 
-          const options: any = {
+          const options: { method: string; headers: Record<string, string>; body?: string } = {
             method: tool.method.toUpperCase(),
             headers,
           };
@@ -315,7 +315,7 @@ export function registerGraphTools(
               }
               const preview = responseText.substring(0, 500);
               logger.info(`Response preview: ${preview}${responseText.length > 500 ? '...' : ''}`);
-            } catch (e) {
+            } catch {
               const preview = responseText.substring(0, 500);
               logger.info(
                 `Response preview (non-JSON): ${preview}${responseText.length > 500 ? '...' : ''}`

@@ -11,7 +11,7 @@ interface GraphRequestOptions {
   accessToken?: string;
   refreshToken?: string;
 
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface ContentItem {
@@ -117,7 +117,7 @@ class GraphClient {
     }
   }
 
-  async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<any> {
+  async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<unknown> {
     // Use OAuth tokens if available, otherwise fall back to authManager
     let accessToken =
       options.accessToken || this.accessToken || (await this.authManager.getToken());
@@ -167,7 +167,7 @@ class GraphClient {
 
       try {
         return JSON.parse(text);
-      } catch (jsonError) {
+      } catch {
         return { message: 'OK!', rawResponse: text };
       }
     } catch (error) {
@@ -303,7 +303,7 @@ class GraphClient {
     }
   }
 
-  formatJsonResponse(data: any, rawResponse = false): McpResponse {
+  formatJsonResponse(data: unknown, rawResponse = false): McpResponse {
     if (rawResponse) {
       return {
         content: [{ type: 'text', text: JSON.stringify(data) }],
@@ -317,19 +317,19 @@ class GraphClient {
     }
 
     // Remove OData properties
-    const removeODataProps = (obj: any): void => {
+    const removeODataProps = (obj: Record<string, unknown>): void => {
       if (typeof obj === 'object' && obj !== null) {
         Object.keys(obj).forEach((key) => {
           if (key.startsWith('@odata.')) {
             delete obj[key];
           } else if (typeof obj[key] === 'object') {
-            removeODataProps(obj[key]);
+            removeODataProps(obj[key] as Record<string, unknown>);
           }
         });
       }
     };
 
-    removeODataProps(data);
+    removeODataProps(data as Record<string, unknown>);
 
     return {
       content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -520,17 +520,18 @@ class GraphClient {
 
       const result = await response.json();
 
-      const removeODataProps = (obj: any): void => {
+      const removeODataProps = (obj: unknown): void => {
         if (!obj || typeof obj !== 'object') return;
 
         if (Array.isArray(obj)) {
           obj.forEach((item) => removeODataProps(item));
         } else {
-          Object.keys(obj).forEach((key) => {
+          Object.keys(obj as Record<string, unknown>).forEach((key) => {
+            const objRecord = obj as Record<string, unknown>;
             if (key.startsWith('@odata') && !['@odata.nextLink', '@odata.count'].includes(key)) {
-              delete obj[key];
-            } else if (typeof obj[key] === 'object') {
-              removeODataProps(obj[key]);
+              delete objRecord[key];
+            } else if (typeof objRecord[key] === 'object') {
+              removeODataProps(objRecord[key]);
             }
           });
         }
