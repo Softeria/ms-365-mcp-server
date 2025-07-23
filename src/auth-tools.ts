@@ -27,8 +27,8 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           }
         }
 
-        const text = await new Promise<string>((r) => {
-          authManager.acquireTokenByDeviceCode(r);
+        const text = await new Promise<string>((resolve, reject) => {
+          authManager.acquireTokenByDeviceCode(resolve).catch(reject);
         });
         return {
           content: [
