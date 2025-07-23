@@ -147,21 +147,12 @@ class GraphClient {
       if (response.status === 403) {
         const errorText = await response.text();
         if (errorText.includes('scope') || errorText.includes('permission')) {
-          const hasWorkPermissions = await this.authManager.hasWorkAccountPermissions();
-          if (!hasWorkPermissions) {
-            logger.info('403 scope error detected, attempting to expand to work account scopes...');
-            const expanded = await this.authManager.expandToWorkAccountScopes();
-            if (expanded) {
-              const newToken = await this.authManager.getToken();
-              if (newToken) {
-                logger.info('Retrying request with expanded scopes...');
-                return this.performRequest(endpoint, newToken, options);
-              }
-            }
-          }
+          throw new Error(
+            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+          );
         }
         throw new Error(
-          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}`
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
         );
       }
 

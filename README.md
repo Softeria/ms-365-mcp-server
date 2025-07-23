@@ -21,15 +21,17 @@ API.
 
 ## Supported Services & Tools
 
+### Personal Account Tools (Available by default)
+
 **Email (Outlook)**  
 <sub>list-mail-messages, list-mail-folders, list-mail-folder-messages, get-mail-message, send-mail,
-delete-mail-message</sub>
+delete-mail-message, create-draft-email, move-mail-message</sub>
 
 **Calendar**  
 <sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event,
 update-calendar-event, delete-calendar-event</sub>
 
-**OneDrive & SharePoint Files**  
+**OneDrive Files**  
 <sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content,
 upload-new-file, delete-onedrive-file</sub>
 
@@ -50,21 +52,25 @@ create-onenote-page</sub>
 <sub>list-outlook-contacts, get-outlook-contact, create-outlook-contact, update-outlook-contact,
 delete-outlook-contact</sub>
 
-**Teams & Chats** (Work/School accounts only)  
+**User Profile**  
+<sub>get-current-user</sub>
+
+### Organization Account Tools (Requires --org-mode flag)
+
+**Teams & Chats**  
 <sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies,
 reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages,
 get-channel-message, send-channel-message, list-team-members</sub>
 
-**SharePoint Sites** (Work/School accounts only)  
+**SharePoint Sites**  
 <sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives,
 get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site-item, list-sharepoint-site-lists,
 get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item,
 get-sharepoint-sites-delta</sub>
 
-### Work Scopes Issues
+## Organization/Work Mode
 
-If you're having issues accessing work/school features (Teams, SharePoint, etc.), you should pass the
-`--force-work-scopes` flag!
+To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:
 
 ```json
 {
@@ -74,18 +80,15 @@ If you're having issues accessing work/school features (Teams, SharePoint, etc.)
       "args": [
         "-y",
         "@softeria/ms-365-mcp-server",
-        "--force-work-scopes"
+        "--org-mode"
       ]
     }
   }
 }
 ```
 
-While the server should attempt to force a re-login when work scopes are needed, passing the flag explicitly is safer
-and ensures proper scope permissions from the start.
-
-**User Profile**  
-<sub>get-current-user</sub>
+Organization mode must be enabled from the start to access work account features. Without this flag, only personal
+account features (email, calendar, OneDrive, etc.) are available.
 
 ## Quick Start Example
 
@@ -226,7 +229,9 @@ The following options can be used when running ms-365-mcp-server directly from t
 --login           Login using device code flow
 --logout          Log out and clear saved credentials
 --verify-login    Verify login without starting the server
---force-work-scopes Force inclusion of work account scopes during login (includes Teams, SharePoint, etc.)
+--org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
+--work-mode       Alias for --org-mode
+--force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 ```
 
 ### Server Options
@@ -246,7 +251,8 @@ Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
 - `ENABLED_TOOLS`: Filter tools using regex pattern (alternative to --enabled-tools flag)
-- `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Force inclusion of work account scopes (alternative to --force-work-scopes flag)
+- `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
+- `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)

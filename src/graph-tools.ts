@@ -3,6 +3,24 @@ import logger from './logger.js';
 import GraphClient from './graph-client.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+interface EndpointConfig {
+  pathPattern: string;
+  method: string;
+  toolName: string;
+  scopes?: string[];
+  requiresWorkAccount?: boolean;
+}
+
+const endpointsData = JSON.parse(
+  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
+) as EndpointConfig[];
 
 type TextContent = {
   type: 'text';
@@ -62,7 +80,8 @@ export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
   readOnly: boolean = false,
-  enabledToolsPattern?: string
+  enabledToolsPattern?: string,
+  orgMode: boolean = false
 ): void {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -75,6 +94,12 @@ export function registerGraphTools(
   }
 
   for (const tool of api.endpoints) {
+    const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
+    if (endpointConfig?.requiresWorkAccount && !orgMode) {
+      logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
+      continue;
+    }
+
     if (readOnly && tool.method.toUpperCase() !== 'GET') {
       logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
       continue;

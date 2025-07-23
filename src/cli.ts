@@ -35,9 +35,11 @@ program
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
   .option(
-    '--force-work-scopes',
-    'Force inclusion of work account scopes during login (includes Teams, SharePoint, etc.)'
-  );
+    '--org-mode',
+    'Enable organization/work mode from start (includes Teams, SharePoint, etc.)'
+  )
+  .option('--work-mode', 'Alias for --org-mode')
+  .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)');
 
 export interface CommandOptions {
   v?: boolean;
@@ -51,6 +53,8 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
+  orgMode?: boolean;
+  workMode?: boolean;
   forceWorkScopes?: boolean;
 
   [key: string]: any;
@@ -68,11 +72,19 @@ export function parseArgs(): CommandOptions {
     options.enabledTools = process.env.ENABLED_TOOLS;
   }
 
+  if (process.env.MS365_MCP_ORG_MODE === 'true' || process.env.MS365_MCP_ORG_MODE === '1') {
+    options.orgMode = true;
+  }
+
   if (
     process.env.MS365_MCP_FORCE_WORK_SCOPES === 'true' ||
     process.env.MS365_MCP_FORCE_WORK_SCOPES === '1'
   ) {
     options.forceWorkScopes = true;
+  }
+
+  if (options.workMode || options.forceWorkScopes) {
+    options.orgMode = true;
   }
 
   return options;

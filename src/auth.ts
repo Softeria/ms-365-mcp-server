@@ -73,10 +73,6 @@ function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): st
   return Array.from(scopesSet);
 }
 
-function buildAllScopes(): string[] {
-  return buildScopesFromEndpoints(true);
-}
-
 interface LoginTestResult {
   success: boolean;
   message: string;
@@ -421,53 +417,6 @@ class AuthManager {
     }
   }
 
-  async expandToWorkAccountScopes(hack?: (message: string) => void): Promise<boolean> {
-    try {
-      logger.info('Expanding to work account scopes...');
-
-      const allScopes = buildAllScopes();
-
-      const deviceCodeRequest = {
-        scopes: allScopes,
-        deviceCodeCallback: (response: { message: string }) => {
-          const text = [
-            '\n',
-            '🔄 This feature requires additional permissions (work account scopes)',
-            '\n',
-            response.message,
-            '\n',
-          ].join('');
-          if (hack) {
-            hack(text + 'After login run the "verify login" command');
-          } else {
-            console.log(text);
-          }
-          logger.info('Work account scope expansion initiated');
-        },
-      };
-
-      const response = await this.msalApp.acquireTokenByDeviceCode(deviceCodeRequest);
-      logger.info('Work account scope expansion successful');
-
-      this.accessToken = response?.accessToken || null;
-      this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
-      this.scopes = allScopes;
-
-      // Update selected account if this is a new account
-      if (response?.account) {
-        this.selectedAccountId = response.account.homeAccountId;
-        await this.saveSelectedAccount();
-        logger.info(`Updated selected account after scope expansion: ${response.account.username}`);
-      }
-
-      await this.saveTokenCache();
-      return true;
-    } catch (error) {
-      logger.error(`Error expanding to work account scopes: ${(error as Error).message}`);
-      return false;
-    }
-  }
-
   // Multi-account support methods
   async listAccounts(): Promise<AccountInfo[]> {
     return await this.msalApp.getTokenCache().getAllAccounts();
@@ -554,4 +503,4 @@ class AuthManager {
 }
 
 export default AuthManager;
-export { buildScopesFromEndpoints, buildAllScopes };
+export { buildScopesFromEndpoints };

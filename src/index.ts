@@ -3,24 +3,17 @@
 import 'dotenv/config';
 import { parseArgs } from './cli.js';
 import logger from './logger.js';
-import AuthManager from './auth.js';
+import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import MicrosoftGraphServer from './server.js';
 import { version } from './version.js';
-import { buildScopesFromEndpoints } from './auth.js';
 
 async function main(): Promise<void> {
   try {
     const args = parseArgs();
 
-    let includeWorkScopes = args.forceWorkScopes;
-    if (!includeWorkScopes) {
-      const tempAuthManager = new AuthManager(undefined, buildScopesFromEndpoints(false));
-      await tempAuthManager.loadTokenCache();
-      const hasWorkPermissions = await tempAuthManager.hasWorkAccountPermissions();
-      if (hasWorkPermissions) {
-        includeWorkScopes = true;
-        logger.info('Detected existing work account permissions, including work scopes');
-      }
+    const includeWorkScopes = args.orgMode || false;
+    if (includeWorkScopes) {
+      logger.info('Organization mode enabled - including work account scopes');
     }
 
     const scopes = buildScopesFromEndpoints(includeWorkScopes);
@@ -51,11 +44,11 @@ async function main(): Promise<void> {
     if (args.listAccounts) {
       const accounts = await authManager.listAccounts();
       const selectedAccountId = authManager.getSelectedAccountId();
-      const result = accounts.map(account => ({
+      const result = accounts.map((account) => ({
         id: account.homeAccountId,
         username: account.username,
         name: account.name,
-        selected: account.homeAccountId === selectedAccountId
+        selected: account.homeAccountId === selectedAccountId,
       }));
       console.log(JSON.stringify({ accounts: result }));
       process.exit(0);
