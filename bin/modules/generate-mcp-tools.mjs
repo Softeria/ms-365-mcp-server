@@ -17,7 +17,7 @@ export function generateMcpTools(openApiSpec, outputDir) {
 
     const clientFilePath = path.join(outputDir, 'client.ts');
     execSync(
-      `npx -y openapi-zod-client ${openapiTrimmedFile} -o ${clientFilePath} --with-description --strict-objects --additional-props-default-value=false`,
+      `npx -y openapi-zod-client "${openapiTrimmedFile}" -o "${clientFilePath}" --with-description --strict-objects --additional-props-default-value=false`,
       {
         stdio: 'inherit',
       }
