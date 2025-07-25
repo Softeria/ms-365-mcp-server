@@ -55,6 +55,9 @@ delete-outlook-contact</sub>
 **User Profile**  
 <sub>get-current-user</sub>
 
+**Search**  
+<sub>search-query</sub>
+
 ### Organization Account Tools (Requires --org-mode flag)
 
 **Teams & Chats**  

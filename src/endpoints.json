@@ -314,189 +314,169 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "scopes": ["Chat.Read"],
-    "requiresWorkAccount": true
+    "workScopes": ["Chat.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "scopes": ["Chat.Read"],
-    "requiresWorkAccount": true
+    "workScopes": ["Chat.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "scopes": ["ChatMessage.Read"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
-    "scopes": ["ChatMessage.Read"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "scopes": ["ChatMessage.Send"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChatMessage.Send"]
   },
   {
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "scopes": ["Team.ReadBasic.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "scopes": ["Team.ReadBasic.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "scopes": ["Channel.ReadBasic.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Channel.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "scopes": ["Channel.ReadBasic.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Channel.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "scopes": ["ChannelMessage.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-channel-message",
-    "scopes": ["ChannelMessage.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "scopes": ["ChannelMessage.Send"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChannelMessage.Send"]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
-    "scopes": ["TeamMember.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["TeamMember.Read.All"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "scopes": ["ChatMessage.Read"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "scopes": ["ChatMessage.Send"],
-    "requiresWorkAccount": true
+    "workScopes": ["ChatMessage.Send"]
   },
   {
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}",
     "method": "get",
     "toolName": "get-sharepoint-site",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-drive-by-id",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-items",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-item",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-list-items",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list-item",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/delta()",
     "method": "get",
     "toolName": "get-sharepoint-sites-delta",
-    "scopes": ["Sites.Read.All"],
-    "requiresWorkAccount": true
+    "workScopes": ["Sites.Read.All"]
+  },
+  {
+    "pathPattern": "/search/query",
+    "method": "post",
+    "toolName": "search-query",
+    "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
+    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
   }
 ]

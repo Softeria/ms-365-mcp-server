@@ -26,6 +26,18 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
           if (!operation.description && operation.summary) {
             operation.description = operation.summary;
           }
+          if (operation.parameters) {
+            operation.parameters = operation.parameters.map((param) => {
+              if (param.$ref && param.$ref.startsWith('#/components/parameters/')) {
+                const paramName = param.$ref.replace('#/components/parameters/', '');
+                const resolvedParam = openApiSpec.components?.parameters?.[paramName];
+                if (resolvedParam) {
+                  return { ...resolvedParam };
+                }
+              }
+              return param;
+            });
+          }
         } else {
           delete value[method];
         }

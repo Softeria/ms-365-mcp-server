@@ -2,7 +2,7 @@ import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
 import logger from './logger.js';
-import { existsSync, readFileSync } from 'fs';
+import fs, { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -11,7 +11,7 @@ interface EndpointConfig {
   method: string;
   toolName: string;
   scopes?: string[];
-  requiresWorkAccount?: boolean;
+  workScopes?: string[];
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,12 +54,19 @@ function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): st
   const scopesSet = new Set<string>();
 
   endpoints.default.forEach((endpoint) => {
-    if (endpoint.requiresWorkAccount && !includeWorkAccountScopes) {
+    // Skip endpoints that only have workScopes if not in work mode
+    if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
       return;
     }
 
+    // Add regular scopes
     if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
       endpoint.scopes.forEach((scope) => scopesSet.add(scope));
+    }
+
+    // Add workScopes if in work mode
+    if (includeWorkAccountScopes && endpoint.workScopes && Array.isArray(endpoint.workScopes)) {
+      endpoint.workScopes.forEach((scope) => scopesSet.add(scope));
     }
   });
 
@@ -391,32 +398,6 @@ class AuthManager {
     }
   }
 
-  async hasWorkAccountPermissions(): Promise<boolean> {
-    try {
-      const currentAccount = await this.getCurrentAccount();
-      if (!currentAccount) {
-        return false;
-      }
-
-      const workScopes = endpoints.default
-        .filter((e) => e.requiresWorkAccount)
-        .flatMap((e) => e.scopes || []);
-
-      try {
-        await this.msalApp.acquireTokenSilent({
-          scopes: workScopes.slice(0, 1),
-          account: currentAccount,
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    } catch (error) {
-      logger.error(`Error checking work account permissions: ${(error as Error).message}`);
-      return false;
-    }
-  }
-
   // Multi-account support methods
   async listAccounts(): Promise<AccountInfo[]> {
     return await this.msalApp.getTokenCache().getAllAccounts();
@@ -440,28 +421,6 @@ class AuthManager {
 
     logger.info(`Selected account: ${account.username} (${accountId})`);
     return true;
-  }
-
-  async getTokenForAccount(accountId: string): Promise<string | null> {
-    const accounts = await this.listAccounts();
-    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
-
-    if (!account) {
-      throw new Error(`Account with ID ${accountId} not found`);
-    }
-
-    const silentRequest = {
-      account: account,
-      scopes: this.scopes,
-    };
-
-    try {
-      const response = await this.msalApp.acquireTokenSilent(silentRequest);
-      return response.accessToken;
-    } catch (error) {
-      logger.error(`Failed to get token for account ${accountId}: ${(error as Error).message}`);
-      throw error;
-    }
   }
 
   async removeAccount(accountId: string): Promise<boolean> {
@@ -494,11 +453,6 @@ class AuthManager {
 
   getSelectedAccountId(): string | null {
     return this.selectedAccountId;
-  }
-
-  requiresWorkAccountScope(toolName: string): boolean {
-    const endpoint = endpoints.default.find((e) => e.toolName === toolName);
-    return endpoint?.requiresWorkAccount === true;
   }
 }
 

@@ -19,7 +19,7 @@
     "format:check": "prettier --check \"**/*.{ts,mts,js,mjs,json,md}\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "verify": "npm run lint && npm run format:check && npm run build && npm run test",
+    "verify": "npm run generate && npm run lint && npm run format:check && npm run build && npm run test",
     "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts"
   },
   "keywords": [

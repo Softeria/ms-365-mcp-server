@@ -15,7 +15,7 @@ interface EndpointConfig {
   method: string;
   toolName: string;
   scopes?: string[];
-  requiresWorkAccount?: boolean;
+  workScopes?: string[];
 }
 
 const endpointsData = JSON.parse(
@@ -95,7 +95,7 @@ export function registerGraphTools(
 
   for (const tool of api.endpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (endpointConfig?.requiresWorkAccount && !orgMode) {
+    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
       logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
       continue;
     }
