@@ -3,7 +3,6 @@ import AuthManager from './auth.js';
 import { refreshAccessToken } from './lib/microsoft-auth.js';
 
 interface GraphRequestOptions {
-  excelFile?: string;
   headers?: Record<string, string>;
   method?: string;
   body?: string;
@@ -31,46 +30,16 @@ interface McpResponse {
 
 class GraphClient {
   private authManager: AuthManager;
-  private sessions: Map<string, Map<string, string>>; // accountId -> (filePath -> sessionId)
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
   constructor(authManager: AuthManager) {
     this.authManager = authManager;
-    this.sessions = new Map();
   }
 
   setOAuthTokens(accessToken: string, refreshToken?: string): void {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken || null;
-  }
-
-  private async getCurrentAccountId(): Promise<string | null> {
-    const currentAccount = await this.authManager.getCurrentAccount();
-    return currentAccount?.homeAccountId || null;
-  }
-
-  private getAccountSessions(accountId: string): Map<string, string> {
-    if (!this.sessions.has(accountId)) {
-      this.sessions.set(accountId, new Map());
-    }
-    return this.sessions.get(accountId)!;
-  }
-
-  private async getSessionForFile(filePath: string): Promise<string | null> {
-    const accountId = await this.getCurrentAccountId();
-    if (!accountId) return null;
-
-    const accountSessions = this.getAccountSessions(accountId);
-    return accountSessions.get(filePath) || null;
-  }
-
-  private async setSessionForFile(filePath: string, sessionId: string): Promise<void> {
-    const accountId = await this.getCurrentAccountId();
-    if (!accountId) return;
-
-    const accountSessions = this.getAccountSessions(accountId);
-    accountSessions.set(filePath, sessionId);
   }
 
   async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<unknown> {
@@ -155,43 +124,11 @@ class GraphClient {
     accessToken: string,
     options: GraphRequestOptions
   ): Promise<Response> {
-    let url: string;
-    let sessionId: string | null = null;
-
-    if (
-      options.excelFile &&
-      !endpoint.startsWith('/drive') &&
-      !endpoint.startsWith('/users') &&
-      !endpoint.startsWith('/me') &&
-      !endpoint.startsWith('/teams') &&
-      !endpoint.startsWith('/chats') &&
-      !endpoint.startsWith('/planner')
-    ) {
-      sessionId = await this.getSessionForFile(options.excelFile);
-
-      if (!sessionId) {
-        sessionId = await this.createSessionWithToken(options.excelFile, accessToken);
-      }
-
-      url = `https://graph.microsoft.com/v1.0/me/drive/root:${options.excelFile}:${endpoint}`;
-    } else if (
-      endpoint.startsWith('/drive') ||
-      endpoint.startsWith('/users') ||
-      endpoint.startsWith('/me') ||
-      endpoint.startsWith('/teams') ||
-      endpoint.startsWith('/chats') ||
-      endpoint.startsWith('/planner') ||
-      endpoint.startsWith('/search')
-    ) {
-      url = `https://graph.microsoft.com/v1.0${endpoint}`;
-    } else {
-      throw new Error('Excel operation requested without specifying a file');
-    }
+    const url = `https://graph.microsoft.com/v1.0${endpoint}`;
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
-      ...(sessionId && { 'workbook-session-id': sessionId }),
       ...options.headers,
     };
 
@@ -216,49 +153,6 @@ class GraphClient {
         content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
         isError: true,
       };
-    }
-  }
-
-  async createSessionWithToken(filePath: string, accessToken: string): Promise<string | null> {
-    try {
-      if (!filePath) {
-        logger.error('No file path provided for Excel session');
-        return null;
-      }
-
-      const existingSession = await this.getSessionForFile(filePath);
-      if (existingSession) {
-        return existingSession;
-      }
-
-      logger.info(`Creating new Excel session for file: ${filePath}`);
-
-      const response = await fetch(
-        `https://graph.microsoft.com/v1.0/me/drive/root:${filePath}:/workbook/createSession`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ persistChanges: true }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`Failed to create session: ${response.status} - ${errorText}`);
-        return null;
-      }
-
-      const result = await response.json();
-      logger.info(`Session created successfully for file: ${filePath}`);
-
-      await this.setSessionForFile(filePath, result.id);
-      return result.id;
-    } catch (error) {
-      logger.error(`Error creating Excel session: ${error}`);
-      return null;
     }
   }
 
