@@ -113,11 +113,7 @@ export function registerGraphTools(
     const paramSchema: Record<string, unknown> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
-        if (param.type === 'Body' && param.schema) {
-          paramSchema[param.name] = z.union([z.string(), param.schema]);
-        } else {
-          paramSchema[param.name] = param.schema || z.any();
-        }
+        paramSchema[param.name] = param.schema || z.any();
       }
     }
 
@@ -184,15 +180,7 @@ export function registerGraphTools(
                   break;
 
                 case 'Body':
-                  if (typeof paramValue === 'string') {
-                    try {
-                      body = JSON.parse(paramValue);
-                    } catch {
-                      body = paramValue;
-                    }
-                  } else {
-                    body = paramValue;
-                  }
+                  body = paramValue;
                   break;
 
                 case 'Header':
@@ -200,16 +188,8 @@ export function registerGraphTools(
                   break;
               }
             } else if (paramName === 'body') {
-              if (typeof paramValue === 'string') {
-                try {
-                  body = JSON.parse(paramValue);
-                } catch {
-                  body = paramValue;
-                }
-              } else {
-                body = paramValue;
-              }
-              logger.info(`Set legacy body param: ${JSON.stringify(body)}`);
+              body = paramValue;
+              logger.info(`Set body param: ${JSON.stringify(body)}`);
             }
           }
 

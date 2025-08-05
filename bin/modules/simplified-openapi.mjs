@@ -389,6 +389,13 @@ function findUsedSchemas(openApiSpec) {
             const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
             schemasToProcess.push(schemaName);
           }
+          if (content.schema?.properties?.requests?.items?.$ref) {
+            const schemaName = content.schema.properties.requests.items.$ref.replace(
+              '#/components/schemas/',
+              ''
+            );
+            schemasToProcess.push(schemaName);
+          }
         });
       }
 
@@ -412,6 +419,21 @@ function findUsedSchemas(openApiSpec) {
               if (content.schema?.$ref) {
                 const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
                 schemasToProcess.push(schemaName);
+              }
+              if (content.schema?.allOf) {
+                content.schema.allOf.forEach((allOfItem) => {
+                  if (allOfItem.$ref) {
+                    const schemaName = allOfItem.$ref.replace('#/components/schemas/', '');
+                    schemasToProcess.push(schemaName);
+                  }
+                  if (allOfItem.properties?.value?.items?.$ref) {
+                    const schemaName = allOfItem.properties.value.items.$ref.replace(
+                      '#/components/schemas/',
+                      ''
+                    );
+                    schemasToProcess.push(schemaName);
+                  }
+                });
               }
             });
           }
