@@ -71,6 +71,13 @@ get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site
 get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item,
 get-sharepoint-sites-delta</sub>
 
+**Shared Mailboxes**  
+<sub>list-shared-mailbox-messages, list-shared-mailbox-folder-messages, get-shared-mailbox-message,
+send-shared-mailbox-mail</sub>
+
+**User Management**  
+<sub>list-users</sub>
+
 ## Organization/Work Mode
 
 To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:
@@ -88,6 +95,20 @@ To access work/school features (Teams, SharePoint, etc.), enable organization mo
 
 Organization mode must be enabled from the start to access work account features. Without this flag, only personal
 account features (email, calendar, OneDrive, etc.) are available.
+
+## Shared Mailbox Access
+
+To access shared mailboxes, you need:
+
+1. **Organization mode**: Shared mailbox tools require `--org-mode` flag (work/school accounts only)
+2. **Delegated permissions**: `Mail.Read.Shared` or `Mail.Send.Shared` scopes
+3. **Exchange permissions**: The signed-in user must have been granted access to the shared mailbox
+4. **Usage**: Use the shared mailbox's email address as the `user-id` parameter in the shared mailbox tools
+
+**Finding shared mailboxes**: Use the `list-users` tool to discover available users and shared mailboxes in your
+organization.
+
+Example: `list-shared-mailbox-messages` with `user-id` set to `shared-mailbox@company.com`
 
 ## Quick Start Example
 

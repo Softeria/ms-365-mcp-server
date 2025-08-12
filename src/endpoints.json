@@ -30,6 +30,36 @@
     "scopes": ["Mail.Send"]
   },
   {
+    "pathPattern": "/users/{user-id}/messages",
+    "method": "get",
+    "toolName": "list-shared-mailbox-messages",
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
+    "method": "get",
+    "toolName": "list-shared-mailbox-folder-messages",
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}",
+    "method": "get",
+    "toolName": "get-shared-mailbox-message",
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/sendMail",
+    "method": "post",
+    "toolName": "send-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"]
+  },
+  {
+    "pathPattern": "/users",
+    "method": "get",
+    "toolName": "list-users",
+    "workScopes": ["User.Read.All"]
+  },
+  {
     "pathPattern": "/me/messages",
     "method": "post",
     "toolName": "create-draft-email",
