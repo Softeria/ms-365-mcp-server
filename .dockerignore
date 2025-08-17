@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build outputs
+dist
+*.tsbuildinfo
+
+# Development files
+.git
+.gitignore
+README.md
+*.md
+
+# Test files
+test
+*.test.ts
+*.test.js
+coverage
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Misc
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Windows specific
+Thumbs.db
+desktop.ini
