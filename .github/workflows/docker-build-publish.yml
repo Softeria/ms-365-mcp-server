@@ -1,11 +1,6 @@
 name: Build and Deploy to GCP
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - main-mayank
   workflow_dispatch:
     inputs:
       environment:
@@ -16,6 +11,14 @@ on:
         options:
           - staging
           - production
+      deploy:
+        description: 'Deploy after build?'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 env:
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'ms-365-mcp-server' }}
@@ -35,6 +38,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check GCP Credentials
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "❌ GCP_SA_KEY secret is not set"
+            echo "Please add your service account JSON key to repository secrets"
+            exit 1
+          fi
+          echo "✅ GCP credentials found"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -60,7 +72,7 @@ jobs:
   deploy-staging:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main-mayank' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' && github.event.inputs.deploy == 'true'
     environment: staging
     permissions:
       contents: read
@@ -94,7 +106,7 @@ jobs:
   deploy-production:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' && github.event.inputs.deploy == 'true'
     environment: production
     permissions:
       contents: read
