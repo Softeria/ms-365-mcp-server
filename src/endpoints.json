@@ -78,6 +78,30 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}/attachments",
+    "method": "post",
+    "toolName": "add-mail-attachment",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments",
+    "method": "get",
+    "toolName": "list-mail-attachments",
+    "scopes": ["Mail.Read"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
+    "method": "get",
+    "toolName": "get-mail-attachment",
+    "scopes": ["Mail.Read"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
+    "method": "delete",
+    "toolName": "delete-mail-attachment",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",

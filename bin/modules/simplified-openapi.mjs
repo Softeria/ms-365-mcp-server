@@ -244,6 +244,7 @@ function reduceProperties(schema, schemaName) {
       'body',
       'subject',
       'message',
+      'attachments',
       'error',
       'code',
       'details',
