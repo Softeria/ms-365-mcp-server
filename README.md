@@ -313,6 +313,14 @@ Run the verification script to check all code quality requirements:
 npm run verify
 ```
 
+### For Developers
+
+After cloning the repository, you may need to generate the client code from the Microsoft Graph OpenAPI specification:
+
+```bash
+npm run generate
+```
+
 ## Support
 
 If you're having problems or need help:

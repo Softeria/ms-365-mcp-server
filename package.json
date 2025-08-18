@@ -9,7 +9,6 @@
   },
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
-    "postinstall": "npm run generate",
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
