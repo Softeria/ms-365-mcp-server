@@ -10,6 +10,7 @@
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
     "build": "tsup",
+    "start": "node dist/index.js --http ${PORT-3000}",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/index.ts",
