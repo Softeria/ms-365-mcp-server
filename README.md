@@ -172,6 +172,28 @@ Or configure Claude Desktop manually:
 
 > **Note**: Run `npm run build` after code changes to update the `dist/` folder.
 
+## Deployment
+
+This server is designed to be deployed to cloud platforms like [Render](https://render.com/).
+
+### Platform Configuration (Render Example)
+
+When setting up the service on a platform like Render, use the following settings:
+
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm start`
+
+### Environment Variables
+
+For the server to function correctly in HTTP mode, you must configure the following environment variables. These are obtained from your Azure AD App Registration.
+
+- `MS365_MCP_CLIENT_ID`: **Required**. The Application (client) ID for your Azure AD app.
+- `MS365_MCP_CLIENT_SECRET`: **Required**. The client secret for your Azure AD app.
+- `MS365_MCP_TENANT_ID`: **Required**. The Directory (tenant) ID, or `common` for multi-tenant applications.
+- `NODE_ENV`: Recommended. Set to `production` for optimal performance.
+
+The server will fail to start if `MS365_MCP_CLIENT_ID` or `MS365_MCP_CLIENT_SECRET` are not provided when running in HTTP mode.
+
 ### Authentication
 
 > ⚠️ You must authenticate before using tools.

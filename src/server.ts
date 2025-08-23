@@ -87,7 +87,17 @@ class MicrosoftGraphServer {
     }
 
     if (this.options.http) {
-      const port = typeof this.options.http === 'string' ? parseInt(this.options.http) : 3000;
+      const port = parseInt(
+        process.env.PORT || (typeof this.options.http === 'string' ? this.options.http : '3000'),
+        10
+      );
+
+      if (!process.env.MS365_MCP_CLIENT_ID || !process.env.MS365_MCP_CLIENT_SECRET) {
+        logger.error(
+          'FATAL: MS365_MCP_CLIENT_ID and MS365_MCP_CLIENT_SECRET environment variables are required in HTTP mode.'
+        );
+        process.exit(1);
+      }
 
       const app = express();
       app.use(express.json());
