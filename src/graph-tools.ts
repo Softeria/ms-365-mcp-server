@@ -212,10 +212,10 @@ export function registerGraphTools(
             path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
           }
 
-          const options: { 
-            method: string; 
-            headers: Record<string, string>; 
-            body?: string; 
+          const options: {
+            method: string;
+            headers: Record<string, string>;
+            body?: string;
             rawResponse?: boolean;
             includeHeaders?: boolean;
           } = {

@@ -90,7 +90,7 @@ class GraphClient {
 
       const text = await response.text();
       let result: any;
-      
+
       if (text === '') {
         result = { message: 'OK!' };
       } else {
@@ -104,16 +104,16 @@ class GraphClient {
       // If includeHeaders is requested, add response headers to the result
       if (options.includeHeaders) {
         const etag = response.headers.get('ETag') || response.headers.get('etag');
-        
+
         // Simple approach: just add ETag to the result if it's an object
         if (result && typeof result === 'object' && !Array.isArray(result)) {
           return {
             ...result,
-            _etag: etag || 'no-etag-found'
+            _etag: etag || 'no-etag-found',
           };
         }
       }
-      
+
       return result;
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
@@ -177,8 +177,12 @@ class GraphClient {
   formatJsonResponse(data: unknown, rawResponse = false): McpResponse {
     // Handle the case where data includes headers metadata
     if (data && typeof data === 'object' && '_headers' in data) {
-      const responseData = data as { data: unknown; _headers: Record<string, string>; _etag?: string };
-      
+      const responseData = data as {
+        data: unknown;
+        _headers: Record<string, string>;
+        _etag?: string;
+      };
+
       const meta: Record<string, unknown> = {};
       if (responseData._etag) {
         meta.etag = responseData._etag;
@@ -186,7 +190,7 @@ class GraphClient {
       if (responseData._headers) {
         meta.headers = responseData._headers;
       }
-      
+
       if (rawResponse) {
         return {
           content: [{ type: 'text', text: JSON.stringify(responseData.data) }],
@@ -221,7 +225,7 @@ class GraphClient {
         _meta: meta,
       };
     }
-    
+
     // Original handling for backward compatibility
     if (rawResponse) {
       return {
