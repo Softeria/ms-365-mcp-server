@@ -124,6 +124,12 @@ export function registerGraphTools(
         .optional();
     }
 
+    // Add includeHeaders parameter for all tools to capture ETags and other headers
+    paramSchema['includeHeaders'] = z
+      .boolean()
+      .describe('Include response headers (including ETag) in the response metadata')
+      .optional();
+
     server.tool(
       tool.alias,
       tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
@@ -147,6 +153,11 @@ export function registerGraphTools(
           for (let [paramName, paramValue] of Object.entries(params)) {
             // Skip pagination control parameter - it's not part of the Microsoft Graph API - I think 🤷
             if (paramName === 'fetchAllPages') {
+              continue;
+            }
+
+            // Skip headers control parameter - it's not part of the Microsoft Graph API
+            if (paramName === 'includeHeaders') {
               continue;
             }
 
@@ -201,7 +212,13 @@ export function registerGraphTools(
             path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
           }
 
-          const options: { method: string; headers: Record<string, string>; body?: string } = {
+          const options: { 
+            method: string; 
+            headers: Record<string, string>; 
+            body?: string; 
+            rawResponse?: boolean;
+            includeHeaders?: boolean;
+          } = {
             method: tool.method.toUpperCase(),
             headers,
           };
@@ -216,6 +233,11 @@ export function registerGraphTools(
 
           if (isProbablyMediaContent) {
             options.rawResponse = true;
+          }
+
+          // Set includeHeaders if requested
+          if (params.includeHeaders === true) {
+            options.includeHeaders = true;
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);

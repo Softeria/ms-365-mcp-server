@@ -7,6 +7,7 @@ interface GraphRequestOptions {
   method?: string;
   body?: string;
   rawResponse?: boolean;
+  includeHeaders?: boolean;
   accessToken?: string;
   refreshToken?: string;
 
@@ -88,15 +89,32 @@ class GraphClient {
       }
 
       const text = await response.text();
+      let result: any;
+      
       if (text === '') {
-        return { message: 'OK!' };
+        result = { message: 'OK!' };
+      } else {
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { message: 'OK!', rawResponse: text };
+        }
       }
 
-      try {
-        return JSON.parse(text);
-      } catch {
-        return { message: 'OK!', rawResponse: text };
+      // If includeHeaders is requested, add response headers to the result
+      if (options.includeHeaders) {
+        const etag = response.headers.get('ETag') || response.headers.get('etag');
+        
+        // Simple approach: just add ETag to the result if it's an object
+        if (result && typeof result === 'object' && !Array.isArray(result)) {
+          return {
+            ...result,
+            _etag: etag || 'no-etag-found'
+          };
+        }
       }
+      
+      return result;
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
@@ -157,6 +175,54 @@ class GraphClient {
   }
 
   formatJsonResponse(data: unknown, rawResponse = false): McpResponse {
+    // Handle the case where data includes headers metadata
+    if (data && typeof data === 'object' && '_headers' in data) {
+      const responseData = data as { data: unknown; _headers: Record<string, string>; _etag?: string };
+      
+      const meta: Record<string, unknown> = {};
+      if (responseData._etag) {
+        meta.etag = responseData._etag;
+      }
+      if (responseData._headers) {
+        meta.headers = responseData._headers;
+      }
+      
+      if (rawResponse) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify(responseData.data) }],
+          _meta: meta,
+        };
+      }
+
+      if (responseData.data === null || responseData.data === undefined) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+          _meta: meta,
+        };
+      }
+
+      // Remove OData properties
+      const removeODataProps = (obj: Record<string, unknown>): void => {
+        if (typeof obj === 'object' && obj !== null) {
+          Object.keys(obj).forEach((key) => {
+            if (key.startsWith('@odata.')) {
+              delete obj[key];
+            } else if (typeof obj[key] === 'object') {
+              removeODataProps(obj[key] as Record<string, unknown>);
+            }
+          });
+        }
+      };
+
+      removeODataProps(responseData.data as Record<string, unknown>);
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(responseData.data, null, 2) }],
+        _meta: meta,
+      };
+    }
+    
+    // Original handling for backward compatibility
     if (rawResponse) {
       return {
         content: [{ type: 'text', text: JSON.stringify(data) }],
