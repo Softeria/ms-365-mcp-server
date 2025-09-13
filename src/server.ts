@@ -92,6 +92,15 @@ class MicrosoftGraphServer {
       const app = express();
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
+      // Support TLS termination proxies
+      app.set('trust proxy', true);
+
+      const getBaseUrl = (req: Request): URL => {
+        const proto =
+          (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol;
+        const host = (req.headers['x-forwarded-host'] as string) || req.get('host');
+        return new URL(`${proto}://${host}`);
+      };
 
       // Add CORS headers for all routes
       app.use((req, res, next) => {
@@ -115,7 +124,7 @@ class MicrosoftGraphServer {
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const url = getBaseUrl(req);
         res.json({
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
@@ -132,7 +141,7 @@ class MicrosoftGraphServer {
 
       // OAuth Protected Resource Discovery
       app.get('/.well-known/oauth-protected-resource', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const url = getBaseUrl(req);
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
@@ -162,6 +171,7 @@ class MicrosoftGraphServer {
         });
 
         // Return the client registration response
+        const issuedAt = Math.floor(Date.now() / 1000);
         res.status(201).json({
           client_id: clientId,
           client_name: body.client_name || 'MCP Client',
@@ -170,6 +180,8 @@ class MicrosoftGraphServer {
           response_types: body.response_types || ['code'],
           scope: body.scope,
           token_endpoint_auth_method: 'none',
+          client_id_issued_at: issuedAt,
+          client_secret_expires_at: 0,
         });
       });
 
@@ -311,10 +323,14 @@ class MicrosoftGraphServer {
         }
       });
 
+      const issuerUrl = process.env.MS365_MCP_ISSUER_URL
+        ? new URL(process.env.MS365_MCP_ISSUER_URL)
+        : new URL(`http://localhost:${port}`);
+
       app.use(
         mcpAuthRouter({
           provider: oauthProvider,
-          issuerUrl: new URL(`http://localhost:${port}`),
+          issuerUrl,
         })
       );
 
