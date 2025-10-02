@@ -192,7 +192,25 @@ export function registerGraphTools(
                   break;
 
                 case 'Body':
-                  body = paramValue;
+                  if (paramDef.schema) {
+                    const parseResult = paramDef.schema.safeParse(paramValue);
+                    if (!parseResult.success) {
+                      const wrapped = { [paramName]: paramValue };
+                      const wrappedResult = paramDef.schema.safeParse(wrapped);
+                      if (wrappedResult.success) {
+                        logger.info(
+                          `Auto-corrected parameter '${paramName}': AI passed nested field directly, wrapped it as {${paramName}: ...}`
+                        );
+                        body = wrapped;
+                      } else {
+                        body = paramValue;
+                      }
+                    } else {
+                      body = paramValue;
+                    }
+                  } else {
+                    body = paramValue;
+                  }
                   break;
 
                 case 'Header':
