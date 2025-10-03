@@ -177,7 +177,10 @@ class MicrosoftGraphServer {
       app.get('/authorize', async (req, res) => {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
         const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-        const clientId = process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
+        const clientId = process.env.MS365_MCP_CLIENT_ID;
+        if (!clientId) {
+          throw new Error('MS365_MCP_CLIENT_ID environment variable is not set.');
+        }
         const microsoftAuthUrl = new URL(
           `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`
         );
@@ -252,11 +255,10 @@ class MicrosoftGraphServer {
 
           if (body.grant_type === 'authorization_code') {
             const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-            const clientId =
-              process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
+            const clientId = process.env.MS365_MCP_CLIENT_ID;
             const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
 
-            if (!clientSecret) {
+            if (!clientId || !clientSecret) {
               logger.error('Token endpoint: MS365_MCP_CLIENT_SECRET is not configured');
               res.status(500).json({
                 error: 'server_error',
@@ -276,11 +278,10 @@ class MicrosoftGraphServer {
             res.json(result);
           } else if (body.grant_type === 'refresh_token') {
             const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-            const clientId =
-              process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
+            const clientId = process.env.MS365_MCP_CLIENT_ID;
             const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
 
-            if (!clientSecret) {
+            if (!clientId || !clientSecret) {
               logger.error('Token endpoint: MS365_MCP_CLIENT_SECRET is not configured');
               res.status(500).json({
                 error: 'server_error',

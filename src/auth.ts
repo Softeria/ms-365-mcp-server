@@ -1,5 +1,5 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
-import { PublicClientApplication } from '@azure/msal-node';
+import { ConfidentialClientApplication, PublicClientApplication } from '@azure/msal-node';
 import keytar from 'keytar';
 import logger from './logger.js';
 import fs, { existsSync, readFileSync } from 'fs';
@@ -33,7 +33,7 @@ const SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.j
 
 const DEFAULT_CONFIG: Configuration = {
   auth: {
-    clientId: process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
+    clientId: process.env.MS365_MCP_CLIENT_ID || '',
     authority: `https://login.microsoftonline.com/${process.env.MS365_MCP_TENANT_ID || 'common'}`,
   },
 };
@@ -92,7 +92,7 @@ interface LoginTestResult {
 class AuthManager {
   private config: Configuration;
   private scopes: string[];
-  private msalApp: PublicClientApplication;
+  private msalApp: PublicClientApplication | ConfidentialClientApplication;
   private accessToken: string | null;
   private tokenExpiry: number | null;
   private oauthToken: string | null;
@@ -106,7 +106,6 @@ class AuthManager {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
     this.scopes = scopes;
-    this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
     this.selectedAccountId = null;
@@ -114,6 +113,24 @@ class AuthManager {
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
     this.isOAuthMode = oauthTokenFromEnv != null;
+
+    const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
+    if (clientSecret) {
+      // Use ConfidentialClientApplication for service principal flow
+      if (!this.config.auth.clientId) {
+        throw new Error('MS365_MCP_CLIENT_ID must be set for client credential flow.');
+      }
+      const confidentialClientConfig: Configuration = {
+        auth: {
+          ...this.config.auth,
+          clientSecret,
+        },
+      };
+      this.msalApp = new ConfidentialClientApplication(confidentialClientConfig);
+    } else {
+      // Use PublicClientApplication for interactive flows
+      this.msalApp = new PublicClientApplication(this.config);
+    }
   }
 
   async loadTokenCache(): Promise<void> {
@@ -221,6 +238,11 @@ class AuthManager {
       return this.oauthToken;
     }
 
+    // Prioritize client credential flow if the app is confidential
+    if (this.msalApp instanceof ConfidentialClientApplication) {
+      return this.acquireTokenByClientCredential();
+    }
+
     if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now() && !forceRefresh) {
       return this.accessToken;
     }
@@ -234,17 +256,42 @@ class AuthManager {
       };
 
       try {
+        if (!(this.msalApp instanceof PublicClientApplication)) {
+          throw new Error('Silent token acquisition is only available for public clients.');
+        }
         const response = await this.msalApp.acquireTokenSilent(silentRequest);
         this.accessToken = response.accessToken;
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
         return this.accessToken;
-      } catch {
-        logger.error('Silent token acquisition failed');
+      } catch (error) {
+        logger.error(`Silent token acquisition failed: ${(error as Error).message}`);
         throw new Error('Silent token acquisition failed');
       }
     }
 
-    throw new Error('No valid token found');
+    throw new Error('No valid token found. Please log in interactively.');
+  }
+
+  async acquireTokenByClientCredential(): Promise<string | null> {
+    if (!(this.msalApp instanceof ConfidentialClientApplication)) {
+      throw new Error('Client credential flow is only available for confidential clients.');
+    }
+    const request = {
+      scopes: ['https://graph.microsoft.com/.default'], // For client credentials, the scope is always this
+    };
+
+    try {
+      const response = await this.msalApp.acquireTokenByClientCredential(request);
+      if (response) {
+        this.accessToken = response.accessToken;
+        this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
+        return this.accessToken;
+      }
+      return null;
+    } catch (error) {
+      logger.error(`Client credential token acquisition failed: ${(error as Error).message}`);
+      throw error;
+    }
   }
 
   async getCurrentAccount(): Promise<AccountInfo | null> {
