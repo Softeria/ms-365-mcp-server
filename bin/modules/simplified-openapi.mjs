@@ -279,7 +279,7 @@ function reduceProperties(schema, schemaName) {
   }
 }
 
-function mergeAllOfSchemas(allOfArray, allSchemas) {
+function mergeAllOfSchemas(allOfArray, allSchemas, visited = new Set()) {
   const merged = {
     type: 'object',
     properties: {},
@@ -288,11 +288,29 @@ function mergeAllOfSchemas(allOfArray, allSchemas) {
   allOfArray.forEach((item) => {
     if (item.$ref) {
       const refSchemaName = item.$ref.replace('#/components/schemas/', '');
+
+      if (visited.has(refSchemaName)) {
+        return;
+      }
+      visited.add(refSchemaName);
+
       const refSchema = allSchemas[refSchemaName];
       if (refSchema) {
         console.log(
-          `Processing ref ${refSchemaName} for ${item.title}, exists: true, has properties: ${!!refSchema.properties}`
+          `Processing ref ${refSchemaName} for ${item.title}, exists: true, has properties: ${!!refSchema.properties}, has allOf: ${!!refSchema.allOf}`
         );
+
+        if (refSchema.allOf) {
+          const nestedMerged = mergeAllOfSchemas(refSchema.allOf, allSchemas, new Set(visited));
+          Object.assign(merged.properties, nestedMerged.properties);
+          if (nestedMerged.required) {
+            merged.required = [...(merged.required || []), ...nestedMerged.required];
+          }
+          if (nestedMerged.description && !merged.description) {
+            merged.description = nestedMerged.description;
+          }
+        }
+
         if (refSchema.properties) {
           console.log(`Ensuring ${item.title} has all required properties from ${refSchemaName}`);
           Object.assign(merged.properties, refSchema.properties);
