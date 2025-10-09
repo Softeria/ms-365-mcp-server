@@ -9,7 +9,17 @@
   },
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
+    "generate:endpoints": "node bin/embed-endpoints.mjs",
+    "postinstall": "npm run generate",
+    "prebuild": "npm run generate:endpoints",
     "build": "tsup",
+    "build:binary": "bun build ./dist/index.js --compile --minify --outfile dist/ms365-mcp-server",
+    "build:binary:macos": "bun build ./dist/index.js --compile --target=bun-darwin-x64 --minify --outfile dist/ms365-mcp-server-macos",
+    "build:binary:macos-arm": "bun build ./dist/index.js --compile --target=bun-darwin-arm64 --minify --outfile dist/ms365-mcp-server-macos-arm64",
+    "build:binary:linux": "bun build ./dist/index.js --compile --target=bun-linux-x64 --minify --outfile dist/ms365-mcp-server-linux",
+    "build:binary:linux-arm": "bun build ./dist/index.js --compile --target=bun-linux-arm64 --minify --outfile dist/ms365-mcp-server-linux-arm64",
+    "build:binary:windows": "bun build ./dist/index.js --compile --target=bun-windows-x64 --minify --outfile dist/ms365-mcp-server.exe",
+    "build:binary:all": "npm run build && npm run build:binary:macos && npm run build:binary:macos-arm && npm run build:binary:linux && npm run build:binary:linux-arm && npm run build:binary:windows",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/index.ts",
@@ -39,9 +49,11 @@
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
     "js-yaml": "^4.1.0",
-    "keytar": "^7.9.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
     "@redocly/cli": "^1.34.3",

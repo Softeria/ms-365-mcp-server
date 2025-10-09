@@ -115,7 +115,8 @@ class MicrosoftGraphServer {
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const url = new URL(`${protocol}://${req.get('host')}`);
         res.json({
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
@@ -132,7 +133,8 @@ class MicrosoftGraphServer {
 
       // OAuth Protected Resource Discovery
       app.get('/.well-known/oauth-protected-resource', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const url = new URL(`${protocol}://${req.get('host')}`);
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
@@ -181,6 +183,7 @@ class MicrosoftGraphServer {
         const microsoftAuthUrl = new URL(
           `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`
         );
+        logger.info('🔐 /authorize called with params:', Object.fromEntries(url.searchParams));
 
         // Only forward parameters that Microsoft OAuth 2.0 v2.0 supports
         const allowedParams = [

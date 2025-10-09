@@ -3,24 +3,7 @@ import logger from './logger.js';
 import GraphClient from './graph-client.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-interface EndpointConfig {
-  pathPattern: string;
-  method: string;
-  toolName: string;
-  scopes?: string[];
-  workScopes?: string[];
-}
-
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
+import { endpointsData } from './generated/endpoints-data.js';
 
 type TextContent = {
   type: 'text';
