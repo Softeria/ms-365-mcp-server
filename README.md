@@ -7,8 +7,22 @@ Microsoft 365 MCP Server
 A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Microsoft Office services through the Graph
 API.
 
-## Prerequisites
+## Installation Options
 
+### Option 1: Standalone Binary (Recommended)
+
+Download pre-compiled binaries - no Node.js required:
+
+- **macOS (Apple Silicon)**: `ms365-mcp-server-macos-arm64`
+- **macOS (Intel)**: `ms365-mcp-server-macos`
+- **Linux (x64)**: `ms365-mcp-server-linux`
+- **Windows (x64)**: `ms365-mcp-server.exe`
+
+See [Binary Distribution Guide](README.Binary.md) for setup instructions.
+
+### Option 2: Node.js (via npm/npx)
+
+**Prerequisites:**
 - Node.js >= 20 (recommended)
 - Node.js 14+ may work with dependency warnings
 
@@ -320,6 +334,32 @@ After cloning the repository, you may need to generate the client code from the 
 ```bash
 npm run generate
 ```
+
+### Building Binaries
+
+To build standalone binaries for distribution:
+
+**Prerequisites:**
+- Install [Bun](https://bun.sh): `curl -fsSL https://bun.sh/install | bash`
+- Build the project first: `npm run build`
+
+**Build for specific platform:**
+```bash
+npm run build:binary:macos-arm    # macOS Apple Silicon
+npm run build:binary:macos         # macOS Intel
+npm run build:binary:linux         # Linux x64
+npm run build:binary:linux-arm     # Linux ARM64
+npm run build:binary:windows       # Windows x64
+```
+
+**Build for all platforms:**
+```bash
+npm run build:binary:all
+```
+
+Binaries will be created in the `dist/` directory (~60MB each). Note that cross-compilation may have limitations - for production releases, build on the target platform or use CI/CD (GitHub Actions).
+
+For more details, see [Binary Distribution Guide](README.Binary.md) and [Binary Compilation Notes](BINARY_COMPILATION_NOTES.md).
 
 ## Support
 
