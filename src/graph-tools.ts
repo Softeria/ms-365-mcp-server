@@ -130,6 +130,12 @@ export function registerGraphTools(
       .describe('Include response headers (including ETag) in the response metadata')
       .optional();
 
+    // Add excludeResponse parameter to only return success/failure indication
+    paramSchema['excludeResponse'] = z
+      .boolean()
+      .describe('Exclude the full response body and only return success or failure indication')
+      .optional();
+
     server.tool(
       tool.alias,
       tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
@@ -158,6 +164,11 @@ export function registerGraphTools(
 
             // Skip headers control parameter - it's not part of the Microsoft Graph API
             if (paramName === 'includeHeaders') {
+              continue;
+            }
+
+            // Skip excludeResponse control parameter - it's not part of the Microsoft Graph API
+            if (paramName === 'excludeResponse') {
               continue;
             }
 
@@ -236,6 +247,7 @@ export function registerGraphTools(
             body?: string;
             rawResponse?: boolean;
             includeHeaders?: boolean;
+            excludeResponse?: boolean;
           } = {
             method: tool.method.toUpperCase(),
             headers,
@@ -256,6 +268,11 @@ export function registerGraphTools(
           // Set includeHeaders if requested
           if (params.includeHeaders === true) {
             options.includeHeaders = true;
+          }
+
+          // Set excludeResponse if requested
+          if (params.excludeResponse === true) {
+            options.excludeResponse = true;
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);

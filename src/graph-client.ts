@@ -8,6 +8,7 @@ interface GraphRequestOptions {
   body?: string;
   rawResponse?: boolean;
   includeHeaders?: boolean;
+  excludeResponse?: boolean;
   accessToken?: string;
   refreshToken?: string;
 
@@ -164,7 +165,7 @@ class GraphClient {
       // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
 
-      return this.formatJsonResponse(result, options.rawResponse);
+      return this.formatJsonResponse(result, options.rawResponse, options.excludeResponse);
     } catch (error) {
       logger.error(`Error in Graph API request: ${error}`);
       return {
@@ -174,7 +175,14 @@ class GraphClient {
     }
   }
 
-  formatJsonResponse(data: unknown, rawResponse = false): McpResponse {
+  formatJsonResponse(data: unknown, rawResponse = false, excludeResponse = false): McpResponse {
+    // If excludeResponse is true, only return success indication
+    if (excludeResponse) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+      };
+    }
+
     // Handle the case where data includes headers metadata
     if (data && typeof data === 'object' && '_headers' in data) {
       const responseData = data as {
