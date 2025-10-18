@@ -54,7 +54,7 @@ class GraphClient {
     }
 
     try {
-      const response = await this.performRequest(endpoint, accessToken, options);
+      let response = await this.performRequest(endpoint, accessToken, options);
 
       if (response.status === 401 && refreshToken) {
         // Token expired, try to refresh
@@ -67,7 +67,7 @@ class GraphClient {
         }
 
         // Retry the request with new token
-        return this.performRequest(endpoint, accessToken, options);
+        response = await this.performRequest(endpoint, accessToken, options);
       }
 
       if (response.status === 403) {
