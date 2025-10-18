@@ -154,3 +154,6 @@ CLAUDE.md
 
 # MCP configuration (contains sensitive keys)
 .mcp.json
+
+# Generated endpoint data
+src/generated/endpoints-data.ts

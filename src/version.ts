@@ -1,9 +1,3 @@
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const packageJsonPath = path.join(__dirname, '..', 'package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-
-export const version: string = packageJson.version;
+// Version is embedded at build time from package.json
+// For binary builds, this avoids runtime dependency on package.json
+export const version: string = '0.0.0-development';
