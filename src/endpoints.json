@@ -198,7 +198,7 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content",
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
     "scopes": ["Files.Read"]
