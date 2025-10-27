@@ -16,6 +16,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[];
   workScopes?: string[];
+  returnDownloadUrl?: boolean;
 }
 
 const endpointsData = JSON.parse(
@@ -261,7 +262,12 @@ export function registerGraphTools(
             tool.errors?.some((error) => error.description === 'Retrieved media content') ||
             path.endsWith('/content');
 
-          if (isProbablyMediaContent) {
+          if (endpointConfig?.returnDownloadUrl && path.endsWith('/content')) {
+            path = path.replace(/\/content$/, '');
+            logger.info(
+              `Auto-returning download URL for ${tool.alias} (returnDownloadUrl=true in endpoints.json)`
+            );
+          } else if (isProbablyMediaContent) {
             options.rawResponse = true;
           }
 
