@@ -396,11 +396,34 @@ function findUsedSchemas(openApiSpec) {
   const schemasToProcess = [];
   const schemas = openApiSpec.components?.schemas || {};
   const responses = openApiSpec.components?.responses || {};
+  const requestBodies = openApiSpec.components?.requestBodies || {};
   const paths = openApiSpec.paths || {};
 
   Object.entries(paths).forEach(([, pathItem]) => {
     Object.entries(pathItem).forEach(([, operation]) => {
       if (typeof operation !== 'object') return;
+
+      if (operation.requestBody?.$ref) {
+        const requestBodyName = operation.requestBody.$ref.replace(
+          '#/components/requestBodies/',
+          ''
+        );
+        const requestBodyDefinition = requestBodies[requestBodyName];
+        if (requestBodyDefinition?.content) {
+          Object.values(requestBodyDefinition.content).forEach((content) => {
+            if (content.schema?.$ref) {
+              const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
+              schemasToProcess.push(schemaName);
+            }
+            if (content.schema?.properties) {
+              findRefsInObject(content.schema.properties, (ref) => {
+                const schemaName = ref.replace('#/components/schemas/', '');
+                schemasToProcess.push(schemaName);
+              });
+            }
+          });
+        }
+      }
 
       if (operation.requestBody?.content) {
         Object.values(operation.requestBody.content).forEach((content) => {
