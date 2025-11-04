@@ -90,6 +90,7 @@ class MicrosoftGraphServer {
       const port = typeof this.options.http === 'string' ? parseInt(this.options.http) : 3000;
 
       const app = express();
+      app.set('trust proxy', true);
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
@@ -115,7 +116,8 @@ class MicrosoftGraphServer {
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.secure ? 'https' : 'http';
+        const url = new URL(`${protocol}://${req.get('host')}`);
         res.json({
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
@@ -132,7 +134,8 @@ class MicrosoftGraphServer {
 
       // OAuth Protected Resource Discovery
       app.get('/.well-known/oauth-protected-resource', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.secure ? 'https' : 'http';
+        const url = new URL(`${protocol}://${req.get('host')}`);
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
