@@ -126,7 +126,7 @@ class MicrosoftGraphServer {
           grant_types_supported: ['authorization_code', 'refresh_token'],
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
-          scopes_supported: ['User.Read', 'Files.Read', 'Mail.Read'],
+          scopes_supported: ['Mail.Send', 'Mail.ReadWrite', 'Calendars.ReadWrite', 'Files.ReadWrite', 'Notes.Read', 'Notes.Create', 'Tasks.ReadWrite', 'Contacts.ReadWrite', 'User.Read', 'Files.Read.All', 'People.Read'],
         });
       });
 
@@ -136,7 +136,7 @@ class MicrosoftGraphServer {
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
-          scopes_supported: ['User.Read', 'Files.Read', 'Mail.Read'],
+          scopes_supported: ['Mail.Send', 'Mail.ReadWrite', 'Calendars.ReadWrite', 'Files.ReadWrite', 'Notes.Read', 'Notes.Create', 'Tasks.ReadWrite', 'Contacts.ReadWrite', 'User.Read', 'Files.Read.All', 'People.Read'],
           bearer_methods_supported: ['header'],
           resource_documentation: `${url.origin}`,
         });
