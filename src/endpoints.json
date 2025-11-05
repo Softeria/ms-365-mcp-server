@@ -78,6 +78,30 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}/attachments",
+    "method": "post",
+    "toolName": "add-mail-attachment",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments",
+    "method": "get",
+    "toolName": "list-mail-attachments",
+    "scopes": ["Mail.Read"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
+    "method": "get",
+    "toolName": "get-mail-attachment",
+    "scopes": ["Mail.Read"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
+    "method": "delete",
+    "toolName": "delete-mail-attachment",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
@@ -108,6 +132,36 @@
     "scopes": ["Calendars.ReadWrite"]
   },
   {
+    "pathPattern": "/me/calendars/{calendar-id}/events",
+    "method": "get",
+    "toolName": "list-specific-calendar-events",
+    "scopes": ["Calendars.Read"]
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
+    "method": "get",
+    "toolName": "get-specific-calendar-event",
+    "scopes": ["Calendars.Read"]
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/events",
+    "method": "post",
+    "toolName": "create-specific-calendar-event",
+    "scopes": ["Calendars.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
+    "method": "patch",
+    "toolName": "update-specific-calendar-event",
+    "scopes": ["Calendars.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
+    "method": "delete",
+    "toolName": "delete-specific-calendar-event",
+    "scopes": ["Calendars.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
@@ -118,6 +172,12 @@
     "method": "get",
     "toolName": "list-calendars",
     "scopes": ["Calendars.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/findMeetingTimes",
+    "method": "post",
+    "toolName": "find-meeting-times",
+    "workScopes": ["Calendars.Read.Shared"]
   },
   {
     "pathPattern": "/me/drives",
@@ -144,10 +204,11 @@
     "scopes": ["Files.ReadWrite.All"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children/{driveItem-id1}/content",
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
-    "scopes": ["Files.ReadWrite.All"]
+    "scopes": ["Files.Read"],
+    "returnDownloadUrl": true
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -218,7 +279,8 @@
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": ["Notes.ReadWrite.All"]
+    "scopes": ["Notes.Read"],
+    "returnDownloadUrl": true
   },
   {
     "pathPattern": "/me/onenote/pages",

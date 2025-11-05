@@ -20,6 +20,7 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
+      - run: npm run generate
       - run: npm run lint
       - run: npm run format:check
       - run: npm run build

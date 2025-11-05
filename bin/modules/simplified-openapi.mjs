@@ -244,6 +244,7 @@ function reduceProperties(schema, schemaName) {
       'body',
       'subject',
       'message',
+      'attachments',
       'error',
       'code',
       'details',
@@ -278,7 +279,7 @@ function reduceProperties(schema, schemaName) {
   }
 }
 
-function mergeAllOfSchemas(allOfArray, allSchemas) {
+function mergeAllOfSchemas(allOfArray, allSchemas, visited = new Set()) {
   const merged = {
     type: 'object',
     properties: {},
@@ -287,11 +288,29 @@ function mergeAllOfSchemas(allOfArray, allSchemas) {
   allOfArray.forEach((item) => {
     if (item.$ref) {
       const refSchemaName = item.$ref.replace('#/components/schemas/', '');
+
+      if (visited.has(refSchemaName)) {
+        return;
+      }
+      visited.add(refSchemaName);
+
       const refSchema = allSchemas[refSchemaName];
       if (refSchema) {
         console.log(
-          `Processing ref ${refSchemaName} for ${item.title}, exists: true, has properties: ${!!refSchema.properties}`
+          `Processing ref ${refSchemaName} for ${item.title}, exists: true, has properties: ${!!refSchema.properties}, has allOf: ${!!refSchema.allOf}`
         );
+
+        if (refSchema.allOf) {
+          const nestedMerged = mergeAllOfSchemas(refSchema.allOf, allSchemas, new Set(visited));
+          Object.assign(merged.properties, nestedMerged.properties);
+          if (nestedMerged.required) {
+            merged.required = [...(merged.required || []), ...nestedMerged.required];
+          }
+          if (nestedMerged.description && !merged.description) {
+            merged.description = nestedMerged.description;
+          }
+        }
+
         if (refSchema.properties) {
           console.log(`Ensuring ${item.title} has all required properties from ${refSchemaName}`);
           Object.assign(merged.properties, refSchema.properties);
@@ -377,11 +396,34 @@ function findUsedSchemas(openApiSpec) {
   const schemasToProcess = [];
   const schemas = openApiSpec.components?.schemas || {};
   const responses = openApiSpec.components?.responses || {};
+  const requestBodies = openApiSpec.components?.requestBodies || {};
   const paths = openApiSpec.paths || {};
 
   Object.entries(paths).forEach(([, pathItem]) => {
     Object.entries(pathItem).forEach(([, operation]) => {
       if (typeof operation !== 'object') return;
+
+      if (operation.requestBody?.$ref) {
+        const requestBodyName = operation.requestBody.$ref.replace(
+          '#/components/requestBodies/',
+          ''
+        );
+        const requestBodyDefinition = requestBodies[requestBodyName];
+        if (requestBodyDefinition?.content) {
+          Object.values(requestBodyDefinition.content).forEach((content) => {
+            if (content.schema?.$ref) {
+              const schemaName = content.schema.$ref.replace('#/components/schemas/', '');
+              schemasToProcess.push(schemaName);
+            }
+            if (content.schema?.properties) {
+              findRefsInObject(content.schema.properties, (ref) => {
+                const schemaName = ref.replace('#/components/schemas/', '');
+                schemasToProcess.push(schemaName);
+              });
+            }
+          });
+        }
+      }
 
       if (operation.requestBody?.content) {
         Object.values(operation.requestBody.content).forEach((content) => {

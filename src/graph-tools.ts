@@ -16,6 +16,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[];
   workScopes?: string[];
+  returnDownloadUrl?: boolean;
 }
 
 const endpointsData = JSON.parse(
@@ -124,6 +125,18 @@ export function registerGraphTools(
         .optional();
     }
 
+    // Add includeHeaders parameter for all tools to capture ETags and other headers
+    paramSchema['includeHeaders'] = z
+      .boolean()
+      .describe('Include response headers (including ETag) in the response metadata')
+      .optional();
+
+    // Add excludeResponse parameter to only return success/failure indication
+    paramSchema['excludeResponse'] = z
+      .boolean()
+      .describe('Exclude the full response body and only return success or failure indication')
+      .optional();
+
     server.tool(
       tool.alias,
       tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
@@ -143,9 +156,20 @@ export function registerGraphTools(
           const queryParams: Record<string, string> = {};
           const headers: Record<string, string> = {};
           let body: unknown = null;
+
           for (let [paramName, paramValue] of Object.entries(params)) {
             // Skip pagination control parameter - it's not part of the Microsoft Graph API - I think 🤷
             if (paramName === 'fetchAllPages') {
+              continue;
+            }
+
+            // Skip headers control parameter - it's not part of the Microsoft Graph API
+            if (paramName === 'includeHeaders') {
+              continue;
+            }
+
+            // Skip excludeResponse control parameter - it's not part of the Microsoft Graph API
+            if (paramName === 'excludeResponse') {
               continue;
             }
 
@@ -180,7 +204,25 @@ export function registerGraphTools(
                   break;
 
                 case 'Body':
-                  body = paramValue;
+                  if (paramDef.schema) {
+                    const parseResult = paramDef.schema.safeParse(paramValue);
+                    if (!parseResult.success) {
+                      const wrapped = { [paramName]: paramValue };
+                      const wrappedResult = paramDef.schema.safeParse(wrapped);
+                      if (wrappedResult.success) {
+                        logger.info(
+                          `Auto-corrected parameter '${paramName}': AI passed nested field directly, wrapped it as {${paramName}: ...}`
+                        );
+                        body = wrapped;
+                      } else {
+                        body = paramValue;
+                      }
+                    } else {
+                      body = paramValue;
+                    }
+                  } else {
+                    body = paramValue;
+                  }
                   break;
 
                 case 'Header':
@@ -200,7 +242,14 @@ export function registerGraphTools(
             path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
           }
 
-          const options: { method: string; headers: Record<string, string>; body?: string } = {
+          const options: {
+            method: string;
+            headers: Record<string, string>;
+            body?: string;
+            rawResponse?: boolean;
+            includeHeaders?: boolean;
+            excludeResponse?: boolean;
+          } = {
             method: tool.method.toUpperCase(),
             headers,
           };
@@ -213,8 +262,23 @@ export function registerGraphTools(
             tool.errors?.some((error) => error.description === 'Retrieved media content') ||
             path.endsWith('/content');
 
-          if (isProbablyMediaContent) {
+          if (endpointConfig?.returnDownloadUrl && path.endsWith('/content')) {
+            path = path.replace(/\/content$/, '');
+            logger.info(
+              `Auto-returning download URL for ${tool.alias} (returnDownloadUrl=true in endpoints.json)`
+            );
+          } else if (isProbablyMediaContent) {
             options.rawResponse = true;
+          }
+
+          // Set includeHeaders if requested
+          if (params.includeHeaders === true) {
+            options.includeHeaders = true;
+          }
+
+          // Set excludeResponse if requested
+          if (params.excludeResponse === true) {
+            options.excludeResponse = true;
           }
 
           logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);

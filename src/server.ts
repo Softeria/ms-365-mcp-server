@@ -8,7 +8,7 @@ import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools } from './graph-tools.js';
 import GraphClient from './graph-client.js';
-import AuthManager from './auth.js';
+import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import {
   exchangeCodeForToken,
@@ -90,6 +90,7 @@ class MicrosoftGraphServer {
       const port = typeof this.options.http === 'string' ? parseInt(this.options.http) : 3000;
 
       const app = express();
+      app.set('trust proxy', true);
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
@@ -115,7 +116,11 @@ class MicrosoftGraphServer {
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.secure ? 'https' : 'http';
+        const url = new URL(`${protocol}://${req.get('host')}`);
+
+        const scopes = buildScopesFromEndpoints(this.options.orgMode);
+
         res.json({
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
@@ -126,17 +131,21 @@ class MicrosoftGraphServer {
           grant_types_supported: ['authorization_code', 'refresh_token'],
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
-          scopes_supported: ['User.Read', 'Files.ReadWrite.All', 'Mail.ReadWrite', 'Mail.Send', 'Calendars.ReadWrite', 'Contacts.ReadWrite', 'Notes.ReadWrite.All', 'Tasks.ReadWrite', 'Sites.ReadWrite.All', 'Chat.ReadWrite', 'Team.ReadBasic.All', 'Channel.ReadBasic.All', 'ChannelMessage.Edit'],
+          scopes_supported: scopes,
         });
       });
 
       // OAuth Protected Resource Discovery
       app.get('/.well-known/oauth-protected-resource', async (req, res) => {
-        const url = new URL(`${req.protocol}://${req.get('host')}`);
+        const protocol = req.secure ? 'https' : 'http';
+        const url = new URL(`${protocol}://${req.get('host')}`);
+
+        const scopes = buildScopesFromEndpoints(this.options.orgMode);
+
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
-          scopes_supported: ['User.Read', 'Files.ReadWrite.All', 'Mail.ReadWrite', 'Mail.Send', 'Calendars.ReadWrite', 'Contacts.ReadWrite', 'Notes.ReadWrite.All', 'Tasks.ReadWrite', 'Sites.ReadWrite.All', 'Chat.ReadWrite', 'Team.ReadBasic.All', 'Channel.ReadBasic.All', 'ChannelMessage.Edit'],
+          scopes_supported: scopes,
           bearer_methods_supported: ['header'],
           resource_documentation: `${url.origin}`,
         });
