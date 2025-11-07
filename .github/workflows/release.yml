@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+      - run: npm i -D patch-package
       - run: npm ci
       - run: npm run generate
       - run: npm run lint
