@@ -19,6 +19,70 @@ API.
 - Read-only mode support for safe operations
 - Tool filtering for granular access control
 
+## Output Format: JSON vs TOON
+
+The server supports two output formats that can be configured globally:
+
+### JSON Format (Default)
+
+Standard JSON output with pretty-printing:
+
+```json
+{
+  "value": [
+    {
+      "id": "1",
+      "displayName": "Alice Johnson",
+      "mail": "alice@example.com",
+      "jobTitle": "Software Engineer"
+    }
+  ]
+}
+```
+
+### (experimental) TOON Format
+
+[Token-Oriented Object Notation](https://github.com/toon-format/toon) for efficient LLM token usage:
+
+```
+value[1]{id,displayName,mail,jobTitle}:
+  "1",Alice Johnson,alice@example.com,Software Engineer
+```
+
+**Benefits:**
+
+- 30-60% fewer tokens vs JSON
+- Best for uniform array data (lists of emails, calendar events, files, etc.)
+- Ideal for cost-sensitive applications at scale
+
+**Usage:**
+(experimental) Enable TOON format globally:
+
+Via CLI flag:
+
+```bash
+npx @softeria/ms-365-mcp-server --toon
+```
+
+Via Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--toon"]
+    }
+  }
+}
+```
+
+Via environment variable:
+
+```bash
+MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
+```
+
 ## Supported Services & Tools
 
 ### Personal Account Tools (Available by default)
@@ -289,6 +353,7 @@ When running as an MCP server, the following options can be used:
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
+--toon            (experimental) Enable TOON output format for 30-60% token reduction
 ```
 
 Environment variables:
@@ -297,6 +362,7 @@ Environment variables:
 - `ENABLED_TOOLS`: Filter tools using a regex pattern (alternative to --enabled-tools flag)
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
+- `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)

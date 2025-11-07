@@ -1,6 +1,7 @@
 import logger from './logger.js';
 import AuthManager from './auth.js';
 import { refreshAccessToken } from './lib/microsoft-auth.js';
+import { encode as toonEncode } from '@toon-format/toon';
 
 interface GraphRequestOptions {
   headers?: Record<string, string>;
@@ -34,9 +35,11 @@ class GraphClient {
   private authManager: AuthManager;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
+  private readonly outputFormat: 'json' | 'toon' = 'json';
 
-  constructor(authManager: AuthManager) {
+  constructor(authManager: AuthManager, outputFormat: 'json' | 'toon' = 'json') {
     this.authManager = authManager;
+    this.outputFormat = outputFormat;
   }
 
   setOAuthTokens(accessToken: string, refreshToken?: string): void {
@@ -158,6 +161,18 @@ class GraphClient {
     });
   }
 
+  private serializeData(data: unknown, outputFormat: 'json' | 'toon', pretty = false): string {
+    if (outputFormat === 'toon') {
+      try {
+        return toonEncode(data);
+      } catch (error) {
+        logger.warn(`Failed to encode as TOON, falling back to JSON: ${error}`);
+        return JSON.stringify(data, null, pretty ? 2 : undefined);
+      }
+    }
+    return JSON.stringify(data, null, pretty ? 2 : undefined);
+  }
+
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
       logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
@@ -179,7 +194,7 @@ class GraphClient {
     // If excludeResponse is true, only return success indication
     if (excludeResponse) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+        content: [{ type: 'text', text: this.serializeData({ success: true }, this.outputFormat) }],
       };
     }
 
@@ -201,14 +216,18 @@ class GraphClient {
 
       if (rawResponse) {
         return {
-          content: [{ type: 'text', text: JSON.stringify(responseData.data) }],
+          content: [
+            { type: 'text', text: this.serializeData(responseData.data, this.outputFormat) },
+          ],
           _meta: meta,
         };
       }
 
       if (responseData.data === null || responseData.data === undefined) {
         return {
-          content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+          content: [
+            { type: 'text', text: this.serializeData({ success: true }, this.outputFormat) },
+          ],
           _meta: meta,
         };
       }
@@ -229,7 +248,9 @@ class GraphClient {
       removeODataProps(responseData.data as Record<string, unknown>);
 
       return {
-        content: [{ type: 'text', text: JSON.stringify(responseData.data, null, 2) }],
+        content: [
+          { type: 'text', text: this.serializeData(responseData.data, this.outputFormat, true) },
+        ],
         _meta: meta,
       };
     }
@@ -237,13 +258,13 @@ class GraphClient {
     // Original handling for backward compatibility
     if (rawResponse) {
       return {
-        content: [{ type: 'text', text: JSON.stringify(data) }],
+        content: [{ type: 'text', text: this.serializeData(data, this.outputFormat) }],
       };
     }
 
     if (data === null || data === undefined) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+        content: [{ type: 'text', text: this.serializeData({ success: true }, this.outputFormat) }],
       };
     }
 
@@ -263,7 +284,7 @@ class GraphClient {
     removeODataProps(data as Record<string, unknown>);
 
     return {
-      content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+      content: [{ type: 'text', text: this.serializeData(data, this.outputFormat, true) }],
     };
   }
 }

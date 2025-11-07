@@ -40,7 +40,8 @@ class MicrosoftGraphServer {
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
     this.options = options;
-    this.graphClient = new GraphClient(authManager);
+    const outputFormat = options.toon ? 'toon' : 'json';
+    this.graphClient = new GraphClient(authManager, outputFormat);
     this.server = null;
   }
 
