@@ -94,6 +94,113 @@ export function registerGraphTools(
     }
   }
 
+  // Register utility tool: get today's date
+  server.tool(
+    'get_todays_date',
+    'Get today\'s date in ISO 8601 format (YYYY-MM-DD) or with additional formatting options',
+    {
+      format: z
+        .enum(['iso', 'full', 'long', 'medium', 'short'])
+        .describe('Date format: iso (YYYY-MM-DD), full, long, medium, or short')
+        .optional()
+        .default('iso'),
+      timezone: z
+        .string()
+        .describe('Timezone name (e.g., "America/New_York", "Europe/London"). Defaults to system timezone.')
+        .optional(),
+    },
+    {
+      title: 'Get Today\'s Date',
+      readOnlyHint: true,
+    },
+    async (params) => {
+      try {
+        const format = params.format || 'iso';
+        const timezone = params.timezone as string | undefined;
+
+        let date: Date;
+        if (timezone) {
+          // Get date in specified timezone
+          const dateString = new Date().toLocaleString('en-US', { timeZone: timezone });
+          date = new Date(dateString);
+        } else {
+          date = new Date();
+        }
+
+        let formattedDate: string;
+        switch (format) {
+          case 'iso':
+            formattedDate = date.toISOString().split('T')[0];
+            break;
+          case 'full':
+            formattedDate = date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              timeZone: timezone,
+            });
+            break;
+          case 'long':
+            formattedDate = date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              timeZone: timezone,
+            });
+            break;
+          case 'medium':
+            formattedDate = date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              timeZone: timezone,
+            });
+            break;
+          case 'short':
+            formattedDate = date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              timeZone: timezone,
+            });
+            break;
+          default:
+            formattedDate = date.toISOString().split('T')[0];
+        }
+
+        const result = {
+          date: formattedDate,
+          dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone }),
+          timestamp: date.toISOString(),
+          timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+
+        const textContent: TextContent = {
+          type: 'text',
+          text: JSON.stringify(result, null, 2),
+        };
+
+        return {
+          content: [textContent],
+        };
+      } catch (error) {
+        logger.error(`Error in get_todays_date tool: ${(error as Error).message}`);
+        const errorContent: TextContent = {
+          type: 'text',
+          text: JSON.stringify({
+            error: `Error getting today's date: ${(error as Error).message}`,
+          }),
+        };
+
+        return {
+          content: [errorContent],
+          isError: true,
+        };
+      }
+    }
+  );
+
   for (const tool of api.endpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
