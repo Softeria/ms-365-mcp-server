@@ -132,7 +132,7 @@ class MicrosoftGraphServer {
           grant_types_supported: ['authorization_code', 'refresh_token'],
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
-          scopes_supported: scopes,
+          scopes_supported: ['User.Read'],
         });
       });
 
@@ -146,7 +146,7 @@ class MicrosoftGraphServer {
         res.json({
           resource: `${url.origin}/mcp`,
           authorization_servers: [url.origin],
-          scopes_supported: scopes,
+          scopes_supported: ['User.Read'],
           bearer_methods_supported: ['header'],
           resource_documentation: `${url.origin}`,
         });
