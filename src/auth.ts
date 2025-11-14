@@ -50,7 +50,10 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
-function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false, enabledToolsPattern?: string): string[] {
+function buildScopesFromEndpoints(
+  includeWorkAccountScopes: boolean = false,
+  enabledToolsPattern?: string
+): string[] {
   const scopesSet = new Set<string>();
 
   // Create regex for tool filtering if pattern is provided
@@ -60,7 +63,9 @@ function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false, ena
       enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
       logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
     } catch (error) {
-      logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`);
+      logger.error(
+        `Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`
+      );
     }
   }
 
