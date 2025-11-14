@@ -50,10 +50,26 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
-function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): string[] {
+function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false, enabledToolsPattern?: string): string[] {
   const scopesSet = new Set<string>();
 
+  // Create regex for tool filtering if pattern is provided
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledToolsPattern) {
+    try {
+      enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
+      logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
+    } catch (error) {
+      logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`);
+    }
+  }
+
   endpoints.default.forEach((endpoint) => {
+    // Skip endpoints that don't match the tool filter
+    if (enabledToolsRegex && !enabledToolsRegex.test(endpoint.toolName)) {
+      return;
+    }
+
     // Skip endpoints that only have workScopes if not in work mode
     if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
       return;
@@ -77,7 +93,12 @@ function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): st
     }
   });
 
-  return Array.from(scopesSet);
+  const scopes = Array.from(scopesSet);
+  if (enabledToolsPattern) {
+    logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
+  }
+
+  return scopes;
 }
 
 interface LoginTestResult {
