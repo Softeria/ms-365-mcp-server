@@ -287,19 +287,30 @@ registration:
 - Navigate to Azure Active Directory → App registrations → New registration
 - Set name: "MS365 MCP Server"
 
-1. **Configure Redirect URIs**:
-   Add these redirect URIs for testing with MCP Inspector (`npm run inspector`):
+2. **Configure Redirect URIs**:
 
-- `http://localhost:6274/oauth/callback`
-- `http://localhost:6274/oauth/callback/debug`
-- `http://localhost:3000/callback` (optional, for server callback)
+- **Configure the OAuth callback URI**: Go to your app registration and on the left side, go to Authentication.
+- Under Platform configurations:
+  - Click Add a platform (if you don’t already see one for "Mobile and desktop applications" / "Public client").
+  - Choose Mobile and desktop applications or Public client/native (mobile & desktop) (label depends on portal version).
 
-1. **Get Credentials**:
+3. **Testing with MCP Inspector (`npm run inspector`)**:
+
+- Go to your app registration and on the left side, go to Authentication.
+- Under Platform configurations:
+  - Click Add a platform (if you don’t already see one for "Web").
+  - Choose Web.
+  - Configure the following redirect URIs
+    - `http://localhost:6274/oauth/callback`
+    - `http://localhost:6274/oauth/callback/debug`
+    - `http://localhost:3000/callback` (optional, for server callback)
+
+4. **Get Credentials**:
 
 - Copy the **Application (client) ID** from Overview page
 - Go to Certificates & secrets → New client secret → Copy the secret value
 
-1. **Configure Environment Variables**:
+5. **Configure Environment Variables**:
    Create a `.env` file in your project root:
    ```env
    MS365_MCP_CLIENT_ID=your-azure-ad-app-client-id-here
