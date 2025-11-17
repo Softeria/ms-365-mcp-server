@@ -1,0 +1,57 @@
+name: ms-365-mcp-server
+image: mcp/ms-365-mcp-server
+type: server
+
+meta:
+  category: productivity
+  tags:
+    - microsoft
+    - 365
+    - office
+    - graph-api
+    - email
+    - calendar
+    - onedrive
+
+about:
+  title: Microsoft 365
+  description: A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API
+  icon: https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Microsoft_logo.svg/200px-Microsoft_logo.svg.png
+
+source:
+  project: https://github.com/softeria/ms-365-mcp-server
+  commit: 09e4eb3288fc2086954d83a618a19112e3f1a9e0
+  dockerfile: Dockerfile
+
+run:
+  allowHosts:
+    - graph.microsoft.com:443
+    - login.microsoftonline.com:443
+
+config:
+  secrets:
+    - name: ms365.client_id
+      env: MS365_MCP_CLIENT_ID
+      example: your-azure-ad-app-client-id-here
+      description: Azure AD App Registration Client ID
+    - name: ms365.client_secret
+      env: MS365_MCP_CLIENT_SECRET
+      example: your-azure-ad-app-client-secret-here
+      description: Azure AD App Registration Client Secret
+    - name: ms365.tenant_id
+      env: MS365_MCP_TENANT_ID
+      example: common
+      description: Tenant ID (use 'common' for multi-tenant or personal accounts)
+  parameters:
+    - name: org_mode
+      env: MS365_MCP_ORG_MODE
+      example: "true"
+      description: Enable organization/work account mode
+    - name: read_only
+      env: READ_ONLY
+      example: "true"
+      description: Enable read-only mode (disable write operations)
+    - name: enabled_tools
+      env: ENABLED_TOOLS
+      example: "mail,calendar"
+      description: Comma-separated list of enabled tool patterns
