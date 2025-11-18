@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -7,7 +7,16 @@ RUN npm ci --ignore-scripts
 
 COPY . .
 RUN npm run build
-RUN npm prune --production
+
+FROM node:20-alpine AS release
+
+WORKDIR /app
+
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/package*.json ./
+
+ENV NODE_ENV=production
+RUN npm ci --ignore-scripts --omit=dev
 
 ENTRYPOINT ["node", "dist/index.js"]
 CMD ["--http"]
