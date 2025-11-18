@@ -20,4 +20,3 @@ ENV NODE_ENV=production
 RUN npm ci --ignore-scripts --omit=dev
 
 ENTRYPOINT ["node", "dist/index.js"]
-CMD ["--http"]
