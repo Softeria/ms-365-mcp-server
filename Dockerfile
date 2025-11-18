@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm ci --ignore-scripts
 
 COPY . .
+RUN npm run generate
 RUN npm run build
 
 FROM node:20-alpine AS release
