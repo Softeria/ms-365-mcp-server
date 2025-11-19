@@ -17,6 +17,7 @@ interface EndpointConfig {
   scopes?: string[];
   workScopes?: string[];
   returnDownloadUrl?: boolean;
+  supportsTimezone?: boolean;
   llmTip?: string;
 }
 
@@ -138,6 +139,16 @@ export function registerGraphTools(
       .describe('Exclude the full response body and only return success or failure indication')
       .optional();
 
+    // Add timezone parameter for calendar endpoints that support it
+    if (endpointConfig?.supportsTimezone) {
+      paramSchema['timezone'] = z
+        .string()
+        .describe(
+          'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.'
+        )
+        .optional();
+    }
+
     // Build the tool description, optionally appending LLM tips
     let toolDescription =
       tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`;
@@ -241,6 +252,12 @@ export function registerGraphTools(
               body = paramValue;
               logger.info(`Set body param: ${JSON.stringify(body)}`);
             }
+          }
+
+          // Handle timezone parameter for calendar endpoints
+          if (endpointConfig?.supportsTimezone && params.timezone) {
+            headers['Prefer'] = `outlook.timezone="${params.timezone}"`;
+            logger.info(`Setting timezone header: Prefer: outlook.timezone="${params.timezone}"`);
           }
 
           if (Object.keys(queryParams).length > 0) {

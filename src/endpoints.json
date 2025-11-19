@@ -112,13 +112,15 @@
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/events",
@@ -144,13 +146,15 @@
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "get",
     "toolName": "list-specific-calendar-events",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
@@ -176,7 +180,8 @@
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars",
