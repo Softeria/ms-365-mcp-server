@@ -17,6 +17,7 @@ interface EndpointConfig {
   scopes?: string[];
   workScopes?: string[];
   returnDownloadUrl?: boolean;
+  llmTip?: string;
 }
 
 const endpointsData = JSON.parse(
@@ -137,9 +138,16 @@ export function registerGraphTools(
       .describe('Exclude the full response body and only return success or failure indication')
       .optional();
 
+    // Build the tool description, optionally appending LLM tips
+    let toolDescription =
+      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`;
+    if (endpointConfig?.llmTip) {
+      toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
+    }
+
     server.tool(
       tool.alias,
-      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
+      toolDescription,
       paramSchema,
       {
         title: tool.alias,

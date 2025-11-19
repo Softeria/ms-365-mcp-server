@@ -31,6 +31,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[];
   workScopes?: string[];
+  llmTip?: string;
 }
 
 const __filename = fileURLToPath(import.meta.url);
