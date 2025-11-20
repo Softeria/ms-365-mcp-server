@@ -1,10 +1,29 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
-import keytar from 'keytar';
 import logger from './logger.js';
 import fs, { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+
+// Ok so this is a hack to lazily import keytar only when needed
+// since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
+let keytar: typeof import('keytar') | null = null;
+async function getKeytar() {
+  if (keytar === undefined) {
+    return null;
+  }
+  if (keytar === null) {
+    try {
+      keytar = await import('keytar');
+      return keytar;
+    } catch (error) {
+      logger.info('keytar not available, using file-based credential storage');
+      keytar = undefined as any;
+      return null;
+    }
+  }
+  return keytar;
+}
 
 interface EndpointConfig {
   pathPattern: string;
@@ -12,6 +31,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[];
   workScopes?: string[];
+  llmTip?: string;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,10 +70,31 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
-function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): string[] {
+function buildScopesFromEndpoints(
+  includeWorkAccountScopes: boolean = false,
+  enabledToolsPattern?: string
+): string[] {
   const scopesSet = new Set<string>();
 
+  // Create regex for tool filtering if pattern is provided
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledToolsPattern) {
+    try {
+      enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
+      logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
+    } catch (error) {
+      logger.error(
+        `Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`
+      );
+    }
+  }
+
   endpoints.default.forEach((endpoint) => {
+    // Skip endpoints that don't match the tool filter
+    if (enabledToolsRegex && !enabledToolsRegex.test(endpoint.toolName)) {
+      return;
+    }
+
     // Skip endpoints that only have workScopes if not in work mode
     if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
       return;
@@ -77,7 +118,12 @@ function buildScopesFromEndpoints(includeWorkAccountScopes: boolean = false): st
     }
   });
 
-  return Array.from(scopesSet);
+  const scopes = Array.from(scopesSet);
+  if (enabledToolsPattern) {
+    logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
+  }
+
+  return scopes;
 }
 
 interface LoginTestResult {
@@ -121,9 +167,12 @@ class AuthManager {
       let cacheData: string | undefined;
 
       try {
-        const cachedData = await keytar.getPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
-        if (cachedData) {
-          cacheData = cachedData;
+        const kt = await getKeytar();
+        if (kt) {
+          const cachedData = await kt.getPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
+          if (cachedData) {
+            cacheData = cachedData;
+          }
         }
       } catch (keytarError) {
         logger.warn(
@@ -151,9 +200,12 @@ class AuthManager {
       let selectedAccountData: string | undefined;
 
       try {
-        const cachedData = await keytar.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
-        if (cachedData) {
-          selectedAccountData = cachedData;
+        const kt = await getKeytar();
+        if (kt) {
+          const cachedData = await kt.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
+          if (cachedData) {
+            selectedAccountData = cachedData;
+          }
         }
       } catch (keytarError) {
         logger.warn(
@@ -180,7 +232,12 @@ class AuthManager {
       const cacheData = this.msalApp.getTokenCache().serialize();
 
       try {
-        await keytar.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, cacheData);
+        const kt = await getKeytar();
+        if (kt) {
+          await kt.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, cacheData);
+        } else {
+          fs.writeFileSync(FALLBACK_PATH, cacheData);
+        }
       } catch (keytarError) {
         logger.warn(
           `Keychain save failed, falling back to file storage: ${(keytarError as Error).message}`
@@ -198,7 +255,12 @@ class AuthManager {
       const selectedAccountData = JSON.stringify({ accountId: this.selectedAccountId });
 
       try {
-        await keytar.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, selectedAccountData);
+        const kt = await getKeytar();
+        if (kt) {
+          await kt.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, selectedAccountData);
+        } else {
+          fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData);
+        }
       } catch (keytarError) {
         logger.warn(
           `Keychain save failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
@@ -377,8 +439,11 @@ class AuthManager {
       this.selectedAccountId = null;
 
       try {
-        await keytar.deletePassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
-        await keytar.deletePassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
+        const kt = await getKeytar();
+        if (kt) {
+          await kt.deletePassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
+          await kt.deletePassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
+        }
       } catch (keytarError) {
         logger.warn(`Keychain deletion failed: ${(keytarError as Error).message}`);
       }

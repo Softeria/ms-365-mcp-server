@@ -120,7 +120,7 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode);
+        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         res.json({
           issuer: url.origin,
@@ -141,7 +141,7 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode);
+        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         res.json({
           resource: `${url.origin}/mcp`,

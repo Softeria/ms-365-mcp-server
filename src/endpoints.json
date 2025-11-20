@@ -3,7 +3,8 @@
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -15,7 +16,8 @@
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -27,19 +29,22 @@
     "pathPattern": "/me/sendMail",
     "method": "post",
     "toolName": "send-mail",
-    "scopes": ["Mail.Send"]
+    "scopes": ["Mail.Send"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users/{user-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
-    "workScopes": ["Mail.Read.Shared"]
+    "workScopes": ["Mail.Read.Shared"],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
-    "workScopes": ["Mail.Read.Shared"]
+    "workScopes": ["Mail.Read.Shared"],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
@@ -51,13 +56,15 @@
     "pathPattern": "/users/{user-id}/sendMail",
     "method": "post",
     "toolName": "send-shared-mailbox-mail",
-    "workScopes": ["Mail.Send.Shared"]
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
-    "workScopes": ["User.Read.All"]
+    "workScopes": ["User.Read.All"],
+    "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/me/messages",
@@ -105,25 +112,29 @@
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/events",
     "method": "post",
     "toolName": "create-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "patch",
     "toolName": "update-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
@@ -135,25 +146,29 @@
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "get",
     "toolName": "list-specific-calendar-events",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "post",
     "toolName": "create-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "patch",
     "toolName": "update-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
@@ -165,7 +180,8 @@
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/calendars",

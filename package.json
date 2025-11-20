@@ -40,12 +40,14 @@
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
     "js-yaml": "^4.1.0",
-    "keytar": "^7.9.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
   },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
   "devDependencies": {
-    "@redocly/cli": "^1.34.3",
+    "@redocly/cli": "^2.11.1",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.3",
