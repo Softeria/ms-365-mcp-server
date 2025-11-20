@@ -96,7 +96,7 @@ export function registerGraphTools(
 
   // Register utility tool: get today's date
   server.tool(
-    'get_todays_date',
+    'get-todays-date',
     'Get today\'s date in ISO 8601 format (YYYY-MM-DD) or with additional formatting options',
     {
       format: z
