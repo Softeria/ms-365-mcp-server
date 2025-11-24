@@ -6,7 +6,7 @@ import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerGraphTools } from './graph-tools.js';
+import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -55,13 +55,24 @@ class MicrosoftGraphServer {
     if (shouldRegisterAuthTools) {
       registerAuthTools(this.server, this.authManager);
     }
-    registerGraphTools(
-      this.server,
-      this.graphClient,
-      this.options.readOnly,
-      this.options.enabledTools,
-      this.options.orgMode
-    );
+
+    if (this.options.discovery) {
+      logger.info('Discovery mode enabled (experimental) - registering discovery tool only');
+      registerDiscoveryTools(
+        this.server,
+        this.graphClient,
+        this.options.readOnly,
+        this.options.orgMode
+      );
+    } else {
+      registerGraphTools(
+        this.server,
+        this.graphClient,
+        this.options.readOnly,
+        this.options.enabledTools,
+        this.options.orgMode
+      );
+    }
   }
 
   async start(): Promise<void> {

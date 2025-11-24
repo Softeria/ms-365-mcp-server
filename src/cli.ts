@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -35,12 +36,18 @@ program
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
   .option(
+    '--preset <names>',
+    'Use preset tool categories (comma-separated). Available: mail, calendar, files, personal, work, excel, contacts, tasks, onenote, search, users, all'
+  )
+  .option('--list-presets', 'List all available presets and exit')
+  .option(
     '--org-mode',
     'Enable organization/work mode from start (includes Teams, SharePoint, etc.)'
   )
   .option('--work-mode', 'Alias for --org-mode')
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
-  .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction');
+  .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
+  .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)');
 
 export interface CommandOptions {
   v?: boolean;
@@ -54,10 +61,13 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
+  preset?: string;
+  listPresets?: boolean;
   orgMode?: boolean;
   workMode?: boolean;
   forceWorkScopes?: boolean;
   toon?: boolean;
+  discovery?: boolean;
 
   [key: string]: unknown;
 }
@@ -65,6 +75,29 @@ export interface CommandOptions {
 export function parseArgs(): CommandOptions {
   program.parse();
   const options = program.opts();
+
+  if (options.listPresets) {
+    const presets = listPresets();
+    console.log(JSON.stringify({ presets }, null, 2));
+    process.exit(0);
+  }
+
+  if (options.preset) {
+    const presetNames = options.preset.split(',').map((p: string) => p.trim());
+    try {
+      options.enabledTools = getCombinedPresetPattern(presetNames);
+
+      const requiresOrgMode = presetNames.some((preset: string) => presetRequiresOrgMode(preset));
+      if (requiresOrgMode && !options.orgMode) {
+        console.warn(
+          `Warning: Preset(s) [${presetNames.filter((p: string) => presetRequiresOrgMode(p)).join(', ')}] require --org-mode to function properly`
+        );
+      }
+    } catch (error) {
+      console.error(`Error: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  }
 
   if (process.env.READ_ONLY === 'true' || process.env.READ_ONLY === '1') {
     options.readOnly = true;

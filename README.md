@@ -340,6 +340,19 @@ This method:
 > **Authentication Tools**: In HTTP mode, login/logout tools are disabled by default since OAuth handles authentication.
 > Use `--enable-auth-tools` if you need them available.
 
+## Tool Presets
+
+To reduce initial connection overhead, use preset tool categories instead of loading all 90+ tools:
+
+```bash
+npx @softeria/ms-365-mcp-server --preset mail
+npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
+```
+
+Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `all`
+
+**Experimental:** `--discovery` starts with only 2 tools (`search-tools`, `execute-tool`) for minimal token usage.
+
 ## CLI Options
 
 The following options can be used when running ms-365-mcp-server directly from the command line:
@@ -364,7 +377,10 @@ When running as an MCP server, the following options can be used:
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
+--preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
+--list-presets    List all available presets and exit
 --toon            (experimental) Enable TOON output format for 30-60% token reduction
+--discovery       (experimental) Start with search-tools + execute-tool only
 ```
 
 Environment variables:
