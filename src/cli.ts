@@ -24,8 +24,8 @@ program
   .option('--remove-account <accountId>', 'Remove a specific account by ID')
   .option('--read-only', 'Start server in read-only mode, disabling write operations')
   .option(
-    '--http [port]',
-    'Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)'
+    '--http [address]',
+    'Use Streamable HTTP transport instead of stdio. Format: [host:]port (e.g., "localhost:3000", ":3000", "3000"). Default: all interfaces on port 3000'
   )
   .option(
     '--enable-auth-tools',

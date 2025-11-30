@@ -31,6 +31,32 @@ interface RegisteredClient {
 
 const registeredClients = new Map<string, RegisteredClient>();
 
+/**
+ * Parse HTTP option into host and port components.
+ * Supports formats: "host:port", ":port", "port"
+ * @param httpOption - The HTTP option value (string or boolean)
+ * @returns Object with host (undefined if not specified) and port number
+ */
+function parseHttpOption(httpOption: string | boolean): { host: string | undefined; port: number } {
+  if (typeof httpOption === 'boolean') {
+    return { host: undefined, port: 3000 };
+  }
+
+  const httpString = httpOption.trim();
+  
+  // Check if it contains a colon (host:port format)
+  if (httpString.includes(':')) {
+    const [hostPart, portPart] = httpString.split(':');
+    const host = hostPart || undefined; // Empty string becomes undefined
+    const port = parseInt(portPart) || 3000;
+    return { host, port };
+  }
+  
+  // No colon, treat as port only
+  const port = parseInt(httpString) || 3000;
+  return { host: undefined, port };
+}
+
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -99,7 +125,7 @@ class MicrosoftGraphServer {
     }
 
     if (this.options.http) {
-      const port = typeof this.options.http === 'string' ? parseInt(this.options.http) : 3000;
+      const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
       app.set('trust proxy', true);
@@ -430,14 +456,25 @@ class MicrosoftGraphServer {
         res.send('Microsoft 365 MCP Server is running');
       });
 
-      app.listen(port, () => {
-        logger.info(`Server listening on HTTP port ${port}`);
-        logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
-        logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
-        logger.info(
-          `  - OAuth discovery: http://localhost:${port}/.well-known/oauth-authorization-server`
-        );
-      });
+      if (host) {
+        app.listen(port, host, () => {
+          logger.info(`Server listening on ${host}:${port}`);
+          logger.info(`  - MCP endpoint: http://${host}:${port}/mcp`);
+          logger.info(`  - OAuth endpoints: http://${host}:${port}/auth/*`);
+          logger.info(
+            `  - OAuth discovery: http://${host}:${port}/.well-known/oauth-authorization-server`
+          );
+        });
+      } else {
+        app.listen(port, () => {
+          logger.info(`Server listening on all interfaces (0.0.0.0:${port})`);
+          logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
+          logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
+          logger.info(
+            `  - OAuth discovery: http://localhost:${port}/.well-known/oauth-authorization-server`
+          );
+        });
+      }
     } else {
       const transport = new StdioServerTransport();
       await this.server!.connect(transport);
