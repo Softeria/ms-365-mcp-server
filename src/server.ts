@@ -43,7 +43,7 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
   }
 
   const httpString = httpOption.trim();
-  
+
   // Check if it contains a colon (host:port format)
   if (httpString.includes(':')) {
     const [hostPart, portPart] = httpString.split(':');
@@ -51,7 +51,7 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
     const port = parseInt(portPart) || 3000;
     return { host, port };
   }
-  
+
   // No colon, treat as port only
   const port = parseInt(httpString) || 3000;
   return { host: undefined, port };
