@@ -277,13 +277,11 @@ class MicrosoftGraphServer {
               process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
             const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
 
-            if (!clientSecret) {
-              logger.error('Token endpoint: MS365_MCP_CLIENT_SECRET is not configured');
-              res.status(500).json({
-                error: 'server_error',
-                error_description: 'Server configuration error',
-              });
-              return;
+            // Log whether using public or confidential client
+            if (clientSecret) {
+              logger.info('Token endpoint: Using confidential client with client_secret');
+            } else {
+              logger.info('Token endpoint: Using public client without client_secret');
             }
 
             const result = await exchangeCodeForToken(
@@ -301,13 +299,11 @@ class MicrosoftGraphServer {
               process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
             const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
 
-            if (!clientSecret) {
-              logger.error('Token endpoint: MS365_MCP_CLIENT_SECRET is not configured');
-              res.status(500).json({
-                error: 'server_error',
-                error_description: 'Server configuration error',
-              });
-              return;
+            // Log whether using public or confidential client
+            if (clientSecret) {
+              logger.info('Refresh endpoint: Using confidential client with client_secret');
+            } else {
+              logger.info('Refresh endpoint: Using public client without client_secret');
             }
 
             const result = await refreshAccessToken(

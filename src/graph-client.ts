@@ -130,8 +130,11 @@ class GraphClient {
     const clientId = process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
     const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
 
-    if (!clientSecret) {
-      throw new Error('MS365_MCP_CLIENT_SECRET not configured');
+    // Log whether using public or confidential client
+    if (clientSecret) {
+      logger.info('GraphClient: Refreshing token with confidential client');
+    } else {
+      logger.info('GraphClient: Refreshing token with public client');
     }
 
     const response = await refreshAccessToken(refreshToken, clientId, clientSecret, tenantId);

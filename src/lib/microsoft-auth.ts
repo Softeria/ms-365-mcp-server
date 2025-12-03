@@ -41,7 +41,7 @@ export async function exchangeCodeForToken(
   code: string,
   redirectUri: string,
   clientId: string,
-  clientSecret: string,
+  clientSecret: string | undefined,
   tenantId: string = 'common',
   codeVerifier?: string
 ): Promise<{
@@ -58,6 +58,7 @@ export async function exchangeCodeForToken(
     client_id: clientId,
   });
 
+  // Add client_secret for confidential clients
   if (clientSecret) {
     params.append('client_secret', clientSecret);
   }
@@ -90,7 +91,7 @@ export async function exchangeCodeForToken(
 export async function refreshAccessToken(
   refreshToken: string,
   clientId: string,
-  clientSecret: string,
+  clientSecret: string | undefined,
   tenantId: string = 'common'
 ): Promise<{
   access_token: string;
