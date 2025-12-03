@@ -56,8 +56,11 @@ export async function exchangeCodeForToken(
     code,
     redirect_uri: redirectUri,
     client_id: clientId,
-    client_secret: clientSecret,
   });
+
+  if (clientSecret) {
+    params.append('client_secret', clientSecret);
+  }
 
   // Add code_verifier for PKCE flow
   if (codeVerifier) {
@@ -96,17 +99,22 @@ export async function refreshAccessToken(
   expires_in: number;
   refresh_token?: string;
 }> {
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: clientId,
+  });
+
+  if (clientSecret) {
+    params.append('client_secret', clientSecret);
+  }
+
   const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
+    body: params,
   });
 
   if (!response.ok) {

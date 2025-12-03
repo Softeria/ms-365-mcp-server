@@ -308,13 +308,13 @@ registration:
 4. **Get Credentials**:
 
 - Copy the **Application (client) ID** from Overview page
-- Go to Certificates & secrets → New client secret → Copy the secret value
+- Go to Certificates & secrets → New client secret → Copy the secret value (optional for public apps)
 
 5. **Configure Environment Variables**:
    Create a `.env` file in your project root:
    ```env
    MS365_MCP_CLIENT_ID=your-azure-ad-app-client-id-here
-   MS365_MCP_CLIENT_SECRET=your-azure-ad-app-client-secret-here
+   MS365_MCP_CLIENT_SECRET=your-secret-here  # Optional for public apps
    MS365_MCP_TENANT_ID=common
    ```
 
