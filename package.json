@@ -33,12 +33,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@azure/msal-node": "^2.1.0",
-    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@azure/msal-node": "^3.8.0",
+    "@modelcontextprotocol/sdk": "^1.25.0",
     "@toon-format/toon": "^0.8.0",
     "commander": "^11.1.0",
     "dotenv": "^17.0.1",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "js-yaml": "^4.1.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"

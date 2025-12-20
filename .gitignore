@@ -139,6 +139,7 @@ dist
 
 # Token cache files
 .token-cache.json
+.selected-account.json
 
 openapi
 
