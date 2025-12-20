@@ -236,14 +236,14 @@ class AuthManager {
         if (kt) {
           await kt.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, cacheData);
         } else {
-          fs.writeFileSync(FALLBACK_PATH, cacheData);
+          fs.writeFileSync(FALLBACK_PATH, cacheData, { mode: 0o600 });
         }
       } catch (keytarError) {
         logger.warn(
           `Keychain save failed, falling back to file storage: ${(keytarError as Error).message}`
         );
 
-        fs.writeFileSync(FALLBACK_PATH, cacheData);
+        fs.writeFileSync(FALLBACK_PATH, cacheData, { mode: 0o600 });
       }
     } catch (error) {
       logger.error(`Error saving token cache: ${(error as Error).message}`);
@@ -259,14 +259,14 @@ class AuthManager {
         if (kt) {
           await kt.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, selectedAccountData);
         } else {
-          fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData);
+          fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData, { mode: 0o600 });
         }
       } catch (keytarError) {
         logger.warn(
           `Keychain save failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
         );
 
-        fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData);
+        fs.writeFileSync(SELECTED_ACCOUNT_PATH, selectedAccountData, { mode: 0o600 });
       }
     } catch (error) {
       logger.error(`Error saving selected account: ${(error as Error).message}`);

@@ -113,9 +113,7 @@ class MicrosoftGraphServer {
       CLIENT_ID: process.env.MS365_MCP_CLIENT_ID
         ? `${process.env.MS365_MCP_CLIENT_ID.substring(0, 8)}...`
         : 'NOT SET',
-      CLIENT_SECRET: process.env.MS365_MCP_CLIENT_SECRET
-        ? `${process.env.MS365_MCP_CLIENT_SECRET.substring(0, 8)}...`
-        : 'NOT SET',
+      CLIENT_SECRET: process.env.MS365_MCP_CLIENT_SECRET ? 'SET' : 'NOT SET',
       TENANT_ID: process.env.MS365_MCP_TENANT_ID || 'NOT SET',
       NODE_ENV: process.env.NODE_ENV || 'NOT SET',
     });
@@ -133,8 +131,9 @@ class MicrosoftGraphServer {
       app.use(express.urlencoded({ extended: true }));
 
       // Add CORS headers for all routes
+      const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || '*';
       app.use((req, res, next) => {
-        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Origin', corsOrigin);
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.header(
           'Access-Control-Allow-Headers',
@@ -265,15 +264,12 @@ class MicrosoftGraphServer {
       // Token exchange endpoint
       app.post('/token', async (req, res) => {
         try {
-          // Comprehensive debugging
+          // Log token endpoint call (redact sensitive data)
           logger.info('Token endpoint called', {
             method: req.method,
             url: req.url,
-            headers: req.headers,
-            bodyType: typeof req.body,
-            body: req.body,
-            rawBody: JSON.stringify(req.body),
             contentType: req.get('Content-Type'),
+            grant_type: req.body?.grant_type,
           });
 
           const body = req.body;
