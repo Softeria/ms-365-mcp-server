@@ -44,6 +44,8 @@
     "zod": "^3.24.2"
   },
   "optionalDependencies": {
+    "@azure/identity": "^4.5.0",
+    "@azure/keyvault-secrets": "^4.9.0",
     "keytar": "^7.9.0"
   },
   "devDependencies": {

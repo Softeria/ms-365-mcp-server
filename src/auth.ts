@@ -4,6 +4,7 @@ import logger from './logger.js';
 import fs, { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { getSecrets, type AppSecrets } from './secrets.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -51,12 +52,18 @@ const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
 const FALLBACK_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
 const SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
 
-const DEFAULT_CONFIG: Configuration = {
-  auth: {
-    clientId: process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
-    authority: `https://login.microsoftonline.com/${process.env.MS365_MCP_TENANT_ID || 'common'}`,
-  },
-};
+/**
+ * Creates MSAL configuration from secrets.
+ * This is called during AuthManager initialization.
+ */
+function createMsalConfig(secrets: AppSecrets): Configuration {
+  return {
+    auth: {
+      clientId: secrets.clientId || '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
+      authority: `https://login.microsoftonline.com/${secrets.tenantId || 'common'}`,
+    },
+  };
+}
 
 interface ScopeHierarchy {
   [key: string]: string[];
@@ -145,10 +152,7 @@ class AuthManager {
   private isOAuthMode: boolean;
   private selectedAccountId: string | null;
 
-  constructor(
-    config: Configuration = DEFAULT_CONFIG,
-    scopes: string[] = buildScopesFromEndpoints()
-  ) {
+  constructor(config: Configuration, scopes: string[] = buildScopesFromEndpoints()) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
     this.scopes = scopes;
@@ -160,6 +164,16 @@ class AuthManager {
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
     this.isOAuthMode = oauthTokenFromEnv != null;
+  }
+
+  /**
+   * Creates an AuthManager instance with secrets loaded from the configured provider.
+   * Uses Key Vault if MS365_MCP_KEYVAULT_URL is set, otherwise environment variables.
+   */
+  static async create(scopes: string[] = buildScopesFromEndpoints()): Promise<AuthManager> {
+    const secrets = await getSecrets();
+    const config = createMsalConfig(secrets);
+    return new AuthManager(config, scopes);
   }
 
   async loadTokenCache(): Promise<void> {

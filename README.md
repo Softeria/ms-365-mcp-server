@@ -395,6 +395,74 @@ Environment variables:
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
+- `MS365_MCP_KEYVAULT_URL`: Azure Key Vault URL for secrets management (see Azure Key Vault section)
+
+## Azure Key Vault Integration
+
+For production deployments, you can store secrets in Azure Key Vault instead of environment variables. This is particularly useful for Azure Container Apps with managed identity.
+
+### Setup
+
+1. **Create a Key Vault** (if you don't have one):
+
+   ```bash
+   az keyvault create --name your-keyvault-name --resource-group your-rg --location eastus
+   ```
+
+2. **Add secrets to Key Vault**:
+
+   ```bash
+   az keyvault secret set --vault-name your-keyvault-name --name ms365-mcp-client-id --value "your-client-id"
+   az keyvault secret set --vault-name your-keyvault-name --name ms365-mcp-tenant-id --value "your-tenant-id"
+   # Optional: if using confidential client flow
+   az keyvault secret set --vault-name your-keyvault-name --name ms365-mcp-client-secret --value "your-secret"
+   ```
+
+3. **Grant access to Key Vault**:
+
+   For Azure Container Apps with managed identity:
+
+   ```bash
+   # Get the managed identity principal ID
+   PRINCIPAL_ID=$(az containerapp show --name your-app --resource-group your-rg --query identity.principalId -o tsv)
+
+   # Grant access to Key Vault secrets
+   az keyvault set-policy --name your-keyvault-name --object-id $PRINCIPAL_ID --secret-permissions get list
+   ```
+
+   For local development with Azure CLI:
+
+   ```bash
+   # Your Azure CLI identity already has access if you have appropriate RBAC roles
+   az login
+   ```
+
+4. **Configure the server**:
+   ```bash
+   MS365_MCP_KEYVAULT_URL=https://your-keyvault-name.vault.azure.net npx @softeria/ms-365-mcp-server
+   ```
+
+### Secret Name Mapping
+
+| Key Vault Secret Name   | Environment Variable    | Required                  |
+| ----------------------- | ----------------------- | ------------------------- |
+| ms365-mcp-client-id     | MS365_MCP_CLIENT_ID     | Yes                       |
+| ms365-mcp-tenant-id     | MS365_MCP_TENANT_ID     | No (defaults to 'common') |
+| ms365-mcp-client-secret | MS365_MCP_CLIENT_SECRET | No                        |
+
+### Authentication
+
+The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity SDK, which automatically tries multiple authentication methods in order:
+
+1. Environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
+2. Managed Identity (recommended for Azure Container Apps)
+3. Azure CLI credentials (for local development)
+4. Visual Studio Code credentials
+5. Azure PowerShell credentials
+
+### Optional Dependencies
+
+The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
 
 ## Contributing
 
