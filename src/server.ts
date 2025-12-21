@@ -3,7 +3,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
-import crypto from 'crypto';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
@@ -16,20 +15,6 @@ import {
   refreshAccessToken,
 } from './lib/microsoft-auth.js';
 import type { CommandOptions } from './cli.ts';
-
-// Store registered clients in memory (in production, use a database)
-interface RegisteredClient {
-  client_id: string;
-  client_name: string;
-  redirect_uris: string[];
-  grant_types: string[];
-  response_types: string[];
-  scope?: string;
-  token_endpoint_auth_method: string;
-  created_at: number;
-}
-
-const registeredClients = new Map<string, RegisteredClient>();
 
 /**
  * Parse HTTP option into host and port components.
@@ -162,7 +147,6 @@ class MicrosoftGraphServer {
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
           token_endpoint: `${url.origin}/token`,
-          registration_endpoint: `${url.origin}/register`,
           response_types_supported: ['code'],
           response_modes_supported: ['query'],
           grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -185,37 +169,6 @@ class MicrosoftGraphServer {
           scopes_supported: scopes,
           bearer_methods_supported: ['header'],
           resource_documentation: `${url.origin}`,
-        });
-      });
-
-      // Dynamic Client Registration endpoint
-      app.post('/register', async (req, res) => {
-        const body = req.body;
-
-        // Generate a client ID
-        const clientId = crypto.randomUUID();
-
-        // Store the client registration
-        registeredClients.set(clientId, {
-          client_id: clientId,
-          client_name: body.client_name || 'MCP Client',
-          redirect_uris: body.redirect_uris || [],
-          grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
-          response_types: body.response_types || ['code'],
-          scope: body.scope,
-          token_endpoint_auth_method: 'none',
-          created_at: Date.now(),
-        });
-
-        // Return the client registration response
-        res.status(201).json({
-          client_id: clientId,
-          client_name: body.client_name || 'MCP Client',
-          redirect_uris: body.redirect_uris || [],
-          grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
-          response_types: body.response_types || ['code'],
-          scope: body.scope,
-          token_endpoint_auth_method: 'none',
         });
       });
 
