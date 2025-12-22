@@ -119,9 +119,7 @@ class MicrosoftGraphServer {
 
     // Debug: Check if secrets are loaded
     logger.info('Secrets Check:', {
-      CLIENT_ID: this.secrets?.clientId
-        ? `${this.secrets.clientId.substring(0, 8)}...`
-        : 'NOT SET',
+      CLIENT_ID: this.secrets?.clientId ? `${this.secrets.clientId.substring(0, 8)}...` : 'NOT SET',
       CLIENT_SECRET: this.secrets?.clientSecret ? 'SET' : 'NOT SET',
       TENANT_ID: this.secrets?.tenantId || 'NOT SET',
       NODE_ENV: process.env.NODE_ENV || 'NOT SET',

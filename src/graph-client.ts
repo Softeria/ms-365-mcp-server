@@ -39,7 +39,11 @@ class GraphClient {
   private refreshToken: string | null = null;
   private readonly outputFormat: 'json' | 'toon' = 'json';
 
-  constructor(authManager: AuthManager, secrets: AppSecrets, outputFormat: 'json' | 'toon' = 'json') {
+  constructor(
+    authManager: AuthManager,
+    secrets: AppSecrets,
+    outputFormat: 'json' | 'toon' = 'json'
+  ) {
     this.authManager = authManager;
     this.secrets = secrets;
     this.outputFormat = outputFormat;
