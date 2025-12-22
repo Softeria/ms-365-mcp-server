@@ -16,6 +16,7 @@ import {
   refreshAccessToken,
 } from './lib/microsoft-auth.js';
 import type { CommandOptions } from './cli.ts';
+import { getSecrets, type AppSecrets } from './secrets.js';
 
 // Store registered clients in memory (in production, use a database)
 interface RegisteredClient {
@@ -60,18 +61,26 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
-  private graphClient: GraphClient;
+  private graphClient: GraphClient | null;
   private server: McpServer | null;
+  private secrets: AppSecrets | null;
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
     this.options = options;
-    const outputFormat = options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(authManager, outputFormat);
+    this.graphClient = null; // Initialized in start() after secrets are loaded
     this.server = null;
+    this.secrets = null;
   }
 
   async initialize(version: string): Promise<void> {
+    // Load secrets first
+    this.secrets = await getSecrets();
+
+    // Initialize GraphClient with secrets
+    const outputFormat = this.options.toon ? 'toon' : 'json';
+    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+
     this.server = new McpServer({
       name: 'Microsoft365MCP',
       version,
@@ -108,13 +117,13 @@ class MicrosoftGraphServer {
 
     logger.info('Microsoft 365 MCP Server starting...');
 
-    // Debug: Check if environment variables are loaded
-    logger.info('Environment Variables Check:', {
-      CLIENT_ID: process.env.MS365_MCP_CLIENT_ID
-        ? `${process.env.MS365_MCP_CLIENT_ID.substring(0, 8)}...`
+    // Debug: Check if secrets are loaded
+    logger.info('Secrets Check:', {
+      CLIENT_ID: this.secrets?.clientId
+        ? `${this.secrets.clientId.substring(0, 8)}...`
         : 'NOT SET',
-      CLIENT_SECRET: process.env.MS365_MCP_CLIENT_SECRET ? 'SET' : 'NOT SET',
-      TENANT_ID: process.env.MS365_MCP_TENANT_ID || 'NOT SET',
+      CLIENT_SECRET: this.secrets?.clientSecret ? 'SET' : 'NOT SET',
+      TENANT_ID: this.secrets?.tenantId || 'NOT SET',
       NODE_ENV: process.env.NODE_ENV || 'NOT SET',
     });
 
@@ -149,7 +158,7 @@ class MicrosoftGraphServer {
         next();
       });
 
-      const oauthProvider = new MicrosoftOAuthProvider(this.authManager);
+      const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
@@ -222,8 +231,8 @@ class MicrosoftGraphServer {
       // Authorization endpoint - redirects to Microsoft
       app.get('/authorize', async (req, res) => {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
-        const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-        const clientId = process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
+        const tenantId = this.secrets?.tenantId || 'common';
+        const clientId = this.secrets!.clientId;
         const microsoftAuthUrl = new URL(
           `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`
         );
@@ -294,10 +303,9 @@ class MicrosoftGraphServer {
           }
 
           if (body.grant_type === 'authorization_code') {
-            const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-            const clientId =
-              process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
-            const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
+            const tenantId = this.secrets?.tenantId || 'common';
+            const clientId = this.secrets!.clientId;
+            const clientSecret = this.secrets?.clientSecret;
 
             // Log whether using public or confidential client
             if (clientSecret) {
@@ -316,10 +324,9 @@ class MicrosoftGraphServer {
             );
             res.json(result);
           } else if (body.grant_type === 'refresh_token') {
-            const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-            const clientId =
-              process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
-            const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
+            const tenantId = this.secrets?.tenantId || 'common';
+            const clientId = this.secrets!.clientId;
+            const clientSecret = this.secrets?.clientSecret;
 
             // Log whether using public or confidential client
             if (clientSecret) {

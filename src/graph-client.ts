@@ -2,6 +2,7 @@ import logger from './logger.js';
 import AuthManager from './auth.js';
 import { refreshAccessToken } from './lib/microsoft-auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
+import type { AppSecrets } from './secrets.js';
 
 interface GraphRequestOptions {
   headers?: Record<string, string>;
@@ -33,12 +34,14 @@ interface McpResponse {
 
 class GraphClient {
   private authManager: AuthManager;
+  private secrets: AppSecrets;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private readonly outputFormat: 'json' | 'toon' = 'json';
 
-  constructor(authManager: AuthManager, outputFormat: 'json' | 'toon' = 'json') {
+  constructor(authManager: AuthManager, secrets: AppSecrets, outputFormat: 'json' | 'toon' = 'json') {
     this.authManager = authManager;
+    this.secrets = secrets;
     this.outputFormat = outputFormat;
   }
 
@@ -126,9 +129,9 @@ class GraphClient {
   }
 
   private async refreshAccessToken(refreshToken: string): Promise<void> {
-    const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
-    const clientId = process.env.MS365_MCP_CLIENT_ID || '084a3e9f-a9f4-43f7-89f9-d229cf97853e';
-    const clientSecret = process.env.MS365_MCP_CLIENT_SECRET;
+    const tenantId = this.secrets.tenantId || 'common';
+    const clientId = this.secrets.clientId;
+    const clientSecret = this.secrets.clientSecret;
 
     // Log whether using public or confidential client
     if (clientSecret) {
