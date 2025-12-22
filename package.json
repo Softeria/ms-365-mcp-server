@@ -58,6 +58,7 @@
     "@types/node": "^22.15.15",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.31.0",
     "globals": "^16.3.0",
     "prettier": "^3.5.3",
