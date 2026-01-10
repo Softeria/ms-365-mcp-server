@@ -3,6 +3,7 @@ import AuthManager from './auth.js';
 import { refreshAccessToken } from './lib/microsoft-auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
+import { getCloudEndpoints } from './cloud-config.js';
 
 interface GraphRequestOptions {
   headers?: Record<string, string>;
@@ -144,7 +145,13 @@ class GraphClient {
       logger.info('GraphClient: Refreshing token with public client');
     }
 
-    const response = await refreshAccessToken(refreshToken, clientId, clientSecret, tenantId);
+    const response = await refreshAccessToken(
+      refreshToken,
+      clientId,
+      clientSecret,
+      tenantId,
+      this.secrets.cloudType
+    );
     this.accessToken = response.access_token;
     if (response.refresh_token) {
       this.refreshToken = response.refresh_token;
@@ -156,7 +163,8 @@ class GraphClient {
     accessToken: string,
     options: GraphRequestOptions
   ): Promise<Response> {
-    const url = `https://graph.microsoft.com/v1.0${endpoint}`;
+    const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
+    const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,

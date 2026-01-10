@@ -16,6 +16,7 @@ import {
 } from './lib/microsoft-auth.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
+import { getCloudEndpoints } from './cloud-config.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -184,8 +185,9 @@ class MicrosoftGraphServer {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
         const tenantId = this.secrets?.tenantId || 'common';
         const clientId = this.secrets!.clientId;
+        const cloudEndpoints = getCloudEndpoints(this.secrets!.cloudType);
         const microsoftAuthUrl = new URL(
-          `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`
+          `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/authorize`
         );
 
         // Only forward parameters that Microsoft OAuth 2.0 v2.0 supports
@@ -271,7 +273,8 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              body.code_verifier as string | undefined
+              body.code_verifier as string | undefined,
+              this.secrets!.cloudType
             );
             res.json(result);
           } else if (body.grant_type === 'refresh_token') {
@@ -290,7 +293,8 @@ class MicrosoftGraphServer {
               body.refresh_token as string,
               clientId,
               clientSecret,
-              tenantId
+              tenantId,
+              this.secrets!.cloudType
             );
             res.json(result);
           } else {

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
+import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
 /**
  * Microsoft Bearer Token Auth Middleware validates that the request has a valid Microsoft access token
@@ -43,7 +44,8 @@ export async function exchangeCodeForToken(
   clientId: string,
   clientSecret: string | undefined,
   tenantId: string = 'common',
-  codeVerifier?: string
+  codeVerifier?: string,
+  cloudType: CloudType = 'global'
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -51,6 +53,7 @@ export async function exchangeCodeForToken(
   expires_in: number;
   refresh_token: string;
 }> {
+  const cloudEndpoints = getCloudEndpoints(cloudType);
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -68,7 +71,7 @@ export async function exchangeCodeForToken(
     params.append('code_verifier', codeVerifier);
   }
 
-  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+  const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -92,7 +95,8 @@ export async function refreshAccessToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string | undefined,
-  tenantId: string = 'common'
+  tenantId: string = 'common',
+  cloudType: CloudType = 'global'
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -100,6 +104,7 @@ export async function refreshAccessToken(
   expires_in: number;
   refresh_token?: string;
 }> {
+  const cloudEndpoints = getCloudEndpoints(cloudType);
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
@@ -110,7 +115,7 @@ export async function refreshAccessToken(
     params.append('client_secret', clientSecret);
   }
 
-  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+  const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

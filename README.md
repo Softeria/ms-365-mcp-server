@@ -7,6 +7,15 @@ Microsoft 365 MCP Server
 A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Microsoft Office services through the Graph
 API.
 
+## Supported Clouds
+
+This server supports multiple Microsoft cloud environments:
+
+| Cloud | Description | Auth Endpoint | Graph API Endpoint |
+|-------|-------------|---------------|-------------------|
+| **Global** (default) | International Microsoft 365 | login.microsoftonline.com | graph.microsoft.com |
+| **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn | microsoftgraph.chinacloudapi.cn |
+
 ## Prerequisites
 
 - Node.js >= 20 (recommended)
@@ -188,9 +197,9 @@ Test login in Claude Desktop:
 
 ### Claude Desktop
 
-To add this MCP server to Claude Desktop:
+To add this MCP server to Claude Desktop, edit the config file under Settings > Developer.
 
-Edit the config file under Settings > Developer:
+#### Personal Account (MSA)
 
 ```json
 {
@@ -203,10 +212,58 @@ Edit the config file under Settings > Developer:
 }
 ```
 
+#### Work/School Account (Global)
+
+```json
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--org-mode"]
+    }
+  }
+}
+```
+
+#### Work/School Account (China 21Vianet)
+
+```json
+{
+  "mcpServers": {
+    "ms365-china": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--org-mode", "--cloud", "china"]
+    }
+  }
+}
+```
+
 ### Claude Code CLI
+
+#### Personal Account (MSA)
 
 ```bash
 claude mcp add ms365 -- npx -y @softeria/ms-365-mcp-server
+```
+
+#### Work/School Account (Global)
+
+```bash
+# macOS/Linux
+claude mcp add ms365 -- npx -y @softeria/ms-365-mcp-server --org-mode
+
+# Windows (use cmd /c wrapper)
+claude mcp add ms365 -s user -- cmd /c "npx -y @softeria/ms-365-mcp-server --org-mode"
+```
+
+#### Work/School Account (China 21Vianet)
+
+```bash
+# macOS/Linux
+claude mcp add ms365-china -- npx -y @softeria/ms-365-mcp-server --org-mode --cloud china
+
+# Windows (use cmd /c wrapper)
+claude mcp add ms365-china -s user -- cmd /c "npx -y @softeria/ms-365-mcp-server --org-mode --cloud china"
 ```
 
 For other interfaces that support MCPs, please refer to their respective documentation for the correct
@@ -364,6 +421,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
+--cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
 ```
 
 ### Server Options
@@ -390,6 +448,7 @@ Environment variables:
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
+- `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)

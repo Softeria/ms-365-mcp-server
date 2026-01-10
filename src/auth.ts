@@ -5,6 +5,7 @@ import fs, { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
+import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -57,10 +58,11 @@ const SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.j
  * This is called during AuthManager initialization.
  */
 function createMsalConfig(secrets: AppSecrets): Configuration {
+  const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
   return {
     auth: {
-      clientId: secrets.clientId || '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
-      authority: `https://login.microsoftonline.com/${secrets.tenantId || 'common'}`,
+      clientId: secrets.clientId || getDefaultClientId(secrets.cloudType),
+      authority: `${cloudEndpoints.authority}/${secrets.tenantId || 'common'}`,
     },
   };
 }
@@ -401,7 +403,9 @@ class AuthManager {
       logger.info('Token retrieved successfully, testing Graph API access...');
 
       try {
-        const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+        const secrets = await getSecrets();
+        const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
+        const response = await fetch(`${cloudEndpoints.graphApi}/v1.0/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
