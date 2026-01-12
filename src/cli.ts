@@ -48,10 +48,7 @@ program
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
-  .option(
-    '--cloud <type>',
-    'Microsoft cloud environment: global (default) or china (21Vianet)'
-  );
+  .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)');
 
 export interface CommandOptions {
   v?: boolean;
