@@ -11,10 +11,10 @@ API.
 
 This server supports multiple Microsoft cloud environments:
 
-| Cloud | Description | Auth Endpoint | Graph API Endpoint |
-|-------|-------------|---------------|-------------------|
-| **Global** (default) | International Microsoft 365 | login.microsoftonline.com | graph.microsoft.com |
-| **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn | microsoftgraph.chinacloudapi.cn |
+| Cloud                | Description                        | Auth Endpoint             | Graph API Endpoint              |
+| -------------------- | ---------------------------------- | ------------------------- | ------------------------------- |
+| **Global** (default) | International Microsoft 365        | login.microsoftonline.com | graph.microsoft.com             |
+| **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
 
 ## Prerequisites
 
