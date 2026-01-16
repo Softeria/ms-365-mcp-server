@@ -17,6 +17,7 @@ import {
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
+import { requestContext } from './request-context.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -328,15 +329,7 @@ class MicrosoftGraphServer {
           req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
           res: Response
         ) => {
-          try {
-            // Set OAuth tokens in the GraphClient if available
-            if (req.microsoftAuth) {
-              this.graphClient.setOAuthTokens(
-                req.microsoftAuth.accessToken,
-                req.microsoftAuth.refreshToken
-              );
-            }
-
+          const handler = async () => {
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
@@ -347,6 +340,20 @@ class MicrosoftGraphServer {
 
             await this.server!.connect(transport);
             await transport.handleRequest(req as any, res as any, undefined);
+          };
+
+          try {
+            if (req.microsoftAuth) {
+              await requestContext.run(
+                {
+                  accessToken: req.microsoftAuth.accessToken,
+                  refreshToken: req.microsoftAuth.refreshToken,
+                },
+                handler
+              );
+            } else {
+              await handler();
+            }
           } catch (error) {
             logger.error('Error handling MCP GET request:', error);
             if (!res.headersSent) {
@@ -370,15 +377,7 @@ class MicrosoftGraphServer {
           req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
           res: Response
         ) => {
-          try {
-            // Set OAuth tokens in the GraphClient if available
-            if (req.microsoftAuth) {
-              this.graphClient.setOAuthTokens(
-                req.microsoftAuth.accessToken,
-                req.microsoftAuth.refreshToken
-              );
-            }
-
+          const handler = async () => {
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
@@ -389,6 +388,20 @@ class MicrosoftGraphServer {
 
             await this.server!.connect(transport);
             await transport.handleRequest(req as any, res as any, req.body);
+          };
+
+          try {
+            if (req.microsoftAuth) {
+              await requestContext.run(
+                {
+                  accessToken: req.microsoftAuth.accessToken,
+                  refreshToken: req.microsoftAuth.refreshToken,
+                },
+                handler
+              );
+            } else {
+              await handler();
+            }
           } catch (error) {
             logger.error('Error handling MCP POST request:', error);
             if (!res.headersSent) {
