@@ -4,7 +4,7 @@
     "method": "get",
     "toolName": "list-mail-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
+    "llmTip": "For email search, use simple text in $search (e.g., $search=\"fiona\" NOT $search=\"from:fiona\"). KQL syntax with colons like 'from:', 'subject:' is NOT supported and will cause 400 errors. For exact property matches, use $filter instead (e.g., filter=\"from/emailAddress/address eq 'user@example.com'\"). Note: $search and $filter cannot be combined in the same request."
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -17,7 +17,7 @@
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
+    "llmTip": "For email search, use simple text in $search (e.g., $search=\"fiona\" NOT $search=\"from:fiona\"). KQL syntax with colons like 'from:', 'subject:' is NOT supported and will cause 400 errors. For exact property matches, use $filter instead (e.g., filter=\"from/emailAddress/address eq 'user@example.com'\"). Note: $search and $filter cannot be combined in the same request."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -37,14 +37,14 @@
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
+    "llmTip": "For email search, use simple text in $search (e.g., $search=\"fiona\" NOT $search=\"from:fiona\"). KQL syntax with colons like 'from:', 'subject:' is NOT supported and will cause 400 errors. For exact property matches, use $filter instead (e.g., filter=\"from/emailAddress/address eq 'user@example.com'\"). Note: $search and $filter cannot be combined in the same request."
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
+    "llmTip": "For email search, use simple text in $search (e.g., $search=\"fiona\" NOT $search=\"from:fiona\"). KQL syntax with colons like 'from:', 'subject:' is NOT supported and will cause 400 errors. For exact property matches, use $filter instead (e.g., filter=\"from/emailAddress/address eq 'user@example.com'\"). Note: $search and $filter cannot be combined in the same request."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
@@ -58,6 +58,24 @@
     "toolName": "send-shared-mailbox-mail",
     "workScopes": ["Mail.Send.Shared"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"]
   },
   {
     "pathPattern": "/users",
@@ -83,6 +101,34 @@
     "method": "post",
     "toolName": "move-mail-message",
     "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-mail",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Use this to reply to an email. The reply will appear in the same conversation thread. Provide a 'comment' for plain text reply or 'message.body' for HTML content."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-mail",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Use this to reply to all recipients of an email. The reply will appear in the same conversation thread."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-mail",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Use this to forward an email to new recipients. Provide 'toRecipients' array and optional 'comment'."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/createReply",
+    "method": "post",
+    "toolName": "create-reply-draft",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Creates a draft reply message that can be edited before sending. Returns the draft message object."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
