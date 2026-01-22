@@ -20,6 +20,7 @@ interface EndpointConfig {
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
   llmTip?: string;
+  skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
 }
 
 const endpointsData = JSON.parse(
@@ -125,11 +126,18 @@ async function executeGraphTool(
 
       if (paramDef) {
         switch (paramDef.type) {
-          case 'Path':
+          case 'Path': {
+            // Check if this parameter should skip URL encoding (for function-style API calls)
+            const shouldSkipEncoding = config?.skipEncoding?.includes(paramName) ?? false;
+            const encodedValue = shouldSkipEncoding
+              ? (paramValue as string)
+              : encodeURIComponent(paramValue as string);
+            
             path = path
-              .replace(`{${paramName}}`, encodeURIComponent(paramValue as string))
-              .replace(`:${paramName}`, encodeURIComponent(paramValue as string));
+              .replace(`{${paramName}}`, encodedValue)
+              .replace(`:${paramName}`, encodedValue);
             break;
+          }
 
           case 'Query':
             queryParams[fixedParamName] = `${paramValue}`;
@@ -221,6 +229,7 @@ async function executeGraphTool(
     }
 
     logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
+    
     let response = await graphClient.graphRequest(path, options);
 
     const fetchAllPages = params.fetchAllPages === true;
