@@ -132,7 +132,9 @@ async function executeGraphTool(
             break;
 
           case 'Query':
-            queryParams[fixedParamName] = `${paramValue}`;
+            if (paramValue !== '' && paramValue != null) {
+              queryParams[fixedParamName] = `${paramValue}`;
+            }
             break;
 
           case 'Body':

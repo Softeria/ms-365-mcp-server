@@ -152,7 +152,7 @@ class MicrosoftGraphServer {
 
         const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
-        res.json({
+        const metadata: Record<string, unknown> = {
           issuer: url.origin,
           authorization_endpoint: `${url.origin}/authorize`,
           token_endpoint: `${url.origin}/token`,
@@ -162,7 +162,13 @@ class MicrosoftGraphServer {
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
           scopes_supported: scopes,
-        });
+        };
+
+        if (this.options.enableDynamicRegistration) {
+          metadata.registration_endpoint = `${url.origin}/register`;
+        }
+
+        res.json(metadata);
       });
 
       // OAuth Protected Resource Discovery
@@ -180,6 +186,25 @@ class MicrosoftGraphServer {
           resource_documentation: `${url.origin}`,
         });
       });
+
+      if (this.options.enableDynamicRegistration) {
+        app.post('/register', async (req, res) => {
+          const body = req.body;
+          logger.info('Client registration request', { body });
+
+          const clientId = `mcp-client-${Date.now()}`;
+
+          res.status(201).json({
+            client_id: clientId,
+            client_id_issued_at: Math.floor(Date.now() / 1000),
+            redirect_uris: body.redirect_uris || [],
+            grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
+            response_types: body.response_types || ['code'],
+            token_endpoint_auth_method: body.token_endpoint_auth_method || 'none',
+            client_name: body.client_name || 'MCP Client',
+          });
+        });
+      }
 
       // Authorization endpoint - redirects to Microsoft
       app.get('/authorize', async (req, res) => {
@@ -261,12 +286,14 @@ class MicrosoftGraphServer {
             const clientId = this.secrets!.clientId;
             const clientSecret = this.secrets?.clientSecret;
 
-            // Log whether using public or confidential client
-            if (clientSecret) {
-              logger.info('Token endpoint: Using confidential client with client_secret');
-            } else {
-              logger.info('Token endpoint: Using public client without client_secret');
-            }
+            logger.info('Token endpoint: authorization_code exchange', {
+              redirect_uri: body.redirect_uri,
+              has_code: !!body.code,
+              has_code_verifier: !!body.code_verifier,
+              clientId,
+              tenantId,
+              hasClientSecret: !!clientSecret,
+            });
 
             const result = await exchangeCodeForToken(
               body.code as string,
