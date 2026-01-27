@@ -120,10 +120,13 @@ function buildScopesFromEndpoints(
     }
   });
 
+  // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
+  // keep only the higher scope since it includes the permissions of the lower scopes.
+  // Do NOT upgrade Read to ReadWrite if we only have Read scopes.
   Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
-    if (lowerScopes.every((scope) => scopesSet.has(scope))) {
+    if (scopesSet.has(higherScope) && lowerScopes.every((scope) => scopesSet.has(scope))) {
+      // We have both ReadWrite and Read, so remove the redundant Read scope
       lowerScopes.forEach((scope) => scopesSet.delete(scope));
-      scopesSet.add(higherScope);
     }
   });
 
