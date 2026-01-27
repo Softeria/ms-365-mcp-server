@@ -587,4 +587,4 @@ If you're having problems or need help:
 
 ## License
 
-MIT © 2025 Softeria
+MIT © 2026 Softeria
