@@ -158,6 +158,8 @@ class GraphClient {
     const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
     const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
 
+    logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
+
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
