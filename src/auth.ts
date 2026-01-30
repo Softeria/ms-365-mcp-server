@@ -79,9 +79,14 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
+// Regex to match scopes that require admin consent
+// These typically end with .All or .Shared
+const ADMIN_CONSENT_SCOPE_PATTERN = /\.(All|Shared)$/;
+
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
-  enabledToolsPattern?: string
+  enabledToolsPattern?: string,
+  userOnly: boolean = false
 ): string[] {
   const scopesSet = new Set<string>();
 
@@ -130,7 +135,22 @@ function buildScopesFromEndpoints(
     }
   });
 
-  const scopes = Array.from(scopesSet);
+  let scopes = Array.from(scopesSet);
+
+  // Filter out admin-consent-required scopes if userOnly mode is enabled
+  // This allows personal/individual use without requiring tenant admin approval
+  if (userOnly) {
+    const originalCount = scopes.length;
+    scopes = scopes.filter((scope) => !ADMIN_CONSENT_SCOPE_PATTERN.test(scope));
+    const filteredCount = originalCount - scopes.length;
+    if (filteredCount > 0) {
+      logger.info(
+        `User-only mode: Filtered out ${filteredCount} admin-consent scopes. ` +
+          `Remaining ${scopes.length} scopes: ${scopes.join(', ')}`
+      );
+    }
+  }
+
   if (enabledToolsPattern) {
     logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
   }

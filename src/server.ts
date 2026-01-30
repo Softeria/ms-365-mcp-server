@@ -153,7 +153,11 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = buildScopesFromEndpoints(
+          this.options.orgMode,
+          this.options.enabledTools,
+          this.options.userOnly
+        );
 
         const metadata: Record<string, unknown> = {
           issuer: url.origin,
@@ -179,7 +183,11 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = buildScopesFromEndpoints(
+          this.options.orgMode,
+          this.options.enabledTools,
+          this.options.userOnly
+        );
 
         res.json({
           resource: `${url.origin}/mcp`,
