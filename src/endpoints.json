@@ -301,8 +301,7 @@
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": ["Notes.Read"],
-    "returnDownloadUrl": true
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages",
