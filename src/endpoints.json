@@ -85,6 +85,12 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}",
+    "method": "patch",
+    "toolName": "update-mail-message",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
