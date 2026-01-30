@@ -36,6 +36,9 @@ export const enableConsoleLogging = (): void => {
     new winston.transports.Console({
       format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
       silent: process.env.SILENT === 'true' || process.env.SILENT === '1',
+      // CRITICAL: Route ALL log levels to stderr to avoid corrupting stdout
+      // which is used for MCP JSON-RPC protocol in stdio mode
+      stderrLevels: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'],
     })
   );
 };

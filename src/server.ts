@@ -98,7 +98,10 @@ class MicrosoftGraphServer {
   }
 
   async start(): Promise<void> {
-    if (this.options.v) {
+    // Enable console logging only in HTTP mode or when explicitly requested with -v flag
+    // In stdio mode without -v, console logging is disabled to prevent corruption
+    // of the MCP JSON-RPC protocol (Issue #204)
+    if (this.options.v || this.options.http) {
       enableConsoleLogging();
     }
 
@@ -470,9 +473,12 @@ class MicrosoftGraphServer {
         });
       }
     } else {
+      // Note: In stdio mode, we must NOT log anything after connecting
+      // because any output to stdout/stderr after connection can corrupt
+      // the MCP JSON-RPC handshake (Issue #204)
       const transport = new StdioServerTransport();
       await this.server!.connect(transport);
-      logger.info('Server connected to stdio transport');
+      // DO NOT add any logger calls here - they can interfere with MCP protocol
     }
   }
 }

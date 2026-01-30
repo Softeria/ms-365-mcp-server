@@ -353,6 +353,13 @@ class AuthManager {
   }
 
   async acquireTokenByDeviceCode(hack?: (message: string) => void): Promise<string | null> {
+    // Remember the currently selected account before auth (if any)
+    const previouslySelectedAccountId = this.selectedAccountId;
+    const existingAccounts = await this.listAccounts();
+    const previousAccount = existingAccounts.find(
+      (acc: AccountInfo) => acc.homeAccountId === previouslySelectedAccountId
+    );
+
     const deviceCodeRequest = {
       scopes: this.scopes,
       deviceCodeCallback: (response: { message: string }) => {
@@ -375,11 +382,54 @@ class AuthManager {
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
 
+      // Issue #209: Detect admin consent account mismatch
+      // When admin consent is required, the admin's token may be returned instead of the user's
+      if (response?.account && previousAccount) {
+        const newUsername = response.account.username?.toLowerCase();
+        const previousUsername = previousAccount.username?.toLowerCase();
+
+        if (newUsername && previousUsername && newUsername !== previousUsername) {
+          logger.warn(
+            `⚠️ Account mismatch detected: Previously logged in as "${previousAccount.username}" ` +
+              `but received token for "${response.account.username}". ` +
+              `This may happen if admin consent was triggered and an admin logged in instead of the original user.`
+          );
+
+          // Keep the previous account selected, add the new account but don't auto-select it
+          // This preserves the user's original session
+          logger.info(
+            `Keeping "${previousAccount.username}" as the selected account. ` +
+              `The new account "${response.account.username}" has been added but not selected.`
+          );
+
+          // Notify via hack callback if available (for MCP tool output)
+          if (hack) {
+            hack(
+              `\n⚠️ Warning: A different account ("${response.account.username}") was authenticated. ` +
+                `Your original account ("${previousAccount.username}") remains selected. ` +
+                `If admin consent was completed, you may now log in again with your original account.\n`
+            );
+          }
+
+          // Don't change the selected account - keep the original user selected
+          await this.saveTokenCache();
+          return this.accessToken;
+        }
+      }
+
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
         this.selectedAccountId = response.account.homeAccountId;
         await this.saveSelectedAccount();
         logger.info(`Auto-selected new account: ${response.account.username}`);
+      } else if (response?.account && this.selectedAccountId === response.account.homeAccountId) {
+        // Same account re-authenticated, keep it selected
+        logger.info(`Re-authenticated existing account: ${response.account.username}`);
+      } else if (response?.account && !previousAccount) {
+        // First-time login with no previous account
+        this.selectedAccountId = response.account.homeAccountId;
+        await this.saveSelectedAccount();
+        logger.info(`Selected first account: ${response.account.username}`);
       }
 
       await this.saveTokenCache();
