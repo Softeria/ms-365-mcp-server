@@ -9,7 +9,7 @@ import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
-let keytar: typeof import('keytar') | null = null;
+let keytar: typeof import('keytar') | null | undefined = null;
 async function getKeytar() {
   if (keytar === undefined) {
     return null;
@@ -18,9 +18,9 @@ async function getKeytar() {
     try {
       keytar = await import('keytar');
       return keytar;
-    } catch (error) {
+    } catch {
       logger.info('keytar not available, using file-based credential storage');
-      keytar = undefined as any;
+      keytar = undefined;
       return null;
     }
   }
@@ -91,7 +91,7 @@ function buildScopesFromEndpoints(
     try {
       enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
       logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
-    } catch (error) {
+    } catch {
       logger.error(
         `Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`
       );

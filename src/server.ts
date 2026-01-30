@@ -369,6 +369,7 @@ class MicrosoftGraphServer {
             });
 
             await this.server!.connect(transport);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await transport.handleRequest(req as any, res as any, undefined);
           };
 
@@ -417,6 +418,7 @@ class MicrosoftGraphServer {
             });
 
             await this.server!.connect(transport);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await transport.handleRequest(req as any, res as any, req.body);
           };
 
