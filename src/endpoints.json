@@ -307,7 +307,8 @@
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
-    "scopes": ["Notes.Create"]
+    "scopes": ["Notes.Create"],
+    "contentType": "text/html"
   },
   {
     "pathPattern": "/me/todo/lists",

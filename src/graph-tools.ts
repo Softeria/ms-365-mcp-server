@@ -20,6 +20,7 @@ interface EndpointConfig {
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
   llmTip?: string;
+  contentType?: string;
 }
 
 const endpointsData = JSON.parse(
@@ -175,6 +176,11 @@ async function executeGraphTool(
       logger.info(`Setting timezone header: Prefer: outlook.timezone="${params.timezone}"`);
     }
 
+    if (config?.contentType) {
+      headers['Content-Type'] = config.contentType;
+      logger.info(`Setting custom Content-Type: ${config.contentType}`);
+    }
+
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
@@ -196,7 +202,17 @@ async function executeGraphTool(
     };
 
     if (options.method !== 'GET' && body) {
-      options.body = typeof body === 'string' ? body : JSON.stringify(body);
+      if (config?.contentType === 'text/html') {
+        if (typeof body === 'string') {
+          options.body = body;
+        } else if (typeof body === 'object' && 'content' in body) {
+          options.body = (body as { content: string }).content;
+        } else {
+          options.body = String(body);
+        }
+      } else {
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
+      }
     }
 
     const isProbablyMediaContent =
