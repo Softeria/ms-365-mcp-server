@@ -13,6 +13,12 @@
     "scopes": ["Mail.Read"]
   },
   {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-mail-child-folders",
+    "scopes": ["Mail.Read"]
+  },
+  {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
