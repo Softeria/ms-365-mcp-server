@@ -98,7 +98,10 @@ class MicrosoftGraphServer {
   }
 
   async start(): Promise<void> {
-    if (this.options.v) {
+    // Enable console logging only in HTTP mode or when explicitly requested with -v flag
+    // In stdio mode without -v, console logging is disabled to prevent corruption
+    // of the MCP JSON-RPC protocol (Issue #204)
+    if (this.options.v || this.options.http) {
       enableConsoleLogging();
     }
 
@@ -150,7 +153,11 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = buildScopesFromEndpoints(
+          this.options.orgMode,
+          this.options.enabledTools,
+          this.options.userOnly
+        );
 
         const metadata: Record<string, unknown> = {
           issuer: url.origin,
@@ -176,7 +183,11 @@ class MicrosoftGraphServer {
         const protocol = req.secure ? 'https' : 'http';
         const url = new URL(`${protocol}://${req.get('host')}`);
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = buildScopesFromEndpoints(
+          this.options.orgMode,
+          this.options.enabledTools,
+          this.options.userOnly
+        );
 
         res.json({
           resource: `${url.origin}/mcp`,
@@ -366,6 +377,7 @@ class MicrosoftGraphServer {
             });
 
             await this.server!.connect(transport);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await transport.handleRequest(req as any, res as any, undefined);
           };
 
@@ -414,6 +426,7 @@ class MicrosoftGraphServer {
             });
 
             await this.server!.connect(transport);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await transport.handleRequest(req as any, res as any, req.body);
           };
 
@@ -470,9 +483,12 @@ class MicrosoftGraphServer {
         });
       }
     } else {
+      // Note: In stdio mode, we must NOT log anything after connecting
+      // because any output to stdout/stderr after connection can corrupt
+      // the MCP JSON-RPC handshake (Issue #204)
       const transport = new StdioServerTransport();
       await this.server!.connect(transport);
-      logger.info('Server connected to stdio transport');
+      // DO NOT add any logger calls here - they can interfere with MCP protocol
     }
   }
 }
