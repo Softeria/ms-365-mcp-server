@@ -121,6 +121,34 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/createForward",
+    "method": "post",
+    "toolName": "create-forward-draft",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
