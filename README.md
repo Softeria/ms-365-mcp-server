@@ -94,6 +94,10 @@ MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
 
 ## Supported Services & Tools
 
+**Email Batch Operations** _(new)_  
+<sub>batch-delete-messages, batch-move-messages, batch-archive-messages, batch-mark-read</sub>  
+Efficiently process up to 20 messages per API call using Microsoft Graph's $batch endpoint.
+
 ### Personal Account Tools (Available by default)
 
 **Email (Outlook)**  
