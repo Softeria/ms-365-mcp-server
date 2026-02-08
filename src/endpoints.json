@@ -345,6 +345,13 @@
     "contentType": "text/html"
   },
   {
+    "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
+    "method": "post",
+    "toolName": "create-onenote-section-page",
+    "scopes": ["Notes.Create"],
+    "contentType": "text/html"
+  },
+  {
     "pathPattern": "/me/todo/lists",
     "method": "get",
     "toolName": "list-todo-task-lists",
