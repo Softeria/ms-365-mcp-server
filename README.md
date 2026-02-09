@@ -269,6 +269,40 @@ claude mcp add ms365-china -s user -- cmd /c "npx -y @softeria/ms-365-mcp-server
 For other interfaces that support MCPs, please refer to their respective documentation for the correct
 integration method.
 
+### Open WebUI
+
+Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
+
+1. Start the server with HTTP mode and dynamic registration enabled:
+
+   ```bash
+   npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+   ```
+
+2. In Open WebUI, go to **Admin Settings → Tools** (`/admin/settings/tools`) → **Add Connection**:
+   - **Type**: MCP Streamable HTTP
+   - **URL**: Your MCP server URL with `/mcp` path
+   - **Auth**: OAuth 2.1
+
+3. Click **Register Client**.
+
+> **Note**: The `--enable-dynamic-registration` is required for Open WebUI to work. If using a custom Azure Entra app, add your redirect URI under "Mobile and desktop applications" platform (not "Single-page application").
+
+**Quick test setup** using the default Azure app (ID `ms-365` and `localhost:8080` are pre-configured):
+
+```bash
+docker run -d -p 8080:8080 \
+  -e WEBUI_AUTH=false \
+  -e OPENAI_API_KEY \
+  ghcr.io/open-webui/open-webui:main
+
+npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+```
+
+Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
+
+![Open WebUI MCP Connection](https://github.com/user-attachments/assets/dcab71dd-cf02-4bcb-b7db-5725d6be4064)
+
 ### Local Development
 
 For local development or testing:
@@ -434,6 +468,7 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
+--enable-dynamic-registration Enable OAuth Dynamic Client Registration endpoint (required for Open WebUI)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
@@ -552,4 +587,4 @@ If you're having problems or need help:
 
 ## License
 
-MIT © 2025 Softeria
+MIT © 2026 Softeria

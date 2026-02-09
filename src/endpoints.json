@@ -13,6 +13,12 @@
     "scopes": ["Mail.Read"]
   },
   {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-mail-child-folders",
+    "scopes": ["Mail.Read"]
+  },
+  {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
@@ -85,6 +91,12 @@
     "scopes": ["Mail.ReadWrite"]
   },
   {
+    "pathPattern": "/me/messages/{message-id}",
+    "method": "patch",
+    "toolName": "update-mail-message",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
@@ -107,6 +119,34 @@
     "method": "delete",
     "toolName": "delete-mail-attachment",
     "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-mail-message",
+    "scopes": ["Mail.Send"],
+    "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/createForward",
+    "method": "post",
+    "toolName": "create-forward-draft",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
   },
   {
     "pathPattern": "/me/events",
@@ -296,14 +336,21 @@
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": ["Notes.Read"],
-    "returnDownloadUrl": true
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
-    "scopes": ["Notes.Create"]
+    "scopes": ["Notes.Create"],
+    "contentType": "text/html"
+  },
+  {
+    "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
+    "method": "post",
+    "toolName": "create-onenote-section-page",
+    "scopes": ["Notes.Create"],
+    "contentType": "text/html"
   },
   {
     "pathPattern": "/me/todo/lists",
@@ -587,5 +634,23 @@
     "toolName": "search-query",
     "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
     "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
+  },
+  {
+    "pathPattern": "/groups/{group-id}/conversations",
+    "method": "get",
+    "toolName": "list-group-conversations",
+    "workScopes": ["Group.Read.All"]
+  },
+  {
+    "pathPattern": "/groups/{group-id}/threads",
+    "method": "get",
+    "toolName": "list-group-threads",
+    "workScopes": ["Group.Read.All"]
+  },
+  {
+    "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
+    "method": "post",
+    "toolName": "reply-to-group-thread",
+    "workScopes": ["Group.ReadWrite.All"]
   }
 ]

@@ -21,6 +21,7 @@ interface EndpointConfig {
   supportsTimezone?: boolean;
   llmTip?: string;
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
+  contentType?: string;
 }
 
 const endpointsData = JSON.parse(
@@ -132,7 +133,7 @@ async function executeGraphTool(
             const encodedValue = shouldSkipEncoding
               ? (paramValue as string)
               : encodeURIComponent(paramValue as string);
-            
+
             path = path
               .replace(`{${paramName}}`, encodedValue)
               .replace(`:${paramName}`, encodedValue);
@@ -140,7 +141,9 @@ async function executeGraphTool(
           }
 
           case 'Query':
-            queryParams[fixedParamName] = `${paramValue}`;
+            if (paramValue !== '' && paramValue != null) {
+              queryParams[fixedParamName] = `${paramValue}`;
+            }
             break;
 
           case 'Body':
@@ -181,6 +184,11 @@ async function executeGraphTool(
       logger.info(`Setting timezone header: Prefer: outlook.timezone="${params.timezone}"`);
     }
 
+    if (config?.contentType) {
+      headers['Content-Type'] = config.contentType;
+      logger.info(`Setting custom Content-Type: ${config.contentType}`);
+    }
+
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
@@ -202,7 +210,17 @@ async function executeGraphTool(
     };
 
     if (options.method !== 'GET' && body) {
-      options.body = typeof body === 'string' ? body : JSON.stringify(body);
+      if (config?.contentType === 'text/html') {
+        if (typeof body === 'string') {
+          options.body = body;
+        } else if (typeof body === 'object' && 'content' in body) {
+          options.body = (body as { content: string }).content;
+        } else {
+          options.body = String(body);
+        }
+      } else {
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
+      }
     }
 
     const isProbablyMediaContent =
@@ -229,7 +247,7 @@ async function executeGraphTool(
     }
 
     logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
-    
+
     let response = await graphClient.graphRequest(path, options);
 
     const fetchAllPages = params.fetchAllPages === true;

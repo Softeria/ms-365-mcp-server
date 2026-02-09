@@ -6,7 +6,7 @@
  */
 
 import logger from './logger.js';
-import { parseCloudType, type CloudType } from './cloud-config.js';
+import { parseCloudType, getDefaultClientId, type CloudType } from './cloud-config.js';
 
 /**
  * Configuration values that can be retrieved from secrets storage.
@@ -30,11 +30,12 @@ interface SecretsProvider {
  */
 class EnvironmentSecretsProvider implements SecretsProvider {
   async getSecrets(): Promise<AppSecrets> {
+    const cloudType = parseCloudType(process.env.MS365_MCP_CLOUD_TYPE);
     return {
-      clientId: process.env.MS365_MCP_CLIENT_ID || '',
+      clientId: process.env.MS365_MCP_CLIENT_ID || getDefaultClientId(cloudType),
       tenantId: process.env.MS365_MCP_TENANT_ID || 'common',
       clientSecret: process.env.MS365_MCP_CLIENT_SECRET,
-      cloudType: parseCloudType(process.env.MS365_MCP_CLOUD_TYPE),
+      cloudType,
     };
   }
 }
