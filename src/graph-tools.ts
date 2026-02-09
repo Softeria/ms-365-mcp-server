@@ -19,6 +19,7 @@ interface EndpointConfig {
   workScopes?: string[];
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
+  supportsExpandExtendedProperties?: boolean;
   llmTip?: string;
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
@@ -99,7 +100,15 @@ async function executeGraphTool(
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       // Skip control parameters - not part of the Microsoft Graph API
-      if (['fetchAllPages', 'includeHeaders', 'excludeResponse', 'timezone'].includes(paramName)) {
+      if (
+        [
+          'fetchAllPages',
+          'includeHeaders',
+          'excludeResponse',
+          'timezone',
+          'expandExtendedProperties',
+        ].includes(paramName)
+      ) {
         continue;
       }
 
@@ -182,6 +191,17 @@ async function executeGraphTool(
     if (config?.supportsTimezone && params.timezone) {
       headers['Prefer'] = `outlook.timezone="${params.timezone}"`;
       logger.info(`Setting timezone header: Prefer: outlook.timezone="${params.timezone}"`);
+    }
+
+    // Handle expandExtendedProperties parameter for calendar endpoints
+    if (config?.supportsExpandExtendedProperties && params.expandExtendedProperties === true) {
+      const expandValue = 'singleValueExtendedProperties';
+      if (queryParams['$expand']) {
+        queryParams['$expand'] += `,${expandValue}`;
+      } else {
+        queryParams['$expand'] = expandValue;
+      }
+      logger.info(`Adding $expand=${expandValue} for extended properties`);
     }
 
     if (config?.contentType) {
@@ -421,6 +441,16 @@ export function registerGraphTools(
         .string()
         .describe(
           'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.'
+        )
+        .optional();
+    }
+
+    // Add expandExtendedProperties parameter for calendar endpoints that support it
+    if (endpointConfig?.supportsExpandExtendedProperties) {
+      paramSchema['expandExtendedProperties'] = z
+        .boolean()
+        .describe(
+          'When true, expands singleValueExtendedProperties on each event. Use this to retrieve custom extended properties (e.g., sync metadata) stored on calendar events.'
         )
         .optional();
     }

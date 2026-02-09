@@ -253,6 +253,8 @@ function reduceProperties(schema, schemaName) {
       'path',
       'method',
       'enabled',
+      'singleValueExtendedProperties',
+      'multiValueExtendedProperties',
     ];
 
     const keptProperties = {};
@@ -264,12 +266,14 @@ function reduceProperties(schema, schemaName) {
       }
     });
 
-    const remainingSlots = 25 - Object.keys(keptProperties).length;
+    const remainingSlots = Math.max(0, 25 - Object.keys(keptProperties).length);
     const otherKeys = propertyKeys.filter((key) => !keptProperties[key]);
 
-    otherKeys.slice(0, remainingSlots).forEach((key) => {
-      keptProperties[key] = properties[key];
-    });
+    if (remainingSlots > 0) {
+      otherKeys.slice(0, remainingSlots).forEach((key) => {
+        keptProperties[key] = properties[key];
+      });
+    }
 
     schema.properties = keptProperties;
     schema.additionalProperties = true;

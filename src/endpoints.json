@@ -153,14 +153,16 @@
     "method": "get",
     "toolName": "list-calendar-events",
     "scopes": ["Calendars.Read"],
-    "supportsTimezone": true
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
     "scopes": ["Calendars.Read"],
-    "supportsTimezone": true
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/events",
@@ -187,14 +189,16 @@
     "method": "get",
     "toolName": "list-specific-calendar-events",
     "scopes": ["Calendars.Read"],
-    "supportsTimezone": true
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
     "scopes": ["Calendars.Read"],
-    "supportsTimezone": true
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
@@ -221,7 +225,27 @@
     "method": "get",
     "toolName": "get-calendar-view",
     "scopes": ["Calendars.Read"],
-    "supportsTimezone": true
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true,
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar."
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/calendarView",
+    "method": "get",
+    "toolName": "get-specific-calendar-view",
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true,
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events."
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}/instances",
+    "method": "get",
+    "toolName": "list-calendar-event-instances",
+    "scopes": ["Calendars.Read"],
+    "supportsTimezone": true,
+    "supportsExpandExtendedProperties": true,
+    "llmTip": "Expand a recurring event into individual instances within a date range. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use this to see all occurrences of a recurring event."
   },
   {
     "pathPattern": "/me/calendars",
