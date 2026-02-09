@@ -99,7 +99,7 @@ async function executeGraphTool(
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       // Skip control parameters - not part of the Microsoft Graph API
-      if (['fetchAllPages', 'includeHeaders', 'excludeResponse', 'timezone'].includes(paramName)) {
+      if (['fetchAllPages', 'includeHeaders', 'excludeResponse', 'timezone', 'bodyMaxLength'].includes(paramName)) {
         continue;
       }
 
@@ -321,6 +321,30 @@ async function executeGraphTool(
       }
     }
 
+    // Truncate email bodies if bodyMaxLength is specified
+    if (params.bodyMaxLength && typeof params.bodyMaxLength === 'number' && response?.content?.[0]?.text) {
+      try {
+        const jsonResponse = JSON.parse(response.content[0].text);
+        if (jsonResponse.value && Array.isArray(jsonResponse.value)) {
+          let truncated = 0;
+          for (const message of jsonResponse.value) {
+            if (message.body?.content && message.body.content.length > params.bodyMaxLength) {
+              const originalLength = message.body.content.length;
+              message.body.content = message.body.content.substring(0, params.bodyMaxLength);
+              message.body.content += `\n[Truncated from ${originalLength} chars]`;
+              truncated++;
+            }
+          }
+          response.content[0].text = JSON.stringify(jsonResponse);
+          if (truncated > 0) {
+            logger.info(`Truncated ${truncated} email bodies to ${params.bodyMaxLength} chars`);
+          }
+        }
+      } catch (e) {
+        logger.warn(`Failed to truncate email bodies: ${e}`);
+      }
+    }
+
     // Convert McpResponse to CallToolResult with the correct structure
     const content: ContentItem[] = response.content.map((item) => ({
       type: 'text' as const,
@@ -421,6 +445,17 @@ export function registerGraphTools(
         .string()
         .describe(
           'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.'
+        )
+        .optional();
+    }
+
+    // Add bodyMaxLength parameter for mail list endpoints
+    const mailListTools = ['list-mail-messages', 'list-mail-folder-messages'];
+    if (mailListTools.includes(tool.alias)) {
+      paramSchema['bodyMaxLength'] = z
+        .number()
+        .describe(
+          'Maximum characters for email body.content. Recommended: 1024 for triage workflows. Full body returned if not specified.'
         )
         .optional();
     }
