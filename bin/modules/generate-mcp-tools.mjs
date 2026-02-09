@@ -40,11 +40,11 @@ export function generateMcpTools(openApiSpec, outputDir) {
     console.log('Decoding HTML entities in path patterns...');
     // openapi-zod-client HTML-encodes special characters in path patterns
     // This breaks Microsoft Graph function-style APIs like range(address='A1:G10')
-    clientCode = clientCode.replace(/&#x3D;/g, '=');  // Decode = sign
-    clientCode = clientCode.replace(/&#x27;/g, "'");  // Decode single quote
-    clientCode = clientCode.replace(/&#x28;/g, '(');  // Decode left paren
-    clientCode = clientCode.replace(/&#x29;/g, ')');  // Decode right paren
-    clientCode = clientCode.replace(/&#x3A;/g, ':');  // Decode colon
+    clientCode = clientCode.replace(/&#x3D;/g, '='); // Decode = sign
+    clientCode = clientCode.replace(/&#x27;/g, "'"); // Decode single quote
+    clientCode = clientCode.replace(/&#x28;/g, '('); // Decode left paren
+    clientCode = clientCode.replace(/&#x29;/g, ')'); // Decode right paren
+    clientCode = clientCode.replace(/&#x3A;/g, ':'); // Decode colon
 
     console.log('Fixing function-style API paths with template literals...');
     // After HTML decoding, paths like range(address=':address') have nested single quotes
@@ -52,10 +52,7 @@ export function generateMcpTools(openApiSpec, outputDir) {
     // to backticks (template literal) so single quotes can remain inside.
     // Match: path: '/...range(param=':value')...',
     // Replace with: path: `/...range(param=':value')...`,
-    clientCode = clientCode.replace(
-      /(path:\s*)'(\/[^']*\([^)]*=':[\w]+'\)[^']*)'/g,
-      '$1`$2`'
-    );
+    clientCode = clientCode.replace(/(path:\s*)'(\/[^']*\([^)]*=':[\w]+'\)[^']*)'/g, '$1`$2`');
 
     fs.writeFileSync(clientFilePath, clientCode);
 
