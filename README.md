@@ -169,6 +169,40 @@ To access work/school features (Teams, SharePoint, etc.), enable organization mo
 Organization mode must be enabled from the start to access work account features. Without this flag, only personal
 account features (email, calendar, OneDrive, etc.) are available.
 
+## User-Only Mode (No Admin Consent)
+
+If you're using a work/school account but don't have tenant admin approval, use `--user-only` to request only user-delegated scopes that don't require admin consent:
+
+```bash
+npx @softeria/ms-365-mcp-server --login --user-only
+```
+
+Or in Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--user-only"]
+    }
+  }
+}
+```
+
+This filters out scopes ending with `.All` or `.Shared` (like `Files.Read.All`, `User.Read.All`) which require admin consent.
+
+**User-only scopes that work without admin consent:**
+
+- `Mail.Read`, `Mail.ReadWrite`, `Mail.Send`
+- `Tasks.ReadWrite`
+- `Chat.Read`, `ChatMessage.Read`, `ChatMessage.Send`
+- `Calendars.Read`, `Calendars.ReadWrite`
+- `Files.Read`, `Files.ReadWrite`
+- `User.Read`
+
+> **Note**: Some features (Teams channels, SharePoint sites, user directory) won't be available in user-only mode since they require admin-consent scopes.
+
 ## Shared Mailbox Access
 
 To access shared mailboxes, you need:
@@ -456,6 +490,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
+--user-only       Request only user-delegated scopes (no admin consent required)
 ```
 
 ### Server Options
@@ -482,6 +517,7 @@ Environment variables:
 - `ENABLED_TOOLS`: Filter tools using a regex pattern (alternative to --enabled-tools flag)
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
+- `MS365_MCP_USER_ONLY=true|1`: Request only user-delegated scopes (alternative to --user-only flag)
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')

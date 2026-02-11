@@ -52,6 +52,10 @@ program
   .option(
     '--enable-dynamic-registration',
     'Enable OAuth Dynamic Client Registration endpoint (required for some MCP clients like Open WebUI)'
+  )
+  .option(
+    '--user-only',
+    'Request only user-delegated scopes (no admin consent required). Enables personal use without tenant admin approval.'
   );
 
 export interface CommandOptions {
@@ -75,6 +79,7 @@ export interface CommandOptions {
   discovery?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
+  userOnly?: boolean;
 
   [key: string]: unknown;
 }
@@ -136,6 +141,11 @@ export function parseArgs(): CommandOptions {
   // Handle cloud type - CLI option takes precedence over environment variable
   if (options.cloud) {
     process.env.MS365_MCP_CLOUD_TYPE = options.cloud;
+  }
+
+  // Handle user-only mode via environment variable
+  if (process.env.MS365_MCP_USER_ONLY === 'true' || process.env.MS365_MCP_USER_ONLY === '1') {
+    options.userOnly = true;
   }
 
   return options;

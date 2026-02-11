@@ -9,7 +9,7 @@ import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
-let keytar: typeof import('keytar') | null = null;
+let keytar: typeof import('keytar') | null | undefined = null;
 async function getKeytar() {
   if (keytar === undefined) {
     return null;
@@ -18,9 +18,9 @@ async function getKeytar() {
     try {
       keytar = await import('keytar');
       return keytar;
-    } catch (error) {
+    } catch {
       logger.info('keytar not available, using file-based credential storage');
-      keytar = undefined as any;
+      keytar = undefined;
       return null;
     }
   }
@@ -105,9 +105,14 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
+// Regex to match scopes that require admin consent
+// These typically end with .All or .Shared
+const ADMIN_CONSENT_SCOPE_PATTERN = /\.(All|Shared)$/;
+
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
-  enabledToolsPattern?: string
+  enabledToolsPattern?: string,
+  userOnly: boolean = false
 ): string[] {
   const scopesSet = new Set<string>();
 
@@ -117,7 +122,7 @@ function buildScopesFromEndpoints(
     try {
       enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
       logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
-    } catch (error) {
+    } catch {
       logger.error(
         `Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`
       );
@@ -156,7 +161,22 @@ function buildScopesFromEndpoints(
     }
   });
 
-  const scopes = Array.from(scopesSet);
+  let scopes = Array.from(scopesSet);
+
+  // Filter out admin-consent-required scopes if userOnly mode is enabled
+  // This allows personal/individual use without requiring tenant admin approval
+  if (userOnly) {
+    const originalCount = scopes.length;
+    scopes = scopes.filter((scope) => !ADMIN_CONSENT_SCOPE_PATTERN.test(scope));
+    const filteredCount = originalCount - scopes.length;
+    if (filteredCount > 0) {
+      logger.info(
+        `User-only mode: Filtered out ${filteredCount} admin-consent scopes. ` +
+          `Remaining ${scopes.length} scopes: ${scopes.join(', ')}`
+      );
+    }
+  }
+
   if (enabledToolsPattern) {
     logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
   }
@@ -389,6 +409,13 @@ class AuthManager {
   }
 
   async acquireTokenByDeviceCode(hack?: (message: string) => void): Promise<string | null> {
+    // Remember the currently selected account before auth (if any)
+    const previouslySelectedAccountId = this.selectedAccountId;
+    const existingAccounts = await this.listAccounts();
+    const previousAccount = existingAccounts.find(
+      (acc: AccountInfo) => acc.homeAccountId === previouslySelectedAccountId
+    );
+
     const deviceCodeRequest = {
       scopes: this.scopes,
       deviceCodeCallback: (response: { message: string }) => {
@@ -411,11 +438,54 @@ class AuthManager {
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
 
+      // Issue #209: Detect admin consent account mismatch
+      // When admin consent is required, the admin's token may be returned instead of the user's
+      if (response?.account && previousAccount) {
+        const newUsername = response.account.username?.toLowerCase();
+        const previousUsername = previousAccount.username?.toLowerCase();
+
+        if (newUsername && previousUsername && newUsername !== previousUsername) {
+          logger.warn(
+            `⚠️ Account mismatch detected: Previously logged in as "${previousAccount.username}" ` +
+              `but received token for "${response.account.username}". ` +
+              `This may happen if admin consent was triggered and an admin logged in instead of the original user.`
+          );
+
+          // Keep the previous account selected, add the new account but don't auto-select it
+          // This preserves the user's original session
+          logger.info(
+            `Keeping "${previousAccount.username}" as the selected account. ` +
+              `The new account "${response.account.username}" has been added but not selected.`
+          );
+
+          // Notify via hack callback if available (for MCP tool output)
+          if (hack) {
+            hack(
+              `\n⚠️ Warning: A different account ("${response.account.username}") was authenticated. ` +
+                `Your original account ("${previousAccount.username}") remains selected. ` +
+                `If admin consent was completed, you may now log in again with your original account.\n`
+            );
+          }
+
+          // Don't change the selected account - keep the original user selected
+          await this.saveTokenCache();
+          return this.accessToken;
+        }
+      }
+
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
         this.selectedAccountId = response.account.homeAccountId;
         await this.saveSelectedAccount();
         logger.info(`Auto-selected new account: ${response.account.username}`);
+      } else if (response?.account && this.selectedAccountId === response.account.homeAccountId) {
+        // Same account re-authenticated, keep it selected
+        logger.info(`Re-authenticated existing account: ${response.account.username}`);
+      } else if (response?.account && !previousAccount) {
+        // First-time login with no previous account
+        this.selectedAccountId = response.account.homeAccountId;
+        await this.saveSelectedAccount();
+        logger.info(`Selected first account: ${response.account.username}`);
       }
 
       await this.saveTokenCache();
