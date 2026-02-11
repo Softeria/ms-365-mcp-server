@@ -23,8 +23,10 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   personal: {
     name: 'personal',
-    pattern: /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder|search|query/i,
-    description: 'Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)',
+    pattern:
+      /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder|search|query/i,
+    description:
+      'Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)',
   },
   work: {
     name: 'work',
