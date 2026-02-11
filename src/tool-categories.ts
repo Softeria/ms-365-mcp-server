@@ -23,13 +23,13 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   personal: {
     name: 'personal',
-    pattern: /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder/i,
-    description: 'Personal productivity tools (mail, calendar, files, contacts, tasks, notes)',
+    pattern: /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder|search|query/i,
+    description: 'Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)',
   },
   work: {
     name: 'work',
-    pattern: /team|channel|chat|sharepoint|planner|site|list|shared/i,
-    description: 'Organization/work tools (Teams, SharePoint, shared mailboxes)',
+    pattern: /team|channel|chat|sharepoint|planner|site|list|shared|search|query/i,
+    description: 'Organization/work tools (Teams, SharePoint, shared mailboxes, search)',
     requiresOrgMode: true,
   },
   excel: {
