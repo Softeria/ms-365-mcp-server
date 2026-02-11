@@ -149,6 +149,24 @@
     "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
   },
   {
+    "pathPattern": "/me/messages/{message-id}/createReply",
+    "method": "post",
+    "toolName": "create-reply-draft",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/createReplyAll",
+    "method": "post",
+    "toolName": "create-reply-all-draft",
+    "scopes": ["Mail.ReadWrite"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/send",
+    "method": "post",
+    "toolName": "send-draft-message",
+    "scopes": ["Mail.Send"]
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
