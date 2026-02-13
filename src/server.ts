@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { registerBatchTools } from './batch-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -76,6 +77,11 @@ class MicrosoftGraphServer {
     const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
     if (shouldRegisterAuthTools) {
       registerAuthTools(this.server, this.authManager);
+
+      // Register batch tools for efficient bulk operations (always available, not read-only safe)
+      if (!this.options.readOnly) {
+        registerBatchTools(this.server, this.graphClient);
+      }
     }
 
     if (this.options.discovery) {
