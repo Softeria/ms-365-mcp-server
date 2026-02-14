@@ -51,6 +51,7 @@ class MicrosoftGraphServer {
   private graphClient: GraphClient | null;
   private server: McpServer | null;
   private secrets: AppSecrets | null;
+  private version: string = '0.0.0';
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -60,40 +61,50 @@ class MicrosoftGraphServer {
     this.secrets = null;
   }
 
-  async initialize(version: string): Promise<void> {
-    // Load secrets first
-    this.secrets = await getSecrets();
-
-    // Initialize GraphClient with secrets
-    const outputFormat = this.options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
-
-    this.server = new McpServer({
+  private createMcpServer(): McpServer {
+    const server = new McpServer({
       name: 'Microsoft365MCP',
-      version,
+      version: this.version,
     });
 
     const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
     if (shouldRegisterAuthTools) {
-      registerAuthTools(this.server, this.authManager);
+      registerAuthTools(server, this.authManager);
     }
 
     if (this.options.discovery) {
-      logger.info('Discovery mode enabled (experimental) - registering discovery tool only');
       registerDiscoveryTools(
-        this.server,
-        this.graphClient,
+        server,
+        this.graphClient!,
         this.options.readOnly,
         this.options.orgMode
       );
     } else {
       registerGraphTools(
-        this.server,
-        this.graphClient,
+        server,
+        this.graphClient!,
         this.options.readOnly,
         this.options.enabledTools,
         this.options.orgMode
       );
+    }
+
+    return server;
+  }
+
+  async initialize(version: string): Promise<void> {
+    this.secrets = await getSecrets();
+    this.version = version;
+
+    const outputFormat = this.options.toon ? 'toon' : 'json';
+    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+
+    if (!this.options.http) {
+      this.server = this.createMcpServer();
+    }
+
+    if (this.options.discovery) {
+      logger.info('Discovery mode enabled (experimental) - registering discovery tool only');
     }
   }
 
@@ -357,6 +368,7 @@ class MicrosoftGraphServer {
           res: Response
         ) => {
           const handler = async () => {
+            const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
@@ -365,7 +377,7 @@ class MicrosoftGraphServer {
               transport.close();
             });
 
-            await this.server!.connect(transport);
+            await server.connect(transport);
             await transport.handleRequest(req as any, res as any, undefined);
           };
 
@@ -405,6 +417,7 @@ class MicrosoftGraphServer {
           res: Response
         ) => {
           const handler = async () => {
+            const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
@@ -413,7 +426,7 @@ class MicrosoftGraphServer {
               transport.close();
             });
 
-            await this.server!.connect(transport);
+            await server.connect(transport);
             await transport.handleRequest(req as any, res as any, req.body);
           };
 
