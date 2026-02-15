@@ -2,10 +2,10 @@ import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
 import fs, { existsSync, readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import endpointsData from './endpoints.json';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -36,12 +36,6 @@ interface EndpointConfig {
   llmTip?: string;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
-
 const endpoints = {
   default: endpointsData,
 };
@@ -49,9 +43,9 @@ const endpoints = {
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
 const SELECTED_ACCOUNT_KEY = 'selected-account';
-const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
-const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
+const FALLBACK_DIR = process.env.MS365_MCP_CONFIG_DIR || process.cwd();
+const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '.token-cache.json');
+const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '.selected-account.json');
 
 /**
  * Returns the token cache file path.
