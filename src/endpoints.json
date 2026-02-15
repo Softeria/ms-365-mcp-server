@@ -581,6 +581,12 @@
     "workScopes": ["ChannelMessage.Send"]
   },
   {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
+    "method": "post",
+    "toolName": "reply-to-channel-message",
+    "workScopes": ["ChannelMessage.Send"]
+  },
+  {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
