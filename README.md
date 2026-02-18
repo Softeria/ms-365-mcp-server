@@ -431,6 +431,39 @@ This method:
 > **Authentication Tools**: In HTTP mode, login/logout tools are disabled by default since OAuth handles authentication.
 > Use `--enable-auth-tools` if you need them available.
 
+## Multi-Account Support
+
+Use a single server instance to serve multiple Microsoft accounts. When more than one account is logged in, an `account` parameter is automatically injected into every tool, allowing you to specify which account to use per tool call.
+
+**Login multiple accounts** (one-time per account):
+```bash
+# Login first account (device code flow)
+npx @softeria/ms-365-mcp-server --login
+# Follow the device code prompt, sign in as personal@outlook.com
+
+# Login second account
+npx @softeria/ms-365-mcp-server --login
+# Follow the device code prompt, sign in as work@company.com
+```
+
+**List configured accounts:**
+```bash
+npx @softeria/ms-365-mcp-server --list-accounts
+```
+
+**Use in tool calls:** Pass `"account": "work@company.com"` in any tool request:
+```json
+{"tool": "list-mail-messages", "arguments": {"account": "work@company.com"}}
+```
+
+**Behavior:**
+- With a **single account** configured, it auto-selects (no `account` parameter needed).
+- With **multiple accounts** and no `account` parameter, the server uses the selected default or returns a helpful error listing available accounts.
+- **100% backward compatible**: existing single-account setups work unchanged.
+- The `account` parameter accepts email address (e.g. `user@outlook.com`) or MSAL `homeAccountId`.
+
+> **For MCP multiplexers (Legate, Governor):** Multi-account mode replaces the N-process pattern. Instead of spawning one server per account, a single instance handles all accounts via the `account` parameter, reducing tool duplication from N×110 to 110.
+
 ## Tool Presets
 
 To reduce initial connection overhead, use preset tool categories instead of loading all 90+ tools:

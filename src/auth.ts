@@ -578,6 +578,95 @@ class AuthManager {
   getSelectedAccountId(): string | null {
     return this.selectedAccountId;
   }
+
+  /**
+   * Returns true if the MSAL cache contains more than one account.
+   * Used to decide whether to inject the `account` parameter into tool schemas.
+   */
+  async isMultiAccount(): Promise<boolean> {
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+    return accounts.length > 1;
+  }
+
+  /**
+   * Acquires a token for a specific account identified by username (email) or homeAccountId,
+   * WITHOUT changing the persisted selectedAccountId.
+   *
+   * Resolution order:
+   *  1. Exact match on username (case-insensitive)
+   *  2. Exact match on homeAccountId
+   *  3. If identifier is empty/undefined AND only 1 account exists → auto-select
+   *  4. If identifier is empty/undefined AND multiple accounts → use selectedAccountId or throw
+   *
+   * @returns The access token string.
+   */
+  async getTokenForAccount(identifier?: string): Promise<string> {
+    if (this.isOAuthMode && this.oauthToken) {
+      return this.oauthToken;
+    }
+
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+
+    if (accounts.length === 0) {
+      throw new Error('No accounts found. Please login first.');
+    }
+
+    let targetAccount: AccountInfo | null = null;
+
+    if (identifier) {
+      const lowerIdentifier = identifier.toLowerCase();
+
+      // Try username (email) match first
+      targetAccount = accounts.find(
+        (a: AccountInfo) => a.username?.toLowerCase() === lowerIdentifier
+      ) ?? null;
+
+      // Fall back to homeAccountId match
+      if (!targetAccount) {
+        targetAccount = accounts.find(
+          (a: AccountInfo) => a.homeAccountId === identifier
+        ) ?? null;
+      }
+
+      if (!targetAccount) {
+        const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.homeAccountId).join(', ');
+        throw new Error(
+          `Account '${identifier}' not found. Available accounts: ${availableAccounts}`
+        );
+      }
+    } else {
+      // No identifier provided
+      if (accounts.length === 1) {
+        targetAccount = accounts[0];
+      } else {
+        // Multiple accounts, use selected or fail with helpful error
+        targetAccount = await this.getCurrentAccount();
+        if (!targetAccount) {
+          const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.homeAccountId).join(', ');
+          throw new Error(
+            `Multiple accounts configured but no 'account' parameter provided and no default selected. ` +
+            `Available accounts: ${availableAccounts}. ` +
+            `Pass account="<email>" in your tool call or use select-account to set a default.`
+          );
+        }
+      }
+    }
+
+    const silentRequest = {
+      account: targetAccount,
+      scopes: this.scopes,
+    };
+
+    try {
+      const response = await this.msalApp.acquireTokenSilent(silentRequest);
+      return response.accessToken;
+    } catch {
+      throw new Error(
+        `Failed to acquire token for account '${targetAccount.username || targetAccount.homeAccountId}'. ` +
+        `The token may have expired. Please re-login with: --login`
+      );
+    }
+  }
 }
 
 export default AuthManager;
