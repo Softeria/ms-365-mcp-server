@@ -580,6 +580,14 @@ class AuthManager {
   }
 
   /**
+   * Returns true if auth is in OAuth/HTTP mode (token supplied via env or setOAuthToken).
+   * In this mode, account resolution should be skipped — the request context drives token selection.
+   */
+  isOAuthModeEnabled(): boolean {
+    return this.isOAuthMode;
+  }
+
+  /**
    * Returns true if the MSAL cache contains more than one account.
    * Used to decide whether to inject the `account` parameter into tool schemas.
    */
@@ -639,8 +647,13 @@ class AuthManager {
       if (accounts.length === 1) {
         targetAccount = accounts[0];
       } else {
-        // Multiple accounts, use selected or fail with helpful error
-        targetAccount = await this.getCurrentAccount();
+        // Multiple accounts: resolve by explicit selectedAccountId only — never fall back to accounts[0].
+        // getCurrentAccount() has backward-compat fallback to first account which is unsafe for multi-account routing.
+        if (this.selectedAccountId) {
+          targetAccount = accounts.find(
+            (a: AccountInfo) => a.homeAccountId === this.selectedAccountId
+          ) ?? null;
+        }
         if (!targetAccount) {
           const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.homeAccountId).join(', ');
           throw new Error(

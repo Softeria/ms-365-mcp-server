@@ -94,8 +94,9 @@ async function executeGraphTool(
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
+    // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
     let accountAccessToken: string | undefined;
-    if (authManager) {
+    if (authManager && !authManager.isOAuthModeEnabled()) {
       const accountParam = params.account as string | undefined;
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
@@ -294,7 +295,9 @@ async function executeGraphTool(
       options.accessToken = accountAccessToken;
     }
 
-    logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
+    // Redact accessToken from log output to prevent credential leakage
+    const { accessToken: _redacted, ...safeOptions } = options;
+    logger.info(`Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`);
 
     let response = await graphClient.graphRequest(path, options);
 
