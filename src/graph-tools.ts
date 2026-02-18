@@ -1,15 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import logger from './logger.js';
 import GraphClient from './graph-client.js';
+import AuthManager from './auth.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import endpointsData from './endpoints.json';
 
 interface EndpointConfig {
   pathPattern: string;
@@ -24,10 +20,6 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
 }
-
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
 
 type TextContent = {
   type: 'text';
@@ -87,10 +79,31 @@ async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
   graphClient: GraphClient,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  authManager?: AuthManager
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
   try {
+    // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
+    // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
+    let accountAccessToken: string | undefined;
+    if (authManager && !authManager.isOAuthModeEnabled()) {
+      const accountParam = params.account as string | undefined;
+      try {
+        accountAccessToken = await authManager.getTokenForAccount(accountParam);
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: (err as Error).message }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
     const parameterDefinitions = tool.parameters || [];
 
     let path = tool.path;
@@ -102,6 +115,7 @@ async function executeGraphTool(
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
+          'account',
           'fetchAllPages',
           'includeHeaders',
           'excludeResponse',
@@ -224,6 +238,7 @@ async function executeGraphTool(
       includeHeaders?: boolean;
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
+      accessToken?: string;
     } = {
       method: tool.method.toUpperCase(),
       headers,
@@ -266,7 +281,14 @@ async function executeGraphTool(
       options.excludeResponse = true;
     }
 
-    logger.info(`Making graph request to ${path} with options: ${JSON.stringify(options)}`);
+    // Pass account-resolved token if available
+    if (accountAccessToken) {
+      options.accessToken = accountAccessToken;
+    }
+
+    // Redact accessToken from log output to prevent credential leakage
+    const { accessToken: _redacted, ...safeOptions } = options;
+    logger.info(`Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`);
 
     let response = await graphClient.graphRequest(path, options);
 
@@ -373,7 +395,9 @@ export function registerGraphTools(
   graphClient: GraphClient,
   readOnly: boolean = false,
   enabledToolsPattern?: string,
-  orgMode: boolean = false
+  orgMode: boolean = false,
+  authManager?: AuthManager,
+  multiAccount: boolean = false
 ): number {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -420,6 +444,16 @@ export function registerGraphTools(
       paramSchema['fetchAllPages'] = z
         .boolean()
         .describe('Automatically fetch all pages of results')
+        .optional();
+    }
+
+    // Add account parameter for multi-account mode
+    if (multiAccount) {
+      paramSchema['account'] = z
+        .string()
+        .describe(
+          "Microsoft account email (e.g. 'user@outlook.com'). Required when multiple accounts are configured. With a single account, auto-selects."
+        )
         .optional();
     }
 
@@ -473,13 +507,17 @@ export function registerGraphTools(
           destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
           openWorldHint: true, // All tools call Microsoft Graph API
         },
-        async (params) => executeGraphTool(tool, endpointConfig, graphClient, params)
+        async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
       );
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${tool.alias}: ${(error as Error).message}`);
       failedCount++;
     }
+  }
+
+  if (multiAccount) {
+    logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
   logger.info(
@@ -518,7 +556,9 @@ export function registerDiscoveryTools(
   server: McpServer,
   graphClient: GraphClient,
   readOnly: boolean = false,
-  orgMode: boolean = false
+  orgMode: boolean = false,
+  authManager?: AuthManager,
+  multiAccount: boolean = false
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
   logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
@@ -632,7 +672,7 @@ export function registerDiscoveryTools(
         };
       }
 
-      return executeGraphTool(toolData.tool, toolData.config, graphClient, parameters);
+      return executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager);
     }
   );
 }

@@ -52,6 +52,7 @@ class MicrosoftGraphServer {
   private server: McpServer | null;
   private secrets: AppSecrets | null;
   private version: string = '0.0.0';
+  private multiAccount: boolean = false;
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -77,7 +78,9 @@ class MicrosoftGraphServer {
         server,
         this.graphClient!,
         this.options.readOnly,
-        this.options.orgMode
+        this.options.orgMode,
+        this.authManager,
+        this.multiAccount
       );
     } else {
       registerGraphTools(
@@ -85,7 +88,9 @@ class MicrosoftGraphServer {
         this.graphClient!,
         this.options.readOnly,
         this.options.enabledTools,
-        this.options.orgMode
+        this.options.orgMode,
+        this.authManager,
+        this.multiAccount
       );
     }
 
@@ -95,6 +100,16 @@ class MicrosoftGraphServer {
   async initialize(version: string): Promise<void> {
     this.secrets = await getSecrets();
     this.version = version;
+
+    // Detect multi-account mode
+    try {
+      this.multiAccount = await this.authManager.isMultiAccount();
+      if (this.multiAccount) {
+        logger.info('Multi-account mode detected: "account" parameter will be injected into all tool schemas');
+      }
+    } catch (err) {
+      logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
+    }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
     this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);

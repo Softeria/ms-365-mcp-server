@@ -2,10 +2,10 @@ import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
 import fs, { existsSync, readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import endpointsData from './endpoints.json';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -36,12 +36,6 @@ interface EndpointConfig {
   llmTip?: string;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
-
 const endpoints = {
   default: endpointsData,
 };
@@ -49,9 +43,9 @@ const endpoints = {
 const SERVICE_NAME = 'ms-365-mcp-server';
 const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
 const SELECTED_ACCOUNT_KEY = 'selected-account';
-const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
-const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
+const FALLBACK_DIR = process.env.MS365_MCP_CONFIG_DIR || process.cwd();
+const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '.token-cache.json');
+const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '.selected-account.json');
 
 /**
  * Returns the token cache file path.
@@ -577,6 +571,108 @@ class AuthManager {
 
   getSelectedAccountId(): string | null {
     return this.selectedAccountId;
+  }
+
+  /**
+   * Returns true if auth is in OAuth/HTTP mode (token supplied via env or setOAuthToken).
+   * In this mode, account resolution should be skipped — the request context drives token selection.
+   */
+  isOAuthModeEnabled(): boolean {
+    return this.isOAuthMode;
+  }
+
+  /**
+   * Returns true if the MSAL cache contains more than one account.
+   * Used to decide whether to inject the `account` parameter into tool schemas.
+   */
+  async isMultiAccount(): Promise<boolean> {
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+    return accounts.length > 1;
+  }
+
+  /**
+   * Acquires a token for a specific account identified by username (email) or homeAccountId,
+   * WITHOUT changing the persisted selectedAccountId.
+   *
+   * Resolution order:
+   *  1. Exact match on username (case-insensitive)
+   *  2. Exact match on homeAccountId
+   *  3. If identifier is empty/undefined AND only 1 account exists → auto-select
+   *  4. If identifier is empty/undefined AND multiple accounts → use selectedAccountId or throw
+   *
+   * @returns The access token string.
+   */
+  async getTokenForAccount(identifier?: string): Promise<string> {
+    if (this.isOAuthMode && this.oauthToken) {
+      return this.oauthToken;
+    }
+
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+
+    if (accounts.length === 0) {
+      throw new Error('No accounts found. Please login first.');
+    }
+
+    let targetAccount: AccountInfo | null = null;
+
+    if (identifier) {
+      const lowerIdentifier = identifier.toLowerCase();
+
+      // Try username (email) match first
+      targetAccount = accounts.find(
+        (a: AccountInfo) => a.username?.toLowerCase() === lowerIdentifier
+      ) ?? null;
+
+      // Fall back to homeAccountId match
+      if (!targetAccount) {
+        targetAccount = accounts.find(
+          (a: AccountInfo) => a.homeAccountId === identifier
+        ) ?? null;
+      }
+
+      if (!targetAccount) {
+        const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.homeAccountId).join(', ');
+        throw new Error(
+          `Account '${identifier}' not found. Available accounts: ${availableAccounts}`
+        );
+      }
+    } else {
+      // No identifier provided
+      if (accounts.length === 1) {
+        targetAccount = accounts[0];
+      } else {
+        // Multiple accounts: resolve by explicit selectedAccountId only — never fall back to accounts[0].
+        // getCurrentAccount() has backward-compat fallback to first account which is unsafe for multi-account routing.
+        if (this.selectedAccountId) {
+          targetAccount = accounts.find(
+            (a: AccountInfo) => a.homeAccountId === this.selectedAccountId
+          ) ?? null;
+        }
+        if (!targetAccount) {
+          const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.homeAccountId).join(', ');
+          throw new Error(
+            `Multiple accounts configured but no 'account' parameter provided and no default selected. ` +
+            `Available accounts: ${availableAccounts}. ` +
+            `Pass account="<email>" in your tool call or use select-account to set a default.`
+          );
+        }
+      }
+    }
+
+    const silentRequest = {
+      account: targetAccount,
+      scopes: this.scopes,
+    };
+
+    try {
+      const response = await this.msalApp.acquireTokenSilent(silentRequest);
+      return response.accessToken;
+    } catch {
+      throw new Error(
+        `Failed to acquire token for account '${targetAccount.username || targetAccount.homeAccountId}'. ` +
+        `The token may have expired. Please re-login with: --login`
+      );
+    }
   }
 }
 

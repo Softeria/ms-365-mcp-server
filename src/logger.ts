@@ -1,13 +1,11 @@
 import winston from 'winston';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const logsDir = path.join(__dirname, '..', 'logs');
+const logsDir = path.join(process.env.MS365_MCP_CONFIG_DIR || process.cwd(), 'logs');
 
 if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir);
+  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 const logger = winston.createLogger({
