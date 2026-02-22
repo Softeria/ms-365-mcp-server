@@ -91,36 +91,50 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     };
   });
 
-  server.tool('list-accounts', 'List all available Microsoft accounts', {}, async () => {
-    try {
-      const accounts = await authManager.listAccounts();
-      const selectedAccountId = authManager.getSelectedAccountId();
-      const result = accounts.map((account) => ({
-        id: account.homeAccountId,
-        username: account.username,
-        name: account.name,
-        selected: account.homeAccountId === selectedAccountId,
-      }));
+  server.tool(
+    'list-accounts',
+    'List all Microsoft accounts configured in this server. Use this to discover available account emails before making tool calls. Reflects accounts added mid-session via --login.',
+    {},
+    {
+      title: 'list-accounts',
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
+    async () => {
+      try {
+        const accounts = await authManager.listAccounts();
+        const selectedAccountId = authManager.getSelectedAccountId();
+        const result = accounts.map((account) => ({
+          email: account.username || 'unknown',
+          name: account.name,
+          isDefault: account.homeAccountId === selectedAccountId,
+        }));
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ accounts: result }),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ error: `Failed to list accounts: ${(error as Error).message}` }),
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                accounts: result,
+                count: result.length,
+                tip: "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: `Failed to list accounts: ${(error as Error).message}` }),
+            },
+          ],
+          isError: true,
+        };
+      }
     }
-  });
+  );
 
   server.tool(
     'select-account',

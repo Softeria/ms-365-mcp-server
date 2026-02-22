@@ -457,27 +457,22 @@ export function registerGraphTools(
         .optional();
     }
 
-    // Add account parameter for multi-account mode
+    // Add account parameter for multi-account mode.
+    // Layer 2: Account names are surfaced in the description (not as a strict enum) so the LLM
+    // sees available accounts upfront without a round-trip, but accounts added mid-session via
+    // --login are still accepted — getTokenForAccount() handles validation at runtime.
     if (multiAccount) {
-      if (accountNames.length > 0) {
-        // Layer 2: Dynamic enum — surfaces available accounts directly in the tool schema.
-        // Note: enum is built at initialize() time; accounts added mid-session won't appear here.
-        // Use the list-accounts tool for runtime discovery of current accounts.
-        paramSchema['account'] = z
-          .enum(accountNames as [string, ...string[]])
-          .describe(
-            'Microsoft account to use for this request. Use list-accounts tool to discover accounts added after session start.'
-          )
-          .optional();
-      } else {
-        // Fallback: no cached usernames available (e.g., cache read failed)
-        paramSchema['account'] = z
-          .string()
-          .describe(
-            "Microsoft account email (e.g. 'user@outlook.com'). Required when multiple accounts are configured. Use list-accounts tool to discover available accounts."
-          )
-          .optional();
-      }
+      const accountHint = accountNames.length > 0
+        ? `Known accounts: ${accountNames.join(', ')}. `
+        : '';
+      paramSchema['account'] = z
+        .string()
+        .describe(
+          `${accountHint}Microsoft account email to use for this request. ` +
+          `Required when multiple accounts are configured. ` +
+          `Use the list-accounts tool to discover all currently available accounts.`
+        )
+        .optional();
     }
 
     // Add includeHeaders parameter for all tools to capture ETags and other headers
@@ -543,62 +538,8 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  // Layer 3: list-accounts tool — runtime account discovery.
-  // Registered in multi-account mode so the LLM can query the current state of the
-  // account cache at any point, including accounts added mid-session via --login.
-  if (multiAccount && authManager) {
-    server.tool(
-      'list-accounts',
-      'List all Microsoft accounts configured in this server. Use this to discover available account emails before making tool calls. Accounts added mid-session (via --login in another terminal) will appear here immediately.',
-      {},
-      {
-        title: 'list-accounts',
-        readOnlyHint: true,
-        openWorldHint: false,
-      },
-      async () => {
-        try {
-          const accounts = await authManager.listAccounts();
-          const selectedId = authManager.getSelectedAccountId();
-          const accountList = accounts.map((a) => ({
-            email: a.username || 'unknown',
-            id: a.homeAccountId,
-            isDefault: a.homeAccountId === selectedId,
-          }));
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    accounts: accountList,
-                    count: accountList.length,
-                    tip: "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  error: `Failed to list accounts: ${(error as Error).message}`,
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-    );
-    registeredCount++;
-    logger.info('Registered list-accounts tool for runtime account discovery');
-  }
+  // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
+  // It is the canonical owner of account discovery — no duplicate registration here.
 
   logger.info(
     `Tool registration complete: ${registeredCount} registered, ${skippedCount} skipped, ${failedCount} failed`
@@ -638,8 +579,7 @@ export function registerDiscoveryTools(
   readOnly: boolean = false,
   orgMode: boolean = false,
   authManager?: AuthManager,
-  multiAccount: boolean = false,
-  accountNames: string[] = []
+  multiAccount: boolean = false
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
   logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
@@ -757,57 +697,5 @@ export function registerDiscoveryTools(
     }
   );
 
-  // Layer 3: list-accounts tool — also available in discovery mode
-  if (multiAccount && authManager) {
-    server.tool(
-      'list-accounts',
-      'List all Microsoft accounts configured in this server. Use this to discover available account emails before making tool calls.',
-      {},
-      {
-        title: 'list-accounts',
-        readOnlyHint: true,
-        openWorldHint: false,
-      },
-      async () => {
-        try {
-          const accounts = await authManager.listAccounts();
-          const selectedId = authManager.getSelectedAccountId();
-          const accountList = accounts.map((a) => ({
-            email: a.username || 'unknown',
-            id: a.homeAccountId,
-            isDefault: a.homeAccountId === selectedId,
-          }));
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  {
-                    accounts: accountList,
-                    count: accountList.length,
-                    tip: "Pass the 'email' value as the 'account' parameter when using execute-tool to target a specific account.",
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
-        } catch (error) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  error: `Failed to list accounts: ${(error as Error).message}`,
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-    );
-    logger.info('Registered list-accounts tool for runtime account discovery (discovery mode)');
-  }
+  // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }
