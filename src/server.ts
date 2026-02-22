@@ -53,6 +53,7 @@ class MicrosoftGraphServer {
   private secrets: AppSecrets | null;
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
+  private accountNames: string[] = [];
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -80,7 +81,8 @@ class MicrosoftGraphServer {
         this.options.readOnly,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        this.accountNames
       );
     } else {
       registerGraphTools(
@@ -90,7 +92,8 @@ class MicrosoftGraphServer {
         this.options.enabledTools,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        this.accountNames
       );
     }
 
@@ -101,11 +104,17 @@ class MicrosoftGraphServer {
     this.secrets = await getSecrets();
     this.version = version;
 
-    // Detect multi-account mode
+    // Detect multi-account mode and cache account names for schema enum
     try {
       this.multiAccount = await this.authManager.isMultiAccount();
       if (this.multiAccount) {
-        logger.info('Multi-account mode detected: "account" parameter will be injected into all tool schemas');
+        const accounts = await this.authManager.listAccounts();
+        this.accountNames = accounts
+          .map((a) => a.username)
+          .filter((u): u is string => !!u);
+        logger.info(
+          `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
+        );
       }
     } catch (err) {
       logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
