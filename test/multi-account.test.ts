@@ -28,12 +28,13 @@ vi.mock('../src/generated/client.js', () => ({
 describe('Multi-account support', () => {
   let server: McpServer;
   let graphClient: GraphClient;
-  let toolSpy: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.tool() has ~6 overloads; spying it requires any
+  let toolSpy: any;
 
   beforeEach(() => {
     server = new McpServer({ name: 'test', version: '1.0.0' });
     graphClient = {} as GraphClient;
-    toolSpy = vi.spyOn(server, 'tool').mockImplementation(() => {});
+    toolSpy = vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
   });
 
   describe('account parameter injection (Layer 2)', () => {
@@ -133,14 +134,14 @@ describe('Multi-account support', () => {
       };
 
       let listAccountsHandler: Function | undefined;
-      const captureSpy = vi.spyOn(server, 'tool').mockImplementation((...args: any[]) => {
+      const captureSpy = vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
         // Capture the handler — it's the last argument regardless of overload
         const name = args[0];
         const handler = args[args.length - 1];
         if (name === 'list-accounts' && typeof handler === 'function') {
           listAccountsHandler = handler;
         }
-      });
+      }) as any);
 
       registerAuthTools(server as any, mockAuthManager as any);
       expect(listAccountsHandler).toBeDefined();
