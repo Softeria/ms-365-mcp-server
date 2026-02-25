@@ -18,6 +18,7 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * Parse HTTP option into host and port components.
@@ -142,7 +143,7 @@ class MicrosoftGraphServer {
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.header(
           'Access-Control-Allow-Headers',
-          'Origin, X-Requested-With, Content-Type, Accept, Authorization, mcp-protocol-version'
+          'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Server-Key, mcp-protocol-version'
         );
 
         // Handle preflight requests
@@ -153,6 +154,40 @@ class MicrosoftGraphServer {
 
         next();
       });
+
+      // Server-level API key authentication (if configured)
+      // Protects ALL routes except health check and OAuth discovery (which are public by spec).
+      // The Microsoft Bearer token middleware on /mcp handles per-user auth separately.
+      const serverApiKey = process.env.SERVER_API_KEY;
+      if (!serverApiKey) {
+        logger.warn('SERVER_API_KEY is not set — all routes are unprotected. Set this in production.');
+      } else {
+        const exemptPaths = [
+          '/',
+          '/.well-known/oauth-authorization-server',
+          '/.well-known/oauth-protected-resource',
+        ];
+        const apiKeyBuffer = Buffer.from(serverApiKey);
+
+        app.use((req, res, next) => {
+          if (exemptPaths.includes(req.path)) {
+            next();
+            return;
+          }
+
+          const providedKey = req.headers['x-server-key'] as string;
+          if (
+            !providedKey ||
+            providedKey.length !== serverApiKey.length ||
+            !timingSafeEqual(Buffer.from(providedKey), apiKeyBuffer)
+          ) {
+            res.status(401).json({ error: 'Invalid or missing server API key' });
+            return;
+          }
+          next();
+        });
+        logger.info('Server API key authentication enabled');
+      }
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
