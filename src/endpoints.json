@@ -587,6 +587,12 @@
     "workScopes": ["ChannelMessage.Send"]
   },
   {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
+    "method": "get",
+    "toolName": "list-channel-message-replies",
+    "workScopes": ["ChannelMessage.Read.All"]
+  },
+  {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
