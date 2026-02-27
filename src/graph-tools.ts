@@ -162,9 +162,13 @@ async function executeGraphTool(
           case 'Path': {
             // Check if this parameter should skip URL encoding (for function-style API calls)
             const shouldSkipEncoding = config?.skipEncoding?.includes(paramName) ?? false;
+            // Use encodeURIComponent but preserve '=' which is valid in path segments (RFC 3986)
+            // and commonly appears in Microsoft Graph base64-encoded resource IDs.
+            // Without this, IDs like "AAMk...AAA=" become "AAMk...AAA%3D" causing 404 errors.
+            // First we encode, then unencode. Crazy, check out https://github.com/Softeria/ms-365-mcp-server/issues/245
             const encodedValue = shouldSkipEncoding
               ? (paramValue as string)
-              : encodeURIComponent(paramValue as string);
+              : encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
 
             path = path
               .replace(`{${paramName}}`, encodedValue)
