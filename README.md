@@ -436,6 +436,7 @@ This method:
 Use a single server instance to serve multiple Microsoft accounts. When more than one account is logged in, an `account` parameter is automatically injected into every tool, allowing you to specify which account to use per tool call.
 
 **Login multiple accounts** (one-time per account):
+
 ```bash
 # Login first account (device code flow)
 npx @softeria/ms-365-mcp-server --login
@@ -447,16 +448,19 @@ npx @softeria/ms-365-mcp-server --login
 ```
 
 **List configured accounts:**
+
 ```bash
 npx @softeria/ms-365-mcp-server --list-accounts
 ```
 
 **Use in tool calls:** Pass `"account": "work@company.com"` in any tool request:
+
 ```json
-{"tool": "list-mail-messages", "arguments": {"account": "work@company.com"}}
+{ "tool": "list-mail-messages", "arguments": { "account": "work@company.com" } }
 ```
 
 **Behavior:**
+
 - With a **single account** configured, it auto-selects (no `account` parameter needed).
 - With **multiple accounts** and no `account` parameter, the server uses the selected default or returns a helpful error listing available accounts.
 - **100% backward compatible**: existing single-account setups work unchanged.

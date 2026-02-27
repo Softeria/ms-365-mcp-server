@@ -297,7 +297,9 @@ async function executeGraphTool(
 
     // Redact accessToken from log output to prevent credential leakage
     const { accessToken: _redacted, ...safeOptions } = options;
-    logger.info(`Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`);
+    logger.info(
+      `Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+    );
 
     let response = await graphClient.graphRequest(path, options);
 
@@ -462,15 +464,14 @@ export function registerGraphTools(
     // sees available accounts upfront without a round-trip, but accounts added mid-session via
     // --login are still accepted — getTokenForAccount() handles validation at runtime.
     if (multiAccount) {
-      const accountHint = accountNames.length > 0
-        ? `Known accounts: ${accountNames.join(', ')}. `
-        : '';
+      const accountHint =
+        accountNames.length > 0 ? `Known accounts: ${accountNames.join(', ')}. ` : '';
       paramSchema['account'] = z
         .string()
         .describe(
           `${accountHint}Microsoft account email to use for this request. ` +
-          `Required when multiple accounts are configured. ` +
-          `Use the list-accounts tool to discover all currently available accounts.`
+            `Required when multiple accounts are configured. ` +
+            `Use the list-accounts tool to discover all currently available accounts.`
         )
         .optional();
     }

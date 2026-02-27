@@ -108,9 +108,7 @@ class MicrosoftGraphServer {
       this.multiAccount = await this.authManager.isMultiAccount();
       if (this.multiAccount) {
         const accounts = await this.authManager.listAccounts();
-        this.accountNames = accounts
-          .map((a) => a.username)
-          .filter((u): u is string => !!u);
+        this.accountNames = accounts.map((a) => a.username).filter((u): u is string => !!u);
         logger.info(
           `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
         );

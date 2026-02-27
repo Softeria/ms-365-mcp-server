@@ -127,7 +127,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ error: `Failed to list accounts: ${(error as Error).message}` }),
+              text: JSON.stringify({
+                error: `Failed to list accounts: ${(error as Error).message}`,
+              }),
             },
           ],
           isError: true,

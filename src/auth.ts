@@ -589,15 +589,12 @@ class AuthManager {
     const lowerIdentifier = identifier.toLowerCase();
 
     // Try username (email) match first
-    let account = accounts.find(
-      (a: AccountInfo) => a.username?.toLowerCase() === lowerIdentifier
-    ) ?? null;
+    let account =
+      accounts.find((a: AccountInfo) => a.username?.toLowerCase() === lowerIdentifier) ?? null;
 
     // Fall back to homeAccountId match
     if (!account) {
-      account = accounts.find(
-        (a: AccountInfo) => a.homeAccountId === identifier
-      ) ?? null;
+      account = accounts.find((a: AccountInfo) => a.homeAccountId === identifier) ?? null;
     }
 
     if (!account) {
@@ -656,16 +653,17 @@ class AuthManager {
         // Multiple accounts: resolve by explicit selectedAccountId only — never fall back to accounts[0].
         // getCurrentAccount() has backward-compat fallback to first account which is unsafe for multi-account routing.
         if (this.selectedAccountId) {
-          targetAccount = accounts.find(
-            (a: AccountInfo) => a.homeAccountId === this.selectedAccountId
-          ) ?? null;
+          targetAccount =
+            accounts.find((a: AccountInfo) => a.homeAccountId === this.selectedAccountId) ?? null;
         }
         if (!targetAccount) {
-          const availableAccounts = accounts.map((a: AccountInfo) => a.username || a.name || 'unknown').join(', ');
+          const availableAccounts = accounts
+            .map((a: AccountInfo) => a.username || a.name || 'unknown')
+            .join(', ');
           throw new Error(
             `Multiple accounts configured but no 'account' parameter provided and no default selected. ` +
-            `Available accounts: ${availableAccounts}. ` +
-            `Pass account="<email>" in your tool call or use select-account to set a default.`
+              `Available accounts: ${availableAccounts}. ` +
+              `Pass account="<email>" in your tool call or use select-account to set a default.`
           );
         }
       }
@@ -682,7 +680,7 @@ class AuthManager {
     } catch {
       throw new Error(
         `Failed to acquire token for account '${targetAccount.username || targetAccount.name || 'unknown'}'. ` +
-        `The token may have expired. Please re-login with: --login`
+          `The token may have expired. Please re-login with: --login`
       );
     }
   }
