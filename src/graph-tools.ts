@@ -579,7 +579,7 @@ export function registerDiscoveryTools(
   readOnly: boolean = false,
   orgMode: boolean = false,
   authManager?: AuthManager,
-  multiAccount: boolean = false
+  _multiAccount: boolean = false
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
   logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
