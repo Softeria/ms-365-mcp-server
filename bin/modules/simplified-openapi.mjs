@@ -255,6 +255,22 @@ function reduceProperties(schema, schemaName) {
       'enabled',
       'singleValueExtendedProperties',
       'multiValueExtendedProperties',
+      'start',
+      'end',
+      'location',
+      'showAs',
+      'sensitivity',
+      'isAllDay',
+      'importance',
+      'isOnlineMeeting',
+      'isReminderOn',
+      'attendees',
+      'recurrence',
+      'reminderMinutesBeforeStart',
+      'allowNewTimeProposals',
+      'responseRequested',
+      'from',
+      'toRecipients',
     ];
 
     const keptProperties = {};

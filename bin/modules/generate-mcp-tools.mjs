@@ -28,10 +28,7 @@ export function generateMcpTools(openApiSpec, outputDir) {
     let clientCode = fs.readFileSync(clientFilePath, 'utf-8');
     clientCode = clientCode.replace(/'@zodios\/core';/, "'./hack.js';");
 
-    clientCode = clientCode.replace(
-      /const microsoft_graph_attachment = z\s+\.object\({[\s\S]*?}\)\s+\.strict\(\);/,
-      (match) => match.replace(/\.strict\(\);/, '.passthrough();')
-    );
+    clientCode = clientCode.replace(/\.strict\(\)/g, '.passthrough()');
 
     console.log('Stripping unused errors arrays from endpoint definitions...');
     // I didn't make up this crazy regex myself; you know who did. It seems works though.
