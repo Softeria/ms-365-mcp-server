@@ -527,56 +527,162 @@ class AuthManager {
     return await this.msalApp.getTokenCache().getAllAccounts();
   }
 
-  async selectAccount(accountId: string): Promise<boolean> {
-    const accounts = await this.listAccounts();
-    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
+  async selectAccount(identifier: string): Promise<boolean> {
+    const account = await this.resolveAccount(identifier);
 
-    if (!account) {
-      logger.error(`Account with ID ${accountId} not found`);
-      return false;
-    }
-
-    this.selectedAccountId = accountId;
+    this.selectedAccountId = account.homeAccountId;
     await this.saveSelectedAccount();
 
     // Clear cached tokens to force refresh with new account
     this.accessToken = null;
     this.tokenExpiry = null;
 
-    logger.info(`Selected account: ${account.username} (${accountId})`);
+    logger.info(`Selected account: ${account.username} (${account.homeAccountId})`);
     return true;
   }
 
-  async removeAccount(accountId: string): Promise<boolean> {
-    const accounts = await this.listAccounts();
-    const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === accountId);
-
-    if (!account) {
-      logger.error(`Account with ID ${accountId} not found`);
-      return false;
-    }
+  async removeAccount(identifier: string): Promise<boolean> {
+    const account = await this.resolveAccount(identifier);
 
     try {
       await this.msalApp.getTokenCache().removeAccount(account);
 
       // If this was the selected account, clear the selection
-      if (this.selectedAccountId === accountId) {
+      if (this.selectedAccountId === account.homeAccountId) {
         this.selectedAccountId = null;
         await this.saveSelectedAccount();
         this.accessToken = null;
         this.tokenExpiry = null;
       }
 
-      logger.info(`Removed account: ${account.username} (${accountId})`);
+      logger.info(`Removed account: ${account.username} (${account.homeAccountId})`);
       return true;
     } catch (error) {
-      logger.error(`Failed to remove account ${accountId}: ${(error as Error).message}`);
+      logger.error(`Failed to remove account ${identifier}: ${(error as Error).message}`);
       return false;
     }
   }
 
   getSelectedAccountId(): string | null {
     return this.selectedAccountId;
+  }
+
+  /**
+   * Returns true if auth is in OAuth/HTTP mode (token supplied via env or setOAuthToken).
+   * In this mode, account resolution should be skipped — the request context drives token selection.
+   */
+  isOAuthModeEnabled(): boolean {
+    return this.isOAuthMode;
+  }
+
+  /**
+   * Resolves an account by identifier (email or homeAccountId).
+   * Resolution: username match (case-insensitive) → homeAccountId match → throw.
+   */
+  async resolveAccount(identifier: string): Promise<AccountInfo> {
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+
+    if (accounts.length === 0) {
+      throw new Error('No accounts found. Please login first.');
+    }
+
+    const lowerIdentifier = identifier.toLowerCase();
+
+    // Try username (email) match first
+    let account =
+      accounts.find((a: AccountInfo) => a.username?.toLowerCase() === lowerIdentifier) ?? null;
+
+    // Fall back to homeAccountId match
+    if (!account) {
+      account = accounts.find((a: AccountInfo) => a.homeAccountId === identifier) ?? null;
+    }
+
+    if (!account) {
+      const availableAccounts = accounts
+        .map((a: AccountInfo) => a.username || a.name || 'unknown')
+        .join(', ');
+      throw new Error(
+        `Account '${identifier}' not found. Available accounts: ${availableAccounts}`
+      );
+    }
+
+    return account;
+  }
+
+  /**
+   * Returns true if the MSAL cache contains more than one account.
+   * Used to decide whether to inject the `account` parameter into tool schemas.
+   */
+  async isMultiAccount(): Promise<boolean> {
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+    return accounts.length > 1;
+  }
+
+  /**
+   * Acquires a token for a specific account identified by username (email) or homeAccountId,
+   * WITHOUT changing the persisted selectedAccountId.
+   *
+   * Resolution order:
+   *  1. Exact match on username (case-insensitive)
+   *  2. Exact match on homeAccountId
+   *  3. If identifier is empty/undefined AND only 1 account exists → auto-select
+   *  4. If identifier is empty/undefined AND multiple accounts → use selectedAccountId or throw
+   *
+   * @returns The access token string.
+   */
+  async getTokenForAccount(identifier?: string): Promise<string> {
+    if (this.isOAuthMode && this.oauthToken) {
+      return this.oauthToken;
+    }
+
+    let targetAccount: AccountInfo | null = null;
+
+    if (identifier) {
+      // resolveAccount handles empty-cache check internally
+      targetAccount = await this.resolveAccount(identifier);
+    } else {
+      const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+
+      if (accounts.length === 0) {
+        throw new Error('No accounts found. Please login first.');
+      }
+      // No identifier provided
+      if (accounts.length === 1) {
+        targetAccount = accounts[0];
+      } else {
+        // Multiple accounts: resolve by explicit selectedAccountId only — never fall back to accounts[0].
+        // getCurrentAccount() has backward-compat fallback to first account which is unsafe for multi-account routing.
+        if (this.selectedAccountId) {
+          targetAccount =
+            accounts.find((a: AccountInfo) => a.homeAccountId === this.selectedAccountId) ?? null;
+        }
+        if (!targetAccount) {
+          const availableAccounts = accounts
+            .map((a: AccountInfo) => a.username || a.name || 'unknown')
+            .join(', ');
+          throw new Error(
+            `Multiple accounts configured but no 'account' parameter provided and no default selected. ` +
+              `Available accounts: ${availableAccounts}. ` +
+              `Pass account="<email>" in your tool call or use select-account to set a default.`
+          );
+        }
+      }
+    }
+
+    const silentRequest = {
+      account: targetAccount,
+      scopes: this.scopes,
+    };
+
+    try {
+      const response = await this.msalApp.acquireTokenSilent(silentRequest);
+      return response.accessToken;
+    } catch {
+      throw new Error(
+        `Failed to acquire token for account '${targetAccount.username || targetAccount.name || 'unknown'}'. ` +
+          `The token may have expired. Please re-login with: --login`
+      );
+    }
   }
 }
 
