@@ -138,32 +138,21 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
 
   server.tool(
     'select-account',
-    'Select a specific Microsoft account to use',
+    'Select a Microsoft account as the default. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
     {
-      accountId: z.string().describe('The account ID to select'),
+      account: z.string().describe('Email address or account ID of the account to select'),
     },
-    async ({ accountId }) => {
+    async ({ account }) => {
       try {
-        const success = await authManager.selectAccount(accountId);
-        if (success) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ message: `Selected account: ${accountId}` }),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ error: `Account not found: ${accountId}` }),
-              },
-            ],
-          };
-        }
+        await authManager.selectAccount(account);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ message: `Selected account: ${account}` }),
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [
@@ -174,6 +163,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
               }),
             },
           ],
+          isError: true,
         };
       }
     }
@@ -181,19 +171,19 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
 
   server.tool(
     'remove-account',
-    'Remove a Microsoft account from the cache',
+    'Remove a Microsoft account from the cache. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
     {
-      accountId: z.string().describe('The account ID to remove'),
+      account: z.string().describe('Email address or account ID of the account to remove'),
     },
-    async ({ accountId }) => {
+    async ({ account }) => {
       try {
-        const success = await authManager.removeAccount(accountId);
+        const success = await authManager.removeAccount(account);
         if (success) {
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({ message: `Removed account: ${accountId}` }),
+                text: JSON.stringify({ message: `Removed account: ${account}` }),
               },
             ],
           };
@@ -202,9 +192,10 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({ error: `Account not found: ${accountId}` }),
+                text: JSON.stringify({ error: `Failed to remove account from cache: ${account}` }),
               },
             ],
+            isError: true,
           };
         }
       } catch (error) {
@@ -217,6 +208,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
               }),
             },
           ],
+          isError: true,
         };
       }
     }

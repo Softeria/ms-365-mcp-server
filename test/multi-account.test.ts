@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerGraphTools } from '../src/graph-tools.js';
 import { registerAuthTools } from '../src/auth-tools.js';
 import GraphClient from '../src/graph-client.js';
+import AuthManager from '../src/auth.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -163,6 +164,72 @@ describe('Multi-account support', () => {
       expect(parsed).toHaveProperty('tip');
 
       captureSpy.mockRestore();
+    });
+  });
+
+  describe('resolveAccount()', () => {
+    function createMockAuthManager(accounts: Array<{ username?: string; name?: string; homeAccountId: string }>) {
+      const mockMsalApp = {
+        getTokenCache: () => ({
+          getAllAccounts: vi.fn().mockResolvedValue(accounts),
+        }),
+      };
+      // Create a minimal AuthManager-like object with resolveAccount bound to the mock
+      const authManager = Object.create(AuthManager.prototype);
+      authManager.msalApp = mockMsalApp;
+      return authManager as AuthManager;
+    }
+
+    it('should resolve by email (case-insensitive)', async () => {
+      const auth = createMockAuthManager([
+        { username: 'User@Outlook.com', name: 'User', homeAccountId: 'id-1' },
+        { username: 'work@company.com', name: 'Work', homeAccountId: 'id-2' },
+      ]);
+
+      const result = await auth.resolveAccount('user@outlook.com');
+      expect(result.homeAccountId).toBe('id-1');
+    });
+
+    it('should fall back to homeAccountId when no email match', async () => {
+      const auth = createMockAuthManager([
+        { username: 'user@outlook.com', name: 'User', homeAccountId: 'id-1' },
+      ]);
+
+      const result = await auth.resolveAccount('id-1');
+      expect(result.username).toBe('user@outlook.com');
+    });
+
+    it('should throw with available accounts on not-found', async () => {
+      const auth = createMockAuthManager([
+        { username: 'user@outlook.com', name: 'User', homeAccountId: 'id-1' },
+      ]);
+
+      await expect(auth.resolveAccount('nobody@example.com')).rejects.toThrow(
+        /Account 'nobody@example.com' not found/
+      );
+    });
+
+    it('should throw on empty cache', async () => {
+      const auth = createMockAuthManager([]);
+
+      await expect(auth.resolveAccount('user@outlook.com')).rejects.toThrow(
+        /No accounts found/
+      );
+    });
+
+    it('should not expose homeAccountId in error when username is missing', async () => {
+      const auth = createMockAuthManager([
+        { username: '', name: 'Service Account', homeAccountId: 'secret-tenant-id.object-id' },
+      ]);
+
+      try {
+        await auth.resolveAccount('nobody@example.com');
+        expect.fail('Should have thrown');
+      } catch (err) {
+        const message = (err as Error).message;
+        expect(message).not.toContain('secret-tenant-id');
+        expect(message).toContain('Service Account');
+      }
     });
   });
 });
