@@ -214,10 +214,21 @@ async function executeGraphTool(
       }
     }
 
+    const preferValues: string[] = [];
+
     // Handle timezone parameter for calendar endpoints
     if (config?.supportsTimezone && params.timezone) {
-      headers['Prefer'] = `outlook.timezone="${params.timezone}"`;
-      logger.info(`Setting timezone header: Prefer: outlook.timezone="${params.timezone}"`);
+      preferValues.push(`outlook.timezone="${params.timezone}"`);
+      logger.info(`Setting timezone preference: outlook.timezone="${params.timezone}"`);
+    }
+
+    const bodyFormat = process.env.MS365_MCP_BODY_FORMAT || 'text';
+    if (bodyFormat !== 'html') {
+      preferValues.push(`outlook.body-content-type="${bodyFormat}"`);
+    }
+
+    if (preferValues.length > 0) {
+      headers['Prefer'] = preferValues.join(', ');
     }
 
     // Handle expandExtendedProperties parameter for calendar endpoints
