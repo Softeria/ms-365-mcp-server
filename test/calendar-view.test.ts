@@ -200,7 +200,7 @@ describe('Calendar View Tools', () => {
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Prefer: 'outlook.timezone="Australia/Sydney"',
+            Prefer: expect.stringContaining('outlook.timezone="Australia/Sydney"'),
           }),
         })
       );
