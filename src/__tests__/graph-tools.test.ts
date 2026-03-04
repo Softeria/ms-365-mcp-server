@@ -331,7 +331,80 @@ describe('graph-tools', () => {
     });
   });
 
-  // ---- 5. supportsTimezone ----
+  // ---- 5. kebab-case path param normalization ----
+  describe('kebab-case path param normalization', () => {
+    it('should substitute path when LLM passes message-id (kebab) but schema has messageId (camelCase)', async () => {
+      // Simulates what hack.ts generates: path uses :messageId (camelCase)
+      // but LLMs may pass message-id (kebab-case) since endpoints.json uses {message-id}
+      const endpoint = makeEndpoint({
+        alias: 'get-mail-message',
+        method: 'get',
+        path: '/me/messages/:messageId',
+        parameters: [
+          { name: 'messageId', type: 'Path', schema: z.string() },
+          { name: 'select', type: 'Query', schema: z.string().optional() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-mail-message',
+        pathPattern: '/me/messages/{message-id}',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'AAMk123', subject: 'Test' }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-mail-message');
+      expect(tool).toBeDefined();
+
+      // Pass kebab-case 'message-id' — should still resolve to correct path
+      await tool!.handler({ 'message-id': 'AAMk123abc=' });
+
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      expect(requestedPath).toContain('AAMk123abc=');
+      expect(requestedPath).not.toContain(':messageId');
+    });
+
+    it('should also work when LLM passes messageId (camelCase) directly', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-mail-message2',
+        method: 'get',
+        path: '/me/messages/:messageId',
+        parameters: [
+          { name: 'messageId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-mail-message2',
+        pathPattern: '/me/messages/{message-id}',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'AAMk456' }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-mail-message2');
+      await tool!.handler({ messageId: 'AAMk456xyz=' });
+
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      expect(requestedPath).toContain('AAMk456xyz=');
+      expect(requestedPath).not.toContain(':messageId');
+    });
+  });
+
+  // ---- 6. supportsTimezone ----
   describe('supportsTimezone', () => {
     it('should set Prefer: outlook.timezone header when timezone param provided', async () => {
       const endpoint = makeEndpoint({
