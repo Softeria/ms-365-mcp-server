@@ -133,10 +133,13 @@ delete-outlook-contact</sub>
 
 ### Organization Account Tools (Requires --org-mode flag)
 
-**Teams & Chats**  
+**Teams & Chats**
 <sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies,
 reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages,
 get-channel-message, send-channel-message, list-team-members</sub>
+
+**Online Meetings & Transcripts**
+<sub>list-online-meetings, list-meeting-transcripts, get-meeting-transcript-content</sub>
 
 **SharePoint Sites**  
 <sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives,
