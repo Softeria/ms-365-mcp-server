@@ -130,7 +130,7 @@
     "method": "patch",
     "toolName": "update-mail-message",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Updates mail message properties. Pass properties as JSON object in request body. Examples: {\"isRead\": true} to mark as read, {\"flag\": {\"flagStatus\": \"flagged\"}} to flag a message, {\"categories\": [\"Blue category\"]} to categorize, {\"importance\": \"high\"} to set importance. Flag status values: 'flagged', 'complete', 'notFlagged'. Can update: isRead, categories, importance, flag, subject, body, inferenceClassification. Do NOT wrap the body in a 'message' envelope — pass properties directly."
+    "llmTip": "Updates mail message properties. PATH PARAMETER: use 'messageId' (camelCase) — both 'message-id' and 'messageId' are accepted. BODY: pass a 'body' parameter with the properties as a JSON object. Examples: body={\"isRead\": true} to mark as read, body={\"flag\": {\"flagStatus\": \"flagged\"}} to flag, body={\"flag\": {\"flagStatus\": \"complete\"}} to mark complete, body={\"categories\": [\"Blue category\"]} to categorize, body={\"importance\": \"high\"} to set importance. Flag status values: 'flagged', 'complete', 'notFlagged'. Can update: isRead, categories, importance, flag, subject, inferenceClassification. Do NOT wrap in a 'message' envelope."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
