@@ -11,7 +11,7 @@ export default defineConfig({
   sourcemap: false,
   dts: false,
   publicDir: false,
-  onSuccess: 'chmod +x dist/index.js',
+  onSuccess: process.platform === 'win32' ? undefined : 'chmod +x dist/index.js',
   loader: {
     '.json': 'copy',
   },
