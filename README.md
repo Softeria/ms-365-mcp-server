@@ -615,6 +615,47 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
 
+## Graph API Tips & Known Quirks
+
+### Advanced query mode (`$count=true`)
+
+Many `$filter` expressions require `$count=true` to work. Without it, the Graph API returns `InefficientFilter` errors. Setting `$count=true` automatically adds the `ConsistencyLevel: eventual` header.
+
+**Required for:** `flag/flagStatus` filters, `contains()`, sender address filters, and other complex expressions.
+
+```
+$filter=flag/flagStatus eq 'flagged'&$count=true
+```
+
+### `$filter` vs `$search` — cannot combine
+
+The Graph API does **not** support `$filter` and `$search` in the same request. Use one or the other. Also note: `$orderby` is **ignored** when `$search` is used (results are sorted by relevance).
+
+### Flagged mail
+
+Do **not** use the `flaggedItems` well-known folder with `$search` — flag status is unreliable in search results. Instead, filter directly:
+
+```
+$filter=flag/flagStatus eq 'flagged'&$count=true
+```
+
+Flag status values: `flagged`, `complete`, `notFlagged`
+
+### `update-mail-message` body format
+
+Properties like `isRead` can be set directly. But `body` requires a nested wrapper:
+
+```json
+{ "isRead": true }
+{ "body": { "contentType": "text", "content": "updated body" } }
+```
+
+### Well-known folder IDs
+
+These can be used directly as `folder-id` without calling `list-mail-folders`:
+
+`inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `flaggedItems`
+
 ## Contributing
 
 We welcome contributions! Before submitting a pull request, please ensure your changes meet our quality standards.
