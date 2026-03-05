@@ -711,7 +711,8 @@
     "toolName": "get-meeting-transcript-content",
     "scopes": ["OnlineMeetingTranscript.Read.All"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
-    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps. Pass $format query parameter to request alternative formats."
+    "acceptType": "text/vtt",
+    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
   },
   {
     "pathPattern": "/groups/{group-id}/conversations",
