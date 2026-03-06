@@ -18,6 +18,7 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import { checkRateLimit } from './rate-limiter.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -388,6 +389,12 @@ class MicrosoftGraphServer {
           req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
           res: Response
         ) => {
+          const userId = req.microsoftAuth?.accessToken.slice(-16) ?? 'anonymous';
+          if (!checkRateLimit(userId)) {
+            res.status(429).json({ error: 'Too many requests. Please slow down.' });
+            return;
+          }
+
           const handler = async () => {
             const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
@@ -437,6 +444,12 @@ class MicrosoftGraphServer {
           req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
           res: Response
         ) => {
+          const userId = req.microsoftAuth?.accessToken.slice(-16) ?? 'anonymous';
+          if (!checkRateLimit(userId)) {
+            res.status(429).json({ error: 'Too many requests. Please slow down.' });
+            return;
+          }
+
           const handler = async () => {
             const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
@@ -480,7 +493,29 @@ class MicrosoftGraphServer {
       );
 
       // Health check endpoint
-      app.get('/', (req, res) => {
+      app.get('/health', async (_req, res) => {
+        const graphApiUrl = 'https://graph.microsoft.com/v1.0/$metadata';
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const graphResponse = await fetch(graphApiUrl, {
+            method: 'HEAD',
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (graphResponse.ok || graphResponse.status === 401) {
+            // 401 means the endpoint is reachable (auth required but service is up)
+            res.status(200).json({ status: 'healthy', version: this.version, timestamp: new Date().toISOString() });
+          } else {
+            res.status(503).json({ status: 'degraded', reason: `Graph API returned ${graphResponse.status}`, timestamp: new Date().toISOString() });
+          }
+        } catch (err) {
+          res.status(503).json({ status: 'degraded', reason: 'Graph API unreachable', timestamp: new Date().toISOString() });
+        }
+      });
+
+      app.get('/', (_req, res) => {
         res.send('Microsoft 365 MCP Server is running');
       });
 

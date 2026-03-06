@@ -91,6 +91,9 @@ async function executeGraphTool(
   params: Record<string, unknown>,
   authManager?: AuthManager
 ): Promise<CallToolResult> {
+  const startMs = Date.now();
+  // Derive a stable user identifier from the account param or the auth context.
+  const userId = (params.account as string | undefined) ?? 'default';
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
@@ -395,6 +398,15 @@ async function executeGraphTool(
       text: item.text,
     }));
 
+    const resultSize = content.reduce((sum, item) => sum + (item as TextContent).text.length, 0);
+    logger.info('tool_audit', {
+      userId,
+      tool: tool.alias,
+      durationMs: Date.now() - startMs,
+      resultSize,
+      isError: response.isError ?? false,
+    });
+
     return {
       content,
       _meta: response._meta,
@@ -402,6 +414,13 @@ async function executeGraphTool(
     };
   } catch (error) {
     logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    logger.info('tool_audit', {
+      userId,
+      tool: tool.alias,
+      durationMs: Date.now() - startMs,
+      resultSize: 0,
+      isError: true,
+    });
     return {
       content: [
         {
