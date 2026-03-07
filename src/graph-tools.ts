@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
+import { getRequestTokens } from './request-context.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,8 +96,9 @@ async function executeGraphTool(
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
+    // Also skip when a request-context token exists (HTTP/OAuth flow where token comes from middleware).
     let accountAccessToken: string | undefined;
-    if (authManager && !authManager.isOAuthModeEnabled()) {
+    if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
       const accountParam = params.account as string | undefined;
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
