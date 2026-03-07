@@ -81,15 +81,18 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     // AuthManager with empty MSAL cache and isOAuthMode=false (the bug scenario)
     const mockAuthManager = {
       isOAuthModeEnabled: vi.fn().mockReturnValue(false),
-      getTokenForAccount: vi.fn().mockRejectedValue(new Error('No accounts found. Please login first.')),
+      getTokenForAccount: vi
+        .fn()
+        .mockRejectedValue(new Error('No accounts found. Please login first.')),
       getToken: vi.fn().mockResolvedValue(null),
     };
 
-    const mockSecrets = { clientId: 'test-client', tenantId: 'common', cloudType: 'global' as const };
-    const graphClient = new GraphClient(
-      mockAuthManager as any,
-      mockSecrets,
-    );
+    const mockSecrets = {
+      clientId: 'test-client',
+      tenantId: 'common',
+      cloudType: 'global' as const,
+    };
+    const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
     registerGraphTools(
       server,
@@ -99,7 +102,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
       false,
       mockAuthManager as any,
       false,
-      [],
+      []
     );
 
     expect(capturedHandler).toBeDefined();
@@ -121,15 +124,18 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
   it('should still use MSAL account resolution when no request context (stdio mode)', async () => {
     const mockAuthManager = {
       isOAuthModeEnabled: vi.fn().mockReturnValue(false),
-      getTokenForAccount: vi.fn().mockRejectedValue(new Error('No accounts found. Please login first.')),
+      getTokenForAccount: vi
+        .fn()
+        .mockRejectedValue(new Error('No accounts found. Please login first.')),
       getToken: vi.fn().mockResolvedValue(null),
     };
 
-    const mockSecrets = { clientId: 'test-client', tenantId: 'common', cloudType: 'global' as const };
-    const graphClient = new GraphClient(
-      mockAuthManager as any,
-      mockSecrets,
-    );
+    const mockSecrets = {
+      clientId: 'test-client',
+      tenantId: 'common',
+      cloudType: 'global' as const,
+    };
+    const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
     registerGraphTools(
       server,
@@ -139,7 +145,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
       false,
       mockAuthManager as any,
       false,
-      [],
+      []
     );
 
     expect(capturedHandler).toBeDefined();
