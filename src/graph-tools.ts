@@ -227,6 +227,21 @@ async function executeGraphTool(
       } else if (paramName === 'body') {
         body = paramValue;
         logger.info(`Set body param: ${JSON.stringify(body)}`);
+      } else if (
+        path.includes(`:${paramName}`) ||
+        path.includes(`{${paramName}}`) ||
+        path.includes(`:${camelCaseParamName}`) ||
+        path.includes(`{${camelCaseParamName}}`)
+      ) {
+        // Fallback: path param not declared in tool.parameters (generated client omits them).
+        // Replace placeholder directly so the URL is valid.
+        const encodedValue = encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
+        path = path
+          .replace(`{${paramName}}`, encodedValue)
+          .replace(`:${paramName}`, encodedValue)
+          .replace(`{${camelCaseParamName}}`, encodedValue)
+          .replace(`:${camelCaseParamName}`, encodedValue);
+        logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
       }
     }
 
@@ -485,6 +500,16 @@ export function registerGraphTools(
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
         paramSchema[param.name] = param.schema || z.any();
+      }
+    }
+
+    // Extract path parameters from the path pattern (e.g., :todoTaskListId from /me/todo/lists/:todoTaskListId/tasks)
+    // The generated client omits these from tool.parameters, so we add them manually.
+    const pathParamMatches = tool.path.matchAll(/:([a-zA-Z]+)/g);
+    for (const match of pathParamMatches) {
+      const pathParamName = match[1];
+      if (!(pathParamName in paramSchema)) {
+        paramSchema[pathParamName] = z.string().describe(`Path parameter: ${pathParamName}`);
       }
     }
 
