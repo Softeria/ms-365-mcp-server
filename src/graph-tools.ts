@@ -286,7 +286,7 @@ async function executeGraphTool(
 
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
         .join('&');
       path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
     }
