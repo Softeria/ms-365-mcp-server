@@ -25,6 +25,7 @@ interface EndpointConfig {
   llmTip?: string;
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
+  acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
 }
 
 const endpointsData = JSON.parse(
@@ -247,6 +248,11 @@ async function executeGraphTool(
     if (config?.contentType) {
       headers['Content-Type'] = config.contentType;
       logger.info(`Setting custom Content-Type: ${config.contentType}`);
+    }
+
+    if (config?.acceptType) {
+      headers['Accept'] = config.acceptType;
+      logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
 
     if (Object.keys(queryParams).length > 0) {
