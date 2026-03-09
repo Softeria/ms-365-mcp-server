@@ -354,6 +354,7 @@ class AuthManager {
         const response = await this.msalApp.acquireTokenSilent(silentRequest);
         this.accessToken = response.accessToken;
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
+        await this.saveTokenCache();
         return this.accessToken;
       } catch {
         logger.error('Silent token acquisition failed');
@@ -676,6 +677,7 @@ class AuthManager {
 
     try {
       const response = await this.msalApp.acquireTokenSilent(silentRequest);
+      await this.saveTokenCache();
       return response.accessToken;
     } catch {
       throw new Error(
