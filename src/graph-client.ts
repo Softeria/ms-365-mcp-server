@@ -160,10 +160,19 @@ class GraphClient {
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
+    // Merge Prefer headers: immutableId is the default, caller values are appended.
+    // Standard EWS IDs can contain '/' which Microsoft Graph decodes server-side
+    // in path segments, causing RequestBroker--ParseUri (400) errors.
+    // Immutable IDs use base64url encoding (no '/' or '+'), preventing this.
+    const callerPrefer = options.headers?.['Prefer'];
+    const preferValue = callerPrefer
+      ? `IdType="ImmutableId", ${callerPrefer}`
+      : 'IdType="ImmutableId"';
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       ...options.headers,
+      Prefer: preferValue,
     };
 
     return fetch(url, {
