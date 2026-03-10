@@ -454,7 +454,7 @@
     "method": "get",
     "toolName": "get-todo-task",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a single To Do task. Use $select to limit fields. Returns body content (HTML format), checklist items, and linked resources."
+    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
