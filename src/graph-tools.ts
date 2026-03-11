@@ -155,9 +155,18 @@ async function executeGraphTool(
       const normalizedParamName = paramName.startsWith('$') ? paramName.slice(1) : paramName;
       const isOdataParam = odataParams.includes(normalizedParamName.toLowerCase());
       const fixedParamName = isOdataParam ? `$${normalizedParamName.toLowerCase()}` : paramName;
-      // Look up param definition using normalized name (without $) for OData params
+      // Convert kebab-case param names to camelCase for path param matching.
+      // endpoints.json uses {message-id} but hack.ts extracts :messageId (camelCase) from the path.
+      // LLMs may pass "message-id" (kebab) — we normalize so both forms work.
+      const camelCaseParamName = paramName.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+
+      // Look up param definition using normalized name (without $) for OData params,
+      // or camelCase equivalent for kebab-case path params
       const paramDef = parameterDefinitions.find(
-        (p) => p.name === paramName || (isOdataParam && p.name === normalizedParamName)
+        (p) =>
+          p.name === paramName ||
+          p.name === camelCaseParamName ||
+          (isOdataParam && p.name === normalizedParamName)
       );
 
       if (paramDef) {
@@ -173,9 +182,13 @@ async function executeGraphTool(
               ? (paramValue as string)
               : encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
 
+            // Replace both the original param name and the camelCase variant
+            // to handle {message-id} (endpoints.json) and :messageId (generated client) formats
             path = path
               .replace(`{${paramName}}`, encodedValue)
-              .replace(`:${paramName}`, encodedValue);
+              .replace(`:${paramName}`, encodedValue)
+              .replace(`{${camelCaseParamName}}`, encodedValue)
+              .replace(`:${camelCaseParamName}`, encodedValue);
             break;
           }
 
@@ -214,6 +227,21 @@ async function executeGraphTool(
       } else if (paramName === 'body') {
         body = paramValue;
         logger.info(`Set body param: ${JSON.stringify(body)}`);
+      } else if (
+        path.includes(`:${paramName}`) ||
+        path.includes(`{${paramName}}`) ||
+        path.includes(`:${camelCaseParamName}`) ||
+        path.includes(`{${camelCaseParamName}}`)
+      ) {
+        // Fallback: path param not declared in tool.parameters (generated client omits them).
+        // Replace placeholder directly so the URL is valid.
+        const encodedValue = encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
+        path = path
+          .replace(`{${paramName}}`, encodedValue)
+          .replace(`:${paramName}`, encodedValue)
+          .replace(`{${camelCaseParamName}}`, encodedValue)
+          .replace(`:${camelCaseParamName}`, encodedValue);
+        logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
       }
     }
 
@@ -257,7 +285,7 @@ async function executeGraphTool(
 
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%2C/gi, ',')}`)
         .join('&');
       path = `${path}${path.includes('?') ? '&' : '?'}${queryString}`;
     }
@@ -472,6 +500,16 @@ export function registerGraphTools(
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
         paramSchema[param.name] = param.schema || z.any();
+      }
+    }
+
+    // Extract path parameters from the path pattern (e.g., :todoTaskListId from /me/todo/lists/:todoTaskListId/tasks)
+    // The generated client omits these from tool.parameters, so we add them manually.
+    const pathParamMatches = tool.path.matchAll(/:([a-zA-Z]+)/g);
+    for (const match of pathParamMatches) {
+      const pathParamName = match[1];
+      if (!(pathParamName in paramSchema)) {
+        paramSchema[pathParamName] = z.string().describe(`Path parameter: ${pathParamName}`);
       }
     }
 
