@@ -96,9 +96,10 @@ MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
 
 ### Personal Account Tools (Available by default)
 
-**Email (Outlook)**  
-<sub>list-mail-messages, list-mail-folders, list-mail-folder-messages, get-mail-message, send-mail,
-delete-mail-message, create-draft-email, move-mail-message</sub>
+**Email (Outlook)**
+<sub>list-mail-messages, list-mail-folders, list-mail-child-folders, list-mail-folder-messages, get-mail-message, send-mail,
+delete-mail-message, create-draft-email, move-mail-message, create-mail-folder, create-mail-child-folder,
+update-mail-folder, delete-mail-folder</sub>
 
 **Calendar**  
 <sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event,

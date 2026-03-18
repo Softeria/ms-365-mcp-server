@@ -19,6 +19,34 @@
     "scopes": ["Mail.Read"]
   },
   {
+    "pathPattern": "/me/mailFolders",
+    "method": "post",
+    "toolName": "create-mail-folder",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Creates a top-level mail folder. Use create-mail-child-folder to create a subfolder inside an existing folder. Use list-mail-folders to find existing folder IDs."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
+    "method": "post",
+    "toolName": "create-mail-child-folder",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Creates a subfolder inside an existing mail folder. Use list-mail-folders or list-mail-child-folders to find the parent folder ID."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}",
+    "method": "patch",
+    "toolName": "update-mail-folder",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Renames a mail folder by updating its displayName. Use list-mail-folders to find the folder ID."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}",
+    "method": "delete",
+    "toolName": "delete-mail-folder",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+  },
+  {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
@@ -693,6 +721,7 @@
     "pathPattern": "/me/onlineMeetings",
     "method": "get",
     "toolName": "list-online-meetings",
+    "scopes": ["OnlineMeetings.Read"],
     "workScopes": ["OnlineMeetings.Read"],
     "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
   },
@@ -700,6 +729,7 @@
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts",
     "method": "get",
     "toolName": "list-meeting-transcripts",
+    "scopes": ["OnlineMeetingTranscript.Read.All"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
   },
@@ -707,6 +737,7 @@
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
     "method": "get",
     "toolName": "get-meeting-transcript-content",
+    "scopes": ["OnlineMeetingTranscript.Read.All"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "acceptType": "text/vtt",
     "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
