@@ -3,22 +3,26 @@
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
-    "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\". CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-mail-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus or sender address, add $count=true to enable advanced query mode. Without $count=true, these filters return InefficientFilter errors. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size. For folder-specific queries, use list-mail-folder-messages with well-known folder names as IDs: inbox, drafts, sentitems, deleteditems, junkemail, archive."
+    "scopes": [
+      "Mail.Read"
+    ],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
-    "scopes": ["Mail.Read"],
-    "llmTip": "Lists top-level mail folders. Use $select=id,displayName,totalItemCount,unreadItemCount to reduce response size. Well-known folder names can be used as folder IDs in other endpoints: inbox, drafts, sentitems, deleteditems, junkemail, archive, clutter, scheduled. Example: list-mail-folder-messages with mailFolder-id='inbox' — no need to list folders first for standard folders."
+    "scopes": [
+      "Mail.Read"
+    ]
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-mail-child-folders",
-    "scopes": ["Mail.Read"],
-    "llmTip": "Returns child folders of specified parent folder. Use well-known folder names as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. Use $select=id,displayName,totalItemCount,unreadItemCount to reduce response size."
+    "scopes": [
+      "Mail.Read"
+    ]
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -52,246 +56,295 @@
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
-    "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails in a specific folder, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). Well-known folder names can be used as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-mail-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus or sender address, add $count=true to enable advanced query mode. Without $count=true, these filters return InefficientFilter errors. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "scopes": [
+      "Mail.Read"
+    ],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "get",
     "toolName": "get-mail-message",
-    "scopes": ["Mail.Read"],
-    "llmTip": "Retrieves a single email message. Use $select to limit returned fields, e.g. $select=id,subject,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,flag,importance. Use $expand=attachments to include attachment metadata inline. For just the body text, use $select=body."
+    "scopes": [
+      "Mail.Read"
+    ]
   },
   {
     "pathPattern": "/me/sendMail",
     "method": "post",
     "toolName": "send-mail",
-    "scopes": ["Mail.Send"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. Body format: {\"message\": {\"subject\": \"...\", \"body\": {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}, \"toRecipients\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}}]}, \"saveToSentItems\": true}. Use contentType 'html' for rich formatting or 'text' for plain text. Can include ccRecipients, bccRecipients in same format as toRecipients."
+    "scopes": [
+      "Mail.Send"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users/{user-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
-    "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching shared mailbox emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-shared-mailbox-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus, add $count=true. Without $count=true, these filters return InefficientFilter errors. Flag status values: 'flagged', 'complete', 'notFlagged'. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "workScopes": [
+      "Mail.Read.Shared"
+    ],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
-    "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching shared mailbox folder emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). Well-known folder names can be used as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-shared-mailbox-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus, add $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "workScopes": [
+      "Mail.Read.Shared"
+    ],
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "get",
     "toolName": "get-shared-mailbox-message",
-    "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "Returns a single message from a shared mailbox. Use $select to limit fields, e.g. $select=id,subject,body,from,toRecipients,receivedDateTime,hasAttachments. Use $expand=attachments to include attachment metadata."
+    "workScopes": [
+      "Mail.Read.Shared"
+    ]
   },
   {
     "pathPattern": "/users/{user-id}/sendMail",
     "method": "post",
     "toolName": "send-shared-mailbox-mail",
-    "workScopes": ["Mail.Send.Shared"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. Body format: {\"message\": {\"subject\": \"...\", \"body\": {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}, \"toRecipients\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}}]}, \"saveToSentItems\": true}. Use contentType 'html' for rich formatting or 'text' for plain text."
+    "workScopes": [
+      "Mail.Send.Shared"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
-    "workScopes": ["User.Read.All"],
+    "workScopes": [
+      "User.Read.All"
+    ],
     "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/me/messages",
     "method": "post",
     "toolName": "create-draft-email",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a draft email (does not send). Body format: {\"subject\": \"...\", \"body\": {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}, \"toRecipients\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}}]}. Can include ccRecipients, bccRecipients in same format. Use contentType 'html' for rich formatting or 'text' for plain text. CRITICAL: Do not guess email addresses — use list-users to find them. After creating the draft, use send-draft-message with the returned message id to send it."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Moves the message to Deleted Items folder (soft delete). To permanently delete, delete again from the deleteditems folder. This action cannot be undone once permanently deleted."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",
     "method": "post",
     "toolName": "move-mail-message",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "CRITICAL: The destinationId requires a folder ID, not a display name. Use well-known folder names directly as IDs: inbox, drafts, sentitems, deleteditems, junkemail, archive. For custom folders, use list-mail-folders first to get the folder ID. Body format: {\"destinationId\": \"inbox\"} or {\"destinationId\": \"AAMkAD...\"}."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "patch",
     "toolName": "update-mail-message",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Updates mail message properties. PATH PARAMETER: use 'messageId' (camelCase) — both 'message-id' and 'messageId' are accepted. BODY: pass a 'body' parameter with the properties as a JSON object. Examples: body={\"isRead\": true} to mark as read, body={\"flag\": {\"flagStatus\": \"flagged\"}} to flag, body={\"flag\": {\"flagStatus\": \"complete\"}} to mark complete, body={\"categories\": [\"Blue category\"]} to categorize, body={\"importance\": \"high\"} to set importance. Flag status values: 'flagged', 'complete', 'notFlagged'. Can update: isRead, categories, importance, flag, subject, inferenceClassification. Do NOT wrap in a 'message' envelope."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Adds an attachment to a message (usually a draft). IMPORTANT: Maximum 3MB per attachment via this endpoint — larger files need a createUploadSession (not available here). Body format: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"filename.pdf\", \"contentType\": \"application/pdf\", \"contentBytes\": \"base64-encoded-content\"}. contentBytes must be base64-encoded."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
-    "scopes": ["Mail.Read"],
-    "llmTip": "Lists attachments on a message. Use $select=id,name,contentType,size to reduce response size. To get the actual file content, use get-mail-attachment with the specific attachment-id. Attachment types: #microsoft.graph.fileAttachment (files), #microsoft.graph.itemAttachment (Outlook items), #microsoft.graph.referenceAttachment (links)."
+    "scopes": [
+      "Mail.Read"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
     "method": "get",
     "toolName": "get-mail-attachment",
-    "scopes": ["Mail.Read"],
-    "llmTip": "Returns a single attachment by ID. For file attachments (#microsoft.graph.fileAttachment), contentBytes contains base64-encoded file content. Use $select=id,name,contentType,size,contentBytes."
+    "scopes": [
+      "Mail.Read"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
     "method": "delete",
     "toolName": "delete-mail-attachment",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Permanently removes an attachment from a message. This cannot be undone. Use list-mail-attachments first to get the attachment-id."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/forward",
     "method": "post",
     "toolName": "forward-mail-message",
-    "scopes": ["Mail.Send"],
-    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. Body format: {\"comment\": \"See below\", \"toRecipients\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}}]}. Do NOT reconstruct the email manually — this endpoint handles everything server-side including original body and attachments."
+    "scopes": [
+      "Mail.Send"
+    ],
+    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side."
   },
   {
     "pathPattern": "/me/messages/{message-id}/reply",
     "method": "post",
     "toolName": "reply-mail-message",
-    "scopes": ["Mail.Send"],
-    "llmTip": "Reply to sender only, preserving full HTML formatting. Body format: {\"comment\": \"Your reply text here\"}. The comment can contain HTML. Do NOT reconstruct the email manually — this endpoint handles the original message thread server-side."
+    "scopes": [
+      "Mail.Send"
+    ],
+    "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually."
   },
   {
     "pathPattern": "/me/messages/{message-id}/replyAll",
     "method": "post",
     "toolName": "reply-all-mail-message",
-    "scopes": ["Mail.Send"],
-    "llmTip": "Reply to all recipients (sender + all To/CC), preserving full HTML formatting. Body format: {\"comment\": \"Your reply text here\"}. The comment can contain HTML. Do NOT reconstruct the email manually — this endpoint handles the original message thread server-side."
+    "scopes": [
+      "Mail.Send"
+    ],
+    "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createForward",
     "method": "post",
     "toolName": "create-forward-draft",
-    "scopes": ["Mail.ReadWrite"],
+    "scopes": [
+      "Mail.ReadWrite"
+    ],
     "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReply",
     "method": "post",
     "toolName": "create-reply-draft",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a reply draft to sender only (does not send). Returns a new draft message that can be modified before sending with send-draft-message. Useful when user wants to review or edit before sending."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
     "method": "post",
     "toolName": "create-reply-all-draft",
-    "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a reply-all draft (sender + all To/CC recipients, does not send). Returns a new draft message that can be modified before sending with send-draft-message."
+    "scopes": [
+      "Mail.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
     "method": "post",
     "toolName": "send-draft-message",
-    "scopes": ["Mail.Send"],
-    "llmTip": "Sends a previously created draft message. No request body needed — just call with the draft message-id. The draft must exist in the Drafts folder. After sending, the message moves to Sent Items."
+    "scopes": [
+      "Mail.Send"
+    ]
   },
   {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true,
-    "llmTip": "WARNING: This endpoint only returns non-recurring events and seriesMaster entries — it does NOT expand recurring event instances. For 'what's on my calendar this week', use get-calendar-view instead which expands recurring instances within a date range. Use $filter for date ranges: $filter=start/dateTime ge '2026-03-04T00:00:00' and end/dateTime le '2026-03-05T23:59:59'. Use $select=id,subject,start,end,location,attendees,organizer,isAllDay,recurrence to reduce response size. Use $orderby=start/dateTime to sort chronologically."
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns a single calendar event. Use $select=id,subject,body,start,end,location,attendees,organizer,isAllDay,recurrence,onlineMeeting to limit fields. For recurring events, this returns the seriesMaster — use list-calendar-event-instances to expand into individual occurrences."
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/events",
     "method": "post",
     "toolName": "create-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not guess email addresses — use list-users to find them. DateTime format: ISO 8601 with timezone, e.g. {\"dateTime\": \"2026-03-04T09:00:00\", \"timeZone\": \"Europe/Brussels\"}. Body format: {\"subject\": \"...\", \"body\": {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}, \"start\": {\"dateTime\": \"...\", \"timeZone\": \"...\"}, \"end\": {\"dateTime\": \"...\", \"timeZone\": \"...\"}, \"attendees\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}, \"type\": \"required\"}]}. Attendee type: 'required', 'optional', or 'resource'. Use contentType 'html' for rich formatting or 'text' for plain text."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "patch",
     "toolName": "update-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not guess email addresses — use list-users to find them. Pass only the properties you want to update. DateTime format: {\"dateTime\": \"2026-03-04T09:00:00\", \"timeZone\": \"Europe/Brussels\"}. Attendees format: [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}, \"type\": \"required\"}]. Attendee type: 'required', 'optional', or 'resource'. Body format: {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}. WARNING: Updating attendees replaces the entire list — include ALL attendees, not just new ones. For recurring events: updating a seriesMaster changes all occurrences; to update a single occurrence, use its specific instance ID from get-calendar-view."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "delete",
     "toolName": "delete-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Deletes a calendar event. For recurring events: deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, delete the specific instance ID obtained from get-calendar-view."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "get",
     "toolName": "list-specific-calendar-events",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true,
-    "llmTip": "Lists events from a specific (non-default) calendar. WARNING: Only returns non-recurring events and seriesMasters — does NOT expand recurring instances. Use get-specific-calendar-view for expanded recurring instances. Requires calendar-id from list-calendars. Use $select=id,subject,start,end,location,attendees,organizer,isAllDay,recurrence to reduce response size."
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns a single event from a specific calendar. Use $select to limit fields. Requires calendar-id from list-calendars."
+    "supportsExpandExtendedProperties": true
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "post",
     "toolName": "create-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not guess email addresses — use list-users to find them. Creates an event on a specific (non-default) calendar. DateTime format: {\"dateTime\": \"2026-03-04T09:00:00\", \"timeZone\": \"Europe/Brussels\"}. Body format: {\"subject\": \"...\", \"body\": {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}, \"start\": {\"dateTime\": \"...\", \"timeZone\": \"...\"}, \"end\": {\"dateTime\": \"...\", \"timeZone\": \"...\"}, \"attendees\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}, \"type\": \"required\"}]}. Attendee type: 'required', 'optional', or 'resource'. Use list-calendars first to get the calendar-id."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "patch",
     "toolName": "update-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not guess email addresses — use list-users to find them. Pass only the properties you want to update. DateTime format: {\"dateTime\": \"2026-03-04T09:00:00\", \"timeZone\": \"Europe/Brussels\"}. Attendees format: [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}, \"type\": \"required\"}]. Attendee type: 'required', 'optional', or 'resource'. Body format: {\"contentType\": \"html\", \"content\": \"<p>...</p>\"}. WARNING: Updating attendees replaces the entire list — include ALL attendees. For recurring events: updating a seriesMaster changes all occurrences."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ],
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "delete",
     "toolName": "delete-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Deletes an event from a specific calendar. Same behavior as delete-calendar-event — deleting a seriesMaster deletes ALL occurrences."
+    "scopes": [
+      "Calendars.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
@@ -300,7 +353,9 @@
     "pathPattern": "/me/calendars/{calendar-id}/calendarView",
     "method": "get",
     "toolName": "get-specific-calendar-view",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
@@ -309,7 +364,9 @@
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}/instances",
     "method": "get",
     "toolName": "list-calendar-event-instances",
-    "scopes": ["Calendars.Read"],
+    "scopes": [
+      "Calendars.Read"
+    ],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Expand a recurring event into individual instances within a date range. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use this to see all occurrences of a recurring event."
@@ -318,234 +375,271 @@
     "pathPattern": "/me/calendars",
     "method": "get",
     "toolName": "list-calendars",
-    "scopes": ["Calendars.Read"],
-    "llmTip": "Lists all calendars for the current user. Use $select=id,name,color,isDefaultCalendar to reduce response size. Returns calendar-id needed for specific calendar operations (list-specific-calendar-events, get-specific-calendar-view, etc.)."
+    "scopes": [
+      "Calendars.Read"
+    ]
   },
   {
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
-    "workScopes": ["Calendars.Read.Shared"],
-    "llmTip": "Suggests meeting times based on attendee availability. CRITICAL: Do not guess email addresses — use list-users first. Body format: {\"attendees\": [{\"emailAddress\": {\"address\": \"user@example.com\", \"name\": \"Display Name\"}, \"type\": \"required\"}], \"timeConstraint\": {\"timeslots\": [{\"start\": {\"dateTime\": \"2026-03-04T09:00:00\", \"timeZone\": \"Europe/Brussels\"}, \"end\": {\"dateTime\": \"2026-03-04T17:00:00\", \"timeZone\": \"Europe/Brussels\"}}]}, \"meetingDuration\": \"PT1H\"}. meetingDuration uses ISO 8601 duration (PT30M=30min, PT1H=1hour). Returns suggested time slots with confidence ratings."
+    "workScopes": [
+      "Calendars.Read.Shared"
+    ]
   },
   {
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": ["Files.Read"],
-    "llmTip": "Lists all drives (OneDrive, SharePoint document libraries) accessible to the user. Returns drive-id needed for all other file operations. The user's personal OneDrive is typically the first result. Use $select=id,name,driveType,webUrl to reduce response size."
+    "scopes": [
+      "Files.Read"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
-    "scopes": ["Files.Read"],
-    "llmTip": "Returns the root folder metadata of a drive. Use this to get the root driveItem-id for listing children with list-folder-files. Prefer item IDs over paths for reliability in subsequent operations."
+    "scopes": [
+      "Files.Read"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-root-folder",
-    "scopes": ["Files.Read"],
-    "llmTip": "Deprecated — use get-drive-root-item instead (identical functionality). Returns root folder metadata of a drive."
+    "scopes": [
+      "Files.Read"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": ["Files.Read"],
-    "llmTip": "Lists children (files and subfolders) of a folder. Requires drive-id and driveItem-id (the folder's ID). Use $select=id,name,size,lastModifiedDateTime,file,folder,webUrl to reduce response size. Use $orderby=name or $orderby=lastModifiedDateTime desc for sorting. To navigate a path: start with get-drive-root-item for the root ID, then drill down. Prefer item IDs over paths for reliability. Use $top for pagination."
+    "scopes": [
+      "Files.Read"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
-    "scopes": ["Files.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "IMPORTANT: This tool returns a temporary download URL (@microsoft.graph.downloadUrl), NOT the file content directly. The URL is pre-authenticated and short-lived. Use it to provide the user a download link. Requires drive-id and driveItem-id."
+    "scopes": [
+      "Files.Read"
+    ],
+    "returnDownloadUrl": true
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
-    "scopes": ["Files.ReadWrite"],
-    "llmTip": "Moves the item to the recycle bin (soft delete). Can be restored by the user from OneDrive recycle bin. Requires drive-id and driveItem-id. Works for both files and folders — deleting a folder deletes all its contents."
+    "scopes": [
+      "Files.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "put",
     "toolName": "upload-file-content",
-    "scopes": ["Files.ReadWrite"],
-    "llmTip": "IMPORTANT: This PUT endpoint only supports files up to 4MB. For larger files, a createUploadSession is needed (not exposed in this tool). Pass the file content directly as the request body. The driveItem-id in the path is the target file — to create a new file, use the parent folder's path format: /drives/{drive-id}/items/root:/path/to/filename.ext:/content. Overwrites existing file if same path/ID is used."
+    "scopes": [
+      "Files.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
     "isExcelOp": true,
-    "scopes": ["Files.ReadWrite"],
-    "llmTip": "Creates a chart in a worksheet. Body format: {\"type\": \"ColumnClustered\", \"sourceData\": \"A1:B10\", \"seriesBy\": \"Auto\"}. Chart types: ColumnClustered, ColumnStacked, Line, Pie, Bar, Area, Doughnut, and more. sourceData is the range address containing the chart data. seriesBy: 'Auto', 'Columns', or 'Rows'. Requires drive-id, driveItem-id (Excel file), and workbookWorksheet-id."
+    "scopes": [
+      "Files.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format",
     "method": "patch",
     "toolName": "format-excel-range",
     "isExcelOp": true,
-    "scopes": ["Files.ReadWrite"],
-    "llmTip": "Formats cells in a range. Body format: {\"fill\": {\"color\": \"#FF0000\"}, \"font\": {\"bold\": true, \"color\": \"#FFFFFF\", \"size\": 14}}. Supports fill (color), font (bold, italic, size, color, name), borders, alignment (horizontal, vertical, wrapText), and numberFormat. Requires drive-id, driveItem-id (Excel file), and workbookWorksheet-id."
+    "scopes": [
+      "Files.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
     "method": "patch",
     "toolName": "sort-excel-range",
     "isExcelOp": true,
-    "scopes": ["Files.ReadWrite"],
-    "llmTip": "Sorts a range of cells. Body format: {\"fields\": [{\"key\": 0, \"ascending\": true}]}. The key is the 0-based column index within the range to sort by. Can sort by multiple columns by adding more fields entries. Requires drive-id, driveItem-id (Excel file), and workbookWorksheet-id."
+    "scopes": [
+      "Files.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
     "method": "get",
     "toolName": "get-excel-range",
     "isExcelOp": true,
-    "scopes": ["Files.Read"],
-    "skipEncoding": ["address"],
-    "llmTip": "Returns values and formatting for a cell range. The address parameter uses Excel A1 notation: 'A1:C10', 'A1', or named ranges. Returns values (2D array), formulas, numberFormat, and text properties. Use $select=values to get just cell values. Requires drive-id, driveItem-id (Excel file), and workbookWorksheet-id. Use list-excel-worksheets to find worksheet IDs."
+    "scopes": [
+      "Files.Read"
+    ],
+    "skipEncoding": [
+      "address"
+    ]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets",
     "method": "get",
     "toolName": "list-excel-worksheets",
     "isExcelOp": true,
-    "scopes": ["Files.Read"],
-    "llmTip": "Lists all worksheets in an Excel workbook. Requires drive-id and driveItem-id of the Excel file — use list-drives and list-folder-files to find these. Returns workbookWorksheet-id (name or ID) needed for all other Excel operations (get-excel-range, format-excel-range, etc.)."
+    "scopes": [
+      "Files.Read"
+    ]
   },
   {
     "pathPattern": "/me/onenote/notebooks",
     "method": "get",
     "toolName": "list-onenote-notebooks",
-    "scopes": ["Notes.Read"],
-    "llmTip": "Lists all OneNote notebooks. Use $select=id,displayName,createdDateTime,lastModifiedDateTime to reduce response size. Returns notebook-id needed for list-onenote-notebook-sections. Use $orderby=displayName for alphabetical sorting."
+    "scopes": [
+      "Notes.Read"
+    ]
   },
   {
     "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-onenote-notebook-sections",
-    "scopes": ["Notes.Read"],
-    "llmTip": "Lists sections within a notebook. Use $select=id,displayName,createdDateTime,lastModifiedDateTime to reduce response size. Returns onenoteSection-id needed for list-onenote-section-pages and create-onenote-section-page."
+    "scopes": [
+      "Notes.Read"
+    ]
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-onenote-section-pages",
-    "scopes": ["Notes.Read"],
-    "llmTip": "Lists pages within a section. Use $select=id,title,createdDateTime,lastModifiedDateTime to reduce response size. Returns onenotePage-id needed for get-onenote-page-content. Pages ordered by lastModifiedDateTime desc by default."
+    "scopes": [
+      "Notes.Read"
+    ]
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": ["Notes.Read"],
-    "llmTip": "Returns the HTML content of a OneNote page. The response is raw HTML, not JSON. Contains OneNote-specific HTML tags and data attributes. Images are embedded as data URIs or referenced by URL."
+    "scopes": [
+      "Notes.Read"
+    ]
   },
   {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
-    "scopes": ["Notes.Create"],
-    "contentType": "text/html",
-    "llmTip": "CRITICAL: Request body must be valid HTML with proper structure: <html><head><title>Page Title</title></head><body><p>Content here</p></body></html>. Partial HTML or plain text will fail silently or create malformed pages. Content-Type is text/html (handled automatically). Creates page in the default section. Use create-onenote-section-page to target a specific section."
+    "scopes": [
+      "Notes.Create"
+    ],
+    "contentType": "text/html"
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "post",
     "toolName": "create-onenote-section-page",
-    "scopes": ["Notes.Create"],
-    "contentType": "text/html",
-    "llmTip": "CRITICAL: Request body must be valid HTML with proper structure: <html><head><title>Page Title</title></head><body><p>Content here</p></body></html>. Partial HTML or plain text will fail silently or create malformed pages. Content-Type is text/html (handled automatically). Requires onenoteSection-id — use list-onenote-notebook-sections to find it."
+    "scopes": [
+      "Notes.Create"
+    ],
+    "contentType": "text/html"
   },
   {
     "pathPattern": "/me/todo/lists",
     "method": "get",
     "toolName": "list-todo-task-lists",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint — do not pass select parameter, Graph returns 400."
+    "scopes": [
+      "Tasks.Read"
+    ],
+    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint \u00e2\u20ac\u201d do not pass select parameter, Graph returns 400."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. NOTE: $select is NOT supported — do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
+    "scopes": [
+      "Tasks.Read"
+    ],
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id \u00e2\u20ac\u201d use list-todo-task-lists to find it. NOTE: $select is NOT supported \u00e2\u20ac\u201d do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "get",
     "toolName": "get-todo-task",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
+    "scopes": [
+      "Tasks.Read"
+    ],
+    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported \u00e2\u20ac\u201d do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "post",
     "toolName": "create-todo-task",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Body format: {\"title\": \"...\", \"importance\": \"normal\", \"dueDateTime\": {\"dateTime\": \"2026-03-04T00:00:00\", \"timeZone\": \"Europe/Brussels\"}, \"body\": {\"contentType\": \"html\", \"content\": \"<p>Details</p>\"}}. IMPORTANT: body field uses HTML contentType, not plain text. Importance values: 'low', 'normal', 'high'. Status defaults to 'notStarted'. Requires todoTaskList-id — use list-todo-task-lists first."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "patch",
     "toolName": "update-todo-task",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Pass only properties to update. Example: {\"status\": \"completed\"} to complete a task. IMPORTANT: body field uses HTML contentType: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Updated</p>\"}}. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'. Importance values: 'low', 'normal', 'high'."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "delete",
     "toolName": "delete-todo-task",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Permanently deletes the task. This cannot be undone."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/planner/tasks",
     "method": "get",
     "toolName": "list-planner-tasks",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all Planner tasks assigned to the current user across all plans. Use $select=id,title,planId,bucketId,assignments,percentComplete,dueDateTime,priority,startDateTime,createdDateTime to reduce response size. Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
+    "scopes": [
+      "Tasks.Read"
+    ]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}",
     "method": "get",
     "toolName": "get-planner-plan",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a Planner plan by ID. Includes plan title, owner (group ID), and container info. To discover plan IDs, use list-joined-teams and then the team's associated plans."
+    "scopes": [
+      "Tasks.Read"
+    ]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}/tasks",
     "method": "get",
     "toolName": "list-plan-tasks",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all tasks in a specific plan. Use $select=id,title,bucketId,assignments,percentComplete,dueDateTime,priority,startDateTime to reduce response size. Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
+    "scopes": [
+      "Tasks.Read"
+    ]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "get",
     "toolName": "get-planner-task",
-    "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a single Planner task. Includes @odata.etag needed for update operations (set includeHeaders=true). For task description and checklist, use update-planner-task-details endpoint. Use $select to limit fields."
+    "scopes": [
+      "Tasks.Read"
+    ]
   },
   {
     "pathPattern": "/planner/tasks",
     "method": "post",
     "toolName": "create-planner-task",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Body format: {\"planId\": \"...\", \"title\": \"...\", \"bucketId\": \"...\", \"assignments\": {\"user-id\": {\"@odata.type\": \"#microsoft.graph.plannerAssignment\", \"orderHint\": \" !\"}}, \"dueDateTime\": \"2026-03-04T00:00:00Z\", \"priority\": 5}. planId is required. Assignments object keyed by user ID — use list-users or list-team-members to find user IDs. Priority: 0=Urgent, 1=Important, 3=Medium, 5=Low. dueDateTime is ISO 8601 UTC."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "patch",
     "toolName": "update-planner-task",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "CRITICAL: Requires If-Match header with the task's ETag. First GET the task (with includeHeaders=true) to obtain @odata.etag, then pass it as If-Match header. Without If-Match, returns 412 Precondition Failed. Pass only changed properties. Assignments: set to plannerAssignment object to assign, set to null to unassign. Priority: 0=Urgent, 1=Important, 3=Medium, 5=Low."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
@@ -557,261 +651,333 @@
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "patch",
     "toolName": "update-planner-task-details",
-    "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "CRITICAL: Requires If-Match header with the task details' ETag. First GET the task details to obtain @odata.etag (with includeHeaders=true), then pass it as If-Match. Updates description and checklist. Body example: {\"description\": \"...\", \"checklist\": {\"unique-guid\": {\"@odata.type\": \"#microsoft.graph.plannerChecklistItem\", \"title\": \"...\", \"isChecked\": false}}}. Use a unique GUID string for each new checklist item key."
+    "scopes": [
+      "Tasks.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
-    "scopes": ["Contacts.Read"],
-    "llmTip": "FILTER LIMITATIONS: $filter only supports startswith() on givenName, surname, displayName. No contains(), no eq on emailAddresses. Example: $filter=startswith(displayName,'John'). For broader search, use $search=\"displayName:john\" with ConsistencyLevel header set to eventual. Use $select=id,displayName,givenName,surname,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle to reduce response size. Use $orderby=displayName for alphabetical sorting."
+    "scopes": [
+      "Contacts.Read"
+    ]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "get",
     "toolName": "get-outlook-contact",
-    "scopes": ["Contacts.Read"],
-    "llmTip": "Returns a single contact by ID. Use $select=id,displayName,givenName,surname,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle,department,officeLocation to limit fields."
+    "scopes": [
+      "Contacts.Read"
+    ]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "post",
     "toolName": "create-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Body format: {\"givenName\": \"...\", \"surname\": \"...\", \"emailAddresses\": [{\"address\": \"user@example.com\", \"name\": \"Display Name\"}], \"businessPhones\": [\"+1234567890\"], \"mobilePhone\": \"+1234567890\", \"companyName\": \"...\", \"jobTitle\": \"...\"}. emailAddresses is an array — a contact can have multiple. Key writable properties: givenName, surname, displayName, emailAddresses, businessPhones, homePhones, mobilePhone, companyName, jobTitle, department, officeLocation, homeAddress, businessAddress."
+    "scopes": [
+      "Contacts.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "patch",
     "toolName": "update-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Pass only properties to update as JSON. Example: {\"jobTitle\": \"Manager\", \"companyName\": \"Contoso\"}. See create-outlook-contact for available properties. WARNING: emailAddresses replaces the full array — include ALL email addresses, not just new ones."
+    "scopes": [
+      "Contacts.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "delete",
     "toolName": "delete-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Permanently deletes the contact. This cannot be undone. Use get-outlook-contact first to verify you have the right contact."
+    "scopes": [
+      "Contacts.ReadWrite"
+    ]
   },
   {
     "pathPattern": "/me",
     "method": "get",
     "toolName": "get-current-user",
-    "scopes": ["User.Read"],
-    "llmTip": "Returns the signed-in user's profile. Use $select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones to limit fields. Returns the user-id needed for shared mailbox and delegation operations."
+    "scopes": [
+      "User.Read"
+    ]
   },
   {
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "workScopes": ["Chat.Read"],
-    "llmTip": "Lists all chats (1:1, group, meeting) for the current user. Use $select=id,topic,chatType,createdDateTime,lastUpdatedDateTime to reduce response size. chatType values: 'oneOnOne', 'group', 'meeting'. Use $expand=members to include participants. Use $orderby=lastUpdatedDateTime desc for most recent first."
+    "workScopes": [
+      "Chat.Read"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "workScopes": ["Chat.Read"],
-    "llmTip": "Returns a single chat by ID. Use $expand=members to include participant details. chatType: 'oneOnOne', 'group', or 'meeting'."
+    "workScopes": [
+      "Chat.Read"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists messages in a chat. Use $top to limit results (default 20, max 50). Messages ordered newest first. Use $select=id,body,from,createdDateTime,messageType to reduce response size. messageType 'message' = normal messages, 'systemEventMessage' = system events."
+    "workScopes": [
+      "ChatMessage.Read"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
-    "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Returns a single chat message by ID. Includes full body content, attachments, and reactions."
+    "workScopes": [
+      "ChatMessage.Read"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "workScopes": ["ChatMessage.Send"],
-    "llmTip": "IMPORTANT: Message body must use HTML contentType. Body format: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Your message here</p>\"}}. Plain text contentType gets mangled — always use HTML. Supports @mentions with <at id=\"0\">User Name</at> in content and corresponding mentions array."
+    "workScopes": [
+      "ChatMessage.Send"
+    ]
   },
   {
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "workScopes": ["Team.ReadBasic.All"],
-    "llmTip": "Lists all Teams the current user is a member of. Use $select=id,displayName,description to reduce response size. Returns team-id needed for channel and member operations."
+    "workScopes": [
+      "Team.ReadBasic.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "workScopes": ["Team.ReadBasic.All"],
-    "llmTip": "Returns a single Team by ID. Includes team settings, visibility, and membership info."
+    "workScopes": [
+      "Team.ReadBasic.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "workScopes": ["Channel.ReadBasic.All"],
-    "llmTip": "Lists channels in a Team. Use $select=id,displayName,description,membershipType to reduce response size. membershipType: 'standard' (visible to all), 'private' (invited members only), 'shared' (cross-org). Returns channel-id needed for message operations."
+    "workScopes": [
+      "Channel.ReadBasic.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "workScopes": ["Channel.ReadBasic.All"],
-    "llmTip": "Returns a single channel by ID. Includes channel description, membership type, and webUrl."
+    "workScopes": [
+      "Channel.ReadBasic.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists messages in a Teams channel. Use $top to limit results (max 50). Messages ordered newest first. Use $select=id,body,from,createdDateTime,messageType to reduce response size."
+    "workScopes": [
+      "ChannelMessage.Read.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-channel-message",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Returns a single channel message by ID. Includes full body, attachments, reactions, and mentions."
+    "workScopes": [
+      "ChannelMessage.Read.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "IMPORTANT: Message body must use HTML contentType. Body format: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Your message here</p>\"}}. Plain text contentType gets mangled — always use HTML. Supports @mentions with <at id=\"0\">User Name</at> in content and corresponding mentions array."
+    "workScopes": [
+      "ChannelMessage.Send"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-channel-message",
-    "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "IMPORTANT: Message body must use HTML contentType. Body format: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Your reply</p>\"}}. Creates a reply in a message thread. Requires team-id, channel-id, and chatMessage-id of the parent message."
+    "workScopes": [
+      "ChannelMessage.Send"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-channel-message-replies",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists replies to a channel message. Returns threaded replies ordered by createdDateTime. Use $top to limit results."
+    "workScopes": [
+      "ChannelMessage.Read.All"
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
-    "workScopes": ["TeamMember.Read.All"],
-    "llmTip": "Lists members of a Team. Returns user IDs, display names, and roles. Roles: 'owner', 'member', 'guest'. Useful for finding user IDs for Planner task assignments or @mentions in messages."
+    "workScopes": [
+      "TeamMember.Read.All"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists replies to a chat message. Returns threaded replies ordered by createdDateTime. Use $top to limit results."
+    "workScopes": [
+      "ChatMessage.Read"
+    ]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "workScopes": ["ChatMessage.Send"],
-    "llmTip": "IMPORTANT: Message body must use HTML contentType. Body format: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Your reply</p>\"}}. Creates a reply to a specific chat message."
+    "workScopes": [
+      "ChatMessage.Send"
+    ]
   },
   {
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Searches SharePoint sites. Use $search query parameter: $search=\"keyword\". Returns site-id needed for all other SharePoint operations. Use $select=id,displayName,webUrl,description to reduce response size."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}",
     "method": "get",
     "toolName": "get-sharepoint-site",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns a SharePoint site by ID. The site-id format is 'hostname,site-collection-id,site-id' or just the GUID. Use $select=id,displayName,webUrl,description to limit fields."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Lists document libraries (drives) on a SharePoint site. Returns drive-id needed for file operations. The default document library is usually 'Documents'. Use $select=id,name,webUrl to reduce response size."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-drive-by-id",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns a specific document library (drive) from a SharePoint site by its drive-id."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-items",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Lists items in a SharePoint site. Use $select to reduce response size."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-item",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns a specific item from a SharePoint site by its ID."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Lists all SharePoint lists on a site. Use $select=id,displayName,description to reduce response size. Returns list-id needed for list item operations."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns a specific SharePoint list by ID. Includes column definitions and list settings."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-list-items",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "IMPORTANT: Add $expand=fields to include actual column values. Without $expand=fields, returns only metadata (IDs and system properties), no user data. Use $filter on fields/ColumnName for filtering list items."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list-item",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "IMPORTANT: Add $expand=fields to include actual column values. Without $expand=fields, returns only metadata, no user data."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Gets a SharePoint site by its server-relative path. The path parameter is the site path, e.g. '/sites/contoso'. Useful when you know the site URL but not the site ID."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/sites/delta()",
     "method": "get",
     "toolName": "get-sharepoint-sites-delta",
-    "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns recently changed SharePoint sites. Used for sync scenarios — returns a deltaLink for subsequent calls to get only changes since last check."
+    "workScopes": [
+      "Sites.Read.All"
+    ]
   },
   {
     "pathPattern": "/search/query",
     "method": "post",
     "toolName": "search-query",
-    "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
-    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"],
-    "llmTip": "Microsoft Search across M365 content. Body format: {\"requests\": [{\"entityTypes\": [\"message\"], \"query\": {\"queryString\": \"budget report\"}, \"from\": 0, \"size\": 25}]}. Supported entityTypes: 'message' (email), 'event' (calendar), 'driveItem' (files), 'site' (SharePoint), 'listItem' (SharePoint lists), 'chatMessage' (Teams). queryString uses KQL syntax: 'from:user@example.com', 'subject:meeting', 'filetype:pdf', 'path:\"sitename\"'. Can search multiple entity types in one request by adding more objects to the requests array. Results include hitsContainers with hits and hitHighlights. Maximum size: 25 for messages/events, 500 for driveItems."
+    "scopes": [
+      "Mail.Read",
+      "Calendars.Read",
+      "Files.Read.All",
+      "People.Read"
+    ],
+    "workScopes": [
+      "Sites.Read.All",
+      "Chat.Read",
+      "ChannelMessage.Read.All"
+    ]
+  },
+  {
+    "pathPattern": "/me/onlineMeetings",
+    "method": "get",
+    "toolName": "list-online-meetings",
+    "workScopes": [
+      "OnlineMeetings.Read"
+    ],
+    "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts",
+    "method": "get",
+    "toolName": "list-meeting-transcripts",
+    "workScopes": [
+      "OnlineMeetingTranscript.Read.All"
+    ],
+    "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
+    "method": "get",
+    "toolName": "get-meeting-transcript-content",
+    "workScopes": [
+      "OnlineMeetingTranscript.Read.All"
+    ],
+    "acceptType": "text/vtt",
+    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
   },
   {
     "pathPattern": "/me/onlineMeetings",
@@ -857,21 +1023,24 @@
     "pathPattern": "/groups/{group-id}/conversations",
     "method": "get",
     "toolName": "list-group-conversations",
-    "workScopes": ["Group.Read.All"],
-    "llmTip": "NOTE: Group conversations are legacy — Microsoft recommends Teams channels instead. Lists conversations in an M365 group. May not work for all group types."
+    "workScopes": [
+      "Group.Read.All"
+    ]
   },
   {
     "pathPattern": "/groups/{group-id}/threads",
     "method": "get",
     "toolName": "list-group-threads",
-    "workScopes": ["Group.Read.All"],
-    "llmTip": "NOTE: Group threads are legacy — Microsoft recommends Teams channels instead. Lists conversation threads in an M365 group."
+    "workScopes": [
+      "Group.Read.All"
+    ]
   },
   {
     "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
     "method": "post",
     "toolName": "reply-to-group-thread",
-    "workScopes": ["Group.ReadWrite.All"],
-    "llmTip": "NOTE: Group threads are legacy — Microsoft recommends Teams. Body format: {\"post\": {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Reply text</p>\"}}}."
+    "workScopes": [
+      "Group.ReadWrite.All"
+    ]
   }
 ]
