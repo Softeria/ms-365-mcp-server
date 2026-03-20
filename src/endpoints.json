@@ -767,6 +767,27 @@
     "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline."
   },
   {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports",
+    "method": "get",
+    "toolName": "list-meeting-attendance-reports",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Lists attendance reports for a meeting. Each report has meetingStartDateTime, meetingEndDateTime, totalParticipantCount. For recurring meetings, there is one report per occurrence. Get the meeting ID first via list-online-meetings."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}",
+    "method": "get",
+    "toolName": "get-meeting-attendance-report",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Gets a specific attendance report with totalParticipantCount, meetingStartDateTime, meetingEndDateTime."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}/attendanceRecords",
+    "method": "get",
+    "toolName": "list-meeting-attendance-records",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Lists individual attendance records for a meeting report. Each record has: identity (displayName), emailAddress, role (Organizer/Presenter/Attendee), totalAttendanceInSeconds, and attendanceIntervals with joinDateTime/leaveDateTime. Use to determine who attended, how long, and when they joined/left."
+  },
+  {
     "pathPattern": "/groups/{group-id}/conversations",
     "method": "get",
     "toolName": "list-group-conversations",
