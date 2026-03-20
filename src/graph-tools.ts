@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import { parseVtt, transcriptToMarkdown } from './lib/vtt-parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -684,6 +685,68 @@ export function registerGraphTools(
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
+      failedCount++;
+    }
+  }
+
+  // Register get-meeting-transcript-markdown tool (Graph + VTT parsing)
+  if (!enabledToolsRegex || enabledToolsRegex.test('get-meeting-transcript-markdown')) {
+    try {
+      server.tool(
+        'get-meeting-transcript-markdown',
+        'Retrieves a meeting transcript and converts it from WebVTT to readable Markdown with speaker names, timestamps, and participant list. Requires onlineMeeting-id and callTranscript-id. For recurring meetings, use list-meeting-transcripts first to pick the right transcript by createdDateTime.',
+        {
+          'onlineMeeting-id': z.string().describe('Meeting ID from list-online-meetings'),
+          'callTranscript-id': z.string().describe('Transcript ID from list-meeting-transcripts'),
+        },
+        {
+          title: 'get-meeting-transcript-markdown',
+          readOnlyHint: true,
+          openWorldHint: true,
+        },
+        async (params) => {
+          try {
+            const meetingId = params['onlineMeeting-id'];
+            const transcriptId = params['callTranscript-id'];
+            const endpoint = `/me/onlineMeetings/${encodeURIComponent(meetingId)}/transcripts/${encodeURIComponent(transcriptId)}/content`;
+
+            const response = await graphClient.graphRequest(endpoint, {
+              method: 'GET',
+              headers: { Accept: 'text/vtt' },
+              rawResponse: true,
+            });
+
+            // Extract VTT text from the response
+            const responseText = response?.content?.[0]?.text ?? '';
+            let vttContent: string;
+            try {
+              const parsed = JSON.parse(responseText);
+              vttContent = parsed.rawResponse ?? responseText;
+            } catch {
+              vttContent = responseText;
+            }
+
+            const entries = parseVtt(vttContent);
+            const markdown = transcriptToMarkdown(entries);
+            return { content: [{ type: 'text' as const, text: markdown }] };
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: (error as Error).message }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(
+        `Failed to register tool get-meeting-transcript-markdown: ${(error as Error).message}`
+      );
       failedCount++;
     }
   }
