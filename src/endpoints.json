@@ -743,6 +743,21 @@
     "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
   },
   {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings",
+    "method": "get",
+    "toolName": "list-meeting-recordings",
+    "workScopes": ["OnlineMeetingRecording.Read.All"],
+    "llmTip": "Lists recordings for a meeting. Each recording has createdDateTime, endDateTime, meetingOrganizer, contentCorrelationId (links to corresponding transcript). For recurring meetings, there is one recording per occurrence."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}/content",
+    "method": "get",
+    "toolName": "get-meeting-recording-content",
+    "workScopes": ["OnlineMeetingRecording.Read.All"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline."
+  },
+  {
     "pathPattern": "/groups/{group-id}/conversations",
     "method": "get",
     "toolName": "list-group-conversations",
