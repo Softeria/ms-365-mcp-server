@@ -138,7 +138,7 @@ describe('Calendar View Tools', () => {
       for (const call of mockServer.tool.mock.calls) {
         const toolName = call[0] as string;
         // Skip utility tools that are not Graph API endpoints
-        if (toolName === 'parse-teams-url') continue;
+        if (toolName === 'parse-teams-url' || toolName === 'list-meeting-shared-files') continue;
         const paramSchema = call[2] as Record<string, z.ZodTypeAny>;
         expect(paramSchema).toHaveProperty('fetchAllPages');
       }

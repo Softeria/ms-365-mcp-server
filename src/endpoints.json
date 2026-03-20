@@ -665,13 +665,24 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"]
+    "scopes": ["Chat.Read"],
+    "workScopes": ["ChatMessage.Read"],
+    "llmTip": "Lists messages from a chat thread. To read a meeting chat, get the chat ID from chatInfo.threadId of the onlineMeeting object (via list-online-meetings). Messages include attachments[] with shared files (contentType 'reference' = SharePoint/OneDrive files). Use $top to limit results and $orderby=createdDateTime desc for recent messages first."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
+    "scopes": ["Chat.Read"],
     "workScopes": ["ChatMessage.Read"]
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
+    "method": "get",
+    "toolName": "list-message-hosted-contents",
+    "scopes": ["Chat.Read"],
+    "workScopes": ["Chat.Read"],
+    "llmTip": "Lists hosted content (inline images, code snippets) embedded in a specific chat message. For file attachments shared via SharePoint/OneDrive, use the contentUrl from chatMessageAttachment instead — those files can be downloaded via existing drive item endpoints."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
