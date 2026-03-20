@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import { parseVtt, transcriptToMarkdown } from './lib/vtt-parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -594,6 +595,204 @@ export function registerGraphTools(
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
+      failedCount++;
+    }
+  }
+
+  // Register get-meeting-transcript-markdown tool (Graph + VTT parsing)
+  if (!enabledToolsRegex || enabledToolsRegex.test('get-meeting-transcript-markdown')) {
+    try {
+      server.tool(
+        'get-meeting-transcript-markdown',
+        'Retrieves a meeting transcript and converts it from WebVTT to readable Markdown with speaker names, timestamps, and participant list. Requires onlineMeeting-id and callTranscript-id. For recurring meetings, use list-meeting-transcripts first to pick the right transcript by createdDateTime.',
+        {
+          'onlineMeeting-id': z.string().describe('Meeting ID from list-online-meetings'),
+          'callTranscript-id': z.string().describe('Transcript ID from list-meeting-transcripts'),
+        },
+        {
+          title: 'get-meeting-transcript-markdown',
+          readOnlyHint: true,
+          openWorldHint: true,
+        },
+        async (params) => {
+          try {
+            const meetingId = params['onlineMeeting-id'];
+            const transcriptId = params['callTranscript-id'];
+            const endpoint = `/me/onlineMeetings/${encodeURIComponent(meetingId)}/transcripts/${encodeURIComponent(transcriptId)}/content`;
+
+            const response = await graphClient.graphRequest(endpoint, {
+              method: 'GET',
+              headers: { Accept: 'text/vtt' },
+              rawResponse: true,
+            });
+
+            const responseText = response?.content?.[0]?.text ?? '';
+            let vttContent: string;
+            try {
+              const parsed = JSON.parse(responseText);
+              vttContent = parsed.rawResponse ?? responseText;
+            } catch {
+              vttContent = responseText;
+            }
+
+            const entries = parseVtt(vttContent);
+            const markdown = transcriptToMarkdown(entries);
+            return { content: [{ type: 'text' as const, text: markdown }] };
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: (error as Error).message }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(
+        `Failed to register tool get-meeting-transcript-markdown: ${(error as Error).message}`
+      );
+      failedCount++;
+    }
+  }
+
+  // Register save-meeting-recap orchestration tool
+  if (!enabledToolsRegex || enabledToolsRegex.test('save-meeting-recap')) {
+    try {
+      server.tool(
+        'save-meeting-recap',
+        'End-to-end meeting recap: takes any Teams meeting URL, finds the meeting, fetches the transcript, converts to Markdown, and optionally saves to OneDrive. Combines parse-teams-url + list-online-meetings + list-meeting-transcripts + get-meeting-transcript-markdown into a single call.',
+        {
+          url: z
+            .string()
+            .describe('Teams meeting URL (any format: /meet/, /meetup-join/, or recap)'),
+          transcriptIndex: z
+            .number()
+            .optional()
+            .default(0)
+            .describe(
+              'Which transcript to use (0=most recent). For recurring meetings with multiple transcripts.'
+            ),
+          savePath: z
+            .string()
+            .optional()
+            .describe(
+              'OneDrive path to save the recap, e.g. "Meeting Recaps/weekly-2026-03-20.md". If omitted, returns Markdown without saving.'
+            ),
+        },
+        {
+          title: 'save-meeting-recap',
+          readOnlyHint: false,
+          openWorldHint: true,
+        },
+        async (params) => {
+          try {
+            // Step 1: Parse the Teams URL into a joinWebUrl
+            const joinWebUrl = parseTeamsUrl(params.url);
+
+            // Step 2: Find the meeting by joinWebUrl
+            const meetingsResponse = await graphClient.graphRequest(
+              `/me/onlineMeetings?$filter=joinWebUrl eq '${joinWebUrl}'`,
+              { method: 'GET' }
+            );
+            const meetingsText = meetingsResponse?.content?.[0]?.text ?? '{}';
+            const meetingsData = JSON.parse(meetingsText);
+            const meetings = meetingsData.value ?? [];
+            if (meetings.length === 0) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      error:
+                        'No meeting found for this URL. Verify the URL is correct and you are the organizer or a participant.',
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+            const meetingId = meetings[0].id;
+
+            // Step 3: List transcripts for the meeting
+            const transcriptsResponse = await graphClient.graphRequest(
+              `/me/onlineMeetings/${encodeURIComponent(meetingId)}/transcripts?$orderby=createdDateTime desc`,
+              { method: 'GET' }
+            );
+            const transcriptsText = transcriptsResponse?.content?.[0]?.text ?? '{}';
+            const transcriptsData = JSON.parse(transcriptsText);
+            const transcripts = transcriptsData.value ?? [];
+            if (transcripts.length === 0) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                      error:
+                        'No transcripts found for this meeting. Ensure transcription was enabled during the meeting.',
+                    }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+            const transcriptIndex = Math.min(params.transcriptIndex ?? 0, transcripts.length - 1);
+            const transcriptId = transcripts[transcriptIndex].id;
+
+            // Step 4: Fetch VTT content and convert to Markdown
+            const vttResponse = await graphClient.graphRequest(
+              `/me/onlineMeetings/${encodeURIComponent(meetingId)}/transcripts/${encodeURIComponent(transcriptId)}/content`,
+              { method: 'GET', headers: { Accept: 'text/vtt' }, rawResponse: true }
+            );
+            const vttText = vttResponse?.content?.[0]?.text ?? '';
+            let vttContent: string;
+            try {
+              const parsed = JSON.parse(vttText);
+              vttContent = parsed.rawResponse ?? vttText;
+            } catch {
+              vttContent = vttText;
+            }
+            const entries = parseVtt(vttContent);
+            const markdown = transcriptToMarkdown(entries);
+
+            // Step 5: Optionally save to OneDrive
+            if (params.savePath) {
+              await graphClient.graphRequest(`/me/drive/root:/${params.savePath}:/content`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'text/plain' },
+                body: markdown,
+              });
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: `Recap saved to OneDrive: ${params.savePath}\n\n${markdown}`,
+                  },
+                ],
+              };
+            }
+
+            return { content: [{ type: 'text' as const, text: markdown }] };
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: (error as Error).message }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(`Failed to register tool save-meeting-recap: ${(error as Error).message}`);
       failedCount++;
     }
   }
