@@ -27,6 +27,35 @@ export interface ChatMessage {
   }>;
 }
 
+/**
+ * Allowlist of trusted domains for file attachment URLs.
+ * Only SharePoint and OneDrive URLs are accepted to prevent
+ * surfacing phishing or internal-resource URLs from chat messages.
+ */
+const TRUSTED_FILE_DOMAINS = [
+  '.sharepoint.com',
+  '.sharepoint-df.com',
+  '.onedrive.com',
+  '.office.com',
+  '.office365.com',
+];
+
+function isTrustedFileUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return TRUSTED_FILE_DOMAINS.some((domain) => hostname.endsWith(domain));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Escapes Markdown special characters to prevent injection.
+ */
+export function escapeMd(text: string): string {
+  return text.replace(/([*[\]()_~`>#|\\{}!+-])/g, '\\$1');
+}
+
 export function extractSharedFiles(messages: ChatMessage[]): SharedFile[] {
   const files: SharedFile[] = [];
 
@@ -34,7 +63,7 @@ export function extractSharedFiles(messages: ChatMessage[]): SharedFile[] {
     if (!msg.attachments?.length) continue;
 
     for (const att of msg.attachments) {
-      if (att.contentType === 'reference' && att.contentUrl) {
+      if (att.contentType === 'reference' && att.contentUrl && isTrustedFileUrl(att.contentUrl)) {
         files.push({
           name: att.name || 'unknown',
           contentUrl: att.contentUrl,

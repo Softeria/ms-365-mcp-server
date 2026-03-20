@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
-import { extractSharedFiles, type ChatMessage } from './lib/meeting-files-extractor.js';
+import { extractSharedFiles, escapeMd, type ChatMessage } from './lib/meeting-files-extractor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -696,8 +696,14 @@ export function registerGraphTools(
         'list-meeting-shared-files',
         'Lists all files shared during a Teams meeting. Retrieves the meeting chat messages and extracts file attachments (SharePoint/OneDrive references). Returns file names, URLs, who shared them, and when. Requires the onlineMeeting-id. The contentUrl for each file can be used with existing drive item endpoints to download.',
         {
-          'onlineMeeting-id': z.string().describe('Meeting ID from list-online-meetings'),
-          top: z.number().optional().describe('Max number of chat messages to scan (default: 100)'),
+          'onlineMeeting-id': z.string().min(1).describe('Meeting ID from list-online-meetings'),
+          top: z
+            .number()
+            .int()
+            .min(1)
+            .max(200)
+            .optional()
+            .describe('Max number of chat messages to scan (default: 100, max: 200)'),
         },
         {
           title: 'list-meeting-shared-files',
@@ -750,10 +756,10 @@ export function registerGraphTools(
               };
             }
 
-            // Step 4: Format as markdown
+            // Step 4: Format as markdown (escape user-controlled values to prevent injection)
             let md = `## Files shared in meeting (${files.length})\n\n`;
             for (const f of files) {
-              md += `- **${f.name}** — shared by ${f.sharedBy} at ${f.sharedAt}\n  URL: ${f.contentUrl}\n`;
+              md += `- **${escapeMd(f.name)}** — shared by ${escapeMd(f.sharedBy)} at ${f.sharedAt}\n  URL: ${f.contentUrl}\n`;
             }
 
             return { content: [{ type: 'text' as const, text: md }] };

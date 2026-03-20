@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { extractSharedFiles, type ChatMessage } from '../src/lib/meeting-files-extractor.js';
+import {
+  extractSharedFiles,
+  escapeMd,
+  type ChatMessage,
+} from '../src/lib/meeting-files-extractor.js';
 
 describe('extractSharedFiles', () => {
   it('should extract reference attachments as shared files', () => {
@@ -143,8 +147,16 @@ describe('extractSharedFiles', () => {
         createdDateTime: '2026-03-20T10:00:00Z',
         from: { user: { displayName: 'Alice' } },
         attachments: [
-          { name: 'file1.pdf', contentType: 'reference', contentUrl: 'https://sp.com/file1.pdf' },
-          { name: 'file2.docx', contentType: 'reference', contentUrl: 'https://sp.com/file2.docx' },
+          {
+            name: 'file1.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://contoso.sharepoint.com/file1.pdf',
+          },
+          {
+            name: 'file2.docx',
+            contentType: 'reference',
+            contentUrl: 'https://contoso.sharepoint.com/file2.docx',
+          },
         ],
       },
     ];
@@ -153,5 +165,101 @@ describe('extractSharedFiles', () => {
     expect(files).toHaveLength(2);
     expect(files[0].name).toBe('file1.pdf');
     expect(files[1].name).toBe('file2.docx');
+  });
+
+  it('should reject URLs from untrusted domains', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'msg-phish',
+        createdDateTime: '2026-03-20T10:00:00Z',
+        from: { user: { displayName: 'Attacker' } },
+        attachments: [
+          {
+            name: 'legit-looking.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://evil-site.com/phishing.pdf',
+          },
+          {
+            name: 'internal.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://192.168.1.1/internal/secret.pdf',
+          },
+          {
+            name: 'fake-sharepoint.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://sharepoint.com.evil.com/file.pdf',
+          },
+        ],
+      },
+    ];
+
+    const files = extractSharedFiles(messages);
+    expect(files).toHaveLength(0);
+  });
+
+  it('should accept URLs from all trusted Microsoft domains', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'msg-trusted',
+        createdDateTime: '2026-03-20T10:00:00Z',
+        from: { user: { displayName: 'User' } },
+        attachments: [
+          {
+            name: 'sp.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://tenant.sharepoint.com/file.pdf',
+          },
+          {
+            name: 'od.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://tenant-my.onedrive.com/file.pdf',
+          },
+          {
+            name: 'office.pdf',
+            contentType: 'reference',
+            contentUrl: 'https://tenant.office.com/file.pdf',
+          },
+        ],
+      },
+    ];
+
+    const files = extractSharedFiles(messages);
+    expect(files).toHaveLength(3);
+  });
+
+  it('should handle malformed contentUrl gracefully', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'msg-bad',
+        attachments: [
+          {
+            name: 'bad.pdf',
+            contentType: 'reference',
+            contentUrl: 'not-a-valid-url',
+          },
+        ],
+      },
+    ];
+
+    const files = extractSharedFiles(messages);
+    expect(files).toHaveLength(0);
+  });
+});
+
+describe('escapeMd', () => {
+  it('should escape Markdown special characters', () => {
+    expect(escapeMd('**bold**')).toBe('\\*\\*bold\\*\\*');
+    expect(escapeMd('[link](url)')).toBe('\\[link\\]\\(url\\)');
+    expect(escapeMd('`code`')).toBe('\\`code\\`');
+    expect(escapeMd('# heading')).toBe('\\# heading');
+  });
+
+  it('should leave plain text unchanged', () => {
+    expect(escapeMd('hello world')).toBe('hello world');
+    expect(escapeMd('file.pdf')).toBe('file.pdf');
+  });
+
+  it('should handle empty string', () => {
+    expect(escapeMd('')).toBe('');
   });
 });
