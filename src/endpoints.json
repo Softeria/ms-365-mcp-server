@@ -496,6 +496,12 @@
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
+    "method": "get",
+    "toolName": "get-planner-task-details",
+    "scopes": ["Tasks.Read"]
+  },
+  {
+    "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "patch",
     "toolName": "update-planner-task-details",
     "scopes": ["Tasks.ReadWrite"]
