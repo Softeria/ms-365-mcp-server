@@ -136,6 +136,14 @@ describe('Calendar View Tools', () => {
       registerGraphTools(mockServer, mockGraphClient, false);
 
       for (const call of mockServer.tool.mock.calls) {
+        const toolName = call[0] as string;
+        // Skip utility tools that are not Graph API endpoints
+        if (
+          ['parse-teams-url', 'get-meeting-transcript-markdown', 'save-meeting-recap'].includes(
+            toolName
+          )
+        )
+          continue;
         const paramSchema = call[2] as Record<string, z.ZodTypeAny>;
         expect(paramSchema).toHaveProperty('fetchAllPages');
       }
