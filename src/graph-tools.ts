@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
+import { extractSharedFiles, escapeMd, type ChatMessage } from './lib/meeting-files-extractor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -560,6 +561,102 @@ export function registerGraphTools(
 
   if (multiAccount) {
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
+  }
+
+  // Register list-meeting-shared-files orchestration tool
+  if (!enabledToolsRegex || enabledToolsRegex.test('list-meeting-shared-files')) {
+    try {
+      server.tool(
+        'list-meeting-shared-files',
+        'Lists all files shared during a Teams meeting. Retrieves the meeting chat messages and extracts file attachments (SharePoint/OneDrive references). Returns file names, URLs, who shared them, and when. Requires the onlineMeeting-id. The contentUrl for each file can be used with existing drive item endpoints to download.',
+        {
+          'onlineMeeting-id': z.string().min(1).describe('Meeting ID from list-online-meetings'),
+          top: z
+            .number()
+            .int()
+            .min(1)
+            .max(200)
+            .optional()
+            .describe('Max number of chat messages to scan (default: 100, max: 200)'),
+        },
+        {
+          title: 'list-meeting-shared-files',
+          readOnlyHint: true,
+          openWorldHint: true,
+        },
+        async (params) => {
+          try {
+            // Step 1: Get meeting details to find chatInfo.threadId
+            const meetingResponse = await graphClient.graphRequest(
+              `/me/onlineMeetings/${encodeURIComponent(params['onlineMeeting-id'])}`,
+              { method: 'GET' }
+            );
+            const meetingText = meetingResponse?.content?.[0]?.text ?? '{}';
+            const meetingData = JSON.parse(meetingText);
+            const chatId = meetingData.chatInfo?.threadId;
+            if (!chatId) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: JSON.stringify({ error: 'No chat found for this meeting.' }),
+                  },
+                ],
+                isError: true,
+              };
+            }
+
+            // Step 2: Get chat messages
+            const top = params.top ?? 100;
+            const messagesResponse = await graphClient.graphRequest(
+              `/me/chats/${encodeURIComponent(chatId)}/messages?$top=${top}&$orderby=createdDateTime desc`,
+              { method: 'GET' }
+            );
+            const messagesText = messagesResponse?.content?.[0]?.text ?? '{}';
+            const messagesData = JSON.parse(messagesText);
+            const messages: ChatMessage[] = messagesData.value ?? [];
+
+            // Step 3: Extract shared files
+            const files = extractSharedFiles(messages);
+
+            if (files.length === 0) {
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: 'No files were shared during this meeting.',
+                  },
+                ],
+              };
+            }
+
+            // Step 4: Format as markdown (escape user-controlled values to prevent injection)
+            let md = `## Files shared in meeting (${files.length})\n\n`;
+            for (const f of files) {
+              md += `- **${escapeMd(f.name)}** — shared by ${escapeMd(f.sharedBy)} at ${f.sharedAt}\n  URL: ${f.contentUrl}\n`;
+            }
+
+            return { content: [{ type: 'text' as const, text: md }] };
+          } catch (error) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({ error: (error as Error).message }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(
+        `Failed to register tool list-meeting-shared-files: ${(error as Error).message}`
+      );
+      failedCount++;
+    }
   }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
