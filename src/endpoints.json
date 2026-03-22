@@ -468,14 +468,14 @@
     "method": "get",
     "toolName": "list-todo-task-lists",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all To Do task lists. Use $select=id,displayName to reduce response size. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
+    "llmTip": "Lists all To Do task lists. IMPORTANT: $select is NOT supported on this endpoint (Microsoft limitation) — do not pass select parameter. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. Use $select=id,title,status,importance,dueDateTime,completedDateTime,body,createdDateTime to reduce response size. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. IMPORTANT: $select and $filter are NOT supported on this endpoint (Microsoft limitation) — do not pass select or filter parameters. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
