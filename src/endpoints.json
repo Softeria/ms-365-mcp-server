@@ -4,28 +4,28 @@
     "method": "get",
     "toolName": "list-mail-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\". CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-mail-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus or sender address, add $count=true to enable advanced query mode. Without $count=true, these filters return InefficientFilter errors. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size. For folder-specific queries, use list-mail-folder-messages with well-known folder names as IDs: inbox, drafts, sentitems, deleteditems, junkemail, archive."
+    "llmTip": "CRITICAL: $search value MUST be wrapped in double quotes. CANNOT combine $search and $filter — use one or the other. ADVANCED FILTERS: InefficientFilter error (400) → $filter on flag/flagStatus or contains() without advanced mode → add $count=true. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead."
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
     "scopes": ["Mail.Read"],
-    "llmTip": "Lists top-level mail folders. Use $select=id,displayName,totalItemCount,unreadItemCount to reduce response size. Well-known folder names can be used as folder IDs in other endpoints: inbox, drafts, sentitems, deleteditems, junkemail, archive, clutter, scheduled. Example: list-mail-folder-messages with mailFolder-id='inbox' — no need to list folders first for standard folders."
+    "llmTip": "Well-known folder names can be used as folder IDs in other endpoints: inbox, drafts, sentitems, deleteditems, junkemail, archive, clutter, scheduled. Example: list-mail-folder-messages with mailFolder-id='inbox' — no need to list folders first for standard folders."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-mail-child-folders",
     "scopes": ["Mail.Read"],
-    "llmTip": "Returns child folders of specified parent folder. Use well-known folder names as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. Use $select=id,displayName,totalItemCount,unreadItemCount to reduce response size."
+    "llmTip": "Well-known folder names can be used as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive."
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "post",
     "toolName": "create-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a top-level mail folder. Use create-mail-child-folder to create a subfolder inside an existing folder. Use list-mail-folders to find existing folder IDs."
+    "llmTip": "Creates a top-level mail folder. Use create-mail-child-folder to create a subfolder inside an existing folder."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
@@ -53,7 +53,7 @@
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails in a specific folder, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). Well-known folder names can be used as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-mail-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus or sender address, add $count=true to enable advanced query mode. Without $count=true, these filters return InefficientFilter errors. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "llmTip": "CRITICAL: $search value MUST be wrapped in double quotes. CANNOT combine $search and $filter — use one or the other. Well-known folder names can be used as folderId: inbox, drafts, sentitems, deleteditems, junkemail, archive. ADVANCED FILTERS: InefficientFilter error (400) → $filter on flag/flagStatus or contains() without advanced mode → add $count=true. Example: $filter=\"flag/flagStatus eq 'flagged'\" with $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. WARNING: folderId='flaggedItems' with $search returns unreliable flag status — use $filter with $count=true instead."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -74,14 +74,14 @@
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching shared mailbox emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-shared-mailbox-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus, add $count=true. Without $count=true, these filters return InefficientFilter errors. Flag status values: 'flagged', 'complete', 'notFlagged'. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "llmTip": "CRITICAL: $search value MUST be wrapped in double quotes. CANNOT combine $search and $filter — use one or the other. ADVANCED FILTERS: InefficientFilter error (400) → $filter on flag/flagStatus or contains() without advanced mode → add $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'."
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching shared mailbox folder emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL syntax: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. CANNOT combine $search and $filter in same query — use one or the other. $orderby is IGNORED when $search is used (results sorted by relevance). Well-known folder names can be used as mailFolder-id: inbox, drafts, sentitems, deleteditems, junkemail, archive. IMPORTANT: Always use $select to reduce response size. Recommended: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,flag. Use bodyPreview instead of body for listings — use get-shared-mailbox-message for full body. ADVANCED FILTERS: For $filter on flag/flagStatus, add $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'. PAGINATION: Handled automatically via @odata.nextLink. Use $top to control page size."
+    "llmTip": "CRITICAL: $search value MUST be wrapped in double quotes. CANNOT combine $search and $filter — use one or the other. Well-known folder names can be used as folderId: inbox, drafts, sentitems, deleteditems, junkemail, archive. ADVANCED FILTERS: InefficientFilter error (400) → $filter on flag/flagStatus or contains() without advanced mode → add $count=true. Flag status values: 'flagged', 'complete', 'notFlagged'."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
@@ -102,7 +102,7 @@
     "method": "get",
     "toolName": "list-users",
     "workScopes": ["User.Read.All"],
-    "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
+    "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual!"
   },
   {
     "pathPattern": "/me/messages",
@@ -424,21 +424,21 @@
     "method": "get",
     "toolName": "list-onenote-notebooks",
     "scopes": ["Notes.Read"],
-    "llmTip": "Lists all OneNote notebooks. Use $select=id,displayName,createdDateTime,lastModifiedDateTime to reduce response size. Returns notebook-id needed for list-onenote-notebook-sections. Use $orderby=displayName for alphabetical sorting."
+    "llmTip": "Returns notebook-id needed for list-onenote-notebook-sections."
   },
   {
     "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-onenote-notebook-sections",
     "scopes": ["Notes.Read"],
-    "llmTip": "Lists sections within a notebook. Use $select=id,displayName,createdDateTime,lastModifiedDateTime to reduce response size. Returns onenoteSection-id needed for list-onenote-section-pages and create-onenote-section-page."
+    "llmTip": "Returns onenoteSection-id needed for list-onenote-section-pages and create-onenote-section-page."
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-onenote-section-pages",
     "scopes": ["Notes.Read"],
-    "llmTip": "Lists pages within a section. Use $select=id,title,createdDateTime,lastModifiedDateTime to reduce response size. Returns onenotePage-id needed for get-onenote-page-content. Pages ordered by lastModifiedDateTime desc by default."
+    "llmTip": "Returns onenotePage-id needed for get-onenote-page-content."
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
@@ -468,42 +468,182 @@
     "method": "get",
     "toolName": "list-todo-task-lists",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all To Do task lists. Use $select=id,displayName to reduce response size. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
+    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint — do not pass select parameter, Graph returns 400."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. Use $select=id,title,status,importance,dueDateTime,completedDateTime,body,createdDateTime to reduce response size. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. NOTE: $select is NOT supported — do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "get",
     "toolName": "get-todo-task",
     "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a single To Do task. Use $select to limit fields. Returns body content (HTML format), checklist items, and linked resources."
+    "llmTip": "Returns a single To Do task. Requires todoTaskList-id and todoTask-id. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource inline, or use list-todo-linked-resources separately. Returns body content (HTML format). Checklist items are NOT included — use list-todo-checklist-items separately."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}",
+    "method": "delete",
+    "toolName": "delete-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a To Do task list and all its tasks. Requires todoTaskList-id — use list-todo-task-lists to find it. Cannot delete wellknownListName lists (defaultList, flaggedEmails)."
+  },
+  {
+    "pathPattern": "/me/todo/lists",
+    "method": "post",
+    "toolName": "create-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Creates a new To Do task list. Body: {\"displayName\": \"Cardoen\"}. Returns the new list including its id — use this id for create-todo-task and other task operations."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}",
+    "method": "patch",
+    "toolName": "update-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a To Do task list. Requires todoTaskList-id. Pass only properties to update. Example: {\"displayName\": \"New name\"}. Cannot update wellknownListName lists (defaultList, flaggedEmails)."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "post",
     "toolName": "create-todo-task",
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Body format: {\"title\": \"...\", \"importance\": \"normal\", \"dueDateTime\": {\"dateTime\": \"2026-03-04T00:00:00\", \"timeZone\": \"Europe/Brussels\"}, \"body\": {\"contentType\": \"html\", \"content\": \"<p>Details</p>\"}}. IMPORTANT: body field uses HTML contentType, not plain text. Importance values: 'low', 'normal', 'high'. Status defaults to 'notStarted'. Requires todoTaskList-id — use list-todo-task-lists first."
+    "llmTip": "Body format: {\"title\": \"...\", \"importance\": \"normal\", \"dueDateTime\": {\"dateTime\": \"2026-03-04T00:00:00\", \"timeZone\": \"Europe/Brussels\"}, \"body\": {\"contentType\": \"html\", \"content\": \"<p>Details</p>\"}}. IMPORTANT: body field uses HTML contentType, not plain text. Importance values: 'low', 'normal', 'high'. Status defaults to 'notStarted'. Requires todoTaskList-id — use list-todo-task-lists first. NOTE: checklistItems cannot be set via create — use create-todo-checklist-item separately after task creation."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "patch",
     "toolName": "update-todo-task",
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Pass only properties to update. Example: {\"status\": \"completed\"} to complete a task. IMPORTANT: body field uses HTML contentType: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Updated</p>\"}}. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'. Importance values: 'low', 'normal', 'high'."
+    "llmTip": "Updates a To Do task. Requires todoTaskList-id and todoTask-id. Pass only properties to update. Example: {\"status\": \"completed\"} to complete a task. IMPORTANT: body field uses HTML contentType: {\"body\": {\"contentType\": \"html\", \"content\": \"<p>Updated</p>\"}}. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'. Importance values: 'low', 'normal', 'high'. NOTE: checklistItems cannot be updated via PATCH on task — use create/update/delete-todo-checklist-item separately."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "post",
+    "toolName": "create-todo-checklist-item",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Creates a checklist item on a task. Body: {\"displayName\": \"Item text\"}. Requires todoTaskList-id and todoTask-id. Returns the new item including its id. Call multiple times to add multiple items. To check off an item, use update-todo-checklist-item."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "get",
+    "toolName": "list-todo-checklist-items",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists all checklist items on a task. Requires todoTaskList-id and todoTask-id. Returns id, displayName, isChecked, checkedDateTime. Use the id for update or delete operations."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "delete",
+    "toolName": "delete-todo-checklist-item",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a checklist item from a task. Requires todoTaskList-id, todoTask-id, and checklistItem-id — use list-todo-checklist-items to find the checklistItem-id."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "patch",
+    "toolName": "update-todo-checklist-item",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a checklist item. Requires todoTaskList-id, todoTask-id, and checklistItem-id. Pass only properties to update. Example: {\"isChecked\": true} to check off, {\"displayName\": \"New text\"} to rename."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "delete",
     "toolName": "delete-todo-task",
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Permanently deletes the task. This cannot be undone."
+    "llmTip": "Permanently deletes a To Do task. Requires todoTaskList-id and todoTask-id. This cannot be undone."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}",
+    "method": "get",
+    "toolName": "get-todo-task-list",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single To Do task list. Requires todoTaskList-id. Returns displayName, wellknownListName, isOwner, isShared."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "get",
+    "toolName": "get-todo-checklist-item",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single checklist item. Requires todoTaskList-id, todoTask-id, and checklistItem-id."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources",
+    "method": "get",
+    "toolName": "list-todo-linked-resources",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists linked resources on a task (e.g. linked Outlook email). Requires todoTaskList-id and todoTask-id. Returns id, applicationName, displayName, externalId, webUrl. Alternative: use $expand=linkedResources on get-todo-task."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources/{linkedResource-id}",
+    "method": "get",
+    "toolName": "get-todo-linked-resource",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single linked resource. Requires todoTaskList-id, todoTask-id, and linkedResource-id. Use list-todo-linked-resources to find the id."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources",
+    "method": "post",
+    "toolName": "create-todo-linked-resource",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Links an external resource to a task. Body: {\"applicationName\": \"Outlook\", \"displayName\": \"Email subject\", \"webUrl\": \"https://...\", \"externalId\": \"optional-external-id\"}. Requires todoTaskList-id and todoTask-id. Use to link emails, URLs, or other resources to a task."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources/{linkedResource-id}",
+    "method": "patch",
+    "toolName": "update-todo-linked-resource",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a linked resource. Requires todoTaskList-id, todoTask-id, and linkedResource-id. Pass only properties to update. Example: {\"displayName\": \"New title\"}."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources/{linkedResource-id}",
+    "method": "delete",
+    "toolName": "delete-todo-linked-resource",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Removes a linked resource from a task. Requires todoTaskList-id, todoTask-id, and linkedResource-id — use list-todo-linked-resources to find the id."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/attachments",
+    "method": "get",
+    "toolName": "list-todo-attachments",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists file attachments on a task. Requires todoTaskList-id and todoTask-id. Returns id, name, contentType, size. Small attachments (<3MB) can be created inline; larger ones require an upload session."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/attachments/{attachmentBase-id}",
+    "method": "get",
+    "toolName": "get-todo-attachment",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single attachment including its content (base64). Requires todoTaskList-id, todoTask-id, and attachmentBase-id — use list-todo-attachments to find the id."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/attachments",
+    "method": "post",
+    "toolName": "create-todo-attachment",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Creates a file attachment on a task (max 3MB inline). Body: {\"@odata.type\": \"#microsoft.graph.taskFileAttachment\", \"name\": \"file.txt\", \"contentType\": \"text/plain\", \"contentBytes\": \"base64-encoded-content\"}. Requires todoTaskList-id and todoTask-id. For files >3MB use an upload session (not supported via this endpoint)."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/attachments/{attachmentBase-id}",
+    "method": "delete",
+    "toolName": "delete-todo-attachment",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a file attachment from a task. Requires todoTaskList-id, todoTask-id, and attachmentBase-id — use list-todo-attachments to find the id."
+  },
+  {
+    "pathPattern": "/me/mailFolders/inbox/messageRules",
+    "method": "get",
+    "toolName": "list-mail-rules",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists all inbox rules. Returns id, displayName, isEnabled, conditions (fromAddresses, subjectContains, etc.), actions (moveToFolder, markAsRead, etc.). Read-only."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "get",
+    "toolName": "list-outlook-categories",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists all Outlook categories. Returns displayName and color (preset0-preset24). Categories can be assigned to emails, calendar events, and tasks."
   },
   {
     "pathPattern": "/me/planner/tasks",
@@ -551,7 +691,8 @@
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "get",
     "toolName": "get-planner-task-details",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "NOTE: Call this with includeHeaders=true before using update-planner-task-details — the ETag from the response header is required for the update (412 Precondition Failed without it)."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
@@ -572,7 +713,7 @@
     "method": "get",
     "toolName": "get-outlook-contact",
     "scopes": ["Contacts.Read"],
-    "llmTip": "Returns a single contact by ID. Use $select=id,displayName,givenName,surname,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle,department,officeLocation to limit fields."
+    "llmTip": "Returns a single contact by ID."
   },
   {
     "pathPattern": "/me/contacts",
@@ -600,7 +741,7 @@
     "method": "get",
     "toolName": "get-current-user",
     "scopes": ["User.Read"],
-    "llmTip": "Returns the signed-in user's profile. Use $select=id,displayName,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones to limit fields. Returns the user-id needed for shared mailbox and delegation operations."
+    "llmTip": "Returns the signed-in user's profile. Returns the user-id needed for shared mailbox and delegation operations."
   },
   {
     "pathPattern": "/me/chats",
@@ -754,14 +895,14 @@
     "method": "get",
     "toolName": "list-sharepoint-site-items",
     "workScopes": ["Sites.Read.All"],
-    "llmTip": "Lists items in a SharePoint site. Use $select to reduce response size."
+    "llmTip": "Returns site-level items (document libraries, lists). To get items inside a list, use list-sharepoint-site-list-items with the list-id. Use $expand=fields to include column values."
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-item",
     "workScopes": ["Sites.Read.All"],
-    "llmTip": "Returns a specific item from a SharePoint site by its ID."
+    "llmTip": "Returns a single site item by ID. For list item column values, add $expand=fields. Get the item ID from list-sharepoint-site-list-items."
   },
   {
     "pathPattern": "/sites/{site-id}/lists",
