@@ -9,6 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
+import { parseTeamsUrl } from './lib/teams-url-parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -560,6 +561,41 @@ export function registerGraphTools(
 
   if (multiAccount) {
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
+  }
+
+  // Register parse-teams-url utility tool (no Graph API call)
+  if (!enabledToolsRegex || enabledToolsRegex.test('parse-teams-url')) {
+    try {
+      server.tool(
+        'parse-teams-url',
+        'Converts any Teams meeting URL format (short /meet/, full /meetup-join/, or recap ?threadId=) into a standard joinWebUrl. Use this before list-online-meetings when the user provides a recap or short URL.',
+        {
+          url: z.string().describe('Teams meeting URL in any format'),
+        },
+        {
+          title: 'parse-teams-url',
+          readOnlyHint: true,
+          openWorldHint: false,
+        },
+        async ({ url }) => {
+          try {
+            const joinWebUrl = parseTeamsUrl(url);
+            return { content: [{ type: 'text', text: joinWebUrl }] };
+          } catch (error) {
+            return {
+              content: [
+                { type: 'text', text: JSON.stringify({ error: (error as Error).message }) },
+              ],
+              isError: true,
+            };
+          }
+        }
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
+      failedCount++;
+    }
   }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
