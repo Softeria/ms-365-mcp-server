@@ -338,9 +338,13 @@ async function executeGraphTool(
           if (entityTypes && !entityTypes.includes('externalItem')) {
             delete req.contentSources;
           }
-          // Remove sharePointOneDriveOptions for chatMessage (privateContent not supported)
-          if (entityTypes?.includes('chatMessage')) {
+          // Remove sharePointOneDriveOptions with privateContent (not supported for most entity types)
+          const spOptions = req.sharePointOneDriveOptions as Record<string, unknown> | undefined;
+          if (spOptions?.includeContent === 'privateContent') {
             delete req.sharePointOneDriveOptions;
+          }
+          // Remove collapseProperties for non-file entity types
+          if (entityTypes && !entityTypes.includes('driveItem') && !entityTypes.includes('listItem') && !entityTypes.includes('externalItem')) {
             delete req.collapseProperties;
           }
           // Remove null queryTemplate
