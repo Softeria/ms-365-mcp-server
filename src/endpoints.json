@@ -3,26 +3,20 @@
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
-    "scopes": [
-      "Mail.Read"
-    ],
+    "scopes": ["Mail.Read"],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-mail-child-folders",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -56,203 +50,155 @@
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
-    "scopes": [
-      "Mail.Read"
-    ],
+    "scopes": ["Mail.Read"],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "get",
     "toolName": "get-mail-message",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/sendMail",
     "method": "post",
     "toolName": "send-mail",
-    "scopes": [
-      "Mail.Send"
-    ],
+    "scopes": ["Mail.Send"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users/{user-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
-    "workScopes": [
-      "Mail.Read.Shared"
-    ],
+    "workScopes": ["Mail.Read.Shared"],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
-    "workScopes": [
-      "Mail.Read.Shared"
-    ],
+    "workScopes": ["Mail.Read.Shared"],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "get",
     "toolName": "get-shared-mailbox-message",
-    "workScopes": [
-      "Mail.Read.Shared"
-    ]
+    "workScopes": ["Mail.Read.Shared"]
   },
   {
     "pathPattern": "/users/{user-id}/sendMail",
     "method": "post",
     "toolName": "send-shared-mailbox-mail",
-    "workScopes": [
-      "Mail.Send.Shared"
-    ],
+    "workScopes": ["Mail.Send.Shared"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
-    "workScopes": [
-      "User.Read.All"
-    ],
+    "workScopes": ["User.Read.All"],
     "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
     "pathPattern": "/me/messages",
     "method": "post",
     "toolName": "create-draft-email",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",
     "method": "post",
     "toolName": "move-mail-message",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "patch",
     "toolName": "update-mail-message",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
     "method": "get",
     "toolName": "get-mail-attachment",
-    "scopes": [
-      "Mail.Read"
-    ]
+    "scopes": ["Mail.Read"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
     "method": "delete",
     "toolName": "delete-mail-attachment",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/forward",
     "method": "post",
     "toolName": "forward-mail-message",
-    "scopes": [
-      "Mail.Send"
-    ],
+    "scopes": ["Mail.Send"],
     "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side."
   },
   {
     "pathPattern": "/me/messages/{message-id}/reply",
     "method": "post",
     "toolName": "reply-mail-message",
-    "scopes": [
-      "Mail.Send"
-    ],
+    "scopes": ["Mail.Send"],
     "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually."
   },
   {
     "pathPattern": "/me/messages/{message-id}/replyAll",
     "method": "post",
     "toolName": "reply-all-mail-message",
-    "scopes": [
-      "Mail.Send"
-    ],
+    "scopes": ["Mail.Send"],
     "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createForward",
     "method": "post",
     "toolName": "create-forward-draft",
-    "scopes": [
-      "Mail.ReadWrite"
-    ],
+    "scopes": ["Mail.ReadWrite"],
     "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReply",
     "method": "post",
     "toolName": "create-reply-draft",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
     "method": "post",
     "toolName": "create-reply-all-draft",
-    "scopes": [
-      "Mail.ReadWrite"
-    ]
+    "scopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
     "method": "post",
     "toolName": "send-draft-message",
-    "scopes": [
-      "Mail.Send"
-    ]
+    "scopes": ["Mail.Send"]
   },
   {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true
   },
@@ -260,9 +206,7 @@
     "pathPattern": "/me/events/{event-id}",
     "method": "get",
     "toolName": "get-calendar-event",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true
   },
@@ -270,35 +214,27 @@
     "pathPattern": "/me/events",
     "method": "post",
     "toolName": "create-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ],
+    "scopes": ["Calendars.ReadWrite"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "patch",
     "toolName": "update-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ],
+    "scopes": ["Calendars.ReadWrite"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "delete",
     "toolName": "delete-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ]
+    "scopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "get",
     "toolName": "list-specific-calendar-events",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true
   },
@@ -306,9 +242,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true
   },
@@ -316,35 +250,27 @@
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "post",
     "toolName": "create-specific-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ],
+    "scopes": ["Calendars.ReadWrite"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "patch",
     "toolName": "update-specific-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ],
+    "scopes": ["Calendars.ReadWrite"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "delete",
     "toolName": "delete-specific-calendar-event",
-    "scopes": [
-      "Calendars.ReadWrite"
-    ]
+    "scopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/calendarView",
     "method": "get",
     "toolName": "get-calendar-view",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
@@ -353,9 +279,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/calendarView",
     "method": "get",
     "toolName": "get-specific-calendar-view",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
@@ -364,9 +288,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}/instances",
     "method": "get",
     "toolName": "list-calendar-event-instances",
-    "scopes": [
-      "Calendars.Read"
-    ],
+    "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
     "llmTip": "Expand a recurring event into individual instances within a date range. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use this to see all occurrences of a recurring event."
@@ -375,271 +297,205 @@
     "pathPattern": "/me/calendars",
     "method": "get",
     "toolName": "list-calendars",
-    "scopes": [
-      "Calendars.Read"
-    ]
+    "scopes": ["Calendars.Read"]
   },
   {
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
-    "workScopes": [
-      "Calendars.Read.Shared"
-    ]
+    "workScopes": ["Calendars.Read.Shared"]
   },
   {
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-root-folder",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "get",
     "toolName": "download-onedrive-file-content",
-    "scopes": [
-      "Files.Read"
-    ],
+    "scopes": ["Files.Read"],
     "returnDownloadUrl": true
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "put",
     "toolName": "upload-file-content",
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format",
     "method": "patch",
     "toolName": "format-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
     "method": "patch",
     "toolName": "sort-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.ReadWrite"
-    ]
+    "scopes": ["Files.ReadWrite"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
     "method": "get",
     "toolName": "get-excel-range",
     "isExcelOp": true,
-    "scopes": [
-      "Files.Read"
-    ],
-    "skipEncoding": [
-      "address"
-    ]
+    "scopes": ["Files.Read"],
+    "skipEncoding": ["address"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets",
     "method": "get",
     "toolName": "list-excel-worksheets",
     "isExcelOp": true,
-    "scopes": [
-      "Files.Read"
-    ]
+    "scopes": ["Files.Read"]
   },
   {
     "pathPattern": "/me/onenote/notebooks",
     "method": "get",
     "toolName": "list-onenote-notebooks",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-onenote-notebook-sections",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-onenote-section-pages",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-onenote-page-content",
-    "scopes": [
-      "Notes.Read"
-    ]
+    "scopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
-    "scopes": [
-      "Notes.Create"
-    ],
+    "scopes": ["Notes.Create"],
     "contentType": "text/html"
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "post",
     "toolName": "create-onenote-section-page",
-    "scopes": [
-      "Notes.Create"
-    ],
+    "scopes": ["Notes.Create"],
     "contentType": "text/html"
   },
   {
     "pathPattern": "/me/todo/lists",
     "method": "get",
     "toolName": "list-todo-task-lists",
-    "scopes": [
-      "Tasks.Read"
-    ],
-    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint \u00e2\u20ac\u201d do not pass select parameter, Graph returns 400."
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint — do not pass select parameter, Graph returns 400."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ],
-    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id \u00e2\u20ac\u201d use list-todo-task-lists to find it. NOTE: $select is NOT supported \u00e2\u20ac\u201d do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. NOTE: $select is NOT supported — do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "get",
     "toolName": "get-todo-task",
-    "scopes": [
-      "Tasks.Read"
-    ],
-    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported \u00e2\u20ac\u201d do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "post",
     "toolName": "create-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "patch",
     "toolName": "update-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "delete",
     "toolName": "delete-todo-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/planner/tasks",
     "method": "get",
     "toolName": "list-planner-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}",
     "method": "get",
     "toolName": "get-planner-plan",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}/tasks",
     "method": "get",
     "toolName": "list-plan-tasks",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "get",
     "toolName": "get-planner-task",
-    "scopes": [
-      "Tasks.Read"
-    ]
+    "scopes": ["Tasks.Read"]
   },
   {
     "pathPattern": "/planner/tasks",
     "method": "post",
     "toolName": "create-planner-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "patch",
     "toolName": "update-planner-task",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
@@ -651,333 +507,224 @@
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "patch",
     "toolName": "update-planner-task-details",
-    "scopes": [
-      "Tasks.ReadWrite"
-    ]
+    "scopes": ["Tasks.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
-    "scopes": [
-      "Contacts.Read"
-    ]
+    "scopes": ["Contacts.Read"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "get",
     "toolName": "get-outlook-contact",
-    "scopes": [
-      "Contacts.Read"
-    ]
+    "scopes": ["Contacts.Read"]
   },
   {
     "pathPattern": "/me/contacts",
     "method": "post",
     "toolName": "create-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "patch",
     "toolName": "update-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "delete",
     "toolName": "delete-outlook-contact",
-    "scopes": [
-      "Contacts.ReadWrite"
-    ]
+    "scopes": ["Contacts.ReadWrite"]
   },
   {
     "pathPattern": "/me",
     "method": "get",
     "toolName": "get-current-user",
-    "scopes": [
-      "User.Read"
-    ]
+    "scopes": ["User.Read"]
   },
   {
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "workScopes": [
-      "Chat.Read"
-    ]
+    "workScopes": ["Chat.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "workScopes": [
-      "Chat.Read"
-    ]
+    "workScopes": ["Chat.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": [
-      "ChatMessage.Read"
-    ]
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
-    "workScopes": [
-      "ChatMessage.Read"
-    ]
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "workScopes": [
-      "ChatMessage.Send"
-    ]
+    "workScopes": ["ChatMessage.Send"]
   },
   {
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "workScopes": [
-      "Team.ReadBasic.All"
-    ]
+    "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "workScopes": [
-      "Team.ReadBasic.All"
-    ]
+    "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "workScopes": [
-      "Channel.ReadBasic.All"
-    ]
+    "workScopes": ["Channel.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "workScopes": [
-      "Channel.ReadBasic.All"
-    ]
+    "workScopes": ["Channel.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "workScopes": [
-      "ChannelMessage.Read.All"
-    ]
+    "workScopes": ["ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-channel-message",
-    "workScopes": [
-      "ChannelMessage.Read.All"
-    ]
+    "workScopes": ["ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "workScopes": [
-      "ChannelMessage.Send"
-    ]
+    "workScopes": ["ChannelMessage.Send"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-channel-message",
-    "workScopes": [
-      "ChannelMessage.Send"
-    ]
+    "workScopes": ["ChannelMessage.Send"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-channel-message-replies",
-    "workScopes": [
-      "ChannelMessage.Read.All"
-    ]
+    "workScopes": ["ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
-    "workScopes": [
-      "TeamMember.Read.All"
-    ]
+    "workScopes": ["TeamMember.Read.All"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "workScopes": [
-      "ChatMessage.Read"
-    ]
+    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "workScopes": [
-      "ChatMessage.Send"
-    ]
+    "workScopes": ["ChatMessage.Send"]
   },
   {
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}",
     "method": "get",
     "toolName": "get-sharepoint-site",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-drive-by-id",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-items",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-item",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-list-items",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list-item",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/delta()",
     "method": "get",
     "toolName": "get-sharepoint-sites-delta",
-    "workScopes": [
-      "Sites.Read.All"
-    ]
+    "workScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/search/query",
     "method": "post",
     "toolName": "search-query",
-    "scopes": [
-      "Mail.Read",
-      "Calendars.Read",
-      "Files.Read.All",
-      "People.Read"
-    ],
-    "workScopes": [
-      "Sites.Read.All",
-      "Chat.Read",
-      "ChannelMessage.Read.All"
-    ]
-  },
-  {
-    "pathPattern": "/me/onlineMeetings",
-    "method": "get",
-    "toolName": "list-online-meetings",
-    "workScopes": [
-      "OnlineMeetings.Read"
-    ],
-    "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
-  },
-  {
-    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts",
-    "method": "get",
-    "toolName": "list-meeting-transcripts",
-    "workScopes": [
-      "OnlineMeetingTranscript.Read.All"
-    ],
-    "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
-  },
-  {
-    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
-    "method": "get",
-    "toolName": "get-meeting-transcript-content",
-    "workScopes": [
-      "OnlineMeetingTranscript.Read.All"
-    ],
-    "acceptType": "text/vtt",
-    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
+    "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
+    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
   },
   {
     "pathPattern": "/me/onlineMeetings",
@@ -1023,24 +770,18 @@
     "pathPattern": "/groups/{group-id}/conversations",
     "method": "get",
     "toolName": "list-group-conversations",
-    "workScopes": [
-      "Group.Read.All"
-    ]
+    "workScopes": ["Group.Read.All"]
   },
   {
     "pathPattern": "/groups/{group-id}/threads",
     "method": "get",
     "toolName": "list-group-threads",
-    "workScopes": [
-      "Group.Read.All"
-    ]
+    "workScopes": ["Group.Read.All"]
   },
   {
     "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
     "method": "post",
     "toolName": "reply-to-group-thread",
-    "workScopes": [
-      "Group.ReadWrite.All"
-    ]
+    "workScopes": ["Group.ReadWrite.All"]
   }
 ]
