@@ -29,6 +29,7 @@ interface EndpointConfig {
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   stripParams?: string[]; // Query params to always strip (unconditionally unsupported)
   stripParamsWhen?: Record<string, string[]>; // Conditional: strip value[] params when key param is present
+  readOnlyAllowed?: boolean; // Allow this non-GET endpoint in read-only mode (e.g. POST /search/query is a read operation)
 }
 
 const endpointsData = JSON.parse(
@@ -494,7 +495,7 @@ export function registerGraphTools(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+    if (readOnly && tool.method.toUpperCase() !== 'GET' && !endpointConfig?.readOnlyAllowed) {
       logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
       skippedCount++;
       continue;
@@ -660,7 +661,7 @@ function buildToolsRegistry(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+    if (readOnly && tool.method.toUpperCase() !== 'GET' && !endpointConfig?.readOnlyAllowed) {
       continue;
     }
 

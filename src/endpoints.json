@@ -307,7 +307,8 @@
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "readOnlyAllowed": true
   },
   {
     "pathPattern": "/me/drives",
@@ -743,6 +744,7 @@
     "toolName": "search-query",
     "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
     "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"],
+    "readOnlyAllowed": true,
     "llmTip": "Microsoft Search API. IMPORTANT LIMITATIONS: (1) chatMessage entity type: do NOT include empty 'aggregations' — causes 'Aggregations must have at least one entry' errors. Use simple queries with just 'entityTypes' and 'query'. (2) driveItem entity type: do NOT include empty 'aggregations' or set 'trimDuplicates'. Do NOT use 'contentSources'. 'Private Content Only is not supported' errors indicate unsupported parameters. (3) Each entity type should be in a separate request object in the 'requests' array. Supported entity types: message, event, driveItem, listItem, chatMessage, site, list."
   },
   {
