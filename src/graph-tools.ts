@@ -315,6 +315,45 @@ async function executeGraphTool(
       headers,
     };
 
+    // Sanitize search-query POST body: remove empty arrays and unsupported options
+    // that cause Graph Search API to reject the request
+    if (tool.alias === 'search-query' && body && typeof body === 'object') {
+      const searchBody = body as { requests?: Array<Record<string, unknown>> };
+      if (searchBody.requests && Array.isArray(searchBody.requests)) {
+        for (const req of searchBody.requests) {
+          // Remove empty arrays that Graph rejects
+          for (const key of [
+            'aggregations',
+            'aggregationFilters',
+            'collapseProperties',
+            'contentSources',
+            'sortProperties',
+          ]) {
+            if (Array.isArray(req[key]) && (req[key] as unknown[]).length === 0) {
+              delete req[key];
+            }
+          }
+          // Remove contentSources for non-externalItem entity types
+          const entityTypes = req.entityTypes as string[] | undefined;
+          if (entityTypes && !entityTypes.includes('externalItem')) {
+            delete req.contentSources;
+          }
+          // Remove sharePointOneDriveOptions for chatMessage (privateContent not supported)
+          if (entityTypes?.includes('chatMessage')) {
+            delete req.sharePointOneDriveOptions;
+            delete req.collapseProperties;
+          }
+          // Remove null queryTemplate
+          const query = req.query as Record<string, unknown> | undefined;
+          if (query?.queryTemplate === null) {
+            delete query.queryTemplate;
+          }
+        }
+        body = searchBody;
+        logger.info(`Sanitized search-query body for Graph Search API`);
+      }
+    }
+
     if (options.method !== 'GET' && body) {
       if (config?.contentType === 'text/html') {
         if (typeof body === 'string') {
