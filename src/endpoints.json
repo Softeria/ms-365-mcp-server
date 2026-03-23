@@ -551,8 +551,8 @@
     "method": "get",
     "toolName": "list-chats",
     "workScopes": ["Chat.Read"],
-    "stripParams": ["$skip"],
-    "llmTip": "$skip is NOT supported on this endpoint. Use $top to limit results and fetchAllPages=true for pagination via @odata.nextLink. Use $filter and $orderby for filtering and sorting."
+    "stripParams": ["$skip", "$search", "$count"],
+    "llmTip": "$skip, $search, and $count are NOT supported on this endpoint. Use $top to limit results and fetchAllPages=true for pagination via @odata.nextLink. Use $filter to narrow results (e.g. $filter=chatType eq 'oneOnOne') and $orderby for sorting."
   },
   {
     "pathPattern": "/chats/{chat-id}",
@@ -655,8 +655,8 @@
     "method": "get",
     "toolName": "search-sharepoint-sites",
     "workScopes": ["Sites.Read.All"],
-    "stripParams": ["$count"],
-    "llmTip": "$count is NOT supported on this endpoint. Use $search to find sites by name and $top to limit results. Use $select to control returned fields."
+    "stripParams": ["$count", "$skip"],
+    "llmTip": "$count and $skip are NOT supported on this endpoint. Use $search to find sites by name and $top to limit results. Only @odata.nextLink URLs can be used for paging (use fetchAllPages=true). Use $select to control returned fields."
   },
   {
     "pathPattern": "/sites/{site-id}",
