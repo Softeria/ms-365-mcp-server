@@ -586,8 +586,8 @@
     "method": "get",
     "toolName": "list-joined-teams",
     "workScopes": ["Team.ReadBasic.All"],
-    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
-    "llmTip": "Only $top, $filter, and $select are supported. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top and fetchAllPages=true for pagination."
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$top", "$select", "$filter"],
+    "llmTip": "This endpoint accepts NO query options. All OData params are rejected. Call with no parameters to get all joined teams."
   },
   {
     "pathPattern": "/teams/{team-id}",
