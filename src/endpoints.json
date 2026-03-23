@@ -551,8 +551,8 @@
     "method": "get",
     "toolName": "list-chats",
     "workScopes": ["Chat.Read"],
-    "stripParams": ["$skip", "$search", "$count"],
-    "llmTip": "$skip, $search, and $count are NOT supported on this endpoint. Use $top to limit results and fetchAllPages=true for pagination via @odata.nextLink. Use $filter to narrow results (e.g. $filter=chatType eq 'oneOnOne') and $orderby for sorting."
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
+    "llmTip": "Only $top, $filter, and $select are supported on this endpoint. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top to limit results and fetchAllPages=true for pagination. Use $filter to narrow results (e.g. $filter=chatType eq 'oneOnOne')."
   },
   {
     "pathPattern": "/chats/{chat-id}",
@@ -655,8 +655,8 @@
     "method": "get",
     "toolName": "search-sharepoint-sites",
     "workScopes": ["Sites.Read.All"],
-    "stripParams": ["$count", "$skip"],
-    "llmTip": "$count and $skip are NOT supported on this endpoint. Use $search to find sites by name and $top to limit results. Only @odata.nextLink URLs can be used for paging (use fetchAllPages=true). Use $select to control returned fields."
+    "stripParams": ["$count", "$skip", "$orderby", "$expand"],
+    "llmTip": "Only $search, $top, $select, and $filter are supported on this endpoint. $count, $skip, $orderby, and $expand are NOT allowed. Use $search to find sites by name and $top to limit results."
   },
   {
     "pathPattern": "/sites/{site-id}",

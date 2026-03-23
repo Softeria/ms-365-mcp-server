@@ -182,11 +182,22 @@ async function executeGraphTool(
             break;
           }
 
-          case 'Query':
-            if (paramValue !== '' && paramValue != null) {
-              queryParams[fixedParamName] = `${paramValue}`;
+          case 'Query': {
+            // Skip empty/useless query param values that would pollute the URL
+            // and cause Graph API rejections on strict endpoints
+            const strValue = Array.isArray(paramValue)
+              ? paramValue.join(',')
+              : `${paramValue}`;
+            if (
+              paramValue != null &&
+              strValue !== '' &&
+              strValue !== 'false' &&
+              !(Array.isArray(paramValue) && paramValue.length === 0)
+            ) {
+              queryParams[fixedParamName] = strValue;
             }
             break;
+          }
 
           case 'Body':
             if (paramDef.schema) {
