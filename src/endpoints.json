@@ -565,8 +565,8 @@
     "method": "get",
     "toolName": "list-chat-messages",
     "workScopes": ["ChatMessage.Read"],
-    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
-    "llmTip": "Only $top and $select are reliably supported. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top and fetchAllPages=true for pagination. Chat messages cannot be searched via query params — retrieve messages and filter client-side."
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$select", "$filter"],
+    "llmTip": "Only $top is supported on this endpoint. All other query options ($skip, $search, $select, $filter, $count, $orderby, $expand) are NOT allowed. Use $top and fetchAllPages=true for pagination. Messages cannot be searched or filtered server-side — retrieve all and filter client-side."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
@@ -688,8 +688,8 @@
     "method": "get",
     "toolName": "list-sharepoint-site-items",
     "workScopes": ["Sites.Read.All"],
-    "stripParams": ["$skip", "$count", "$orderby", "$expand"],
-    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $search and $filter to narrow results."
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$filter", "$select"],
+    "llmTip": "Only $top is reliably supported on this endpoint. Most query options are rejected. Use $top and fetchAllPages=true for pagination. For searching within a site, use list-sharepoint-site-lists to find specific lists, then list-sharepoint-site-list-items with $expand=fields."
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
@@ -701,7 +701,9 @@
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"],
+    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $select and $filter to narrow results."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
@@ -713,7 +715,9 @@
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-list-items",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby"],
+    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $expand=fields to get item field values. Use $filter to narrow results."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
