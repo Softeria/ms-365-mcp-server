@@ -4,7 +4,7 @@
     "method": "get",
     "toolName": "list-mail-messages",
     "scopes": ["Mail.Read"],
-    "stripParamsWhen": { "$search": ["$skip"] },
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Chris')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
@@ -52,7 +52,7 @@
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "stripParamsWhen": { "$search": ["$skip"] },
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
@@ -73,7 +73,7 @@
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "stripParamsWhen": { "$search": ["$skip"] },
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
@@ -81,7 +81,7 @@
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "stripParamsWhen": { "$search": ["$skip"] },
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
@@ -564,7 +564,9 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
+    "llmTip": "Only $top and $select are reliably supported. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top and fetchAllPages=true for pagination. Chat messages cannot be searched via query params — retrieve messages and filter client-side."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
@@ -582,7 +584,9 @@
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
+    "llmTip": "Only $top, $filter, and $select are supported. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top and fetchAllPages=true for pagination."
   },
   {
     "pathPattern": "/teams/{team-id}",
@@ -606,7 +610,8 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
@@ -630,7 +635,8 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-channel-message-replies",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
@@ -642,7 +648,8 @@
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
@@ -680,7 +687,9 @@
     "pathPattern": "/sites/{site-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-items",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"],
+    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $search and $filter to narrow results."
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
