@@ -27,6 +27,8 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  stripParams?: string[]; // Query params to always strip (unconditionally unsupported)
+  stripParamsWhen?: Record<string, string[]>; // Conditional: strip value[] params when key param is present
 }
 
 const endpointsData = JSON.parse(
@@ -254,6 +256,30 @@ async function executeGraphTool(
     if (config?.acceptType) {
       headers['Accept'] = config.acceptType;
       logger.info(`Setting custom Accept: ${config.acceptType}`);
+    }
+
+    // Strip unsupported/incompatible query parameters based on endpoint config
+    if (config?.stripParams) {
+      for (const param of config.stripParams) {
+        if (queryParams[param] !== undefined) {
+          logger.info(`Stripping unsupported param '${param}' for endpoint ${tool.alias}`);
+          delete queryParams[param];
+        }
+      }
+    }
+    if (config?.stripParamsWhen) {
+      for (const [trigger, paramsToStrip] of Object.entries(config.stripParamsWhen)) {
+        if (queryParams[trigger] !== undefined) {
+          for (const param of paramsToStrip) {
+            if (queryParams[param] !== undefined) {
+              logger.info(
+                `Stripping '${param}' (incompatible with '${trigger}') for ${tool.alias}`
+              );
+              delete queryParams[param];
+            }
+          }
+        }
+      }
     }
 
     if (Object.keys(queryParams).length > 0) {
