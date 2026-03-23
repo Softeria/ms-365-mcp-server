@@ -338,9 +338,9 @@ async function executeGraphTool(
           if (entityTypes && !entityTypes.includes('externalItem')) {
             delete req.contentSources;
           }
-          // Remove sharePointOneDriveOptions with privateContent (not supported for most entity types)
+          // Remove sharePointOneDriveOptions with unsupported includeContent values
           const spOptions = req.sharePointOneDriveOptions as Record<string, unknown> | undefined;
-          if (spOptions?.includeContent === 'privateContent') {
+          if (spOptions?.includeContent === 'privateContent' || spOptions?.includeContent === 'unknownFutureValue') {
             delete req.sharePointOneDriveOptions;
           }
           // Remove collapseProperties for non-file entity types
