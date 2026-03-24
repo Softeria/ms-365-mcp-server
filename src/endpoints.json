@@ -340,7 +340,9 @@
     "method": "get",
     "toolName": "download-onedrive-file-content",
     "scopes": ["Files.Read"],
-    "returnDownloadUrl": true
+    "returnDownloadUrl": true,
+    "stripParams": ["$format", "$skip"],
+    "llmTip": "Downloads file content. Do NOT pass $format — the server returns a download URL from the item metadata. Use the returned @microsoft.graph.downloadUrl to access the file bytes."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
