@@ -333,7 +333,8 @@
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "stripParams": ["$skip", "$count", "$orderby"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
