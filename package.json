@@ -8,6 +8,7 @@
     "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
+    "prepare": "npm run generate && npm run build",
     "generate": "node bin/generate-graph-client.mjs",
     "build": "tsup",
     "test": "vitest run",
