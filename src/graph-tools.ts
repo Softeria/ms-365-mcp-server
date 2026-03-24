@@ -377,10 +377,96 @@ async function executeGraphTool(
       path.endsWith('/content');
 
     if (config?.returnDownloadUrl && path.endsWith('/content')) {
-      path = path.replace(/\/content$/, '');
+      // Fetch item metadata to get the download URL, then fetch the actual file content
+      const metadataPath = path.replace(/\/content$/, '');
       logger.info(
-        `Auto-returning download URL for ${tool.alias} (returnDownloadUrl=true in endpoints.json)`
+        `Fetching item metadata from ${metadataPath} to get download URL (returnDownloadUrl=true)`
       );
+
+      const metadataResponse = await graphClient.graphRequest(metadataPath, {
+        ...options,
+        rawResponse: false,
+      });
+
+      // Try to extract the download URL and fetch inline content
+      if (metadataResponse?.content?.[0]?.text) {
+        try {
+          const metadata = JSON.parse(metadataResponse.content[0].text);
+          const downloadUrl =
+            metadata['@microsoft.graph.downloadUrl'] ||
+            metadata['@content.downloadUrl'];
+          const fileName = metadata.name || '';
+          const fileSize = metadata.size || 0;
+
+          if (downloadUrl && fileSize <= 512000) {
+            // Fetch actual file content for files up to 500KB
+            logger.info(
+              `Fetching file content from download URL (${fileName}, ${fileSize} bytes)`
+            );
+            try {
+              const fileResponse = await fetch(downloadUrl);
+              if (fileResponse.ok) {
+                const contentType =
+                  fileResponse.headers.get('content-type') || '';
+                const isText =
+                  contentType.includes('text') ||
+                  contentType.includes('json') ||
+                  contentType.includes('xml') ||
+                  contentType.includes('csv') ||
+                  contentType.includes('javascript') ||
+                  contentType.includes('yaml') ||
+                  /\.(txt|md|csv|json|xml|yaml|yml|log|ini|cfg|conf|html|htm|css|js|ts|py|sh|sql|r|ps1|psm1|psd1)$/i.test(
+                    fileName
+                  );
+
+                if (isText) {
+                  const text = await fileResponse.text();
+                  logger.info(
+                    `Returning inline text content for ${fileName} (${text.length} chars)`
+                  );
+                  return {
+                    content: [
+                      {
+                        type: 'text' as const,
+                        text: JSON.stringify({
+                          fileName,
+                          size: fileSize,
+                          content: text,
+                        }),
+                      },
+                    ],
+                  };
+                }
+              }
+            } catch (fetchErr) {
+              logger.warn(`Failed to fetch file content: ${fetchErr}`);
+            }
+          }
+
+          // Fall back to returning metadata with download URL for large/binary files
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: metadataResponse.content[0].text,
+              },
+            ],
+            _meta: metadataResponse._meta,
+          };
+        } catch {
+          // Not JSON, return as-is
+        }
+      }
+
+      // If metadata fetch failed, return whatever we got
+      return {
+        content: (metadataResponse.content || []).map((item) => ({
+          type: 'text' as const,
+          text: item.text,
+        })),
+        _meta: metadataResponse._meta,
+        isError: metadataResponse.isError,
+      };
     } else if (isProbablyMediaContent) {
       options.rawResponse = true;
     }
