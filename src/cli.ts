@@ -52,6 +52,10 @@ program
   .option(
     '--enable-dynamic-registration',
     'Enable OAuth Dynamic Client Registration endpoint (required for some MCP clients like Open WebUI)'
+  )
+  .option(
+    '--auth-browser',
+    'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
   );
 
 export interface CommandOptions {
@@ -75,6 +79,7 @@ export interface CommandOptions {
   discovery?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
+  authBrowser?: boolean;
 
   [key: string]: unknown;
 }
