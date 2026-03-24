@@ -1,6 +1,6 @@
 {
   "name": "@softeria/ms-365-mcp-server",
-  "version": "0.0.0-development",
+  "version": "0.46.1-browser-auth.1",
   "description": " A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API",
   "type": "module",
   "main": "dist/index.js",
