@@ -314,7 +314,8 @@
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
@@ -676,7 +677,8 @@
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
