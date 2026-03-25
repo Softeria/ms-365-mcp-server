@@ -19,7 +19,11 @@ vi.mock('../logger.js', () => ({
 // Mock the generated client — we supply our own endpoint definitions per test
 const mockEndpoints: any[] = [];
 vi.mock('../generated/client.js', () => ({
-  api: { get endpoints() { return mockEndpoints; } },
+  api: {
+    get endpoints() {
+      return mockEndpoints;
+    },
+  },
 }));
 
 // Mock endpoints.json — we supply our own config per test
@@ -103,7 +107,10 @@ async function loadModule() {
 
 /** Minimal McpServer mock that captures registered tools */
 function createMockServer() {
-  const tools = new Map<string, { description: string; schema: any; handler: Function }>();
+  const tools = new Map<
+    string,
+    { description: string; schema: any; handler: (...args: any[]) => any }
+  >();
   return {
     tool: vi.fn(
       (
@@ -111,7 +118,7 @@ function createMockServer() {
         description: string,
         schema: any,
         annotations: any,
-        handler: Function
+        handler: (...args: any[]) => any
       ) => {
         tools.set(name, { description, schema, handler });
       }
@@ -154,7 +161,7 @@ describe('graph-tools', () => {
       expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
       const [url] = graphClient.graphRequest.mock.calls[0];
       // $count=true should appear in query string
-      expect(url).toContain('%24count=true');
+      expect(url).toContain('$count=true');
     });
   });
 
@@ -289,9 +296,7 @@ describe('graph-tools', () => {
       const endpoint = makeEndpoint({
         alias: 'download-file',
         path: '/me/drive/items/:driveItem-id/content',
-        parameters: [
-          { name: 'driveItem-id', type: 'Path', schema: z.string() },
-        ],
+        parameters: [{ name: 'driveItem-id', type: 'Path', schema: z.string() }],
       });
       const config = makeConfig({
         toolName: 'download-file',
@@ -376,9 +381,7 @@ describe('graph-tools', () => {
         alias: 'get-mail-message2',
         method: 'get',
         path: '/me/messages/:messageId',
-        parameters: [
-          { name: 'messageId', type: 'Path', schema: z.string() },
-        ],
+        parameters: [{ name: 'messageId', type: 'Path', schema: z.string() }],
       });
       const config = makeConfig({
         toolName: 'get-mail-message2',

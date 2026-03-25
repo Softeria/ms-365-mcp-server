@@ -221,7 +221,7 @@ describe('Calendar View Tools', () => {
 
       const calledPath = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock
         .calls[0][0] as string;
-      expect(calledPath).toContain('%24expand=singleValueExtendedProperties');
+      expect(calledPath).toContain('$expand=singleValueExtendedProperties');
     });
 
     it('should append to existing $expand when expandExtendedProperties is set', async () => {
@@ -237,7 +237,7 @@ describe('Calendar View Tools', () => {
 
       const calledPath = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock
         .calls[0][0] as string;
-      expect(calledPath).toContain('%24expand=extensions%2CsingleValueExtendedProperties');
+      expect(calledPath).toContain('$expand=extensions,singleValueExtendedProperties');
     });
 
     it('should pass $top query parameter when provided', async () => {
@@ -252,7 +252,7 @@ describe('Calendar View Tools', () => {
 
       const calledPath = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock
         .calls[0][0] as string;
-      expect(calledPath).toContain('%24top=50');
+      expect(calledPath).toContain('$top=50');
     });
 
     it('should call graphRequest with correct path for event instances', async () => {

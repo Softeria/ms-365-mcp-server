@@ -521,6 +521,58 @@ export function registerGraphTools(
         .optional();
     }
 
+    // Override OData parameter descriptions with spec-gap guidance
+    if (paramSchema['filter'] !== undefined || paramSchema['$filter'] !== undefined) {
+      const key = paramSchema['$filter'] !== undefined ? '$filter' : 'filter';
+      paramSchema[key] = z
+        .string()
+        .describe(
+          'OData filter expression. Add $count=true for advanced filters (flag/flagStatus, contains()). Cannot combine with $search.'
+        )
+        .optional();
+    }
+    if (paramSchema['search'] !== undefined || paramSchema['$search'] !== undefined) {
+      const key = paramSchema['$search'] !== undefined ? '$search' : 'search';
+      paramSchema[key] = z
+        .string()
+        .describe('KQL search query — wrap value in double quotes. Cannot combine with $filter.')
+        .optional();
+    }
+    if (paramSchema['select'] !== undefined || paramSchema['$select'] !== undefined) {
+      const key = paramSchema['$select'] !== undefined ? '$select' : 'select';
+      paramSchema[key] = z
+        .string()
+        .describe('Comma-separated fields to return, e.g. id,subject,from,receivedDateTime')
+        .optional();
+    }
+    if (paramSchema['orderby'] !== undefined || paramSchema['$orderby'] !== undefined) {
+      const key = paramSchema['$orderby'] !== undefined ? '$orderby' : 'orderby';
+      paramSchema[key] = z
+        .string()
+        .describe('Sort expression, e.g. receivedDateTime desc')
+        .optional();
+    }
+    if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
+      const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
+      paramSchema[key] = z.number().describe('Max items per page').optional();
+    }
+    if (paramSchema['skip'] !== undefined || paramSchema['$skip'] !== undefined) {
+      const key = paramSchema['$skip'] !== undefined ? '$skip' : 'skip';
+      paramSchema[key] = z
+        .number()
+        .describe('Items to skip for pagination. Not supported with $search.')
+        .optional();
+    }
+    if (paramSchema['count'] !== undefined || paramSchema['$count'] !== undefined) {
+      const countKey = paramSchema['$count'] !== undefined ? '$count' : 'count';
+      paramSchema[countKey] = z
+        .boolean()
+        .describe(
+          'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains().'
+        )
+        .optional();
+    }
+
     // Add account parameter for multi-account mode.
     // Layer 2: Account names are surfaced in the description (not as a strict enum) so the LLM
     // sees available accounts upfront without a round-trip, but accounts added mid-session via
