@@ -79,6 +79,39 @@ function ensureParentDir(filePath: string): void {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 }
 
+function wrapCache(data: string): string {
+  return JSON.stringify({ _cacheEnvelope: true, data, savedAt: Date.now() });
+}
+
+function unwrapCache(raw: string): { data: string; savedAt?: number } {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed._cacheEnvelope && typeof parsed.data === 'string') {
+      return { data: parsed.data, savedAt: parsed.savedAt };
+    }
+  } catch {
+    // not our envelope format
+  }
+  return { data: raw };
+}
+
+function pickNewest(
+  keytarRaw: string | undefined,
+  fileRaw: string | undefined
+): string | undefined {
+  if (!keytarRaw && !fileRaw) return undefined;
+  if (keytarRaw && !fileRaw) return unwrapCache(keytarRaw).data;
+  if (!keytarRaw && fileRaw) return unwrapCache(fileRaw).data;
+
+  const kt = unwrapCache(keytarRaw!);
+  const file = unwrapCache(fileRaw!);
+
+  if (kt.savedAt === undefined && file.savedAt === undefined) return kt.data;
+  if (kt.savedAt !== undefined && file.savedAt === undefined) return kt.data;
+  if (kt.savedAt === undefined && file.savedAt !== undefined) return file.data;
+  return kt.savedAt! >= file.savedAt! ? kt.data : file.data;
+}
+
 /**
  * Creates MSAL configuration from secrets.
  * This is called during AuthManager initialization.
@@ -209,27 +242,23 @@ class AuthManager {
 
   async loadTokenCache(): Promise<void> {
     try {
-      let cacheData: string | undefined;
-
+      let keytarRaw: string | undefined;
       try {
         const kt = await getKeytar();
         if (kt) {
-          const cachedData = await kt.getPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
-          if (cachedData) {
-            cacheData = cachedData;
-          }
+          keytarRaw = (await kt.getPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT)) ?? undefined;
         }
       } catch (keytarError) {
-        logger.warn(
-          `Keychain access failed, falling back to file storage: ${(keytarError as Error).message}`
-        );
+        logger.warn(`Keychain access failed: ${(keytarError as Error).message}`);
       }
 
+      let fileRaw: string | undefined;
       const cachePath = getTokenCachePath();
-      if (!cacheData && existsSync(cachePath)) {
-        cacheData = readFileSync(cachePath, 'utf8');
+      if (existsSync(cachePath)) {
+        fileRaw = readFileSync(cachePath, 'utf8');
       }
 
+      const cacheData = pickNewest(keytarRaw, fileRaw);
       if (cacheData) {
         this.msalApp.getTokenCache().deserialize(cacheData);
       }
@@ -243,27 +272,25 @@ class AuthManager {
 
   private async loadSelectedAccount(): Promise<void> {
     try {
-      let selectedAccountData: string | undefined;
-
+      let keytarRaw: string | undefined;
       try {
         const kt = await getKeytar();
         if (kt) {
-          const cachedData = await kt.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
-          if (cachedData) {
-            selectedAccountData = cachedData;
-          }
+          keytarRaw = (await kt.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY)) ?? undefined;
         }
       } catch (keytarError) {
         logger.warn(
-          `Keychain access failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
+          `Keychain access failed for selected account: ${(keytarError as Error).message}`
         );
       }
 
+      let fileRaw: string | undefined;
       const accountPath = getSelectedAccountPath();
-      if (!selectedAccountData && existsSync(accountPath)) {
-        selectedAccountData = readFileSync(accountPath, 'utf8');
+      if (existsSync(accountPath)) {
+        fileRaw = readFileSync(accountPath, 'utf8');
       }
 
+      const selectedAccountData = pickNewest(keytarRaw, fileRaw);
       if (selectedAccountData) {
         const parsed = JSON.parse(selectedAccountData);
         this.selectedAccountId = parsed.accountId;
@@ -276,16 +303,16 @@ class AuthManager {
 
   async saveTokenCache(): Promise<void> {
     try {
-      const cacheData = this.msalApp.getTokenCache().serialize();
+      const stamped = wrapCache(this.msalApp.getTokenCache().serialize());
 
       try {
         const kt = await getKeytar();
         if (kt) {
-          await kt.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, cacheData);
+          await kt.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, stamped);
         } else {
           const cachePath = getTokenCachePath();
           ensureParentDir(cachePath);
-          fs.writeFileSync(cachePath, cacheData, { mode: 0o600 });
+          fs.writeFileSync(cachePath, stamped, { mode: 0o600 });
         }
       } catch (keytarError) {
         logger.warn(
@@ -294,7 +321,7 @@ class AuthManager {
 
         const cachePath = getTokenCachePath();
         ensureParentDir(cachePath);
-        fs.writeFileSync(cachePath, cacheData, { mode: 0o600 });
+        fs.writeFileSync(cachePath, stamped, { mode: 0o600 });
       }
     } catch (error) {
       logger.error(`Error saving token cache: ${(error as Error).message}`);
@@ -303,16 +330,16 @@ class AuthManager {
 
   private async saveSelectedAccount(): Promise<void> {
     try {
-      const selectedAccountData = JSON.stringify({ accountId: this.selectedAccountId });
+      const stamped = wrapCache(JSON.stringify({ accountId: this.selectedAccountId }));
 
       try {
         const kt = await getKeytar();
         if (kt) {
-          await kt.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, selectedAccountData);
+          await kt.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, stamped);
         } else {
           const accountPath = getSelectedAccountPath();
           ensureParentDir(accountPath);
-          fs.writeFileSync(accountPath, selectedAccountData, { mode: 0o600 });
+          fs.writeFileSync(accountPath, stamped, { mode: 0o600 });
         }
       } catch (keytarError) {
         logger.warn(
@@ -321,7 +348,7 @@ class AuthManager {
 
         const accountPath = getSelectedAccountPath();
         ensureParentDir(accountPath);
-        fs.writeFileSync(accountPath, selectedAccountData, { mode: 0o600 });
+        fs.writeFileSync(accountPath, stamped, { mode: 0o600 });
       }
     } catch (error) {
       logger.error(`Error saving selected account: ${(error as Error).message}`);
@@ -689,4 +716,11 @@ class AuthManager {
 }
 
 export default AuthManager;
-export { buildScopesFromEndpoints, getTokenCachePath, getSelectedAccountPath };
+export {
+  buildScopesFromEndpoints,
+  getTokenCachePath,
+  getSelectedAccountPath,
+  wrapCache,
+  unwrapCache,
+  pickNewest,
+};
