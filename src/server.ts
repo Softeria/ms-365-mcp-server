@@ -396,6 +396,7 @@ class MicrosoftGraphServer {
 
             res.on('close', () => {
               transport.close();
+              server.close();
             });
 
             await server.connect(transport);
@@ -445,6 +446,7 @@ class MicrosoftGraphServer {
 
             res.on('close', () => {
               transport.close();
+              server.close();
             });
 
             await server.connect(transport);
