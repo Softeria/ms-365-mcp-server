@@ -659,55 +659,6 @@
     "workScopes": ["TeamMember.Read.All"]
   },
   {
-    "pathPattern": "/teams/{team-id}/tags",
-    "method": "get",
-    "toolName": "list-team-tags",
-    "workScopes": ["TeamworkTag.Read"],
-    "llmTip": "List all tags in a team. Returns tag id, displayName, memberCount, and tagType (standard or scheduled). Use list-joined-teams to find the team ID first."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags",
-    "method": "post",
-    "toolName": "create-team-tag",
-    "workScopes": ["TeamworkTag.ReadWrite"],
-    "llmTip": "Create a new tag in a team. Body requires displayName (max 40 chars) and an optional members array (max 25 at creation, each with a userId). Use list-team-members to find user IDs. Add more members individually with add-team-tag-member after creation."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags/{teamworkTag-id}",
-    "method": "get",
-    "toolName": "get-team-tag",
-    "workScopes": ["TeamworkTag.Read"],
-    "llmTip": "Get details of a specific tag including displayName, memberCount, and tagType. Use list-team-tags to find the tag ID."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags/{teamworkTag-id}",
-    "method": "patch",
-    "toolName": "update-team-tag",
-    "workScopes": ["TeamworkTag.ReadWrite"],
-    "llmTip": "Update a tag's displayName (max 40 chars). Use list-team-tags to find the tag ID."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags/{teamworkTag-id}",
-    "method": "delete",
-    "toolName": "delete-team-tag",
-    "workScopes": ["TeamworkTag.ReadWrite"],
-    "llmTip": "Permanently delete a tag from a team. This action is irreversible. Use list-team-tags to find the tag ID."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags/{teamworkTag-id}/members",
-    "method": "get",
-    "toolName": "list-team-tag-members",
-    "workScopes": ["TeamworkTag.Read"],
-    "llmTip": "List all members of a specific tag. Returns member id, displayName, tenantId, and userId. Use list-team-tags to find the tag ID."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/tags/{teamworkTag-id}/members/{teamworkTagMember-id}",
-    "method": "delete",
-    "toolName": "remove-team-tag-member",
-    "workScopes": ["TeamworkTag.ReadWrite"],
-    "llmTip": "Remove a member from a tag. Use list-team-tag-members to find the member ID."
-  },
-  {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",

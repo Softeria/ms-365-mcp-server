@@ -80,7 +80,9 @@ async function main(): Promise<void> {
     await server.initialize(version);
     await server.start();
   } catch (error) {
-    logger.error(`Startup error: ${error}`);
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`Startup error: ${message}`);
+    console.error(message);
     process.exit(1);
   }
 }
