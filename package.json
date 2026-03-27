@@ -1,6 +1,6 @@
 {
   "name": "@softeria/ms-365-mcp-server",
-  "version": "0.0.0-development",
+  "version": "0.46.1-browser-auth.1",
   "description": " A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API",
   "type": "module",
   "main": "dist/index.js",
@@ -8,6 +8,7 @@
     "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
+    "prepare": "npm run generate && npm run build",
     "generate": "node bin/generate-graph-client.mjs",
     "build": "tsup",
     "test": "vitest run",
@@ -40,6 +41,7 @@
     "dotenv": "^17.0.1",
     "express": "^5.2.1",
     "js-yaml": "^4.1.0",
+    "open": "^11.0.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
   },

@@ -5,7 +5,7 @@ import AuthManager from './auth.js';
 export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
   server.tool(
     'login',
-    'Authenticate with Microsoft using device code flow',
+    'Authenticate with Microsoft account',
     {
       force: z.boolean().default(false).describe('Force a new login even if already logged in'),
     },
@@ -26,6 +26,23 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
               ],
             };
           }
+        }
+
+        if (authManager.getUseInteractiveAuth()) {
+          await authManager.acquireTokenInteractive();
+          const loginResult = await authManager.testLogin();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'Login successful',
+                  message: 'Browser authentication completed successfully.',
+                  ...loginResult,
+                }),
+              },
+            ],
+          };
         }
 
         const text = await new Promise<string>((resolve, reject) => {
