@@ -5,6 +5,7 @@ import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
+import { registerCustomExcelTools } from './custom-excel-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
@@ -95,6 +96,8 @@ class MicrosoftGraphServer {
         this.accountNames
       );
     }
+
+    registerCustomExcelTools(server, this.graphClient!, this.authManager, this.options.readOnly);
 
     return server;
   }

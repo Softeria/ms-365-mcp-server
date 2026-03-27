@@ -110,7 +110,8 @@ update-calendar-event, delete-calendar-event</sub>
 upload-new-file, delete-onedrive-file</sub>
 
 **Excel Operations**  
-<sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
+<sub>list-excel-worksheets, get-excel-range, update-excel-range, create-excel-worksheet, create-excel-workbook,
+create-excel-chart, format-excel-range, sort-excel-range</sub>
 
 **OneNote**  
 <sub>list-onenote-notebooks, list-onenote-notebook-sections, list-onenote-section-pages, get-onenote-page-content,

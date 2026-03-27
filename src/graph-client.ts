@@ -6,10 +6,12 @@ import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
 
+type GraphRequestBody = string | Buffer | Uint8Array | ArrayBuffer | null;
+
 interface GraphRequestOptions {
   headers?: Record<string, string>;
   method?: string;
-  body?: string;
+  body?: GraphRequestBody;
   rawResponse?: boolean;
   includeHeaders?: boolean;
   excludeResponse?: boolean;
@@ -162,9 +164,15 @@ class GraphClient {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    const hasContentType = Object.keys(headers).some(
+      (headerName) => headerName.toLowerCase() === 'content-type'
+    );
+    if (options.body != null && !hasContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     return fetch(url, {
       method: options.method || 'GET',
