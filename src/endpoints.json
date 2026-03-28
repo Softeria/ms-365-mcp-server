@@ -769,6 +769,14 @@
     "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
   },
   {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}",
+    "method": "get",
+    "toolName": "get-meeting-transcript",
+    "scopes": ["OnlineMeetingTranscript.Read.All"],
+    "workScopes": ["OnlineMeetingTranscript.Read.All"],
+    "llmTip": "Gets metadata for a specific transcript: createdDateTime, contentCorrelationId (links transcript to its recording), meetingId, meetingOrganizer. Use contentCorrelationId to match a transcript with its recording. For the actual transcript text, use get-meeting-transcript-content instead."
+  },
+  {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
     "method": "get",
     "toolName": "get-meeting-transcript-content",
@@ -783,6 +791,13 @@
     "toolName": "list-meeting-recordings",
     "workScopes": ["OnlineMeetingRecording.Read.All"],
     "llmTip": "Lists recordings for a meeting. Each recording has createdDateTime, endDateTime, meetingOrganizer, contentCorrelationId (links to corresponding transcript). For recurring meetings, there is one recording per occurrence."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}",
+    "method": "get",
+    "toolName": "get-meeting-recording",
+    "workScopes": ["OnlineMeetingRecording.Read.All"],
+    "llmTip": "Gets metadata for a specific recording: createdDateTime, endDateTime, contentCorrelationId (links recording to its transcript), meetingOrganizer, callId. Use contentCorrelationId to match a recording with its transcript. For the actual video file, use get-meeting-recording-content instead."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}/content",
