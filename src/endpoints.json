@@ -833,5 +833,37 @@
     "toolName": "reply-to-group-thread",
     "workScopes": ["Group.ReadWrite.All"],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars",
+    "method": "get",
+    "toolName": "list-virtual-event-webinars",
+    "scopes": ["VirtualEvent.Read"],
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Lists all webinars created by the current user. Each webinar has displayName, startDateTime, endDateTime, audience (everyone/organization), registration info, and status. Use $filter and $orderby for sorting."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars/{virtualEvent-id}",
+    "method": "get",
+    "toolName": "get-virtual-event-webinar",
+    "scopes": ["VirtualEvent.Read"],
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Gets a specific webinar with full details: displayName, description, startDateTime, endDateTime, audience, coOrganizers, presenters, registrationConfiguration, and status."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars/{virtualEvent-id}/sessions",
+    "method": "get",
+    "toolName": "list-webinar-sessions",
+    "scopes": ["VirtualEvent.Read"],
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars/{virtualEvent-id}/registrations",
+    "method": "get",
+    "toolName": "list-webinar-registrations",
+    "scopes": ["VirtualEvent.Read"],
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Lists registrations for a webinar. Each registration has registrationDateTime, status (registered/cancelled), firstName, lastName, email. Useful for tracking who signed up for training sessions or events."
   }
 ]
