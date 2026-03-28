@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Microsoft 365 MCP Server — Lambda deployment with SSM secrets.
+  Deploy with: sam build && sam deploy
+
+Parameters:
+  SsmPrefix:
+    Type: String
+    Default: /m365-mcp
+    Description: >
+      SSM Parameter Store prefix for secrets.
+      Expected parameters: {prefix}/client-id, {prefix}/client-secret,
+      {prefix}/tenant-id (optional), {prefix}/cloud-type (optional),
+      {prefix}/api-key (required — used to authenticate inbound MCP requests).
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        MS365_MCP_SSM_PREFIX: !Ref SsmPrefix
+        MS365_MCP_CLIENT_ID: !Sub '{{resolve:ssm:${SsmPrefix}/client-id}}'
+        MS365_MCP_API_KEY: !Sub '{{resolve:ssm-secure:${SsmPrefix}/api-key}}'
+        NODE_OPTIONS: --enable-source-maps
+
+Resources:
+  M365McpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 100
+
+  M365McpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ms-365-mcp-server
+      CodeUri: ./
+      Handler: dist/lambda.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/*'
+      Events:
+        McpEndpoint:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref M365McpApi
+            Path: /mcp
+            Method: POST
+        HealthCheck:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref M365McpApi
+            Path: /health
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda.ts
+        External:
+          - '@azure/msal-node'
+          - keytar
+          - '@azure/identity'
+          - '@azure/keyvault-secrets'
+
+Outputs:
+  McpEndpointUrl:
+    Description: MCP endpoint URL to add to Claude Settings > Connectors
+    Value: !Sub 'https://${M365McpApi}.execute-api.${AWS::Region}.amazonaws.com/mcp'
+  HealthCheckUrl:
+    Description: Health check URL
+    Value: !Sub 'https://${M365McpApi}.execute-api.${AWS::Region}.amazonaws.com/health'

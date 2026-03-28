@@ -17,8 +17,12 @@ export default defineConfig({
   },
   noExternal: [],
   external: [
+    '@aws-sdk/client-ssm',
+    '@azure/identity',
+    '@azure/keyvault-secrets',
     '@azure/msal-node',
     '@modelcontextprotocol/sdk',
+    '@vendia/serverless-express',
     'commander',
     'dotenv',
     'express',

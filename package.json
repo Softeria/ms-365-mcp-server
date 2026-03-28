@@ -44,8 +44,10 @@
     "zod": "^3.24.2"
   },
   "optionalDependencies": {
+    "@aws-sdk/client-ssm": "^3.700.0",
     "@azure/identity": "^4.5.0",
     "@azure/keyvault-secrets": "^4.9.0",
+    "@vendia/serverless-express": "^4.12.6",
     "keytar": "^7.9.0"
   },
   "devDependencies": {
