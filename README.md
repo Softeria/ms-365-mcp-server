@@ -92,68 +92,110 @@ Via environment variable:
 MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
 ```
 
-## Supported Services & Tools
+## Supported Services & Tools (193 tools)
 
 ### Personal Account Tools (Available by default)
 
 **Email (Outlook)**
 <sub>list-mail-messages, list-mail-folders, list-mail-child-folders, list-mail-folder-messages, get-mail-message, send-mail,
 delete-mail-message, create-draft-email, move-mail-message, create-mail-folder, create-mail-child-folder,
-update-mail-folder, delete-mail-folder</sub>
+update-mail-folder, delete-mail-folder, update-mail-message, add-mail-attachment, list-mail-attachments,
+get-mail-attachment, delete-mail-attachment, forward-mail-message, reply-mail-message, reply-all-mail-message,
+create-forward-draft, create-reply-draft, create-reply-all-draft, send-draft-message</sub>
 
-**Calendar**  
-<sub>list-calendars, list-calendar-events, get-calendar-event, get-calendar-view, create-calendar-event,
-update-calendar-event, delete-calendar-event</sub>
+**Mail Rules**
+<sub>list-mail-rules, create-mail-rule, update-mail-rule, delete-mail-rule</sub>
 
-**OneDrive Files**  
-<sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content,
-upload-new-file, delete-onedrive-file</sub>
+**Mailbox Settings**
+<sub>get-mailbox-settings, update-mailbox-settings</sub>
 
-**Excel Operations**  
-<sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
+**Calendar**
+<sub>list-calendars, create-calendar, update-calendar, delete-calendar, list-calendar-events, get-calendar-event,
+get-calendar-view, create-calendar-event, update-calendar-event, delete-calendar-event, list-specific-calendar-events,
+get-specific-calendar-event, get-specific-calendar-view, create-specific-calendar-event,
+update-specific-calendar-event, delete-specific-calendar-event, list-calendar-event-instances, find-meeting-times,
+accept-calendar-event, decline-calendar-event, tentatively-accept-calendar-event</sub>
 
-**OneNote**  
-<sub>list-onenote-notebooks, list-onenote-notebook-sections, list-onenote-section-pages, get-onenote-page-content,
-create-onenote-page</sub>
+**OneDrive Files**
+<sub>list-drives, get-drive-root-item, get-root-folder, list-folder-files, download-onedrive-file-content,
+upload-file-content, delete-onedrive-file, get-drive-item, update-drive-item, create-drive-folder,
+share-drive-item, list-drive-item-permissions, delete-drive-item-permission, list-drive-item-versions,
+list-shared-with-me, search-onedrive-files, get-my-drive-delta, get-drive-delta</sub>
 
-**To Do Tasks**  
-<sub>list-todo-task-lists, list-todo-tasks, get-todo-task, create-todo-task, update-todo-task, delete-todo-task</sub>
+**Excel Operations**
+<sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range,
+list-excel-tables, get-excel-table, list-excel-table-rows, add-excel-table-rows</sub>
 
-**Planner**  
-<sub>list-planner-tasks, get-planner-plan, list-plan-tasks, get-planner-task, create-planner-task</sub>
+**OneNote**
+<sub>list-onenote-notebooks, create-onenote-notebook, list-onenote-notebook-sections, create-onenote-section,
+list-all-onenote-sections, list-onenote-section-pages, get-onenote-page-content, create-onenote-page,
+create-onenote-section-page, update-onenote-page, delete-onenote-page</sub>
 
-**Contacts**  
+**To Do Tasks**
+<sub>list-todo-task-lists, list-todo-tasks, get-todo-task, create-todo-task, update-todo-task, delete-todo-task,
+list-todo-linked-resources, create-todo-linked-resource, delete-todo-linked-resource</sub>
+
+**Planner**
+<sub>list-planner-tasks, get-planner-plan, list-plan-tasks, get-planner-task, create-planner-task, update-planner-task,
+get-planner-task-details, update-planner-task-details</sub>
+
+**Contacts**
 <sub>list-outlook-contacts, get-outlook-contact, create-outlook-contact, update-outlook-contact,
 delete-outlook-contact</sub>
 
-**User Profile**  
-<sub>get-current-user</sub>
+**User Profile & People**
+<sub>get-current-user, get-my-manager, list-my-direct-reports, get-my-profile-photo, list-relevant-people</sub>
 
-**Search**  
+**Presence**
+<sub>get-my-presence</sub>
+
+**Search**
 <sub>search-query</sub>
 
 ### Organization Account Tools (Requires --org-mode flag)
 
-**Teams & Chats**
+**Teams Management**
+<sub>list-joined-teams, get-team, update-team, list-team-channels, get-team-channel, create-team-channel,
+update-team-channel, delete-team-channel, list-channel-messages, get-channel-message, send-channel-message,
+reply-to-channel-message, list-channel-message-replies, list-team-members, add-team-member, remove-team-member,
+list-channel-tabs, get-channel-files-folder</sub>
+
+**Chats**
 <sub>list-chats, get-chat, list-chat-messages, get-chat-message, send-chat-message, list-chat-message-replies,
-reply-to-chat-message, list-joined-teams, get-team, list-team-channels, get-team-channel, list-channel-messages,
-get-channel-message, send-channel-message, list-team-members</sub>
+reply-to-chat-message, list-chat-members</sub>
 
-**Online Meetings & Transcripts**
-<sub>list-online-meetings, list-meeting-transcripts, get-meeting-transcript-content</sub>
+**Online Meetings**
+<sub>list-online-meetings, get-online-meeting, create-online-meeting, update-online-meeting, delete-online-meeting</sub>
 
-**SharePoint Sites**  
+**Meeting Transcripts**
+<sub>list-meeting-transcripts, get-meeting-transcript, get-meeting-transcript-content</sub>
+
+**Meeting Recordings**
+<sub>list-meeting-recordings, get-meeting-recording, get-meeting-recording-content</sub>
+
+**Meeting Attendance**
+<sub>list-meeting-attendance-reports, get-meeting-attendance-report, list-meeting-attendance-records</sub>
+
+**Virtual Events & Webinars**
+<sub>list-virtual-event-webinars, get-virtual-event-webinar, list-webinar-sessions, list-webinar-registrations</sub>
+
+**User Management & Directory**
+<sub>list-users, get-user-manager, list-user-direct-reports, get-user-profile-photo, get-user-presence,
+get-presences-by-user-id, list-my-memberships, list-groups, get-group, list-group-members, list-group-owners</sub>
+
+**SharePoint Sites**
 <sub>search-sharepoint-sites, get-sharepoint-site, get-sharepoint-site-by-path, list-sharepoint-site-drives,
 get-sharepoint-site-drive-by-id, list-sharepoint-site-items, get-sharepoint-site-item, list-sharepoint-site-lists,
 get-sharepoint-site-list, list-sharepoint-site-list-items, get-sharepoint-site-list-item,
+create-sharepoint-list-item, update-sharepoint-list-item, delete-sharepoint-list-item,
 get-sharepoint-sites-delta</sub>
 
-**Shared Mailboxes**  
+**Shared Mailboxes**
 <sub>list-shared-mailbox-messages, list-shared-mailbox-folder-messages, get-shared-mailbox-message,
 send-shared-mailbox-mail</sub>
 
-**User Management**  
-<sub>list-users</sub>
+**Groups (Legacy)**
+<sub>list-group-conversations, list-group-threads, reply-to-group-thread</sub>
 
 ## Organization/Work Mode
 
@@ -474,7 +516,7 @@ npx @softeria/ms-365-mcp-server --list-accounts
 
 ## Tool Presets
 
-To reduce initial connection overhead, use preset tool categories instead of loading all 90+ tools:
+To reduce initial connection overhead, use preset tool categories instead of loading all 190+ tools:
 
 ```bash
 npx @softeria/ms-365-mcp-server --preset mail
