@@ -199,6 +199,34 @@
     "llmTip": "No request body needed — just call with the message ID. Draft must exist in Drafts folder."
   },
   {
+    "pathPattern": "/me/mailFolders/inbox/messageRules",
+    "method": "get",
+    "toolName": "list-mail-rules",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists all inbox rules. Each rule has displayName, sequence, isEnabled, conditions (fromAddresses, subjectContains, etc.), actions (moveToFolder, forwardTo, delete, etc.), and exceptions."
+  },
+  {
+    "pathPattern": "/me/mailFolders/inbox/messageRules",
+    "method": "post",
+    "toolName": "create-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates an inbox rule. Body: { displayName: 'Rule name', sequence: 1, isEnabled: true, conditions: { fromAddresses: [{ emailAddress: { address: 'user@example.com' } }] }, actions: { moveToFolder: 'folder-id' } }. Actions: moveToFolder, copyToFolder, forwardTo, forwardAsAttachmentTo, delete, markAsRead, markImportance, stopProcessingRules."
+  },
+  {
+    "pathPattern": "/me/mailFolders/inbox/messageRules/{messageRule-id}",
+    "method": "patch",
+    "toolName": "update-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Updates an existing inbox rule. Send only the properties to change. Common use: { isEnabled: false } to disable a rule, or update conditions/actions."
+  },
+  {
+    "pathPattern": "/me/mailFolders/inbox/messageRules/{messageRule-id}",
+    "method": "delete",
+    "toolName": "delete-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Deletes an inbox rule permanently."
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
