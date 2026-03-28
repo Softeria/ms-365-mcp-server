@@ -609,6 +609,13 @@
     "workScopes": ["Team.ReadBasic.All"]
   },
   {
+    "pathPattern": "/teams/{team-id}",
+    "method": "patch",
+    "toolName": "update-team",
+    "workScopes": ["TeamSettings.ReadWrite.All"],
+    "llmTip": "Updates team properties. Body: { displayName: 'New Name', description: 'New description', memberSettings: { allowCreateUpdateChannels: true }, messagingSettings: { allowUserEditMessages: true }, funSettings: { allowGiphy: false } }."
+  },
+  {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
@@ -619,6 +626,27 @@
     "method": "get",
     "toolName": "get-team-channel",
     "workScopes": ["Channel.ReadBasic.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels",
+    "method": "post",
+    "toolName": "create-team-channel",
+    "workScopes": ["Channel.Create"],
+    "llmTip": "Creates a new channel in a team. Body: { displayName: 'Channel Name', description: 'Optional description', membershipType: 'standard' }. membershipType: 'standard' (visible to all), 'private' (invited members only), 'shared' (cross-team). For private/shared channels, add members after creation."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}",
+    "method": "patch",
+    "toolName": "update-team-channel",
+    "workScopes": ["Channel.ReadBasic.All"],
+    "llmTip": "Updates channel properties. Body: { displayName: 'New Name', description: 'New description' }. The General channel cannot be renamed."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}",
+    "method": "delete",
+    "toolName": "delete-team-channel",
+    "workScopes": ["Channel.Delete.All"],
+    "llmTip": "Deletes a channel and all its content (messages, files, tabs). The General channel cannot be deleted. This action cannot be undone."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
@@ -657,6 +685,27 @@
     "method": "get",
     "toolName": "list-team-members",
     "workScopes": ["TeamMember.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/members",
+    "method": "post",
+    "toolName": "add-team-member",
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "llmTip": "Adds a member to a team. Body: { '@odata.type': '#microsoft.graph.aadUserConversationMember', 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users/{user-id}', roles: [] }. Set roles to ['owner'] to add as owner, or [] for regular member."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/members/{membership-id}",
+    "method": "delete",
+    "toolName": "remove-team-member",
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "llmTip": "Removes a member from a team. Use list-team-members first to find the membership-id. Cannot remove the last owner."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
+    "method": "get",
+    "toolName": "list-channel-tabs",
+    "workScopes": ["TeamsTab.Read.All"],
+    "llmTip": "Lists tabs pinned to a channel. Each tab has displayName, webUrl, teamsApp (id, displayName), and configuration. Common tabs: Wiki, Planner, SharePoint, OneNote, Website."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
