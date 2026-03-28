@@ -395,6 +395,38 @@
     "scopes": ["Files.Read"]
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables",
+    "method": "get",
+    "toolName": "list-excel-tables",
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists all named tables in a workbook. Each table has id, name, showHeaders, showTotals, columns, and style. Use the table name or id with other table endpoints."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{table-id}",
+    "method": "get",
+    "toolName": "get-excel-table",
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "llmTip": "Gets a specific table by name or ID. Returns table properties including columns, showHeaders, showTotals, and style."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{table-id}/rows",
+    "method": "get",
+    "toolName": "list-excel-table-rows",
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists all rows in a table. Each row has index and values (array of cell values). Use $top and $skip for pagination on large tables."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{table-id}/rows",
+    "method": "post",
+    "toolName": "add-excel-table-rows",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Adds rows to a table. Body: { values: [['col1val', 'col2val', 'col3val'], ['row2col1', 'row2col2', 'row2col3']] }. Each inner array is one row. Values must match the number of columns in the table."
+  },
+  {
     "pathPattern": "/me/onenote/notebooks",
     "method": "get",
     "toolName": "list-onenote-notebooks",
