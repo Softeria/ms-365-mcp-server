@@ -39,6 +39,11 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
     pattern: /excel|worksheet|workbook|range|chart/i,
     description: 'Excel spreadsheet operations',
   },
+  word: {
+    name: 'word',
+    pattern: /word|document|outline/i,
+    description: 'Word document reading, outline extraction, and in-document search',
+  },
   contacts: {
     name: 'contacts',
     pattern: /contact/i,

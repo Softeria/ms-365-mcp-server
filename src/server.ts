@@ -18,6 +18,7 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import { registerWordTools } from './custom-tools/word.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -95,6 +96,8 @@ class MicrosoftGraphServer {
         this.accountNames
       );
     }
+
+    registerWordTools(server, this.graphClient!, this.options.enabledTools);
 
     return server;
   }
