@@ -401,10 +401,31 @@
     "scopes": ["Notes.Read"]
   },
   {
+    "pathPattern": "/me/onenote/notebooks",
+    "method": "post",
+    "toolName": "create-onenote-notebook",
+    "scopes": ["Notes.Create"],
+    "llmTip": "Creates a new OneNote notebook. Body: { displayName: 'Notebook Name' }. The name must be unique across the user's notebooks."
+  },
+  {
     "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-onenote-notebook-sections",
     "scopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/me/onenote/notebooks/{notebook-id}/sections",
+    "method": "post",
+    "toolName": "create-onenote-section",
+    "scopes": ["Notes.Create"],
+    "llmTip": "Creates a new section in a notebook. Body: { displayName: 'Section Name' }."
+  },
+  {
+    "pathPattern": "/me/onenote/sections",
+    "method": "get",
+    "toolName": "list-all-onenote-sections",
+    "scopes": ["Notes.Read"],
+    "llmTip": "Lists all sections across all notebooks. Use list-onenote-notebook-sections to list sections within a specific notebook instead."
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
@@ -433,6 +454,21 @@
     "scopes": ["Notes.Create"],
     "contentType": "text/html",
     "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML fails silently."
+  },
+  {
+    "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
+    "method": "patch",
+    "toolName": "update-onenote-page",
+    "scopes": ["Notes.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Updates page content using PATCH commands. Body is an array of patch actions: [{ target: 'body', action: 'append', content: '<p>New content</p>' }]. Actions: 'append' (add to end), 'replace' (replace target), 'insert' (insert after target). Target can be 'body', 'title', or a specific element ID."
+  },
+  {
+    "pathPattern": "/me/onenote/pages/{onenotePage-id}",
+    "method": "delete",
+    "toolName": "delete-onenote-page",
+    "scopes": ["Notes.ReadWrite"],
+    "llmTip": "Deletes a OneNote page permanently. This cannot be undone."
   },
   {
     "pathPattern": "/me/todo/lists",
