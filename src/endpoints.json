@@ -416,6 +416,21 @@
     "scopes": ["Files.Read"]
   },
   {
+    "pathPattern": "/me/drive/root/delta",
+    "method": "get",
+    "toolName": "get-my-drive-delta",
+    "scopes": ["Files.Read"],
+    "llmTip": "Tracks incremental changes to files and folders in the user's default OneDrive. First call returns all items plus a deltaLink. Subsequent calls with the deltaLink return only changes since last sync. Use $select=id,name,deleted,file,folder,parentReference,lastModifiedDateTime to limit response size."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/root/delta",
+    "method": "get",
+    "toolName": "get-drive-delta",
+    "scopes": ["Files.Read"],
+    "workScopes": ["Files.Read.All"],
+    "llmTip": "Tracks incremental changes to files and folders in a specific drive. First call returns all items plus a deltaLink. Subsequent calls with the deltaLink URL return only items that changed since. Useful for syncing file state without re-listing everything."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
