@@ -359,6 +359,14 @@
     "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
+    "pathPattern": "/drives/{drive-id}/root/search(q='{search-text}')",
+    "method": "get",
+    "toolName": "search-onedrive-files",
+    "scopes": ["Files.Read"],
+    "workScopes": ["Files.Read.All"],
+    "llmTip": "Searches for files in a drive by name or content. The search-text parameter searches file names, metadata, and file content. Returns matching driveItems with id, name, webUrl, size, lastModifiedDateTime. Use list-drives first to get the drive-id. Use $select=id,name,webUrl,size,lastModifiedDateTime to limit response size."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
@@ -657,6 +665,13 @@
     "method": "get",
     "toolName": "list-team-members",
     "workScopes": ["TeamMember.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/filesFolder",
+    "method": "get",
+    "toolName": "get-channel-files-folder",
+    "workScopes": ["ChannelSettings.Read.All"],
+    "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
