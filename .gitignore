@@ -158,3 +158,10 @@ CLAUDE.md
 
 # Finder metadata files
 .DS_Store
+
+# AWS SAM build artifacts
+.aws-sam/
+samconfig.toml
+
+# Auth setup tokens (contains sensitive data)
+.auth-tokens.sh

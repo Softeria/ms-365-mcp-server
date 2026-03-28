@@ -92,15 +92,76 @@ class KeyVaultSecretsProvider implements SecretsProvider {
 }
 
 /**
+ * AWS SSM Parameter Store secrets provider.
+ * Requires @aws-sdk/client-ssm package (optional dependency).
+ *
+ * Parameter name mapping (relative to prefix):
+ *   - {prefix}/client-id -> clientId
+ *   - {prefix}/tenant-id -> tenantId (optional, defaults to 'common')
+ *   - {prefix}/client-secret -> clientSecret (optional)
+ *   - {prefix}/cloud-type -> cloudType (optional, defaults to 'global')
+ */
+class SsmSecretsProvider implements SecretsProvider {
+  private prefix: string;
+
+  constructor(prefix: string) {
+    this.prefix = prefix.replace(/\/+$/, '');
+  }
+
+  private async getParameter(name: string): Promise<string | undefined> {
+    const { SSMClient, GetParameterCommand } = await import('@aws-sdk/client-ssm');
+    const client = new SSMClient({});
+    try {
+      const result = await client.send(
+        new GetParameterCommand({ Name: `${this.prefix}/${name}`, WithDecryption: true })
+      );
+      return result.Parameter?.Value;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getSecrets(): Promise<AppSecrets> {
+    logger.info(`Fetching secrets from SSM prefix: ${this.prefix}`);
+
+    const [clientId, tenantId, clientSecret, cloudTypeRaw] = await Promise.all([
+      this.getParameter('client-id'),
+      this.getParameter('tenant-id'),
+      this.getParameter('client-secret'),
+      this.getParameter('cloud-type'),
+    ]);
+
+    if (!clientId) {
+      throw new Error(`Required SSM parameter ${this.prefix}/client-id not found`);
+    }
+
+    logger.info('Successfully retrieved secrets from SSM Parameter Store');
+
+    return {
+      clientId,
+      tenantId: tenantId || 'common',
+      clientSecret,
+      cloudType: parseCloudType(cloudTypeRaw),
+    };
+  }
+}
+
+/**
  * Creates a secrets provider based on environment configuration.
- * Uses Key Vault if MS365_MCP_KEYVAULT_URL is set, otherwise uses environment variables.
+ * Priority: Key Vault > SSM Parameter Store > Environment variables.
  */
 function createSecretsProvider(): SecretsProvider {
   const vaultUrl = process.env.MS365_MCP_KEYVAULT_URL;
+  const ssmPrefix = process.env.MS365_MCP_SSM_PREFIX;
 
   if (vaultUrl) {
     logger.info('Key Vault URL configured, using Azure Key Vault for secrets');
     return new KeyVaultSecretsProvider(vaultUrl);
+  }
+
+  if (ssmPrefix) {
+    logger.info('SSM prefix configured, using AWS SSM Parameter Store for secrets');
+    return new SsmSecretsProvider(ssmPrefix);
   }
 
   logger.info('Using environment variables for secrets');
