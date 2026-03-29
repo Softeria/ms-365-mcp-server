@@ -36,8 +36,8 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   excel: {
     name: 'excel',
-    pattern: /excel|worksheet|workbook|range|chart/i,
-    description: 'Excel spreadsheet operations',
+    pattern: /excel|worksheet|workbook|range|chart|append/i,
+    description: 'Excel spreadsheet operations (including write/append/clear)',
   },
   contacts: {
     name: 'contacts',

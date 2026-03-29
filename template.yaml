@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Microsoft 365 MCP Server — Lambda deployment with SSM secrets and OAuth 2.1.
+  Deploy with: sam build && sam deploy
+
+Parameters:
+  SsmPrefix:
+    Type: String
+    Default: /m365-mcp
+    Description: >
+      SSM Parameter Store prefix for secrets.
+      Expected parameters: {prefix}/client-id, {prefix}/client-secret (optional),
+      {prefix}/tenant-id (optional), {prefix}/cloud-type (optional).
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        MS365_MCP_SSM_PREFIX: !Ref SsmPrefix
+        NODE_OPTIONS: --enable-source-maps
+
+Resources:
+  M365McpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: m365-mcp-server
+      CodeUri: ./
+      Handler: lambda.handler
+      Description: MCP server bridging Claude to Microsoft 365 via Graph API
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefix}/*'
+      Events:
+        McpPost:
+          Type: HttpApi
+          Properties:
+            Path: /mcp
+            Method: POST
+        McpGet:
+          Type: HttpApi
+          Properties:
+            Path: /mcp
+            Method: GET
+        McpDelete:
+          Type: HttpApi
+          Properties:
+            Path: /mcp
+            Method: DELETE
+        HealthCheck:
+          Type: HttpApi
+          Properties:
+            Path: /health
+            Method: GET
+        OAuthDiscovery:
+          Type: HttpApi
+          Properties:
+            Path: /.well-known/oauth-authorization-server
+            Method: GET
+        OAuthResource:
+          Type: HttpApi
+          Properties:
+            Path: /.well-known/oauth-protected-resource
+            Method: GET
+        OAuthResourceMcp:
+          Type: HttpApi
+          Properties:
+            Path: /.well-known/oauth-protected-resource/mcp
+            Method: GET
+        OAuthRegister:
+          Type: HttpApi
+          Properties:
+            Path: /register
+            Method: POST
+        OAuthAuthorize:
+          Type: HttpApi
+          Properties:
+            Path: /authorize
+            Method: GET
+        OAuthToken:
+          Type: HttpApi
+          Properties:
+            Path: /token
+            Method: POST
+        OAuthTokenOptions:
+          Type: HttpApi
+          Properties:
+            Path: /token
+            Method: OPTIONS
+        McpOptions:
+          Type: HttpApi
+          Properties:
+            Path: /mcp
+            Method: OPTIONS
+        RegisterOptions:
+          Type: HttpApi
+          Properties:
+            Path: /register
+            Method: OPTIONS
+    Metadata:
+      BuildMethod: makefile
+
+Outputs:
+  McpEndpointUrl:
+    Description: MCP endpoint URL to add to Claude Settings > Connectors
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/mcp'

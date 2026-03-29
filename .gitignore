@@ -158,3 +158,4 @@ CLAUDE.md
 
 # Finder metadata files
 .DS_Store
+.aws-sam/

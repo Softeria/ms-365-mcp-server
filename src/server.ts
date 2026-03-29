@@ -6,6 +6,8 @@ import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { registerWordTools } from './custom-tools/word.js';
+import { registerExcelWriteTools } from './custom-tools/excel-write.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -95,6 +97,18 @@ class MicrosoftGraphServer {
         this.accountNames
       );
     }
+
+    // Register custom tools (Word, Excel write) that need logic beyond data-driven endpoints
+    let enabledToolsRegex: RegExp | undefined;
+    if (this.options.enabledTools) {
+      try {
+        enabledToolsRegex = new RegExp(this.options.enabledTools, 'i');
+      } catch {
+        // Invalid regex — ignore filter
+      }
+    }
+    registerWordTools(server, this.graphClient!, enabledToolsRegex);
+    registerExcelWriteTools(server, this.graphClient!, this.options.readOnly, enabledToolsRegex);
 
     return server;
   }
