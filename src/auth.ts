@@ -138,10 +138,53 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
+/**
+ * Scopes that are not supported by personal Microsoft accounts (consumer tenant).
+ * These are organization-only scopes (Teams, SharePoint, Groups, etc.) that cause
+ * invalid_grant errors when requested with the 'consumers' tenant.
+ */
+const CONSUMER_INCOMPATIBLE_SCOPES = new Set([
+  // Teams & Channels (org-only)
+  'Channel.ReadBasic.All',
+  'ChannelMessage.Read.All',
+  'ChannelMessage.Send',
+  'Chat.Read',
+  'ChatMessage.Read',
+  'ChatMessage.Send',
+  'Team.ReadBasic.All',
+  'TeamMember.Read.All',
+  // Online meetings (org-only)
+  'OnlineMeetings.Read',
+  'OnlineMeetingTranscript.Read.All',
+  'OnlineMeetingRecording.Read.All',
+  'OnlineMeetingArtifact.Read.All',
+  // SharePoint & Groups (org-only)
+  'Sites.Read.All',
+  'Group.Read.All',
+  'Group.ReadWrite.All',
+  // Directory (org-only)
+  'User.Read.All',
+  'People.Read',
+  // Shared mailbox scopes (org-only)
+  'Mail.Read.Shared',
+  'Mail.Send.Shared',
+  'Calendars.Read.Shared',
+  // Files.Read.All requires SharePoint (org-only)
+  'Files.Read.All',
+]);
+
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
   enabledToolsPattern?: string
 ): string[] {
+  // If MS365_MCP_OAUTH_SCOPES is set, use those scopes directly (space or comma separated)
+  const envScopes = process.env.MS365_MCP_OAUTH_SCOPES?.trim();
+  if (envScopes) {
+    const scopes = envScopes.split(/[\s,]+/).filter(Boolean);
+    logger.info(`Using custom scopes from MS365_MCP_OAUTH_SCOPES: ${scopes.join(', ')}`);
+    return scopes;
+  }
+
   const scopesSet = new Set<string>();
 
   // Create regex for tool filtering if pattern is provided
@@ -178,6 +221,23 @@ function buildScopesFromEndpoints(
       endpoint.workScopes.forEach((scope) => scopesSet.add(scope));
     }
   });
+
+  // Filter out consumer-incompatible scopes when tenant is 'consumers'
+  const tenantId = process.env.MS365_MCP_TENANT_ID || 'common';
+  if (tenantId === 'consumers') {
+    let removed = 0;
+    for (const scope of scopesSet) {
+      if (CONSUMER_INCOMPATIBLE_SCOPES.has(scope)) {
+        scopesSet.delete(scope);
+        removed++;
+      }
+    }
+    if (removed > 0) {
+      logger.info(
+        `Consumer tenant detected: filtered out ${removed} incompatible scope(s). Remaining: ${Array.from(scopesSet).join(', ')}`
+      );
+    }
+  }
 
   // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
   // keep only the higher scope since it includes the permissions of the lower scopes.
@@ -718,6 +778,7 @@ class AuthManager {
 export default AuthManager;
 export {
   buildScopesFromEndpoints,
+  CONSUMER_INCOMPATIBLE_SCOPES,
   getTokenCachePath,
   getSelectedAccountPath,
   wrapCache,
