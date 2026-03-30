@@ -408,6 +408,11 @@ class MicrosoftGraphServer {
                 {
                   accessToken: req.microsoftAuth.accessToken,
                   refreshToken: req.microsoftAuth.refreshToken,
+                  onTokenRefreshed: (newRefreshToken: string) => {
+                    if (!res.headersSent) {
+                      res.setHeader('x-microsoft-new-refresh-token', newRefreshToken);
+                    }
+                  },
                 },
                 handler
               );
@@ -457,6 +462,11 @@ class MicrosoftGraphServer {
                 {
                   accessToken: req.microsoftAuth.accessToken,
                   refreshToken: req.microsoftAuth.refreshToken,
+                  onTokenRefreshed: (newRefreshToken: string) => {
+                    if (!res.headersSent) {
+                      res.setHeader('x-microsoft-new-refresh-token', newRefreshToken);
+                    }
+                  },
                 },
                 handler
               );

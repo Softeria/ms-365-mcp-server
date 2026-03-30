@@ -4,7 +4,7 @@ import { refreshAccessToken } from './lib/microsoft-auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
-import { getRequestTokens } from './request-context.js';
+import { getRequestTokens, notifyTokenRefreshed } from './request-context.js';
 
 interface GraphRequestOptions {
   headers?: Record<string, string>;
@@ -66,6 +66,10 @@ class GraphClient {
         // Token expired, try to refresh
         const newTokens = await this.refreshAccessToken(refreshToken);
         accessToken = newTokens.accessToken;
+
+        if (newTokens.refreshToken) {
+          notifyTokenRefreshed(newTokens.refreshToken);
+        }
 
         // Retry the request with new token
         response = await this.performRequest(endpoint, accessToken, options);
