@@ -68,6 +68,11 @@ class GraphClient {
         accessToken = newTokens.accessToken;
 
         if (newTokens.refreshToken) {
+          // Update context so subsequent calls in this request use the new tokens
+          if (contextTokens) {
+            contextTokens.accessToken = newTokens.accessToken;
+            contextTokens.refreshToken = newTokens.refreshToken;
+          }
           notifyTokenRefreshed(newTokens.refreshToken);
         }
 
