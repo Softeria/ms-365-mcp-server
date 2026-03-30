@@ -114,13 +114,15 @@
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Soft delete — moves to Deleted Items. To permanently delete, delete again from Deleted Items."
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",
     "method": "post",
     "toolName": "move-mail-message",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive)."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -132,7 +134,8 @@
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
@@ -196,7 +199,8 @@
     "pathPattern": "/me/messages/{message-id}/send",
     "method": "post",
     "toolName": "send-draft-message",
-    "scopes": ["Mail.Send"]
+    "scopes": ["Mail.Send"],
+    "llmTip": "No request body needed — just call with the message ID. Draft must exist in Drafts folder."
   },
   {
     "pathPattern": "/me/events",
@@ -204,7 +208,8 @@
     "toolName": "list-calendar-events",
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true
+    "supportsExpandExtendedProperties": true,
+    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-calendar-view instead to see individual occurrences within a date range."
   },
   {
     "pathPattern": "/me/events/{event-id}",
@@ -226,13 +231,14 @@
     "method": "patch",
     "toolName": "update-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "delete",
     "toolName": "delete-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Deleting a seriesMaster deletes ALL occurrences of the recurring event. To cancel a single occurrence, delete that specific instance ID from list-calendar-event-instances."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
@@ -240,7 +246,8 @@
     "toolName": "list-specific-calendar-events",
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true
+    "supportsExpandExtendedProperties": true,
+    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-specific-calendar-view instead."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
@@ -262,13 +269,14 @@
     "method": "patch",
     "toolName": "update-specific-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "delete",
     "toolName": "delete-specific-calendar-event",
-    "scopes": ["Calendars.ReadWrite"]
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, use the specific instance ID."
   },
   {
     "pathPattern": "/me/calendarView",
@@ -342,8 +350,7 @@
     "toolName": "download-onedrive-file-content",
     "scopes": ["Files.Read"],
     "returnDownloadUrl": true,
-    "stripParams": ["$format", "$skip"],
-    "llmTip": "Downloads file content. Do NOT pass $format — the server returns a download URL from the item metadata. Use the returned @microsoft.graph.downloadUrl to access the file bytes."
+    "llmTip": "Returns a temporary download URL, NOT the file content directly."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -355,7 +362,8 @@
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "put",
     "toolName": "upload-file-content",
-    "scopes": ["Files.ReadWrite"]
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
@@ -422,32 +430,37 @@
     "method": "post",
     "toolName": "create-onenote-page",
     "scopes": ["Notes.Create"],
-    "contentType": "text/html"
+    "contentType": "text/html",
+    "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML or plain text fails silently or creates malformed pages."
   },
   {
     "pathPattern": "/me/onenote/sections/{onenoteSection-id}/pages",
     "method": "post",
     "toolName": "create-onenote-section-page",
     "scopes": ["Notes.Create"],
-    "contentType": "text/html"
+    "contentType": "text/html",
+    "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML fails silently."
   },
   {
     "pathPattern": "/me/todo/lists",
     "method": "get",
     "toolName": "list-todo-task-lists",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint — do not pass select parameter, Graph returns 400."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
     "method": "get",
     "toolName": "list-todo-tasks",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. NOTE: $select is NOT supported — do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "get",
     "toolName": "get-todo-task",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -471,7 +484,8 @@
     "pathPattern": "/me/planner/tasks",
     "method": "get",
     "toolName": "list-planner-tasks",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
   },
   {
     "pathPattern": "/planner/plans/{plannerPlan-id}",
@@ -483,13 +497,15 @@
     "pathPattern": "/planner/plans/{plannerPlan-id}/tasks",
     "method": "get",
     "toolName": "list-plan-tasks",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "get",
     "toolName": "get-planner-task",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Response includes @odata.etag — save it, required as If-Match header for update-planner-task. Use includeHeaders=true to capture it."
   },
   {
     "pathPattern": "/planner/tasks",
@@ -501,25 +517,29 @@
     "pathPattern": "/planner/tasks/{plannerTask-id}",
     "method": "patch",
     "toolName": "update-planner-task",
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "get",
     "toolName": "get-planner-task-details",
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Response includes @odata.etag — required for update-planner-task-details. Use includeHeaders=true."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
     "method": "patch",
     "toolName": "update-planner-task-details",
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-task-details (use includeHeaders=true). Checklist items use GUID keys: {\"checklist\": {\"<guid>\": {\"title\": \"...\", \"isChecked\": false}}}."
   },
   {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
-    "scopes": ["Contacts.Read"]
+    "scopes": ["Contacts.Read"],
+    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching."
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
@@ -537,7 +557,8 @@
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "patch",
     "toolName": "update-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"]
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "emailAddresses array is replaced entirely — include all addresses, not just new ones."
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
@@ -583,7 +604,8 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
   },
   {
     "pathPattern": "/me/joinedTeams",
@@ -628,13 +650,15 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "workScopes": ["ChannelMessage.Send"]
+    "workScopes": ["ChannelMessage.Send"],
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-channel-message",
-    "workScopes": ["ChannelMessage.Send"]
+    "workScopes": ["ChannelMessage.Send"],
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
@@ -660,7 +684,8 @@
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
   },
   {
     "pathPattern": "/sites",
@@ -722,14 +747,14 @@
     "method": "get",
     "toolName": "list-sharepoint-site-list-items",
     "workScopes": ["Sites.Read.All"],
-    "stripParams": ["$skip", "$count", "$orderby"],
-    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $expand=fields to get item field values. Use $filter to narrow results."
+    "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list-item",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
   },
   {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
@@ -793,21 +818,45 @@
     "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline."
   },
   {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports",
+    "method": "get",
+    "toolName": "list-meeting-attendance-reports",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Lists attendance reports for a meeting. Each report has meetingStartDateTime, meetingEndDateTime, totalParticipantCount. For recurring meetings, there is one report per occurrence. Get the meeting ID first via list-online-meetings."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}",
+    "method": "get",
+    "toolName": "get-meeting-attendance-report",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Gets a specific attendance report with totalParticipantCount, meetingStartDateTime, meetingEndDateTime."
+  },
+  {
+    "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}/attendanceRecords",
+    "method": "get",
+    "toolName": "list-meeting-attendance-records",
+    "workScopes": ["OnlineMeetingArtifact.Read.All"],
+    "llmTip": "Lists individual attendance records for a meeting report. Each record has: identity (displayName), emailAddress, role (Organizer/Presenter/Attendee), totalAttendanceInSeconds, and attendanceIntervals with joinDateTime/leaveDateTime. Use to determine who attended, how long, and when they joined/left."
+  },
+  {
     "pathPattern": "/groups/{group-id}/conversations",
     "method": "get",
     "toolName": "list-group-conversations",
-    "workScopes": ["Group.Read.All"]
+    "workScopes": ["Group.Read.All"],
+    "llmTip": "Legacy — Microsoft recommends Teams channels instead of group conversations."
   },
   {
     "pathPattern": "/groups/{group-id}/threads",
     "method": "get",
     "toolName": "list-group-threads",
-    "workScopes": ["Group.Read.All"]
+    "workScopes": ["Group.Read.All"],
+    "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
   },
   {
     "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
     "method": "post",
     "toolName": "reply-to-group-thread",
-    "workScopes": ["Group.ReadWrite.All"]
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
   }
 ]

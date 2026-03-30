@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
-    "@modelcontextprotocol/sdk": "^1.25.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@toon-format/toon": "^0.8.0",
     "commander": "^11.1.0",
     "dotenv": "^17.0.1",
