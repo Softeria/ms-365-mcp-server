@@ -21,6 +21,10 @@ This server supports multiple Microsoft cloud environments:
 - Node.js >= 20 (recommended)
 - Node.js 14+ may work with dependency warnings
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/softeria-ms-365-mcp-server).
+
 ## Features
 
 - Authentication via Microsoft Authentication Library (MSAL)
