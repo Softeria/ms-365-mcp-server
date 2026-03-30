@@ -27,6 +27,9 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  stripParams?: string[]; // Query params to always strip (unconditionally unsupported)
+  stripParamsWhen?: Record<string, string[]>; // Conditional: strip value[] params when key param is present
+  readOnlyAllowed?: boolean; // Allow this non-GET endpoint in read-only mode (e.g. POST /search/query is a read operation)
 }
 
 const endpointsData = JSON.parse(
@@ -193,11 +196,22 @@ async function executeGraphTool(
             break;
           }
 
-          case 'Query':
-            if (paramValue !== '' && paramValue != null) {
-              queryParams[fixedParamName] = `${paramValue}`;
+          case 'Query': {
+            // Skip empty/useless query param values that would pollute the URL
+            // and cause Graph API rejections on strict endpoints
+            const strValue = Array.isArray(paramValue)
+              ? paramValue.join(',')
+              : `${paramValue}`;
+            if (
+              paramValue != null &&
+              strValue !== '' &&
+              strValue !== 'false' &&
+              !(Array.isArray(paramValue) && paramValue.length === 0)
+            ) {
+              queryParams[fixedParamName] = strValue;
             }
             break;
+          }
 
           case 'Body':
             if (paramDef.schema) {
@@ -284,6 +298,30 @@ async function executeGraphTool(
       logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
 
+    // Strip unsupported/incompatible query parameters based on endpoint config
+    if (config?.stripParams) {
+      for (const param of config.stripParams) {
+        if (queryParams[param] !== undefined) {
+          logger.info(`Stripping unsupported param '${param}' for endpoint ${tool.alias}`);
+          delete queryParams[param];
+        }
+      }
+    }
+    if (config?.stripParamsWhen) {
+      for (const [trigger, paramsToStrip] of Object.entries(config.stripParamsWhen)) {
+        if (queryParams[trigger] !== undefined) {
+          for (const param of paramsToStrip) {
+            if (queryParams[param] !== undefined) {
+              logger.info(
+                `Stripping '${param}' (incompatible with '${trigger}') for ${tool.alias}`
+              );
+              delete queryParams[param];
+            }
+          }
+        }
+      }
+    }
+
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
         .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%2C/gi, ',')}`)
@@ -305,6 +343,49 @@ async function executeGraphTool(
       headers,
     };
 
+    // Sanitize search-query POST body: remove empty arrays and unsupported options
+    // that cause Graph Search API to reject the request
+    if (tool.alias === 'search-query' && body && typeof body === 'object') {
+      const searchBody = body as { requests?: Array<Record<string, unknown>> };
+      if (searchBody.requests && Array.isArray(searchBody.requests)) {
+        for (const req of searchBody.requests) {
+          // Remove empty arrays that Graph rejects
+          for (const key of [
+            'aggregations',
+            'aggregationFilters',
+            'collapseProperties',
+            'contentSources',
+            'sortProperties',
+          ]) {
+            if (Array.isArray(req[key]) && (req[key] as unknown[]).length === 0) {
+              delete req[key];
+            }
+          }
+          // Remove contentSources for non-externalItem entity types
+          const entityTypes = req.entityTypes as string[] | undefined;
+          if (entityTypes && !entityTypes.includes('externalItem')) {
+            delete req.contentSources;
+          }
+          // Remove sharePointOneDriveOptions with unsupported includeContent values
+          const spOptions = req.sharePointOneDriveOptions as Record<string, unknown> | undefined;
+          if (spOptions?.includeContent === 'privateContent' || spOptions?.includeContent === 'unknownFutureValue') {
+            delete req.sharePointOneDriveOptions;
+          }
+          // Remove collapseProperties for non-file entity types
+          if (entityTypes && !entityTypes.includes('driveItem') && !entityTypes.includes('listItem') && !entityTypes.includes('externalItem')) {
+            delete req.collapseProperties;
+          }
+          // Remove null queryTemplate
+          const query = req.query as Record<string, unknown> | undefined;
+          if (query?.queryTemplate === null) {
+            delete query.queryTemplate;
+          }
+        }
+        body = searchBody;
+        logger.info(`Sanitized search-query body for Graph Search API`);
+      }
+    }
+
     if (options.method !== 'GET' && body) {
       if (config?.contentType === 'text/html') {
         if (typeof body === 'string') {
@@ -324,10 +405,96 @@ async function executeGraphTool(
       path.endsWith('/content');
 
     if (config?.returnDownloadUrl && path.endsWith('/content')) {
-      path = path.replace(/\/content$/, '');
+      // Fetch item metadata to get the download URL, then fetch the actual file content
+      const metadataPath = path.replace(/\/content$/, '');
       logger.info(
-        `Auto-returning download URL for ${tool.alias} (returnDownloadUrl=true in endpoints.json)`
+        `Fetching item metadata from ${metadataPath} to get download URL (returnDownloadUrl=true)`
       );
+
+      const metadataResponse = await graphClient.graphRequest(metadataPath, {
+        ...options,
+        rawResponse: false,
+      });
+
+      // Try to extract the download URL and fetch inline content
+      if (metadataResponse?.content?.[0]?.text) {
+        try {
+          const metadata = JSON.parse(metadataResponse.content[0].text);
+          const downloadUrl =
+            metadata['@microsoft.graph.downloadUrl'] ||
+            metadata['@content.downloadUrl'];
+          const fileName = metadata.name || '';
+          const fileSize = metadata.size || 0;
+
+          if (downloadUrl && fileSize <= 512000) {
+            // Fetch actual file content for files up to 500KB
+            logger.info(
+              `Fetching file content from download URL (${fileName}, ${fileSize} bytes)`
+            );
+            try {
+              const fileResponse = await fetch(downloadUrl);
+              if (fileResponse.ok) {
+                const contentType =
+                  fileResponse.headers.get('content-type') || '';
+                const isText =
+                  contentType.includes('text') ||
+                  contentType.includes('json') ||
+                  contentType.includes('xml') ||
+                  contentType.includes('csv') ||
+                  contentType.includes('javascript') ||
+                  contentType.includes('yaml') ||
+                  /\.(txt|md|csv|json|xml|yaml|yml|log|ini|cfg|conf|html|htm|css|js|ts|py|sh|sql|r|ps1|psm1|psd1)$/i.test(
+                    fileName
+                  );
+
+                if (isText) {
+                  const text = await fileResponse.text();
+                  logger.info(
+                    `Returning inline text content for ${fileName} (${text.length} chars)`
+                  );
+                  return {
+                    content: [
+                      {
+                        type: 'text' as const,
+                        text: JSON.stringify({
+                          fileName,
+                          size: fileSize,
+                          content: text,
+                        }),
+                      },
+                    ],
+                  };
+                }
+              }
+            } catch (fetchErr) {
+              logger.warn(`Failed to fetch file content: ${fetchErr}`);
+            }
+          }
+
+          // Fall back to returning metadata with download URL for large/binary files
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: metadataResponse.content[0].text,
+              },
+            ],
+            _meta: metadataResponse._meta,
+          };
+        } catch {
+          // Not JSON, return as-is
+        }
+      }
+
+      // If metadata fetch failed, return whatever we got
+      return {
+        content: (metadataResponse.content || []).map((item) => ({
+          type: 'text' as const,
+          text: item.text,
+        })),
+        _meta: metadataResponse._meta,
+        isError: metadataResponse.isError,
+      };
     } else if (isProbablyMediaContent) {
       options.rawResponse = true;
     }
@@ -485,7 +652,7 @@ export function registerGraphTools(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+    if (readOnly && tool.method.toUpperCase() !== 'GET' && !endpointConfig?.readOnlyAllowed) {
       logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
       skippedCount++;
       continue;
@@ -713,7 +880,7 @@ function buildToolsRegistry(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+    if (readOnly && tool.method.toUpperCase() !== 'GET' && !endpointConfig?.readOnlyAllowed) {
       continue;
     }
 

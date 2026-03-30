@@ -4,7 +4,8 @@
     "method": "get",
     "toolName": "list-mail-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Chris')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -51,7 +52,8 @@
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -71,14 +73,16 @@
     "method": "get",
     "toolName": "list-shared-mailbox-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-shared-mailbox-folder-messages",
     "workScopes": ["Mail.Read.Shared"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
+    "stripParamsWhen": { "$search": ["$skip", "$orderby"] },
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! IMPORTANT: $skip is NOT supported with $search — use $filter with startsWith() for sender filtering as an alternative (e.g. $filter=startsWith(from/emailAddress/name,'Name')). Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}",
@@ -311,13 +315,15 @@
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "readOnlyAllowed": true
   },
   {
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
@@ -335,7 +341,8 @@
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "stripParams": ["$skip", "$count", "$orderby"]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
@@ -569,7 +576,9 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"],
+    "llmTip": "Only $top, $filter, and $select are supported on this endpoint. $skip, $search, $count, $orderby, and $expand are NOT allowed. Use $top to limit results and fetchAllPages=true for pagination. Use $filter to narrow results (e.g. $filter=chatType eq 'oneOnOne')."
   },
   {
     "pathPattern": "/chats/{chat-id}",
@@ -581,7 +590,9 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$select", "$filter"],
+    "llmTip": "Only $top is supported on this endpoint. All other query options ($skip, $search, $select, $filter, $count, $orderby, $expand) are NOT allowed. Use $top and fetchAllPages=true for pagination. Messages cannot be searched or filtered server-side — retrieve all and filter client-side."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
@@ -600,7 +611,9 @@
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$top", "$select", "$filter"],
+    "llmTip": "This endpoint accepts NO query options. All OData params are rejected. Call with no parameters to get all joined teams."
   },
   {
     "pathPattern": "/teams/{team-id}",
@@ -624,7 +637,8 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
@@ -650,7 +664,8 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-channel-message-replies",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
@@ -662,7 +677,8 @@
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
@@ -675,7 +691,9 @@
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$count", "$skip", "$orderby", "$expand"],
+    "llmTip": "Only $search, $top, $select, and $filter are supported on this endpoint. $count, $skip, $orderby, and $expand are NOT allowed. Use $search to find sites by name and $top to limit results."
   },
   {
     "pathPattern": "/sites/{site-id}",
@@ -687,7 +705,8 @@
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
@@ -699,7 +718,9 @@
     "pathPattern": "/sites/{site-id}/items",
     "method": "get",
     "toolName": "list-sharepoint-site-items",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$search", "$count", "$orderby", "$expand", "$filter", "$select"],
+    "llmTip": "Only $top is reliably supported on this endpoint. Most query options are rejected. Use $top and fetchAllPages=true for pagination. For searching within a site, use list-sharepoint-site-lists to find specific lists, then list-sharepoint-site-list-items with $expand=fields."
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
@@ -711,7 +732,9 @@
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "stripParams": ["$skip", "$count", "$orderby", "$expand"],
+    "llmTip": "$skip is NOT supported. Use $top and fetchAllPages=true for pagination. Use $select and $filter to narrow results."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
@@ -750,7 +773,9 @@
     "method": "post",
     "toolName": "search-query",
     "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
-    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
+    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"],
+    "readOnlyAllowed": true,
+    "llmTip": "Microsoft Search API. IMPORTANT LIMITATIONS: (1) chatMessage entity type: do NOT include empty 'aggregations' — causes 'Aggregations must have at least one entry' errors. Use simple queries with just 'entityTypes' and 'query'. (2) driveItem entity type: do NOT include empty 'aggregations' or set 'trimDuplicates'. Do NOT use 'contentSources'. 'Private Content Only is not supported' errors indicate unsupported parameters. (3) Each entity type should be in a separate request object in the 'requests' array. Supported entity types: message, event, driveItem, listItem, chatMessage, site, list."
   },
   {
     "pathPattern": "/me/onlineMeetings",
