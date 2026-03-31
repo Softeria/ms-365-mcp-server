@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { requestContext } from '../src/request-context.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -51,8 +50,7 @@ describe('OData nextLink preservation', () => {
       new Response(
         JSON.stringify({
           '@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#messages',
-          '@odata.nextLink':
-            'https://graph.microsoft.com/v1.0/me/messages?$skip=10',
+          '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=10',
           '@odata.count': 42,
           value: [{ id: '1', subject: 'Test' }],
         }),
@@ -63,9 +61,7 @@ describe('OData nextLink preservation', () => {
     const result = await graphClient.graphRequest('/me/messages');
     const parsed = JSON.parse(result.content[0].text);
 
-    expect(parsed['@odata.nextLink']).toBe(
-      'https://graph.microsoft.com/v1.0/me/messages?$skip=10'
-    );
+    expect(parsed['@odata.nextLink']).toBe('https://graph.microsoft.com/v1.0/me/messages?$skip=10');
     expect(parsed['@odata.context']).toBeUndefined();
     expect(parsed['@odata.count']).toBeUndefined();
 
