@@ -107,7 +107,7 @@ update-calendar-event, delete-calendar-event</sub>
 
 **OneDrive Files**  
 <sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content,
-upload-new-file, delete-onedrive-file</sub>
+delete-onedrive-file</sub>
 
 **Excel Operations**  
 <sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
