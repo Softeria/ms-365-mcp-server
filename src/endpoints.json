@@ -566,6 +566,20 @@
     "scopes": ["User.Read"]
   },
   {
+    "pathPattern": "/me/mailboxSettings",
+    "method": "get",
+    "toolName": "get-mailbox-settings",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Gets the current user's mailbox settings including automaticRepliesSetting (out-of-office status, message, scheduledStartDateTime/EndDateTime, externalAudience), language, timeZone, dateFormat, timeFormat, delegateMeetingMessageDeliveryOptions, and userPurpose."
+  },
+  {
+    "pathPattern": "/me/mailboxSettings",
+    "method": "patch",
+    "toolName": "update-mailbox-settings",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Updates mailbox settings. Common use: configure Out-of-Office (automatic replies). Body example: { automaticRepliesSetting: { status: 'scheduled', scheduledStartDateTime: { dateTime: '2026-03-28T17:00:00', timeZone: 'Eastern Standard Time' }, scheduledEndDateTime: { dateTime: '2026-04-01T08:00:00', timeZone: 'Eastern Standard Time' }, internalReplyMessage: 'I am OOO.', externalReplyMessage: 'I am out of office.' } }. Status values: disabled, alwaysEnabled, scheduled."
+  },
+  {
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
