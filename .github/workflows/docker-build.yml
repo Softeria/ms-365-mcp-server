@@ -1,0 +1,22 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  docker-build:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t ms-365-mcp-server:latest .
+
+      - name: Tag image for local registry
+        run: docker tag ms-365-mcp-server:latest localhost:5000/ms-365-mcp-server:latest
+
+      - name: Push image to local registry
+        run: docker push localhost:5000/ms-365-mcp-server:latest
