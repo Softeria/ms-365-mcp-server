@@ -516,6 +516,27 @@
     "scopes": ["Tasks.ReadWrite"]
   },
   {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources",
+    "method": "get",
+    "toolName": "list-todo-linked-resources",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists resources linked to a To Do task (emails, URLs, etc.). Each linked resource has displayName, webUrl, applicationName, and externalId."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources",
+    "method": "post",
+    "toolName": "create-todo-linked-resource",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Links a resource to a To Do task. Body: { webUrl: 'https://...', applicationName: 'Mail', displayName: 'Related email', externalId: 'optional-id' }. Use to link tasks to emails, files, or web pages for context."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/linkedResources/{linkedResource-id}",
+    "method": "delete",
+    "toolName": "delete-todo-linked-resource",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Removes a linked resource from a To Do task."
+  },
+  {
     "pathPattern": "/me/planner/tasks",
     "method": "get",
     "toolName": "list-planner-tasks",
