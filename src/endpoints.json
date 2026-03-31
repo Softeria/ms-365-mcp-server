@@ -511,13 +511,6 @@
     "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
   },
   {
-    "pathPattern": "/me/drive/sharedWithMe",
-    "method": "get",
-    "toolName": "list-shared-with-me",
-    "scopes": ["Files.Read"],
-    "llmTip": "Lists files and folders that have been shared with the current user. Returns driveItems with remoteItem property containing the shared item details. Use $select to limit fields."
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
