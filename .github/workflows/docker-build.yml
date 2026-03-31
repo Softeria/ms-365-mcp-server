@@ -2,7 +2,7 @@ name: Docker Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, fet/meeting_schedules]
   workflow_dispatch:
 
 jobs:
