@@ -401,6 +401,20 @@
     "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
+    "method": "patch",
+    "toolName": "move-rename-onedrive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
+    "method": "post",
+    "toolName": "create-onedrive-folder",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
