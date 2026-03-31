@@ -578,6 +578,14 @@
     "workScopes": ["Chat.Read"]
   },
   {
+    "pathPattern": "/chats/{chat-id}/members",
+    "method": "get",
+    "toolName": "list-chat-members",
+    "scopes": ["ChatMember.Read"],
+    "workScopes": ["ChatMember.Read"],
+    "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat."
+  },
+  {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
