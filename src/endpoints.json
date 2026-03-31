@@ -854,7 +854,15 @@
     "pathPattern": "/search/query",
     "method": "post",
     "toolName": "search-query",
-    "workScopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read", "Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
+    "workScopes": [
+      "Mail.Read",
+      "Calendars.Read",
+      "Files.Read.All",
+      "People.Read",
+      "Sites.Read.All",
+      "Chat.Read",
+      "ChannelMessage.Read.All"
+    ]
   },
   {
     "pathPattern": "/me/onlineMeetings",
