@@ -329,6 +329,27 @@
     "scopes": ["Calendars.Read"]
   },
   {
+    "pathPattern": "/me/calendars",
+    "method": "post",
+    "toolName": "create-calendar",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Creates a new personal calendar. Body: { name: 'My Calendar', color: 'auto' }. Available colors: auto, lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor."
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}",
+    "method": "patch",
+    "toolName": "update-calendar",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Updates a calendar's properties. Body: { name: 'New Name', color: 'lightBlue' }. Cannot update the default calendar's name."
+  },
+  {
+    "pathPattern": "/me/calendars/{calendar-id}",
+    "method": "delete",
+    "toolName": "delete-calendar",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Deletes a calendar and all its events. The default calendar cannot be deleted. This action cannot be undone."
+  },
+  {
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
