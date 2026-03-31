@@ -776,6 +776,27 @@
     "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
   },
   {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
+    "method": "post",
+    "toolName": "create-sharepoint-list-item",
+    "workScopes": ["Sites.ReadWrite.All"],
+    "llmTip": "Creates a new item in a SharePoint list. Body: { fields: { Title: 'Item name', ColumnName: 'value', ... } }. Use list-sharepoint-site-lists to find the list ID and get-sharepoint-site-list to discover available columns."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
+    "method": "patch",
+    "toolName": "update-sharepoint-list-item",
+    "workScopes": ["Sites.ReadWrite.All"],
+    "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
+    "method": "delete",
+    "toolName": "delete-sharepoint-list-item",
+    "workScopes": ["Sites.ReadWrite.All"],
+    "llmTip": "Deletes a list item permanently. This cannot be undone — the item is moved to the site recycle bin."
+  },
+  {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
