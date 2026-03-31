@@ -249,15 +249,14 @@ class MicrosoftGraphServer {
         );
 
         // Only forward parameters that Microsoft OAuth 2.0 v2.0 supports
-        // Note: code_challenge/code_challenge_method are NOT forwarded because
-        // PKCE between the client (e.g. claude.ai) and this server is a separate
-        // flow from this server's auth with Microsoft.
         const allowedParams = [
           'response_type',
           'redirect_uri',
           'scope',
           'state',
           'response_mode',
+          'code_challenge',
+          'code_challenge_method',
           'prompt',
           'login_hint',
           'domain_hint',
