@@ -976,11 +976,11 @@
     "llmTip": "Adds a member to a team. Body: { '@odata.type': '#microsoft.graph.aadUserConversationMember', 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users/{user-id}', roles: [] }. Set roles to ['owner'] to add as owner, or [] for regular member."
   },
   {
-    "pathPattern": "/teams/{team-id}/members/{membership-id}",
+    "pathPattern": "/teams/{team-id}/members/{conversationMember-id}",
     "method": "delete",
     "toolName": "remove-team-member",
     "workScopes": ["TeamMember.ReadWrite.All"],
-    "llmTip": "Removes a member from a team. Use list-team-members first to find the membership-id. Cannot remove the last owner."
+    "llmTip": "Removes a member from a team. Use list-team-members first to find the conversationMember-id. Cannot remove the last owner."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
