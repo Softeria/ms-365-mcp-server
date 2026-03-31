@@ -773,7 +773,6 @@
     "method": "get",
     "toolName": "get-meeting-transcript",
     "scopes": ["OnlineMeetingTranscript.Read.All"],
-    "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "llmTip": "Gets metadata for a specific transcript: createdDateTime, contentCorrelationId (links transcript to its recording), meetingId, meetingOrganizer. Use contentCorrelationId to match a transcript with its recording. For the actual transcript text, use get-meeting-transcript-content instead."
   },
   {
