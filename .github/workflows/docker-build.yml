@@ -12,6 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Ensure local Docker registry is running
+        run: |
+          if ! docker ps --filter "name=registry" --format '{{.Names}}' | grep -q '^registry$'; then
+            echo "Starting local Docker registry..."
+            docker run -d -p 5000:5000 --restart always --name registry registry:2
+          else
+            echo "Local registry already running."
+          fi
+
       - name: Build Docker image
         run: docker build -t ms-365-mcp-server:latest .
 
