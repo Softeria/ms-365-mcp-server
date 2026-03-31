@@ -854,14 +854,20 @@
     "pathPattern": "/search/query",
     "method": "post",
     "toolName": "search-query",
-    "scopes": ["Mail.Read", "Calendars.Read", "Files.Read.All", "People.Read"],
-    "workScopes": ["Sites.Read.All", "Chat.Read", "ChannelMessage.Read.All"]
+    "workScopes": [
+      "Mail.Read",
+      "Calendars.Read",
+      "Files.Read.All",
+      "People.Read",
+      "Sites.Read.All",
+      "Chat.Read",
+      "ChannelMessage.Read.All"
+    ]
   },
   {
     "pathPattern": "/me/onlineMeetings",
     "method": "get",
     "toolName": "list-online-meetings",
-    "scopes": ["OnlineMeetings.Read"],
     "workScopes": ["OnlineMeetings.Read"],
     "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
   },
@@ -869,7 +875,6 @@
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts",
     "method": "get",
     "toolName": "list-meeting-transcripts",
-    "scopes": ["OnlineMeetingTranscript.Read.All"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
   },
@@ -877,7 +882,6 @@
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
     "method": "get",
     "toolName": "get-meeting-transcript-content",
-    "scopes": ["OnlineMeetingTranscript.Read.All"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "acceptType": "text/vtt",
     "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
