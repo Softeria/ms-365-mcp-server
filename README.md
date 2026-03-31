@@ -277,10 +277,10 @@ integration method.
 
 Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
-1. Start the server with HTTP mode and dynamic registration enabled:
+1. Start the server with HTTP mode:
 
    ```bash
-   npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+   npx @softeria/ms-365-mcp-server --http
    ```
 
 2. In Open WebUI, go to **Admin Settings → Tools** (`/admin/settings/tools`) → **Add Connection**:
@@ -290,7 +290,7 @@ Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
 3. Click **Register Client**.
 
-> **Note**: The `--enable-dynamic-registration` is required for Open WebUI to work. If using a custom Azure Entra app, add your redirect URI under "Mobile and desktop applications" platform (not "Single-page application").
+> **Note**: Dynamic client registration is enabled by default in HTTP mode. Use `--no-dynamic-registration` to disable it. If using a custom Azure Entra app, add your redirect URI under "Mobile and desktop applications" platform (not "Single-page application").
 
 **Quick test setup** using the default Azure app (ID `ms-365` and `localhost:8080` are pre-configured):
 
@@ -300,7 +300,7 @@ docker run -d -p 8080:8080 \
   -e OPENAI_API_KEY \
   ghcr.io/open-webui/open-webui:main
 
-npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+npx @softeria/ms-365-mcp-server --http
 ```
 
 Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
@@ -509,7 +509,7 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
---enable-dynamic-registration Enable OAuth Dynamic Client Registration endpoint (required for Open WebUI)
+--no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
