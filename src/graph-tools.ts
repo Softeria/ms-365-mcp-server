@@ -33,6 +33,27 @@ const endpointsData = JSON.parse(
   readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
 ) as EndpointConfig[];
 
+/** When set to a positive integer, caps Graph `$top` on list requests (see README). */
+function maxTopFromEnv(): number | undefined {
+  const raw = process.env.MS365_MCP_MAX_TOP;
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    logger.warn(`Ignoring invalid MS365_MCP_MAX_TOP=${JSON.stringify(raw)} (use a positive integer)`);
+    return undefined;
+  }
+  return n;
+}
+
+function clampTopQueryParam(queryParams: Record<string, string>): void {
+  const cap = maxTopFromEnv();
+  if (cap === undefined || queryParams['$top'] === undefined) return;
+  const requested = Number.parseInt(queryParams['$top'], 10);
+  if (!Number.isFinite(requested) || requested <= cap) return;
+  logger.info(`Clamping $top from ${requested} to ${cap} (MS365_MCP_MAX_TOP)`);
+  queryParams['$top'] = String(cap);
+}
+
 type TextContent = {
   type: 'text';
   text: string;
@@ -245,6 +266,8 @@ async function executeGraphTool(
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
       }
     }
+
+    clampTopQueryParam(queryParams);
 
     const preferValues: string[] = [];
 
@@ -517,7 +540,11 @@ export function registerGraphTools(
     if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/')) {
       paramSchema['fetchAllPages'] = z
         .boolean()
-        .describe('Automatically fetch all pages of results')
+        .describe(
+          'Follow @odata.nextLink and merge up to 100 pages into one response. ' +
+            'Can return enormous payloads—only when the user explicitly needs a full export. ' +
+            'Prefer a small $top first, then paginate or narrow with $filter/$search.'
+        )
         .optional();
     }
 
@@ -554,7 +581,14 @@ export function registerGraphTools(
     }
     if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
       const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
-      paramSchema[key] = z.number().describe('Max items per page').optional();
+      paramSchema[key] = z
+        .number()
+        .describe(
+          'Page size (Graph $top). Start small (e.g. 5–15) so responses fit the model context; ' +
+            'raise only if needed. Use $select to return fewer fields per item. ' +
+            'For more rows, use @odata.nextLink from the response instead of a very large $top.'
+        )
+        .optional();
     }
     if (paramSchema['skip'] !== undefined || paramSchema['$skip'] !== undefined) {
       const key = paramSchema['$skip'] !== undefined ? '$skip' : 'skip';
@@ -812,7 +846,8 @@ export function registerDiscoveryTools(
 
   server.tool(
     'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Use search-tools first to find available tools and their parameters.',
+    'Execute a Microsoft Graph API tool by name. Use search-tools first to find available tools and their parameters. ' +
+      'For list endpoints, pass a small $top (or top) first and use $select to limit fields—avoid large page sizes unless the user needs them.',
     {
       tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
       parameters: z
