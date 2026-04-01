@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { downloadGraphOpenAPI } from './modules/download-openapi.mjs';
 import { generateMcpTools } from './modules/generate-mcp-tools.mjs';
 import { createAndSaveSimplifiedOpenAPI } from './modules/simplified-openapi.mjs';
+import { generateSchemaIndex } from './modules/generate-schema-index.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,7 @@ const openapiTrimmedFile = path.join(openapiDir, 'openapi-trimmed.yaml');
 const endpointsFile = path.join(srcDir, 'endpoints.json');
 
 const generatedDir = path.join(srcDir, 'generated');
+const schemaIndexFile = path.join(generatedDir, 'schema-index.json');
 
 const args = process.argv.slice(2);
 const forceDownload = args.includes('--force');
@@ -47,6 +49,10 @@ async function main() {
     console.log('\n🚀 Step 3: Generating client code using openapi-zod-client');
     generateMcpTools(null, generatedDir);
     console.log('✅ Successfully generated client code');
+
+    console.log('\n📊 Step 4: Generating schema index for introspection tools');
+    generateSchemaIndex(endpointsFile, openapiTrimmedFile, schemaIndexFile);
+    console.log('✅ Successfully generated schema index');
   } catch (error) {
     console.error('\n❌ Error processing OpenAPI specification:', error.message);
     process.exit(1);

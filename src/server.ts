@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { registerSchemaTools } from './schema-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -69,39 +70,54 @@ class MicrosoftGraphServer {
       version: this.version,
     });
 
-    const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
-    if (shouldRegisterAuthTools) {
-      registerAuthTools(server, this.authManager);
-    }
-
-    if (this.options.discovery) {
-      registerDiscoveryTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount
-      );
+    if (this.options.schema) {
+      // Schema mode: read-only introspection tools, no auth needed
+      registerSchemaTools(server);
     } else {
-      registerGraphTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.enabledTools,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames
-      );
+      const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
+      if (shouldRegisterAuthTools) {
+        registerAuthTools(server, this.authManager);
+      }
+
+      if (this.options.discovery) {
+        registerDiscoveryTools(
+          server,
+          this.graphClient!,
+          this.options.readOnly,
+          this.options.orgMode,
+          this.authManager,
+          this.multiAccount
+        );
+      } else {
+        registerGraphTools(
+          server,
+          this.graphClient!,
+          this.options.readOnly,
+          this.options.enabledTools,
+          this.options.orgMode,
+          this.authManager,
+          this.multiAccount,
+          this.accountNames
+        );
+      }
     }
 
     return server;
   }
 
   async initialize(version: string): Promise<void> {
-    this.secrets = await getSecrets();
     this.version = version;
+
+    if (this.options.schema) {
+      // Schema mode: no auth, no graph client, no secrets needed
+      logger.info('Schema introspection mode — no authentication required');
+      if (!this.options.http) {
+        this.server = this.createMcpServer();
+      }
+      return;
+    }
+
+    this.secrets = await getSecrets();
 
     // Detect multi-account mode and cache account names for schema enum
     try {

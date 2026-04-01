@@ -48,6 +48,10 @@ program
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
+  .option(
+    '--schema',
+    'Start in schema introspection mode. Provides Graph API schema lookup tools without authentication. Useful for AI-assisted development.'
+  )
   .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)')
   .option(
     '--enable-dynamic-registration',
@@ -77,6 +81,7 @@ export interface CommandOptions {
   forceWorkScopes?: boolean;
   toon?: boolean;
   discovery?: boolean;
+  schema?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
