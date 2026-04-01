@@ -16,7 +16,8 @@
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-mail-child-folders",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "The mailFolder-id parameter accepts a folder display name (e.g. 'To-Do', 'Done', 'Archive') or a folder ID. Display names are automatically resolved to IDs."
   },
   {
     "pathPattern": "/me/mailFolders",
@@ -30,28 +31,63 @@
     "method": "post",
     "toolName": "create-mail-child-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a subfolder inside an existing mail folder. Use list-mail-folders or list-mail-child-folders to find the parent folder ID."
+    "llmTip": "Creates a subfolder inside an existing mail folder. The mailFolder-id parameter accepts a folder display name (e.g. 'Inbox') or a folder ID."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}",
     "method": "patch",
     "toolName": "update-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Renames a mail folder by updating its displayName. Use list-mail-folders to find the folder ID."
+    "llmTip": "Renames a mail folder by updating its displayName. The mailFolder-id parameter accepts a folder display name or a folder ID."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}",
     "method": "delete",
     "toolName": "delete-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. The mailFolder-id parameter accepts a folder display name or a folder ID."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
+    "method": "get",
+    "toolName": "list-mail-rules",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists inbox rules (message rules) for a mail folder. The mailFolder-id parameter accepts a folder display name (e.g. 'Inbox') or a folder ID. Returns rule conditions, actions (moveToFolder, delete, forwardTo, etc.), displayName, sequence, and isEnabled status."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
+    "method": "get",
+    "toolName": "get-mail-rule",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Gets a specific inbox rule by ID. Use list-mail-rules to find rule IDs first."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
+    "method": "post",
+    "toolName": "create-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates a new inbox rule. Body requires displayName, conditions (e.g. fromAddresses, subjectContains, senderContains), and actions (e.g. moveToFolder, delete, markAsRead, forwardTo). Set isEnabled: true to activate. Example: {\"displayName\": \"Move newsletters\", \"sequence\": 1, \"isEnabled\": true, \"conditions\": {\"senderContains\": [\"newsletter\"]}, \"actions\": {\"moveToFolder\": \"<folder-id>\"}}"
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
+    "method": "patch",
+    "toolName": "update-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Updates an existing inbox rule. Can modify displayName, conditions, actions, isEnabled, or sequence. Use list-mail-rules to find the rule ID first."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
+    "method": "delete",
+    "toolName": "delete-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Deletes an inbox rule. Use list-mail-rules to find the rule ID first. This action is irreversible."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
+    "llmTip": "The mailFolder-id parameter accepts a folder display name (e.g. 'To-Do', 'Done', 'Inbox') or a folder ID. Display names are automatically resolved to IDs. CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
     "pathPattern": "/me/messages/{message-id}",
@@ -118,7 +154,7 @@
     "method": "post",
     "toolName": "move-mail-message",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive)."
+    "llmTip": "destinationId accepts a folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive). To move to a custom folder (e.g. 'Done', 'To-Do'), use list-mail-folders first to get the folder ID, then pass it as destinationId."
   },
   {
     "pathPattern": "/me/messages/{message-id}",

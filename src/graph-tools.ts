@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import { resolveMailFolder, invalidateFolderCache } from './folder-resolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +124,19 @@ async function executeGraphTool(
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
     let body: unknown = null;
+
+    // Resolve mail folder display names to IDs before processing parameters.
+    // This lets users pass "To-Do" or "Done" instead of opaque AAM… IDs.
+    const folderParamNames = ['mailFolder-id', 'mailFolderId'];
+    for (const fpn of folderParamNames) {
+      if (typeof params[fpn] === 'string' && params[fpn]) {
+        params[fpn] = await resolveMailFolder(
+          params[fpn] as string,
+          graphClient,
+          accountAccessToken
+        );
+      }
+    }
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       // Skip control parameters - not part of the Microsoft Graph API
