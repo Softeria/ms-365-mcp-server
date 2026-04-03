@@ -1,0 +1,16 @@
+{
+  "name": "ms365-mcp-oauth-proxy",
+  "version": "1.0.0",
+  "description": "OAuth Proxy (AS) for ms-365-mcp-server — hides Entra credentials from MCP clients",
+  "type": "module",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js",
+    "dev": "node --watch proxy.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "jose": "^6.0.11",
+    "dotenv": "^16.5.0"
+  }
+}
