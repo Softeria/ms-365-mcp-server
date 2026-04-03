@@ -39,7 +39,9 @@ function maxTopFromEnv(): number | undefined {
   if (raw === undefined || raw === '') return undefined;
   const n = Number.parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) {
-    logger.warn(`Ignoring invalid MS365_MCP_MAX_TOP=${JSON.stringify(raw)} (use a positive integer)`);
+    logger.warn(
+      `Ignoring invalid MS365_MCP_MAX_TOP=${JSON.stringify(raw)} (use a positive integer)`
+    );
     return undefined;
   }
   return n;
