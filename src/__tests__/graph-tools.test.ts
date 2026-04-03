@@ -287,6 +287,64 @@ describe('graph-tools', () => {
       // $count override
       expect(schema['count']).toBeDefined();
       expect(schema['count'].description).toContain('advanced query mode');
+
+      expect(schema['top'].description).toContain('Start small');
+      expect(schema['top'].description).toContain('$select');
+    });
+  });
+
+  describe('MS365_MCP_MAX_TOP', () => {
+    const prevMaxTop = process.env.MS365_MCP_MAX_TOP;
+
+    afterEach(() => {
+      if (prevMaxTop === undefined) delete process.env.MS365_MCP_MAX_TOP;
+      else process.env.MS365_MCP_MAX_TOP = prevMaxTop;
+    });
+
+    it('should clamp $top when MS365_MCP_MAX_TOP is set', async () => {
+      process.env.MS365_MCP_MAX_TOP = '10';
+
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('test-tool');
+      await tool!.handler({ top: 50 });
+
+      const [url] = graphClient.graphRequest.mock.calls[0];
+      expect(url).toContain('$top=10');
+    });
+
+    it('should pass through $top when MS365_MCP_MAX_TOP is unset', async () => {
+      delete process.env.MS365_MCP_MAX_TOP;
+
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('test-tool');
+      await tool!.handler({ top: 50 });
+
+      const [url] = graphClient.graphRequest.mock.calls[0];
+      expect(url).toContain('$top=50');
     });
   });
 
