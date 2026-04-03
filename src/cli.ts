@@ -48,6 +48,10 @@ program
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
+  .option(
+    '--slim',
+    'Register all tools with minimal schemas (name+description only). Use get-tool-schema for parameter details. Reduces context by ~8x vs full mode.'
+  )
   .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)')
   .option(
     '--enable-dynamic-registration',
@@ -77,6 +81,7 @@ export interface CommandOptions {
   forceWorkScopes?: boolean;
   toon?: boolean;
   discovery?: boolean;
+  slim?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;

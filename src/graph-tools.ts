@@ -697,6 +697,191 @@ export function registerGraphTools(
   return registeredCount;
 }
 
+function isZodOptional(schema: z.ZodTypeAny): boolean {
+  const typeName = schema?._def?.typeName;
+  return typeName === 'ZodOptional' || typeName === 'ZodDefault';
+}
+
+export function registerSlimTools(
+  server: McpServer,
+  graphClient: GraphClient,
+  readOnly: boolean = false,
+  orgMode: boolean = false,
+  authManager?: AuthManager,
+  multiAccount: boolean = false,
+  accountNames: string[] = []
+): void {
+  const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
+  logger.info(`Slim mode: ${toolsRegistry.size} tools available`);
+
+  // Meta-tool: returns full parameter list for a specific tool
+  server.tool(
+    'get-tool-schema',
+    'Get the full parameter schema for any Microsoft 365 tool. Call this before using a tool when you need to know what parameters it accepts.',
+    {
+      tool_name: z.string().describe('Name of the tool, e.g. "send-mail" or "list-mail-messages"'),
+    },
+    {
+      title: 'get-tool-schema',
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
+    async ({ tool_name }) => {
+      const toolData = toolsRegistry.get(tool_name);
+      if (!toolData) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `Tool not found: ${tool_name}`,
+                hint: 'Tool names match the keys shown in the tool list.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const { tool, config } = toolData;
+
+      const parameters = (tool.parameters || []).map((p) => ({
+        name: p.name,
+        placement: p.type,
+        description: p.description || undefined,
+        required: !isZodOptional(p.schema),
+      }));
+
+      if (tool.method.toUpperCase() === 'GET') {
+        parameters.push({
+          name: 'fetchAllPages',
+          placement: 'Control' as any,
+          description: 'Auto-fetch all pages of results',
+          required: false,
+        });
+      }
+      if (config?.supportsTimezone) {
+        parameters.push({
+          name: 'timezone',
+          placement: 'Control' as any,
+          description: 'IANA timezone name (e.g. "America/New_York")',
+          required: false,
+        });
+      }
+      parameters.push(
+        { name: 'includeHeaders', placement: 'Control' as any, description: 'Include response headers (ETag etc.)', required: false },
+        { name: 'excludeResponse', placement: 'Control' as any, description: 'Return success/fail only, no body', required: false }
+      );
+      if (multiAccount) {
+        const hint = accountNames.length > 0 ? `Known: ${accountNames.join(', ')}` : '';
+        parameters.push({
+          name: 'account',
+          placement: 'Control' as any,
+          description: `Microsoft account email to use. ${hint}`,
+          required: false,
+        });
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                name: tool.alias,
+                method: tool.method.toUpperCase(),
+                path: tool.path,
+                description: tool.description,
+                tip: config?.llmTip || undefined,
+                parameters,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  // Register each tool with a minimal flat-params schema
+  let registeredCount = 0;
+  let failedCount = 0;
+
+  for (const [name, { tool, config }] of toolsRegistry) {
+    let description = tool.description || `${tool.method.toUpperCase()} ${tool.path}`;
+    if (config?.llmTip) {
+      description += `\n\n💡 TIP: ${config.llmTip}`;
+    }
+
+    try {
+      server.tool(
+        name,
+        description,
+        {
+          parameters: z
+            .preprocess(
+              (val) => {
+                if (typeof val === 'string') {
+                  try { return JSON.parse(val); } catch { return val; }
+                }
+                return val;
+              },
+              z.record(z.any())
+            )
+            .describe(
+              'Key-value parameters for this tool. Call get-tool-schema first if unsure what to pass.'
+            )
+            .optional(),
+        },
+        {
+          title: name,
+          readOnlyHint: tool.method.toUpperCase() === 'GET',
+          destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
+          openWorldHint: true,
+        },
+        async ({ parameters = {} }) =>
+          executeGraphTool(tool, config, graphClient, parameters, authManager)
+      );
+      registeredCount++;
+    } catch (error) {
+      logger.error(`Failed to register slim tool ${name}: ${(error as Error).message}`);
+      failedCount++;
+    }
+  }
+
+  // Register parse-teams-url (same as in registerGraphTools)
+  try {
+    server.tool(
+      'parse-teams-url',
+      'Converts any Teams meeting URL format into a standard joinWebUrl.',
+      {
+        url: z.string().describe('Teams meeting URL in any format'),
+      },
+      { title: 'parse-teams-url', readOnlyHint: true, openWorldHint: false },
+      async ({ url }) => {
+        try {
+          const joinWebUrl = parseTeamsUrl(url);
+          return { content: [{ type: 'text', text: joinWebUrl }] };
+        } catch (error) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+            isError: true,
+          };
+        }
+      }
+    );
+    registeredCount++;
+  } catch (error) {
+    logger.error(`Failed to register slim tool parse-teams-url: ${(error as Error).message}`);
+    failedCount++;
+  }
+
+  logger.info(
+    `Slim tool registration complete: ${registeredCount} registered, ${failedCount} failed`
+  );
+}
+
 function buildToolsRegistry(
   readOnly: boolean,
   orgMode: boolean
