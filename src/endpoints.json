@@ -199,6 +199,34 @@
     "llmTip": "No request body needed — just call with the message ID. Draft must exist in Drafts folder."
   },
   {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
+    "method": "get",
+    "toolName": "list-mail-rules",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists all message rules for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Each rule has displayName, sequence, isEnabled, conditions (fromAddresses, subjectContains, etc.), actions (moveToFolder, forwardTo, delete, etc.), and exceptions."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
+    "method": "post",
+    "toolName": "create-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates a message rule for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Body: { displayName: 'Rule name', sequence: 1, isEnabled: true, conditions: { fromAddresses: [{ emailAddress: { address: 'user@example.com' } }] }, actions: { moveToFolder: 'folder-id' } }. Actions: moveToFolder, copyToFolder, forwardTo, forwardAsAttachmentTo, delete, markAsRead, markImportance, stopProcessingRules."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
+    "method": "patch",
+    "toolName": "update-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Updates an existing message rule. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Send only the properties to change. Common use: { isEnabled: false } to disable a rule, or update conditions/actions."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
+    "method": "delete",
+    "toolName": "delete-mail-rule",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Deletes a message rule permanently. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules."
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
