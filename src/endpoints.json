@@ -947,7 +947,7 @@
     "pathPattern": "/me/presence",
     "method": "get",
     "toolName": "get-my-presence",
-    "scopes": ["Presence.Read"],
+    "workScopes": ["Presence.Read"],
     "llmTip": "Gets the current user's presence status. Returns availability (Available, Busy, DoNotDisturb, BeRightBack, Away, Offline) and activity (InACall, InAMeeting, Presenting, OutOfOffice, etc.). Useful to check your own status before scheduling."
   },
   {
