@@ -646,14 +646,14 @@
     "pathPattern": "/me/manager",
     "method": "get",
     "toolName": "get-my-manager",
-    "scopes": ["User.Read.All"],
+    "workScopes": ["User.Read.All"],
     "llmTip": "Gets the current user's manager. Returns a directoryObject with displayName, mail, jobTitle, id. Use the id to chain further queries (e.g. get their direct reports or presence)."
   },
   {
     "pathPattern": "/me/directReports",
     "method": "get",
     "toolName": "list-my-direct-reports",
-    "scopes": ["User.Read.All"],
+    "workScopes": ["User.Read.All"],
     "llmTip": "Lists users who report directly to the current user. Returns directoryObjects with displayName, mail, jobTitle, id. Useful for building org charts or sending team-wide communications."
   },
   {
@@ -690,7 +690,7 @@
     "pathPattern": "/me/people",
     "method": "get",
     "toolName": "list-relevant-people",
-    "scopes": ["People.Read"],
+    "workScopes": ["People.Read"],
     "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, emailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
   },
   {
