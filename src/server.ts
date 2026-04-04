@@ -160,6 +160,15 @@ class MicrosoftGraphServer {
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
+      // Log all incoming requests
+      app.use((req, res, next) => {
+        logger.info(`${req.method} ${req.url}`, {
+          hasAuth: !!req.headers.authorization,
+          contentType: req.get('Content-Type'),
+        });
+        next();
+      });
+
       // Add CORS headers for all routes
       const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || '*';
       app.use((req, res, next) => {
