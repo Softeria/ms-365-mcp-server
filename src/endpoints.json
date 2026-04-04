@@ -764,28 +764,28 @@
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "get",
     "toolName": "get-online-meeting",
-    "scopes": ["OnlineMeetings.Read"],
+    "workScopes": ["OnlineMeetings.Read"],
     "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID."
   },
   {
     "pathPattern": "/me/onlineMeetings",
     "method": "post",
     "toolName": "create-online-meeting",
-    "scopes": ["OnlineMeetings.ReadWrite"],
+    "workScopes": ["OnlineMeetings.ReadWrite"],
     "llmTip": "Creates a new online meeting. Required body: { subject, startDateTime, endDateTime }. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "patch",
     "toolName": "update-online-meeting",
-    "scopes": ["OnlineMeetings.ReadWrite"],
+    "workScopes": ["OnlineMeetings.ReadWrite"],
     "llmTip": "Updates an existing online meeting. Updatable properties: subject, startDateTime, endDateTime, participants, lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters. Send only the properties you want to change."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "delete",
     "toolName": "delete-online-meeting",
-    "scopes": ["OnlineMeetings.ReadWrite"],
+    "workScopes": ["OnlineMeetings.ReadWrite"],
     "llmTip": "Deletes an online meeting. This cannot be undone. The meeting join link will no longer work after deletion."
   },
   {
