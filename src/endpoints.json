@@ -984,5 +984,26 @@
     "toolName": "reply-to-group-thread",
     "workScopes": ["Group.ReadWrite.All"],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
+  },
+  {
+    "pathPattern": "/me/presence",
+    "method": "get",
+    "toolName": "get-my-presence",
+    "workScopes": ["Presence.Read"],
+    "llmTip": "Gets the current user's presence status. Returns availability (Available, Busy, DoNotDisturb, BeRightBack, Away, Offline) and activity (InACall, InAMeeting, Presenting, OutOfOffice, etc.). Useful to check your own status before scheduling."
+  },
+  {
+    "pathPattern": "/users/{user-id}/presence",
+    "method": "get",
+    "toolName": "get-user-presence",
+    "workScopes": ["Presence.Read.All"],
+    "llmTip": "Gets presence status for a specific user by their user ID or UPN (email). Returns availability and activity. Use list-users to find the user ID first."
+  },
+  {
+    "pathPattern": "/communications/presences",
+    "method": "post",
+    "toolName": "get-presences-by-user-id",
+    "workScopes": ["Presence.Read.All"],
+    "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
   }
 ]
