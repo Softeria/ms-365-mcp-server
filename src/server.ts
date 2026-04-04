@@ -20,6 +20,17 @@ import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
 import crypto from 'node:crypto';
 
+function extractEmailFromToken(authHeader: string | undefined): string {
+  try {
+    if (!authHeader?.startsWith('Bearer ')) return 'anonymous';
+    const token = authHeader.substring(7);
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    return payload.upn || payload.preferred_username || payload.unique_name || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /**
  * Parse HTTP option into host and port components.
  * Supports formats: "host:port", ":port", "port"
@@ -162,7 +173,9 @@ class MicrosoftGraphServer {
 
       // Log all incoming requests
       app.use((req, res, next) => {
+        const user = extractEmailFromToken(req.headers.authorization);
         logger.info(`${req.method} ${req.url}`, {
+          user,
           hasAuth: !!req.headers.authorization,
           contentType: req.get('Content-Type'),
         });
