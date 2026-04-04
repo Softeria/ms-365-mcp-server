@@ -72,28 +72,8 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     }
   );
 
-  server.tool('logout', 'Log out from Microsoft account', {}, async () => {
-    try {
-      await authManager.logout();
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ message: 'Logged out successfully' }),
-          },
-        ],
-      };
-    } catch {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ error: 'Logout failed' }),
-          },
-        ],
-      };
-    }
-  });
+  // logout disabled for shared server deployments — prevents users from
+  // invalidating other users' sessions on multi-tenant servers
 
   server.tool('verify-login', 'Check current Microsoft authentication status', {}, async () => {
     const testResult = await authManager.testLogin();
@@ -188,48 +168,6 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
     }
   );
 
-  server.tool(
-    'remove-account',
-    'Remove a Microsoft account from the cache. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
-    {
-      account: z.string().describe('Email address or account ID of the account to remove'),
-    },
-    async ({ account }) => {
-      try {
-        const success = await authManager.removeAccount(account);
-        if (success) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ message: `Removed account: ${account}` }),
-              },
-            ],
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ error: `Failed to remove account from cache: ${account}` }),
-              },
-            ],
-            isError: true,
-          };
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Failed to remove account: ${(error as Error).message}`,
-              }),
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
+  // remove-account disabled for shared server deployments — prevents users
+  // from removing other users' cached tokens
 }
