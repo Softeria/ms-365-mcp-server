@@ -20,7 +20,13 @@ vi.mock('zod', () => {
 
 describe('Auth Tools', () => {
   let server: { tool: ReturnType<typeof vi.fn> };
-  let authManager: { logout: ReturnType<typeof vi.fn>; testLogin: ReturnType<typeof vi.fn> };
+  let authManager: {
+    logout: ReturnType<typeof vi.fn>;
+    testLogin: ReturnType<typeof vi.fn>;
+    acquireTokenByDeviceCode: ReturnType<typeof vi.fn>;
+    getUseInteractiveAuth: ReturnType<typeof vi.fn>;
+    acquireTokenInteractive: ReturnType<typeof vi.fn>;
+  };
   let loginTool: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -38,6 +44,7 @@ describe('Auth Tools', () => {
       testLogin: vi.fn(),
       acquireTokenByDeviceCode: vi.fn(),
       getUseInteractiveAuth: vi.fn().mockReturnValue(false),
+      acquireTokenInteractive: vi.fn().mockResolvedValue(undefined),
     };
 
     registerAuthTools(server, authManager);
@@ -80,6 +87,23 @@ describe('Auth Tools', () => {
           message: 'Login instructions',
         })
       );
+    });
+
+    it('should use interactive browser auth when authBrowser mode is enabled', async () => {
+      authManager.getUseInteractiveAuth.mockReturnValue(true);
+      authManager.testLogin
+        .mockResolvedValueOnce({ success: false, message: 'Not logged in' })
+        .mockResolvedValueOnce({
+          success: true,
+          userData: { displayName: 'Browser User' },
+        });
+
+      const result = await loginTool({ force: false });
+
+      expect(authManager.acquireTokenInteractive).toHaveBeenCalled();
+      expect(authManager.acquireTokenByDeviceCode).not.toHaveBeenCalled();
+      expect(result.content[0].text).toContain('Login successful');
+      expect(result.content[0].text).toContain('Browser authentication completed');
     });
 
     it('should proceed with login when not already logged in', async () => {

@@ -16,7 +16,7 @@ program
   .description('Microsoft 365 MCP Server')
   .version(version)
   .option('-v', 'Enable verbose logging')
-  .option('--login', 'Login using device code flow')
+  .option('--login', 'Login to Microsoft account')
   .option('--logout', 'Log out and clear saved credentials')
   .option('--verify-login', 'Verify login without starting the server')
   .option('--list-accounts', 'List all cached accounts')
