@@ -657,6 +657,57 @@
     "llmTip": "Updates mailbox settings. Common use: configure Out-of-Office (automatic replies). Body example: { automaticRepliesSetting: { status: 'scheduled', scheduledStartDateTime: { dateTime: '2026-03-28T17:00:00', timeZone: 'Eastern Standard Time' }, scheduledEndDateTime: { dateTime: '2026-04-01T08:00:00', timeZone: 'Eastern Standard Time' }, internalReplyMessage: 'I am OOO.', externalReplyMessage: 'I am out of office.' } }. Status values: disabled, alwaysEnabled, scheduled."
   },
   {
+    "pathPattern": "/me/manager",
+    "method": "get",
+    "toolName": "get-my-manager",
+    "workScopes": ["User.Read.All"],
+    "llmTip": "Gets the current user's manager. Returns a directoryObject with displayName, mail, jobTitle, id. Use the id to chain further queries (e.g. get their direct reports or presence)."
+  },
+  {
+    "pathPattern": "/me/directReports",
+    "method": "get",
+    "toolName": "list-my-direct-reports",
+    "workScopes": ["User.Read.All"],
+    "llmTip": "Lists users who report directly to the current user. Returns directoryObjects with displayName, mail, jobTitle, id. Useful for building org charts or sending team-wide communications."
+  },
+  {
+    "pathPattern": "/users/{user-id}/manager",
+    "method": "get",
+    "toolName": "get-user-manager",
+    "workScopes": ["User.Read.All"],
+    "llmTip": "Gets the manager of a specific user by user ID or UPN (email). Returns a directoryObject with displayName, mail, jobTitle."
+  },
+  {
+    "pathPattern": "/users/{user-id}/directReports",
+    "method": "get",
+    "toolName": "list-user-direct-reports",
+    "workScopes": ["User.Read.All"],
+    "llmTip": "Lists users who report directly to a specific user. Use with get-user-manager to traverse the org hierarchy."
+  },
+  {
+    "pathPattern": "/me/photo/$value",
+    "method": "get",
+    "toolName": "get-my-profile-photo",
+    "scopes": ["User.Read"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns the current user's profile photo as binary image data. The photo is typically in JPEG format."
+  },
+  {
+    "pathPattern": "/users/{user-id}/photo/$value",
+    "method": "get",
+    "toolName": "get-user-profile-photo",
+    "workScopes": ["User.Read.All"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns a specific user's profile photo as binary image data. Use the user ID or UPN (email)."
+  },
+  {
+    "pathPattern": "/me/people",
+    "method": "get",
+    "toolName": "list-relevant-people",
+    "workScopes": ["People.Read"],
+    "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, emailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
+  },
+  {
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
