@@ -564,10 +564,90 @@ class MicrosoftGraphServer {
         }
       );
 
-      // Health check endpoint
-      app.get('/', (req, res) => {
-        res.send('Microsoft 365 MCP Server is running');
+      // Health check endpoint — only respond if no auth header (browser/curl health check)
+      // With auth header, fall through to MCP handler below
+      app.get('/', (req, res, next) => {
+        if (!req.headers.authorization) {
+          res.send('Microsoft 365 MCP Server is running');
+        } else {
+          next();
+        }
       });
+
+      // Mount MCP handlers on root path as well (claude.ai sends to / not /mcp)
+      app.get(
+        '/',
+        microsoftBearerTokenAuthMiddleware,
+        async (
+          req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
+          res: Response
+        ) => {
+          const handler = async () => {
+            const server = this.createMcpServer();
+            const transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: undefined,
+            });
+            res.on('close', () => {
+              transport.close();
+              server.close();
+            });
+            await server.connect(transport);
+            await transport.handleRequest(req as any, res as any, undefined);
+          };
+          try {
+            if (req.microsoftAuth) {
+              await requestContext.run(
+                { accessToken: req.microsoftAuth.accessToken, refreshToken: req.microsoftAuth.refreshToken },
+                handler
+              );
+            } else {
+              await handler();
+            }
+          } catch (error) {
+            logger.error('Error handling MCP GET / request:', error);
+            if (!res.headersSent) {
+              res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
+            }
+          }
+        }
+      );
+
+      app.post(
+        '/',
+        microsoftBearerTokenAuthMiddleware,
+        async (
+          req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
+          res: Response
+        ) => {
+          const handler = async () => {
+            const server = this.createMcpServer();
+            const transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: undefined,
+            });
+            res.on('close', () => {
+              transport.close();
+              server.close();
+            });
+            await server.connect(transport);
+            await transport.handleRequest(req as any, res as any, req.body);
+          };
+          try {
+            if (req.microsoftAuth) {
+              await requestContext.run(
+                { accessToken: req.microsoftAuth.accessToken, refreshToken: req.microsoftAuth.refreshToken },
+                handler
+              );
+            } else {
+              await handler();
+            }
+          } catch (error) {
+            logger.error('Error handling MCP POST / request:', error);
+            if (!res.headersSent) {
+              res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
+            }
+          }
+        }
+      );
 
       if (host) {
         app.listen(port, host, () => {
