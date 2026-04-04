@@ -16,7 +16,7 @@ program
   .description('Microsoft 365 MCP Server')
   .version(version)
   .option('-v', 'Enable verbose logging')
-  .option('--login', 'Login using device code flow')
+  .option('--login', 'Login to Microsoft account')
   .option('--logout', 'Log out and clear saved credentials')
   .option('--verify-login', 'Verify login without starting the server')
   .option('--list-accounts', 'List all cached accounts')
@@ -56,6 +56,10 @@ program
   .option(
     '--no-dynamic-registration',
     'Disable OAuth Dynamic Client Registration endpoint in HTTP mode'
+  )
+  .option(
+    '--auth-browser',
+    'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
   );
 
 export interface CommandOptions {
@@ -80,6 +84,7 @@ export interface CommandOptions {
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
+  authBrowser?: boolean;
 
   [key: string]: unknown;
 }
