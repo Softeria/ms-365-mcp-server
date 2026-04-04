@@ -479,8 +479,7 @@ class AuthManager {
       },
       successTemplate:
         '<h1>Authentication successful!</h1><p>You can close this window and return to your application.</p>',
-      errorTemplate:
-        '<h1>Authentication failed</h1><p>Something went wrong. Please try again.</p>',
+      errorTemplate: '<h1>Authentication failed</h1><p>Something went wrong. Please try again.</p>',
     };
 
     try {
