@@ -37,6 +37,7 @@ describe('Auth Tools', () => {
     authManager = {
       testLogin: vi.fn(),
       acquireTokenByDeviceCode: vi.fn(),
+      getUseInteractiveAuth: vi.fn().mockReturnValue(false),
     };
 
     registerAuthTools(server, authManager);

@@ -215,6 +215,7 @@ class AuthManager {
   private oauthToken: string | null;
   private isOAuthMode: boolean;
   private selectedAccountId: string | null;
+  private useInteractiveAuth: boolean;
 
   constructor(config: Configuration, scopes: string[] = buildScopesFromEndpoints()) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
@@ -224,6 +225,7 @@ class AuthManager {
     this.accessToken = null;
     this.tokenExpiry = null;
     this.selectedAccountId = null;
+    this.useInteractiveAuth = false;
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
@@ -450,6 +452,57 @@ class AuthManager {
       return this.accessToken;
     } catch (error) {
       logger.error(`Error in device code flow: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  setUseInteractiveAuth(value: boolean): void {
+    this.useInteractiveAuth = value;
+  }
+
+  getUseInteractiveAuth(): boolean {
+    return this.useInteractiveAuth;
+  }
+
+  async acquireTokenInteractive(hack?: (message: string) => void): Promise<string | null> {
+    const open = (await import('open')).default;
+
+    const interactiveRequest = {
+      scopes: this.scopes,
+      openBrowser: async (url: string) => {
+        const message = 'Opening browser for Microsoft sign-in...';
+        if (hack) {
+          hack(message);
+        }
+        logger.info(message);
+        await open(url);
+      },
+      successTemplate:
+        '<h1>Authentication successful!</h1><p>You can close this window and return to your application.</p>',
+      errorTemplate:
+        '<h1>Authentication failed</h1><p>Something went wrong. Please try again.</p>',
+    };
+
+    try {
+      logger.info('Requesting interactive browser login...');
+      logger.info(`Requesting scopes: ${this.scopes.join(', ')}`);
+      const response = await this.msalApp.acquireTokenInteractive(interactiveRequest);
+      logger.info(`Granted scopes: ${response?.scopes?.join(', ') || 'none'}`);
+      logger.info('Interactive browser login successful');
+      this.accessToken = response?.accessToken || null;
+      this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
+
+      // Set the newly authenticated account as selected if no account is currently selected
+      if (!this.selectedAccountId && response?.account) {
+        this.selectedAccountId = response.account.homeAccountId;
+        await this.saveSelectedAccount();
+        logger.info(`Auto-selected new account: ${response.account.username}`);
+      }
+
+      await this.saveTokenCache();
+      return this.accessToken;
+    } catch (error) {
+      logger.error(`Error in interactive browser flow: ${(error as Error).message}`);
       throw error;
     }
   }

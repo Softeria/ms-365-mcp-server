@@ -56,6 +56,10 @@ program
   .option(
     '--no-dynamic-registration',
     'Disable OAuth Dynamic Client Registration endpoint in HTTP mode'
+  )
+  .option(
+    '--auth-browser',
+    'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
   );
 
 export interface CommandOptions {
@@ -80,6 +84,7 @@ export interface CommandOptions {
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
+  authBrowser?: boolean;
 
   [key: string]: unknown;
 }
