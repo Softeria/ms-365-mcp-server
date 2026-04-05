@@ -416,14 +416,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/me/drive/root/delta",
-    "method": "get",
-    "toolName": "get-my-drive-delta",
-    "disabled": true,
-    "scopes": ["Files.Read"],
-    "llmTip": "Disabled — path not in OpenAPI spec. Use get-drive-delta with drives/{drive-id}/items/{driveItem-id}/delta() instead."
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/delta()",
     "method": "get",
     "toolName": "get-drive-delta",
