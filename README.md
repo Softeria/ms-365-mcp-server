@@ -553,6 +553,8 @@ Parent directories are created automatically. Files are written with `0600` perm
 
 > **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls. The OS credential store (keytar) is preferred when available.
 
+> **Hosted/sandboxed environments** (e.g. Anthropic Cowork): Set `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` to a persistent mount so tokens survive between sessions.
+
 ## Azure Key Vault Integration
 
 For production deployments, you can store secrets in Azure Key Vault instead of environment variables. This is particularly useful for Azure Container Apps with managed identity.
