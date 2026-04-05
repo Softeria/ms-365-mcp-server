@@ -908,7 +908,7 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "patch",
     "toolName": "update-team-channel",
-    "workScopes": ["Channel.ReadBasic.All"],
+    "workScopes": ["ChannelSettings.ReadWrite.All"],
     "llmTip": "Updates channel properties. Body: { displayName: 'New Name', description: 'New description' }. The General channel cannot be renamed."
   },
   {
