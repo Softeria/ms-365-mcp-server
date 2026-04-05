@@ -923,6 +923,18 @@
     "workScopes": ["ChannelMessage.Read.All"]
   },
   {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/setReaction",
+    "method": "post",
+    "toolName": "set-channel-message-reaction",
+    "workScopes": ["ChannelMessage.Send"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/unsetReaction",
+    "method": "post",
+    "toolName": "unset-channel-message-reaction",
+    "workScopes": ["ChannelMessage.Send"]
+  },
+  {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
@@ -940,6 +952,18 @@
     "toolName": "reply-to-chat-message",
     "workScopes": ["ChatMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/setReaction",
+    "method": "post",
+    "toolName": "set-chat-message-reaction",
+    "workScopes": ["ChatMessage.Send"]
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/unsetReaction",
+    "method": "post",
+    "toolName": "unset-chat-message-reaction",
+    "workScopes": ["ChatMessage.Send"]
   },
   {
     "pathPattern": "/sites",
