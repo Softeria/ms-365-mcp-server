@@ -60,6 +60,10 @@ program
   .option(
     '--auth-browser',
     'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
+  )
+  .option(
+    '--base-url <url>',
+    'Public base URL for OAuth metadata when running behind a reverse proxy (e.g. https://mcp.example.com)'
   );
 
 export interface CommandOptions {
@@ -85,6 +89,7 @@ export interface CommandOptions {
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
   authBrowser?: boolean;
+  baseUrl?: string;
 
   [key: string]: unknown;
 }
