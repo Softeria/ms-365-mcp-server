@@ -398,7 +398,7 @@
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
-    "toolName": "get-root-folder",
+    "toolName": "get-drive-root-item",
     "scopes": ["Files.Read"]
   },
   {
@@ -570,14 +570,6 @@
     "scopes": ["Notes.Create"],
     "contentType": "text/html",
     "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML fails silently."
-  },
-  {
-    "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
-    "method": "patch",
-    "toolName": "update-onenote-page",
-    "scopes": ["Notes.ReadWrite"],
-    "contentType": "application/json",
-    "llmTip": "Updates page content using PATCH commands. Body is an array of patch actions: [{ target: 'body', action: 'append', content: '<p>New content</p>' }]. Actions: 'append' (add to end), 'replace' (replace target), 'insert' (insert after target). Target can be 'body', 'title', or a specific element ID."
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}",

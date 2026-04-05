@@ -3,6 +3,13 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
+// Node 18 lacks the File global that the generated Zod schemas reference.
+// Must be set before the dynamic import below.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (!globalThis.File) (globalThis as any).File = Blob;
+
+const { api } = await import('../src/generated/client.js');
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -32,6 +39,21 @@ describe('endpoints.json validation', () => {
       expect.fail(
         `${violations.length} endpoint(s) have both scopes and workScopes. ` +
           `Use scopes for personal-account-compatible endpoints, workScopes for org-only endpoints, never both.\n${details}`
+      );
+    }
+  });
+
+  it('should have a matching generated client endpoint for every entry', () => {
+    const generatedTools = new Set(api.endpoints.map((e) => e.alias));
+    const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));
+
+    if (orphans.length > 0) {
+      const details = orphans
+        .map((e) => `  ${e.toolName} (${e.method.toUpperCase()} ${e.pathPattern})`)
+        .join('\n');
+      expect.fail(
+        `${orphans.length} endpoint(s) in endpoints.json have no matching generated client entry. ` +
+          `Run npm run generate, or check that the path and method exist in the OpenAPI spec.\n${details}`
       );
     }
   });
