@@ -458,7 +458,9 @@ class MicrosoftGraphServer {
       app.use(
         mcpAuthRouter({
           provider: oauthProvider,
-          issuerUrl: new URL(`http://localhost:${port}`),
+          issuerUrl: new URL(
+            this.options.baseUrl || process.env.MS365_MCP_BASE_URL || `http://localhost:${port}`
+          ),
         })
       );
 
