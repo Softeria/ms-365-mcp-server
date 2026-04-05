@@ -1324,5 +1324,19 @@
     "toolName": "get-presences-by-user-id",
     "workScopes": ["Presence.Read.All"],
     "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars/{virtualEventWebinar-id}",
+    "method": "get",
+    "toolName": "get-virtual-event-webinar",
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Gets a specific webinar with full details: displayName, description, startDateTime, endDateTime, audience, coOrganizers, presenters, registrationConfiguration, and status."
+  },
+  {
+    "pathPattern": "/solutions/virtualEvents/webinars/{virtualEventWebinar-id}/sessions",
+    "method": "get",
+    "toolName": "list-webinar-sessions",
+    "workScopes": ["VirtualEvent.Read"],
+    "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
   }
 ]
