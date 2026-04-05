@@ -874,7 +874,7 @@
     "pathPattern": "/me/memberOf",
     "method": "get",
     "toolName": "list-my-memberships",
-    "scopes": ["User.Read"],
+    "workScopes": ["Directory.Read.All"],
     "llmTip": "Lists all groups, directory roles, and administrative units the current user is a member of. Returns directoryObjects — use $filter=isof('microsoft.graph.group') to filter to groups only. Each group has displayName, mail, groupTypes, membershipRule."
   },
   {
