@@ -18,6 +18,7 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import crypto from 'node:crypto';
 
 /**
  * Parse HTTP option into host and port components.
@@ -54,6 +55,17 @@ class MicrosoftGraphServer {
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
+
+  // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
+  private pkceStore: Map<
+    string,
+    {
+      clientCodeChallenge: string;
+      clientCodeChallengeMethod: string;
+      serverCodeVerifier: string;
+      createdAt: number;
+    }
+  > = new Map();
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -239,6 +251,7 @@ class MicrosoftGraphServer {
       }
 
       // Authorization endpoint - redirects to Microsoft
+      // Implements two-leg PKCE: client↔server and server↔Microsoft are independent
       app.get('/authorize', async (req, res) => {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
         const tenantId = this.secrets?.tenantId || 'common';
@@ -248,15 +261,19 @@ class MicrosoftGraphServer {
           `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/authorize`
         );
 
-        // Only forward parameters that Microsoft OAuth 2.0 v2.0 supports
+        // Extract client's PKCE parameters (from claude.ai or other MCP client)
+        const clientCodeChallenge = url.searchParams.get('code_challenge');
+        const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
+        const state = url.searchParams.get('state');
+
+        // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
+        // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
         const allowedParams = [
           'response_type',
           'redirect_uri',
           'scope',
           'state',
           'response_mode',
-          'code_challenge',
-          'code_challenge_method',
           'prompt',
           'login_hint',
           'domain_hint',
@@ -268,6 +285,45 @@ class MicrosoftGraphServer {
             microsoftAuthUrl.searchParams.set(param, value);
           }
         });
+
+        // Two-leg PKCE: if the client sent a code_challenge, store it and generate
+        // a separate PKCE pair for the server↔Microsoft leg
+        if (clientCodeChallenge && state) {
+          const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
+          const serverCodeChallenge = crypto
+            .createHash('sha256')
+            .update(serverCodeVerifier)
+            .digest('base64url');
+
+          this.pkceStore.set(state, {
+            clientCodeChallenge,
+            clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
+            serverCodeVerifier,
+            createdAt: Date.now(),
+          });
+
+          // Clean up entries older than 10 minutes
+          const now = Date.now();
+          for (const [key, value] of this.pkceStore) {
+            if (now - value.createdAt > 10 * 60 * 1000) {
+              this.pkceStore.delete(key);
+            }
+          }
+
+          // Send our server-generated code_challenge to Microsoft
+          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+
+          logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
+            state: state.substring(0, 8) + '...',
+          });
+        } else if (clientCodeChallenge) {
+          // No state to key on — fall back to forwarding directly (Claude Code path)
+          microsoftAuthUrl.searchParams.set('code_challenge', clientCodeChallenge);
+          if (clientCodeChallengeMethod) {
+            microsoftAuthUrl.searchParams.set('code_challenge_method', clientCodeChallengeMethod);
+          }
+        }
 
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);
@@ -327,13 +383,40 @@ class MicrosoftGraphServer {
               hasClientSecret: !!clientSecret,
             });
 
+            // Two-leg PKCE: check if we have a stored PKCE mapping for this exchange
+            // We need to find the matching state — it's not sent in the token request,
+            // but the code is unique per authorization, so we verify the client's
+            // code_verifier against all stored challenges and use the server's verifier
+            let serverCodeVerifier: string | undefined;
+
+            if (body.code_verifier) {
+              // Look through pkceStore for a matching client code_challenge
+              const clientVerifier = body.code_verifier as string;
+              const clientChallengeComputed = crypto
+                .createHash('sha256')
+                .update(clientVerifier)
+                .digest('base64url');
+
+              for (const [state, pkceData] of this.pkceStore) {
+                if (pkceData.clientCodeChallenge === clientChallengeComputed) {
+                  // Client's code_verifier matches stored code_challenge — two-leg PKCE
+                  serverCodeVerifier = pkceData.serverCodeVerifier;
+                  this.pkceStore.delete(state);
+                  logger.info('Two-leg PKCE: matched client verifier, using server verifier', {
+                    state: state.substring(0, 8) + '...',
+                  });
+                  break;
+                }
+              }
+            }
+
             const result = await exchangeCodeForToken(
               body.code as string,
               body.redirect_uri as string,
               clientId,
               clientSecret,
               tenantId,
-              body.code_verifier as string | undefined,
+              serverCodeVerifier || (body.code_verifier as string | undefined),
               this.secrets!.cloudType
             );
             res.json(result);
