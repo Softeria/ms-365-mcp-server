@@ -134,6 +134,13 @@
     "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
   },
   {
+    "pathPattern": "/me/messages/{message-id}/attachments/createUploadSession",
+    "method": "post",
+    "toolName": "create-mail-attachment-upload-session",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "For large attachments (3-150MB). Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl for direct PUT of file bytes."
+  },
+  {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
@@ -427,6 +434,13 @@
     "toolName": "upload-file-content",
     "scopes": ["Files.ReadWrite"],
     "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
+    "method": "post",
+    "toolName": "create-upload-session",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "For large file uploads (no size limit). Returns a pre-authenticated uploadUrl for direct PUT of file bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
