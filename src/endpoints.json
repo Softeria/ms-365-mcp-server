@@ -470,6 +470,13 @@
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
+    "method": "get",
+    "toolName": "get-drive-item",
+    "scopes": ["Files.Read"],
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference. Does not return content — use download-onedrive-file-content for that."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "patch",
     "toolName": "move-rename-onedrive-item",
     "scopes": ["Files.ReadWrite"],
@@ -481,6 +488,34 @@
     "toolName": "create-onedrive-folder",
     "scopes": ["Files.ReadWrite"],
     "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/invite",
+    "method": "post",
+    "toolName": "share-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
+    "method": "get",
+    "toolName": "list-drive-item-permissions",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions/{permission-id}",
+    "method": "delete",
+    "toolName": "delete-drive-item-permission",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Removes a specific permission from a file or folder. Only permissions that are not inherited can be deleted. Use list-drive-item-permissions first to find the permission ID."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/versions",
+    "method": "get",
+    "toolName": "list-drive-item-versions",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
