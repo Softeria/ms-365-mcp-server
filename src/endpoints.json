@@ -966,6 +966,24 @@
     "workScopes": ["ChatMessage.Send"]
   },
   {
+    "pathPattern": "/chats/{chat-id}/pinnedMessages",
+    "method": "get",
+    "toolName": "list-pinned-chat-messages",
+    "workScopes": ["Chat.Read"]
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/pinnedMessages",
+    "method": "post",
+    "toolName": "pin-chat-message",
+    "workScopes": ["ChatMessage.Send"]
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/pinnedMessages/{pinnedChatMessageInfo-id}",
+    "method": "delete",
+    "toolName": "unpin-chat-message",
+    "workScopes": ["Chat.ReadWrite"]
+  },
+  {
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
