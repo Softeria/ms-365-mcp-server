@@ -702,6 +702,50 @@ function isZodOptional(schema: z.ZodTypeAny): boolean {
   return typeName === 'ZodOptional' || typeName === 'ZodDefault';
 }
 
+function zodSchemaToJson(schema: z.ZodTypeAny, depth: number = 0): any {
+  if (!schema || depth > 4) return undefined;
+  const def = schema._def;
+  const typeName = def?.typeName;
+  const description = def?.description || undefined;
+
+  const withDesc = (obj: any) => description ? { ...obj, description } : obj;
+
+  switch (typeName) {
+    case 'ZodString':   return withDesc({ type: 'string' });
+    case 'ZodNumber':   return withDesc({ type: 'number' });
+    case 'ZodBoolean':  return withDesc({ type: 'boolean' });
+    case 'ZodNull':     return withDesc({ type: 'null' });
+    case 'ZodEnum':     return withDesc({ type: 'string', enum: def.values });
+    case 'ZodLiteral':  return withDesc({ type: typeof def.value, const: def.value });
+    case 'ZodArray': {
+      const items = zodSchemaToJson(def.type, depth + 1);
+      return withDesc({ type: 'array', ...(items ? { items } : {}) });
+    }
+    case 'ZodObject': {
+      const shape: Record<string, z.ZodTypeAny> = typeof def.shape === 'function' ? def.shape() : def.shape;
+      const properties: Record<string, any> = {};
+      const required: string[] = [];
+      for (const [key, val] of Object.entries(shape)) {
+        const propSchema = zodSchemaToJson(val as z.ZodTypeAny, depth + 1);
+        if (propSchema !== undefined) properties[key] = propSchema;
+        if (!isZodOptional(val as z.ZodTypeAny)) required.push(key);
+      }
+      return withDesc({
+        type: 'object',
+        properties,
+        ...(required.length ? { required } : {}),
+      });
+    }
+    case 'ZodOptional':
+    case 'ZodNullable':
+    case 'ZodDefault':  return zodSchemaToJson(def.innerType, depth);
+    case 'ZodEffects':  return zodSchemaToJson(def.schema, depth);
+    case 'ZodLazy':     return depth > 1 ? { type: 'object' } : zodSchemaToJson(def.getter(), depth + 1);
+    case 'ZodUnion':    return { oneOf: (def.options as z.ZodTypeAny[]).map((o) => zodSchemaToJson(o, depth + 1)).filter(Boolean) };
+    default:            return undefined;
+  }
+}
+
 export function registerSlimTools(
   server: McpServer,
   graphClient: GraphClient,
@@ -745,12 +789,19 @@ export function registerSlimTools(
 
       const { tool, config } = toolData;
 
-      const parameters = (tool.parameters || []).map((p) => ({
-        name: p.name,
-        placement: p.type,
-        description: p.description || undefined,
-        required: !isZodOptional(p.schema),
-      }));
+      const parameters = (tool.parameters || []).map((p) => {
+        const param: Record<string, any> = {
+          name: p.name,
+          placement: p.type,
+          description: p.description || undefined,
+          required: !isZodOptional(p.schema),
+        };
+        if (p.type === 'Body' && p.schema) {
+          const schemaJson = zodSchemaToJson(p.schema);
+          if (schemaJson) param.schema = schemaJson;
+        }
+        return param;
+      });
 
       if (tool.method.toUpperCase() === 'GET') {
         parameters.push({
