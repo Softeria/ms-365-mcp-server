@@ -352,6 +352,7 @@
     "pathPattern": "/me/calendar/getSchedule",
     "method": "post",
     "toolName": "get-schedule",
+    "readOnly": true,
     "workScopes": ["Calendars.Read"]
   },
   {
@@ -407,6 +408,7 @@
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
+    "readOnly": true,
     "workScopes": ["Calendars.Read.Shared"]
   },
   {
