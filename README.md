@@ -107,7 +107,7 @@ update-calendar-event, delete-calendar-event</sub>
 
 **OneDrive Files**  
 <sub>list-drives, get-drive-root-item, list-folder-files, download-onedrive-file-content, upload-file-content,
-upload-new-file, delete-onedrive-file</sub>
+delete-onedrive-file</sub>
 
 **Excel Operations**  
 <sub>list-excel-worksheets, get-excel-range, create-excel-chart, format-excel-range, sort-excel-range</sub>
@@ -277,10 +277,10 @@ integration method.
 
 Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
-1. Start the server with HTTP mode and dynamic registration enabled:
+1. Start the server with HTTP mode:
 
    ```bash
-   npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+   npx @softeria/ms-365-mcp-server --http
    ```
 
 2. In Open WebUI, go to **Admin Settings → Tools** (`/admin/settings/tools`) → **Add Connection**:
@@ -290,7 +290,7 @@ Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
 3. Click **Register Client**.
 
-> **Note**: The `--enable-dynamic-registration` is required for Open WebUI to work. If using a custom Azure Entra app, add your redirect URI under "Mobile and desktop applications" platform (not "Single-page application").
+> **Note**: Dynamic client registration is enabled by default in HTTP mode. Use `--no-dynamic-registration` to disable it. If using a custom Azure Entra app, add your redirect URI under "Mobile and desktop applications" platform (not "Single-page application").
 
 **Quick test setup** using the default Azure app (ID `ms-365` and `localhost:8080` are pre-configured):
 
@@ -300,7 +300,7 @@ docker run -d -p 8080:8080 \
   -e OPENAI_API_KEY \
   ghcr.io/open-webui/open-webui:main
 
-npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
+npx @softeria/ms-365-mcp-server --http
 ```
 
 Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
@@ -509,7 +509,7 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
---enable-dynamic-registration Enable OAuth Dynamic Client Registration endpoint (required for Open WebUI)
+--no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
@@ -524,6 +524,7 @@ Environment variables:
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
+- `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
@@ -551,6 +552,8 @@ export MS365_MCP_SELECTED_ACCOUNT_PATH="$HOME/.config/ms365-mcp/.selected-accoun
 Parent directories are created automatically. Files are written with `0600` permissions.
 
 > **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls. The OS credential store (keytar) is preferred when available.
+
+> **Hosted/sandboxed environments** (e.g. Anthropic Cowork): Set `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` to a persistent mount so tokens survive between sessions.
 
 ## Azure Key Vault Integration
 

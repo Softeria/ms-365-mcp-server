@@ -16,7 +16,7 @@ program
   .description('Microsoft 365 MCP Server')
   .version(version)
   .option('-v', 'Enable verbose logging')
-  .option('--login', 'Login using device code flow')
+  .option('--login', 'Login to Microsoft account')
   .option('--logout', 'Log out and clear saved credentials')
   .option('--verify-login', 'Verify login without starting the server')
   .option('--list-accounts', 'List all cached accounts')
@@ -51,7 +51,19 @@ program
   .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)')
   .option(
     '--enable-dynamic-registration',
-    'Enable OAuth Dynamic Client Registration endpoint (required for some MCP clients like Open WebUI)'
+    'Enable OAuth Dynamic Client Registration endpoint (kept for backwards compatibility, now enabled by default in HTTP mode)'
+  )
+  .option(
+    '--no-dynamic-registration',
+    'Disable OAuth Dynamic Client Registration endpoint in HTTP mode'
+  )
+  .option(
+    '--auth-browser',
+    'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
+  )
+  .option(
+    '--base-url <url>',
+    'Public base URL for OAuth metadata when running behind a reverse proxy (e.g. https://mcp.example.com)'
   );
 
 export interface CommandOptions {
@@ -75,6 +87,9 @@ export interface CommandOptions {
   discovery?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
+  dynamicRegistration?: boolean;
+  authBrowser?: boolean;
+  baseUrl?: string;
 
   [key: string]: unknown;
 }
@@ -131,6 +146,16 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.MS365_MCP_OUTPUT_FORMAT === 'toon') {
     options.toon = true;
+  }
+
+  // Dynamic registration defaults to true in HTTP mode
+  // --enable-dynamic-registration (backwards compat) or --no-dynamic-registration to override
+  if (options.http) {
+    if (options.dynamicRegistration === false) {
+      options.enableDynamicRegistration = false;
+    } else {
+      options.enableDynamicRegistration = true;
+    }
   }
 
   // Handle cloud type - CLI option takes precedence over environment variable
