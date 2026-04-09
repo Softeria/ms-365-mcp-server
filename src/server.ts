@@ -18,6 +18,12 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import {
+  initTokenStore,
+  getLatestRefreshToken,
+  storeTokens,
+  cleanupTokenStore,
+} from './token-store.js';
 import crypto from 'node:crypto';
 
 /**
@@ -425,6 +431,13 @@ class MicrosoftGraphServer {
             const clientId = this.secrets!.clientId;
             const clientSecret = this.secrets?.clientSecret;
 
+            // Use the latest refresh token from store (may have been rotated by a 401 retry)
+            const clientRT = body.refresh_token as string;
+            const latestRT = getLatestRefreshToken(clientRT);
+            if (latestRT !== clientRT) {
+              logger.info('Refresh endpoint: Using rotated refresh token from store');
+            }
+
             // Log whether using public or confidential client
             if (clientSecret) {
               logger.info('Refresh endpoint: Using confidential client with client_secret');
@@ -433,12 +446,18 @@ class MicrosoftGraphServer {
             }
 
             const result = await refreshAccessToken(
-              body.refresh_token as string,
+              latestRT,
               clientId,
               clientSecret,
               tenantId,
               this.secrets!.cloudType
             );
+
+            // Persist the new tokens
+            if (result.refresh_token) {
+              storeTokens(clientRT, result.access_token, result.refresh_token);
+            }
+
             res.json(result);
           } else {
             res.status(400).json({
@@ -570,6 +589,14 @@ class MicrosoftGraphServer {
       app.get('/', (req, res) => {
         res.send('Microsoft 365 MCP Server is running');
       });
+
+      // Initialize token rotation store (persists Azure AD tokens across 401 retries)
+      const tokenStoreDir =
+        process.env.MS365_MCP_TOKEN_STORE_DIR || new URL('..', import.meta.url).pathname;
+      initTokenStore(tokenStoreDir);
+
+      // Cleanup expired sessions every hour
+      setInterval(cleanupTokenStore, 60 * 60 * 1000);
 
       if (host) {
         app.listen(port, host, () => {
