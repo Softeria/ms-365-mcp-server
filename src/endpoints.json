@@ -520,6 +520,14 @@
     "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
   },
   {
+    "pathPattern": "/drives/{drive-id}/search(q='{q}')",
+    "method": "get",
+    "toolName": "search-onedrive-files",
+    "scopes": ["Files.Read"],
+    "skipEncoding": ["q"],
+    "llmTip": "Searches for files in a drive by name or content. The q parameter searches file names, metadata, and file content. Returns matching driveItems with id, name, webUrl, size, lastModifiedDateTime. Use list-drives first to get the drive-id."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
     "method": "post",
     "toolName": "create-excel-chart",
@@ -873,6 +881,41 @@
     "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, emailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
   },
   {
+    "pathPattern": "/me/memberOf",
+    "method": "get",
+    "toolName": "list-my-memberships",
+    "workScopes": ["Directory.Read.All"],
+    "llmTip": "Lists all groups, directory roles, and administrative units the current user is a member of. Returns directoryObjects — use $filter=isof('microsoft.graph.group') to filter to groups only. Each group has displayName, mail, groupTypes, membershipRule."
+  },
+  {
+    "pathPattern": "/groups",
+    "method": "get",
+    "toolName": "list-groups",
+    "workScopes": ["Group.Read.All"],
+    "llmTip": "Lists organization groups (Microsoft 365 groups, security groups, distribution lists). Use $filter=groupTypes/any(g:g eq 'Unified') for M365 groups only. Use $filter=mailEnabled eq true and securityEnabled eq false for distribution lists. Use $search=\"displayName:keyword\" to search by name (requires ConsistencyLevel: eventual header). Use $select to limit fields."
+  },
+  {
+    "pathPattern": "/groups/{group-id}",
+    "method": "get",
+    "toolName": "get-group",
+    "workScopes": ["Group.Read.All"],
+    "llmTip": "Gets a specific group's details: displayName, description, mail, visibility, groupTypes, membershipRule, createdDateTime. Use $select to limit returned properties."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/members",
+    "method": "get",
+    "toolName": "list-group-members",
+    "workScopes": ["GroupMember.Read.All"],
+    "llmTip": "Lists members of a group. Returns directoryObjects with displayName, mail, jobTitle, userPrincipalName. Use $select to limit fields. Use $top and pagination for large groups."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/owners",
+    "method": "get",
+    "toolName": "list-group-owners",
+    "workScopes": ["GroupMember.Read.All"],
+    "llmTip": "Lists owners of a group. Owners can manage group settings and membership. Returns directoryObjects with displayName, mail, userPrincipalName."
+  },
+  {
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
@@ -1019,6 +1062,13 @@
     "method": "get",
     "toolName": "list-team-members",
     "workScopes": ["TeamMember.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/filesFolder",
+    "method": "get",
+    "toolName": "get-channel-files-folder",
+    "workScopes": ["ChannelSettings.Read.All"],
+    "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
