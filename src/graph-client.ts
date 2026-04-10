@@ -6,6 +6,42 @@ import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
 
+/**
+ * Returns true if the given HTTP Content-Type header indicates a binary
+ * payload that must not be decoded as UTF-8 text. Graph returns binary for
+ * endpoints like /me/photo/$value, /chats/.../hostedContents/{id}/$value, and
+ * /drives/.../items/{id}/content, among others.
+ */
+export function isBinaryContentType(contentType: string): boolean {
+  if (!contentType) return false;
+  const lower = contentType.toLowerCase().split(';')[0].trim();
+  if (!lower) return false;
+  if (
+    lower.startsWith('image/') ||
+    lower.startsWith('video/') ||
+    lower.startsWith('audio/') ||
+    lower.startsWith('font/')
+  ) {
+    return true;
+  }
+  if (lower === 'application/octet-stream' || lower === 'application/pdf') {
+    return true;
+  }
+  if (lower.startsWith('application/zip') || lower.startsWith('application/x-zip')) {
+    return true;
+  }
+  // Office document MIME types and other vendor-specific binary formats.
+  if (lower.startsWith('application/vnd.') || lower.startsWith('application/x-')) {
+    // Be conservative: exclude MIME types that use the structured-syntax suffix
+    // to declare a text serialization (e.g. application/vnd.api+json).
+    if (lower.endsWith('+json') || lower.endsWith('+xml') || lower.endsWith('+text')) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 interface GraphRequestOptions {
   headers?: Record<string, string>;
   method?: string;
@@ -89,16 +125,35 @@ class GraphClient {
         );
       }
 
-      const text = await response.text();
+      const contentTypeHeader = response.headers?.get?.('content-type') || '';
+      const isBinaryResponse = isBinaryContentType(contentTypeHeader);
+
       let result: any;
 
-      if (text === '') {
-        result = { message: 'OK!' };
+      if (isBinaryResponse) {
+        // Binary payloads (images, video, pdf, octet-stream, etc.) must not be
+        // decoded with response.text() — that performs a lossy UTF-8 decode and
+        // replaces every high byte with U+FFFD, destroying the file. Read the
+        // raw bytes and return them as base64 so callers can reconstruct them.
+        const buffer = Buffer.from(await response.arrayBuffer());
+        result = {
+          message: 'OK!',
+          contentType: contentTypeHeader,
+          encoding: 'base64',
+          contentLength: buffer.byteLength,
+          contentBytes: buffer.toString('base64'),
+        };
       } else {
-        try {
-          result = JSON.parse(text);
-        } catch {
-          result = { message: 'OK!', rawResponse: text };
+        const text = await response.text();
+
+        if (text === '') {
+          result = { message: 'OK!' };
+        } else {
+          try {
+            result = JSON.parse(text);
+          } catch {
+            result = { message: 'OK!', rawResponse: text };
+          }
         }
       }
 
