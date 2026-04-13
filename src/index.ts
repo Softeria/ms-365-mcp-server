@@ -23,9 +23,7 @@ async function main(): Promise<void> {
       const sorted = [...scopes].sort((a, b) => a.localeCompare(b));
       const mode = includeWorkScopes ? 'org' : 'personal';
       const filter = args.enabledTools ? args.enabledTools : undefined;
-      console.log(
-        JSON.stringify({ mode, readOnly, filter, permissions: sorted }, null, 2)
-      );
+      console.log(JSON.stringify({ mode, readOnly, filter, permissions: sorted }, null, 2));
       process.exit(0);
     }
 
