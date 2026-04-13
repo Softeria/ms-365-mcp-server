@@ -40,6 +40,7 @@ program
     'Use preset tool categories (comma-separated). Available: mail, calendar, files, personal, work, excel, contacts, tasks, onenote, search, users, all'
   )
   .option('--list-presets', 'List all available presets and exit')
+  .option('--list-permissions', 'List all required Graph API permissions and exit')
   .option(
     '--org-mode',
     'Enable organization/work mode from start (includes Teams, SharePoint, etc.)'
@@ -80,6 +81,7 @@ export interface CommandOptions {
   enabledTools?: string;
   preset?: string;
   listPresets?: boolean;
+  listPermissions?: boolean;
   orgMode?: boolean;
   workMode?: boolean;
   forceWorkScopes?: boolean;

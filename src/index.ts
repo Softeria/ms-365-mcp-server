@@ -16,7 +16,17 @@ async function main(): Promise<void> {
       logger.info('Organization mode enabled - including work account scopes');
     }
 
-    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools);
+    const readOnly = args.readOnly || false;
+    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools, readOnly);
+
+    if (args.listPermissions) {
+      const sorted = [...scopes].sort((a, b) => a.localeCompare(b));
+      const mode = includeWorkScopes ? 'org' : 'personal';
+      const filter = args.enabledTools ? args.enabledTools : undefined;
+      console.log(JSON.stringify({ mode, readOnly, filter, permissions: sorted }, null, 2));
+      process.exit(0);
+    }
+
     const authManager = await AuthManager.create(scopes);
     await authManager.loadTokenCache();
 
