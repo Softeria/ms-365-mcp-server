@@ -5,7 +5,7 @@ import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { registerGraphTools, registerDiscoveryTools, registerSlimTools } from './graph-tools.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -76,10 +76,23 @@ class MicrosoftGraphServer {
   }
 
   private createMcpServer(): McpServer {
-    const server = new McpServer({
-      name: 'Microsoft365MCP',
-      version: this.version,
-    });
+    const slimInstructions = this.options.slim
+      ? `This MCP server is running in slim mode. Tool parameter schemas are intentionally minimal to reduce context.
+
+IMPORTANT: Before calling any tool, you MUST first call get-tool-schema with the tool name to retrieve its full parameter schema.
+Example: get-tool-schema({ tool_name: "send-mail" }) returns the complete parameters required for send-mail.
+Calling a tool without first using get-tool-schema will likely result in errors due to missing or incorrect parameters.
+
+Use the standard tools list to discover available tool names, then call get-tool-schema before each use.`
+      : undefined;
+
+    const server = new McpServer(
+      {
+        name: 'Microsoft365MCP',
+        version: this.version,
+      },
+      slimInstructions ? { instructions: slimInstructions } : undefined
+    );
 
     const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
     if (shouldRegisterAuthTools) {
@@ -94,6 +107,16 @@ class MicrosoftGraphServer {
         this.options.orgMode,
         this.authManager,
         this.multiAccount
+      );
+    } else if (this.options.slim) {
+      registerSlimTools(
+        server,
+        this.graphClient!,
+        this.options.readOnly,
+        this.options.orgMode,
+        this.authManager,
+        this.multiAccount,
+        this.accountNames
       );
     } else {
       registerGraphTools(
@@ -138,6 +161,9 @@ class MicrosoftGraphServer {
 
     if (this.options.discovery) {
       logger.info('Discovery mode enabled (experimental) - registering discovery tool only');
+    }
+    if (this.options.slim) {
+      logger.info('Slim mode enabled - all tools registered with minimal schemas + get-tool-schema meta-tool');
     }
   }
 
