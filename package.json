@@ -1,11 +1,11 @@
 {
-  "name": "@softeria/ms-365-mcp-server",
-  "version": "0.0.0-development",
-  "description": " A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API",
+  "name": "@ixtria/outlook-mcp-hardened",
+  "version": "0.1.0",
+  "description": "Security-hardened MCP server for Microsoft Outlook (Mail + Calendar). Fork of @softeria/ms-365-mcp-server with egress allowlist, audit trail, anti-prompt-injection, and read-first defaults.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ms-365-mcp-server": "dist/index.js"
+    "outlook-mcp-hardened": "dist/index.js"
   },
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
@@ -23,12 +23,17 @@
   },
   "keywords": [
     "microsoft",
-    "365",
+    "outlook",
+    "mail",
+    "calendar",
     "mcp",
-    "server"
+    "model-context-protocol",
+    "hardened",
+    "security",
+    "ixtria"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "Ixtria SA <hello@ixtria.ch>",
+  "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -74,6 +79,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/softeria/ms-365-mcp-server.git"
+    "url": "https://github.com/Ixtria/outlook-mcp-hardened.git"
+  },
+  "homepage": "https://github.com/Ixtria/outlook-mcp-hardened",
+  "bugs": {
+    "url": "https://github.com/Ixtria/outlook-mcp-hardened/issues"
   }
 }
