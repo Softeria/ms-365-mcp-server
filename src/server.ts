@@ -306,20 +306,34 @@ class MicrosoftGraphServer {
             .update(serverCodeVerifier)
             .digest('base64url');
 
+          // Clean up expired entries before adding new ones
+          const now = Date.now();
+          const maxAge = 10 * 60 * 1000; // 10 minutes
+          const maxEntries = 1000;
+          for (const [key, value] of this.pkceStore) {
+            if (now - value.createdAt > maxAge) {
+              this.pkceStore.delete(key);
+            }
+          }
+
+          // Reject if store is still at capacity after cleanup (prevents memory exhaustion)
+          if (this.pkceStore.size >= maxEntries) {
+            logger.warn(
+              `PKCE store at capacity (${maxEntries} entries) — rejecting new authorization request`
+            );
+            res.status(503).json({
+              error: 'server_busy',
+              error_description: 'Too many pending authorization requests. Try again later.',
+            });
+            return;
+          }
+
           this.pkceStore.set(state, {
             clientCodeChallenge,
             clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
             serverCodeVerifier,
             createdAt: Date.now(),
           });
-
-          // Clean up entries older than 10 minutes
-          const now = Date.now();
-          for (const [key, value] of this.pkceStore) {
-            if (now - value.createdAt > 10 * 60 * 1000) {
-              this.pkceStore.delete(key);
-            }
-          }
 
           // Send our server-generated code_challenge to Microsoft
           microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
