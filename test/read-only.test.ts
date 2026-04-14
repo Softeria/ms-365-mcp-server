@@ -32,6 +32,18 @@ vi.mock('../src/generated/client.js', () => {
           path: '/me/messages/{message-id}',
           parameters: [],
         },
+        {
+          alias: 'get-schedule',
+          method: 'post',
+          path: '/me/calendar/getSchedule',
+          parameters: [],
+        },
+        {
+          alias: 'update-mail-folder',
+          method: 'patch',
+          path: '/me/mailFolders/{mailFolder-id}',
+          parameters: [],
+        },
       ],
     },
   };
@@ -88,12 +100,56 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 3 mocked endpoints + 1 parse-teams-url utility tool
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + 1 parse-teams-url utility tool
+    expect(mockServer.tool).toHaveBeenCalledTimes(5);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
     expect(toolCalls).toContain('send-mail');
     expect(toolCalls).toContain('delete-mail-message');
+    expect(toolCalls).toContain('update-mail-folder');
+  });
+
+  it('should allow POST endpoints with readOnly: true in endpoints.json in read-only mode', () => {
+    // get-schedule is a POST endpoint with "readOnly": true in endpoints.json,
+    // but it only has workScopes so orgMode must be enabled for it to be considered.
+    const readOnly = true;
+    const enabledToolsPattern = undefined;
+    const orgMode = true;
+
+    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+
+    const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
+
+    // GET endpoint should be registered
+    expect(toolCalls).toContain('list-mail-messages');
+    // POST endpoint with readOnly: true should be registered
+    expect(toolCalls).toContain('get-schedule');
+    // Regular POST endpoint (no readOnly flag) should still be skipped
+    expect(toolCalls).not.toContain('send-mail');
+    // DELETE endpoint should still be skipped
+    expect(toolCalls).not.toContain('delete-mail-message');
+    // PATCH endpoint should still be skipped (readOnly bypass is POST-only)
+    expect(toolCalls).not.toContain('update-mail-folder');
+
+    // 2 graph tools (list-mail-messages + get-schedule) + 1 parse-teams-url
+    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+  });
+
+  it('should block PATCH and DELETE endpoints in read-only mode regardless of readOnly flag', () => {
+    // The readOnly: true bypass in endpoints.json only applies to POST methods.
+    // PATCH and DELETE must always be blocked in read-only mode.
+    const readOnly = true;
+    const enabledToolsPattern = undefined;
+    const orgMode = true;
+
+    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+
+    const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
+
+    // PATCH is always blocked in read-only mode
+    expect(toolCalls).not.toContain('update-mail-folder');
+    // DELETE is always blocked in read-only mode
+    expect(toolCalls).not.toContain('delete-mail-message');
   });
 });

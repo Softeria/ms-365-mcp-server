@@ -27,6 +27,7 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
 }
 
 const endpointsData = JSON.parse(
@@ -510,10 +511,16 @@ export function registerGraphTools(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
-      logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
-      skippedCount++;
-      continue;
+    const method = tool.method.toUpperCase();
+    if (readOnly && method !== 'GET') {
+      // Allow POST endpoints that are explicitly marked as readOnly in endpoints.json
+      // (e.g. get-schedule, find-meeting-times which are read-only queries via POST).
+      // PATCH/DELETE are always blocked in read-only mode.
+      if (!(method === 'POST' && endpointConfig?.readOnly)) {
+        logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
+        skippedCount++;
+        continue;
+      }
     }
 
     if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
@@ -749,8 +756,11 @@ function buildToolsRegistry(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
-      continue;
+    const method = tool.method.toUpperCase();
+    if (readOnly && method !== 'GET') {
+      if (!(method === 'POST' && endpointConfig?.readOnly)) {
+        continue;
+      }
     }
 
     toolsMap.set(tool.alias, { tool, config: endpointConfig });
