@@ -27,8 +27,11 @@ import crypto from 'node:crypto';
  * @returns Object with host (undefined if not specified) and port number
  */
 function parseHttpOption(httpOption: string | boolean): { host: string | undefined; port: number } {
+  // HARDENED: default bind to 127.0.0.1 instead of all interfaces. An
+  // operator who wants to expose the server externally must say so
+  // explicitly (e.g. --http 0.0.0.0:3000 behind a trusted reverse proxy).
   if (typeof httpOption === 'boolean') {
-    return { host: undefined, port: 3000 };
+    return { host: '127.0.0.1', port: 3000 };
   }
 
   const httpString = httpOption.trim();
@@ -36,14 +39,14 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
   // Check if it contains a colon (host:port format)
   if (httpString.includes(':')) {
     const [hostPart, portPart] = httpString.split(':');
-    const host = hostPart || undefined; // Empty string becomes undefined
+    const host = hostPart || '127.0.0.1'; // Empty host defaults to localhost
     const port = parseInt(portPart ?? '') || 3000;
     return { host, port };
   }
 
-  // No colon, treat as port only
+  // No colon, treat as port only, still default to localhost
   const port = parseInt(httpString) || 3000;
-  return { host: undefined, port };
+  return { host: '127.0.0.1', port };
 }
 
 class MicrosoftGraphServer {
@@ -175,10 +178,46 @@ class MicrosoftGraphServer {
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
-      // Add CORS headers for all routes
-      const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || '*';
+      // HARDENED: CORS defaults to a strict localhost allowlist. Upstream
+      // allowed `*` when OUTLOOK_MCP_CORS_ORIGIN was unset — we require
+      // explicit opt-in via env var to permit any non-localhost origin.
+      const localhostAllowlist = new Set([
+        'http://localhost',
+        'http://127.0.0.1',
+        'http://[::1]',
+      ]);
+      const configuredOrigin = process.env.OUTLOOK_MCP_CORS_ORIGIN;
+      if (configuredOrigin === '*') {
+        logger.warn(
+          'OUTLOOK_MCP_CORS_ORIGIN=* allows any origin to call the MCP endpoint. ' +
+            'This should only be used behind a trusted reverse proxy.'
+        );
+      }
+
       app.use((req, res, next) => {
-        res.header('Access-Control-Allow-Origin', corsOrigin);
+        const requestOrigin = req.headers.origin;
+        let allowOrigin: string | null = null;
+
+        if (configuredOrigin) {
+          // Operator explicitly picked an allowlist (or '*').
+          allowOrigin = configuredOrigin;
+        } else if (requestOrigin) {
+          // Default: accept only localhost origins. Match on scheme+host, port-agnostic.
+          try {
+            const parsed = new URL(requestOrigin);
+            const hostPart = `${parsed.protocol}//${parsed.hostname}`;
+            if (localhostAllowlist.has(hostPart)) {
+              allowOrigin = requestOrigin;
+            }
+          } catch {
+            // Malformed origin — ignore.
+          }
+        }
+
+        if (allowOrigin) {
+          res.header('Access-Control-Allow-Origin', allowOrigin);
+          res.header('Vary', 'Origin');
+        }
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.header(
           'Access-Control-Allow-Headers',
@@ -187,7 +226,7 @@ class MicrosoftGraphServer {
 
         // Handle preflight requests
         if (req.method === 'OPTIONS') {
-          res.sendStatus(200);
+          res.sendStatus(allowOrigin ? 200 : 403);
           return;
         }
 
