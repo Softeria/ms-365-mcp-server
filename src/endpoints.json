@@ -945,6 +945,21 @@
     "workScopes": ["ChatMessage.Read"]
   },
   {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
+    "method": "get",
+    "toolName": "list-chat-message-hosted-contents",
+    "workScopes": ["ChatMessage.Read"],
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns an array of { id, contentType }. Use get-chat-message-hosted-content with the id to download the bytes. Hosted content IDs can also be parsed from the <img src> URL in the message body between /hostedContents/ and /$value."
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
+    "method": "get",
+    "toolName": "get-chat-message-hosted-content",
+    "workScopes": ["ChatMessage.Read"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns raw bytes of a hosted content item (typically image/png or image/jpeg) attached to a Teams 1:1 or group chat message. Use list-chat-message-hosted-contents to discover IDs, or extract the ID from the <img src> URL in the message body."
+  },
+  {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
@@ -1004,6 +1019,21 @@
     "method": "get",
     "toolName": "get-channel-message",
     "workScopes": ["ChannelMessage.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents",
+    "method": "get",
+    "toolName": "list-channel-message-hosted-contents",
+    "workScopes": ["ChannelMessage.Read.All"],
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns an array of { id, contentType }. Use get-channel-message-hosted-content with the id to download bytes."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
+    "method": "get",
+    "toolName": "get-channel-message-hosted-content",
+    "workScopes": ["ChannelMessage.Read.All"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns raw bytes of a hosted content item attached to a Teams channel message. Use list-channel-message-hosted-contents to discover IDs."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
