@@ -945,6 +945,21 @@
     "workScopes": ["ChatMessage.Read"]
   },
   {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
+    "method": "get",
+    "toolName": "list-chat-message-hosted-contents",
+    "workScopes": ["ChatMessage.Read"],
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns an array of { id, contentType }. Use get-chat-message-hosted-content with the id to download the bytes. Hosted content IDs can also be parsed from the <img src> URL in the message body between /hostedContents/ and /$value."
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
+    "method": "get",
+    "toolName": "get-chat-message-hosted-content",
+    "workScopes": ["ChatMessage.Read"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns raw bytes of a hosted content item (typically image/png or image/jpeg) attached to a Teams 1:1 or group chat message. Use list-chat-message-hosted-contents to discover IDs, or extract the ID from the <img src> URL in the message body."
+  },
+  {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
@@ -1004,6 +1019,21 @@
     "method": "get",
     "toolName": "get-channel-message",
     "workScopes": ["ChannelMessage.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents",
+    "method": "get",
+    "toolName": "list-channel-message-hosted-contents",
+    "workScopes": ["ChannelMessage.Read.All"],
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns an array of { id, contentType }. Use get-channel-message-hosted-content with the id to download bytes."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
+    "method": "get",
+    "toolName": "get-channel-message-hosted-content",
+    "workScopes": ["ChannelMessage.Read.All"],
+    "returnDownloadUrl": true,
+    "llmTip": "Returns raw bytes of a hosted content item attached to a Teams channel message. Use list-channel-message-hosted-contents to discover IDs."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
@@ -1375,5 +1405,40 @@
     "toolName": "list-webinar-sessions",
     "workScopes": ["VirtualEvent.Read"],
     "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
+  },
+  {
+    "pathPattern": "/places/{place-id}/graph.room",
+    "method": "get",
+    "toolName": "get-room",
+    "workScopes": ["Place.Read.All"],
+    "llmTip": "Gets a place cast as a room, returning room-specific properties: displayName, emailAddress (for booking), capacity, building, floorNumber, floorLabel, isWheelChairAccessible, audioDeviceName, videoDeviceName, displayDeviceName. The place-id can be the room's ID or email address."
+  },
+  {
+    "pathPattern": "/places/{place-id}/graph.roomList",
+    "method": "get",
+    "toolName": "get-room-list",
+    "workScopes": ["Place.Read.All"],
+    "llmTip": "Gets a place cast as a room list, returning room list properties: displayName, emailAddress, address. Use the place-id (ID or email address) of the room list. Then use list-room-list-rooms to get the rooms within this list."
+  },
+  {
+    "pathPattern": "/places/{place-id}/graph.roomList/rooms",
+    "method": "get",
+    "toolName": "list-room-list-rooms",
+    "workScopes": ["Place.Read.All"],
+    "llmTip": "Lists rooms belonging to a specific room list. The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
+  },
+  {
+    "pathPattern": "/places/{place-id}/graph.roomList/rooms/{room-id}",
+    "method": "get",
+    "toolName": "get-room-list-room",
+    "workScopes": ["Place.Read.All"],
+    "llmTip": "Gets a specific room within a room list. The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
+  },
+  {
+    "pathPattern": "/places/{place-id}",
+    "method": "patch",
+    "toolName": "update-place",
+    "workScopes": ["Place.ReadWrite.All"],
+    "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
   }
 ]

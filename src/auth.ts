@@ -140,7 +140,8 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
 
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
-  enabledToolsPattern?: string
+  enabledToolsPattern?: string,
+  readOnly: boolean = false
 ): string[] {
   const scopesSet = new Set<string>();
 
@@ -158,6 +159,11 @@ function buildScopesFromEndpoints(
   }
 
   endpoints.default.forEach((endpoint) => {
+    // Skip write operations in read-only mode
+    if (readOnly && endpoint.method.toUpperCase() !== 'GET') {
+      return;
+    }
+
     // Skip endpoints that don't match the tool filter
     if (enabledToolsRegex && !enabledToolsRegex.test(endpoint.toolName)) {
       return;
