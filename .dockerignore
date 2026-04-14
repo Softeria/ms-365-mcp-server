@@ -1,0 +1,50 @@
+# Git + CI
+.git
+.github
+.gitignore
+
+# Local editor/tooling state
+.vscode
+.idea
+.claude
+.serena
+*.swp
+*.swo
+
+# Node build output + caches (rebuild inside the image)
+node_modules
+dist
+coverage
+.nyc_output
+
+# OpenAPI spec (regenerated from endpoints.json inside the image)
+openapi
+
+# Tests + dev fixtures — not needed at runtime
+test
+src/__tests__
+vitest.config.js
+eslint.config.js
+tsup.config.ts
+
+# Docs
+README.md
+PLAN.md
+SECURITY.md
+CLAUDE.md
+LICENSE
+*.md.bak
+
+# Env / secrets — must never be baked into the image
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS cruft
+.DS_Store
+Thumbs.db
