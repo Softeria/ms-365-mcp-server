@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'hardening/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install deps (locked)
+        run: npm ci
+
+      - name: Generate Graph client from filtered endpoints
+        run: npm run generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck (strict, noUncheckedIndexedAccess)
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  # HARDENED: block CI on any moderate-or-above dependency vulnerability
+  # in production deps. Dev-dep advisories are reported but non-blocking.
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - name: npm audit (production deps, moderate+ blocks)
+        run: npm audit --audit-level=moderate --omit=dev
+      - name: npm audit (all deps, advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=moderate
