@@ -22,7 +22,20 @@ async function main(): Promise<void> {
       logger.info('Organization mode enabled - including work account scopes');
     }
 
-    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools);
+    // HARDENED: read-first — write scopes are requested only when the
+    // operator opts in. Default is read-only.
+    const writePolicy = {
+      mail: !!args.enableSend,
+      calendar: !!args.enableWrite,
+    };
+    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools, writePolicy);
+    if (writePolicy.mail || writePolicy.calendar) {
+      logger.info(
+        `Read-first override — mail writes: ${writePolicy.mail}, calendar writes: ${writePolicy.calendar}`
+      );
+    } else {
+      logger.info('Read-only mode (default). Pass --enable-send or --enable-write to opt in.');
+    }
     const authManager = await AuthManager.create(scopes);
     await authManager.loadTokenCache();
 

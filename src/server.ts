@@ -86,6 +86,11 @@ class MicrosoftGraphServer {
       registerAuthTools(server, this.authManager);
     }
 
+    // HARDENED: read-first policy — derive writePolicy from CLI opts.
+    const writePolicy = {
+      mail: !!this.options.enableSend,
+      calendar: !!this.options.enableWrite,
+    };
     if (this.options.discovery) {
       registerDiscoveryTools(
         server,
@@ -93,7 +98,8 @@ class MicrosoftGraphServer {
         this.options.readOnly,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        writePolicy
       );
     } else {
       registerGraphTools(
@@ -104,7 +110,8 @@ class MicrosoftGraphServer {
         this.options.orgMode,
         this.authManager,
         this.multiAccount,
-        this.accountNames
+        this.accountNames,
+        writePolicy
       );
     }
 

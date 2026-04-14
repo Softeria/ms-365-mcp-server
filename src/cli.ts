@@ -22,7 +22,20 @@ program
   .option('--list-accounts', 'List all cached accounts')
   .option('--select-account <accountId>', 'Select a specific account by ID')
   .option('--remove-account <accountId>', 'Remove a specific account by ID')
-  .option('--read-only', 'Start server in read-only mode, disabling write operations')
+  // HARDENED: read-first defaults. Both mail writes (Send, ReadWrite) and
+  // calendar writes (ReadWrite) are off unless explicitly enabled.
+  .option(
+    '--enable-send',
+    'Opt in to mail write scopes (Mail.Send, Mail.ReadWrite) and tools like send-mail, reply, forward, create/delete folders/rules. OFF by default.'
+  )
+  .option(
+    '--enable-write',
+    'Opt in to calendar write scope (Calendars.ReadWrite) and tools like create/update/delete calendar events. OFF by default.'
+  )
+  .option(
+    '--read-only',
+    'Legacy alias — read-only is the default now. Kept for backwards compatibility; explicit --read-only blocks both --enable-send and --enable-write.'
+  )
   .option(
     '--http [address]',
     'Use Streamable HTTP transport instead of stdio. Format: [host:]port (e.g., "localhost:3000", ":3000", "3000"). Default: all interfaces on port 3000'
@@ -74,6 +87,8 @@ export interface CommandOptions {
   selectAccount?: string;
   removeAccount?: string;
   readOnly?: boolean;
+  enableSend?: boolean;
+  enableWrite?: boolean;
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
@@ -121,6 +136,23 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.READ_ONLY === 'true' || process.env.READ_ONLY === '1') {
     options.readOnly = true;
+  }
+
+  // HARDENED: env var counterparts for read-first flags.
+  if (process.env.OUTLOOK_MCP_ENABLE_SEND === 'true' || process.env.OUTLOOK_MCP_ENABLE_SEND === '1') {
+    options.enableSend = true;
+  }
+  if (
+    process.env.OUTLOOK_MCP_ENABLE_WRITE === 'true' ||
+    process.env.OUTLOOK_MCP_ENABLE_WRITE === '1'
+  ) {
+    options.enableWrite = true;
+  }
+
+  // Explicit --read-only beats both enable flags.
+  if (options.readOnly) {
+    options.enableSend = false;
+    options.enableWrite = false;
   }
 
   if (process.env.ENABLED_TOOLS) {

@@ -10,6 +10,11 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { wrapUntrusted } from './security/injection-wrapper.js';
+import {
+  READ_ONLY_POLICY,
+  isToolAllowedByPolicy,
+  type WritePolicy,
+} from './security/write-policy.js';
 // HARDENED: parseTeamsUrl removed — Teams is out of scope for this fork.
 
 // HARDENED: aliases whose responses carry attacker-controlled content
@@ -504,8 +509,12 @@ export function registerGraphTools(
   orgMode: boolean = false,
   authManager?: AuthManager,
   multiAccount: boolean = false,
-  accountNames: string[] = []
+  accountNames: string[] = [],
+  writePolicy: WritePolicy = READ_ONLY_POLICY
 ): number {
+  // HARDENED: if the legacy --read-only flag is set, it beats any
+  // per-category opt-in. This keeps the bw-compat path deterministic.
+  const effectivePolicy: WritePolicy = readOnly ? READ_ONLY_POLICY : writePolicy;
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
     try {
@@ -528,8 +537,8 @@ export function registerGraphTools(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
-      logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
+    if (!isToolAllowedByPolicy(tool.alias, tool.method, effectivePolicy)) {
+      logger.info(`Skipping ${tool.alias} (${tool.method}) — blocked by write policy`);
       skippedCount++;
       continue;
     }
@@ -726,7 +735,7 @@ export function registerGraphTools(
 }
 
 function buildToolsRegistry(
-  readOnly: boolean,
+  policy: WritePolicy,
   orgMode: boolean
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
   const toolsMap = new Map<
@@ -741,7 +750,7 @@ function buildToolsRegistry(
       continue;
     }
 
-    if (readOnly && tool.method.toUpperCase() !== 'GET') {
+    if (!isToolAllowedByPolicy(tool.alias, tool.method, policy)) {
       continue;
     }
 
@@ -757,9 +766,11 @@ export function registerDiscoveryTools(
   readOnly: boolean = false,
   orgMode: boolean = false,
   authManager?: AuthManager,
-  _multiAccount: boolean = false
+  _multiAccount: boolean = false,
+  writePolicy: WritePolicy = READ_ONLY_POLICY
 ): void {
-  const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
+  const effectivePolicy: WritePolicy = readOnly ? READ_ONLY_POLICY : writePolicy;
+  const toolsRegistry = buildToolsRegistry(effectivePolicy, orgMode);
   logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
 
   server.tool(

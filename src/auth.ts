@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import {
+  READ_ONLY_POLICY,
+  isToolAllowedByPolicy,
+  type WritePolicy,
+} from './security/write-policy.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -140,7 +145,8 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
 
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
-  enabledToolsPattern?: string
+  enabledToolsPattern?: string,
+  writePolicy: WritePolicy = READ_ONLY_POLICY
 ): string[] {
   const scopesSet = new Set<string>();
 
@@ -160,6 +166,13 @@ function buildScopesFromEndpoints(
   endpoints.default.forEach((endpoint) => {
     // Skip endpoints that don't match the tool filter
     if (enabledToolsRegex && !enabledToolsRegex.test(endpoint.toolName)) {
+      return;
+    }
+
+    // HARDENED: under read-first defaults, don't request Mail.Send /
+    // Mail.ReadWrite / Calendars.ReadWrite unless the matching --enable
+    // flag is set.
+    if (!isToolAllowedByPolicy(endpoint.toolName, endpoint.method ?? 'GET', writePolicy)) {
       return;
     }
 

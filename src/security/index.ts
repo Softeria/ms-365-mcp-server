@@ -10,3 +10,8 @@ export {
   UNTRUSTED_OPEN,
   wrapUntrusted,
 } from './injection-wrapper.js';
+export {
+  READ_ONLY_POLICY,
+  isToolAllowedByPolicy,
+  type WritePolicy,
+} from './write-policy.js';

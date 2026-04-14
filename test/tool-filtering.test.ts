@@ -49,7 +49,12 @@ describe('Tool Filtering', () => {
   });
 
   it('should register all tools when no filter is provided', () => {
-    registerGraphTools(server, graphClient, false);
+    // Pass writePolicy allowing everything so this test exercises regex
+    // filtering, not read-first gating (which has dedicated tests).
+    registerGraphTools(server, graphClient, false, undefined, false, undefined, false, [], {
+      mail: true,
+      calendar: true,
+    });
 
     // 5 mocked endpoints
     expect(toolSpy).toHaveBeenCalledTimes(5);
@@ -91,7 +96,10 @@ describe('Tool Filtering', () => {
   });
 
   it('should filter tools by regex pattern - mail only', () => {
-    registerGraphTools(server, graphClient, false, 'mail');
+    registerGraphTools(server, graphClient, false, 'mail', false, undefined, false, [], {
+      mail: true,
+      calendar: true,
+    });
 
     expect(toolSpy).toHaveBeenCalledTimes(2);
     expect(toolSpy).toHaveBeenCalledWith(
@@ -111,7 +119,10 @@ describe('Tool Filtering', () => {
   });
 
   it('should filter tools by regex pattern - calendar or excel', () => {
-    registerGraphTools(server, graphClient, false, 'calendar|excel');
+    registerGraphTools(server, graphClient, false, 'calendar|excel', false, undefined, false, [], {
+      mail: true,
+      calendar: true,
+    });
 
     expect(toolSpy).toHaveBeenCalledTimes(2);
     expect(toolSpy).toHaveBeenCalledWith(
@@ -131,7 +142,17 @@ describe('Tool Filtering', () => {
   });
 
   it('should handle invalid regex patterns gracefully', () => {
-    registerGraphTools(server, graphClient, false, '[invalid regex');
+    registerGraphTools(
+      server,
+      graphClient,
+      false,
+      '[invalid regex',
+      false,
+      undefined,
+      false,
+      [],
+      { mail: true, calendar: true }
+    );
 
     // 5 mocked endpoints (no filter applied on invalid regex)
     expect(toolSpy).toHaveBeenCalledTimes(5);
