@@ -85,6 +85,8 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
         .fn()
         .mockRejectedValue(new Error('No accounts found. Please login first.')),
       getToken: vi.fn().mockResolvedValue(null),
+      getScopes: vi.fn().mockReturnValue([]),
+      getSelectedAccountId: vi.fn().mockReturnValue(null),
     };
 
     const mockSecrets = {
@@ -128,6 +130,8 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
         .fn()
         .mockRejectedValue(new Error('No accounts found. Please login first.')),
       getToken: vi.fn().mockResolvedValue(null),
+      getScopes: vi.fn().mockReturnValue([]),
+      getSelectedAccountId: vi.fn().mockReturnValue(null),
     };
 
     const mockSecrets = {

@@ -325,7 +325,10 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      _toolName?: string;
     } = {
+      // HARDENED: propagate the tool alias for the audit trail.
+      _toolName: tool.alias,
       method: tool.method.toUpperCase(),
       headers,
     };

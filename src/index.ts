@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
+// HARDENED: install the egress guard before any other module that might
+// issue a fetch. Any import that triggers a network call now must target
+// an allowlisted host or the process crashes at boot.
+import { installEgressGuard } from './security/index.js';
+installEgressGuard();
+
 import { parseArgs } from './cli.js';
 import logger from './logger.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';

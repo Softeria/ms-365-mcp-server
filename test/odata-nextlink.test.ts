@@ -22,6 +22,8 @@ vi.mock('../src/lib/microsoft-auth.js', () => ({
 
 const mockAuthManager = {
   getToken: vi.fn().mockResolvedValue('mock-token'),
+  getScopes: vi.fn().mockReturnValue([]),
+  getSelectedAccountId: vi.fn().mockReturnValue(null),
 };
 
 const mockSecrets = {

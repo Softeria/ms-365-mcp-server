@@ -5,6 +5,7 @@ import { refreshAccessToken } from './lib/microsoft-auth.js';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
+import { auditLog } from './security/audit-logger.js';
 
 interface GraphRequestOptions {
   headers?: Record<string, string>;
@@ -15,6 +16,8 @@ interface GraphRequestOptions {
   excludeResponse?: boolean;
   accessToken?: string;
   refreshToken?: string;
+  /** HARDENED: tool alias for the audit trail. Passed by graph-tools. */
+  _toolName?: string;
 
   [key: string]: unknown;
 }
@@ -172,19 +175,36 @@ class GraphClient {
   }
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
+    // HARDENED: capture timing + status for the audit trail. We emit one
+    // line per call whether it succeeded or failed.
+    const startedAt = Date.now();
+    let status = 0;
     try {
       logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
 
       // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
+      status = 200;
 
       return this.formatJsonResponse(result, options.rawResponse, options.excludeResponse);
     } catch (error) {
       logger.error(`Error in Graph API request: ${error}`);
+      const match = (error as Error).message.match(/Microsoft Graph API[^:]*:\s*(\d{3})/);
+      status = match?.[1] ? parseInt(match[1], 10) : 0;
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
         isError: true,
       };
+    } finally {
+      auditLog({
+        tool: options._toolName ?? 'unknown',
+        method: (options.method ?? 'GET').toUpperCase(),
+        path: endpoint,
+        scopes: [...this.authManager.getScopes()],
+        account: this.authManager.getSelectedAccountId(),
+        status,
+        duration_ms: Date.now() - startedAt,
+      });
     }
   }
 

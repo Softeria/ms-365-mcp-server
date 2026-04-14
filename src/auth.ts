@@ -647,6 +647,11 @@ class AuthManager {
     return this.selectedAccountId;
   }
 
+  // HARDENED: read-only view of active scopes, used by the audit logger.
+  getScopes(): readonly string[] {
+    return this.scopes;
+  }
+
   /**
    * Returns true if auth is in OAuth/HTTP mode (token supplied via env or setOAuthToken).
    * In this mode, account resolution should be skipped — the request context drives token selection.
