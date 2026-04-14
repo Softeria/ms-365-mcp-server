@@ -141,6 +141,9 @@ dist
 .token-cache.json
 .selected-account.json
 
+# Server logs (may contain PII and token metadata)
+logs/
+
 openapi
 
 src/generated/client.ts
