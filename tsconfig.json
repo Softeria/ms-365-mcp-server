@@ -5,6 +5,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],

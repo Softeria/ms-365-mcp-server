@@ -534,7 +534,7 @@ export function registerGraphTools(
     const pathParamMatches = tool.path.matchAll(/:([a-zA-Z]+)/g);
     for (const match of pathParamMatches) {
       const pathParamName = match[1];
-      if (!(pathParamName in paramSchema)) {
+      if (pathParamName && !(pathParamName in paramSchema)) {
         paramSchema[pathParamName] = z.string().describe(`Path parameter: ${pathParamName}`);
       }
     }

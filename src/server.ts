@@ -37,7 +37,7 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
   if (httpString.includes(':')) {
     const [hostPart, portPart] = httpString.split(':');
     const host = hostPart || undefined; // Empty string becomes undefined
-    const port = parseInt(portPart) || 3000;
+    const port = parseInt(portPart ?? '') || 3000;
     return { host, port };
   }
 
@@ -129,8 +129,8 @@ class MicrosoftGraphServer {
       logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
     }
 
-    const outputFormat = this.options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+    // HARDENED: TOON output format removed; JSON-only.
+    this.graphClient = new GraphClient(this.authManager, this.secrets);
 
     if (!this.options.http) {
       this.server = this.createMcpServer();

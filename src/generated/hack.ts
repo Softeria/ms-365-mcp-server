@@ -19,10 +19,9 @@ export class Zodios {
       }
 
       const pathParamRegex = /:([a-zA-Z0-9]+)/g;
-      const pathParams = [];
-      let match;
-      while ((match = pathParamRegex.exec(endpoint.path)) !== null) {
-        pathParams.push(match[1]);
+      const pathParams: string[] = [];
+      for (const m of endpoint.path.matchAll(pathParamRegex)) {
+        if (m[1]) pathParams.push(m[1]);
       }
 
       for (const pathParam of pathParams) {

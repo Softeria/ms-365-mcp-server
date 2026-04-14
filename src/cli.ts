@@ -37,7 +37,7 @@ program
   )
   .option(
     '--preset <names>',
-    'Use preset tool categories (comma-separated). Available: mail, calendar, files, personal, work, excel, contacts, tasks, onenote, search, users, all'
+    'Use preset tool categories (comma-separated). Available: mail, calendar, all'
   )
   .option('--list-presets', 'List all available presets and exit')
   .option(
@@ -46,7 +46,6 @@ program
   )
   .option('--work-mode', 'Alias for --org-mode')
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
-  .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
   .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)')
   .option(
@@ -83,7 +82,6 @@ export interface CommandOptions {
   orgMode?: boolean;
   workMode?: boolean;
   forceWorkScopes?: boolean;
-  toon?: boolean;
   discovery?: boolean;
   cloud?: string;
   enableDynamicRegistration?: boolean;
@@ -144,9 +142,7 @@ export function parseArgs(): CommandOptions {
     options.orgMode = true;
   }
 
-  if (process.env.MS365_MCP_OUTPUT_FORMAT === 'toon') {
-    options.toon = true;
-  }
+  // HARDENED: MS365_MCP_OUTPUT_FORMAT=toon env var removed with TOON format.
 
   // Dynamic registration defaults to true in HTTP mode
   // --enable-dynamic-registration (backwards compat) or --no-dynamic-registration to override

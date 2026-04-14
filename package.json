@@ -16,7 +16,8 @@
     "dev:http": "tsx --watch src/index.ts --http 127.0.0.1:3000 -v",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "verify": "npm run generate && npm run lint && npm run build && npm run test",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run generate && npm run lint && npm run typecheck && npm run build && npm run test",
     "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts"
   },
   "keywords": [
@@ -38,11 +39,9 @@
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@toon-format/toon": "^0.8.0",
     "commander": "^11.1.0",
     "dotenv": "^17.0.1",
     "express": "^5.2.1",
-    "js-yaml": "^4.1.0",
     "open": "^11.0.0",
     "winston": "^3.17.0",
     "zod": "^3.24.2"

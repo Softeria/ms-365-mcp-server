@@ -37,8 +37,8 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
                 type: 'text',
                 text: JSON.stringify({
                   status: 'Login successful',
-                  message: 'Browser authentication completed successfully.',
                   ...loginResult,
+                  message: 'Browser authentication completed successfully.',
                 }),
               },
             ],

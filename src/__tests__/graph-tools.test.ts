@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 /**
@@ -159,7 +159,7 @@ describe('graph-tools', () => {
 
       // Verify graphRequest was called with ConsistencyLevel header
       expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
-      const [url] = graphClient.graphRequest.mock.calls[0];
+      const [url] = graphClient.graphRequest.mock.calls[0]!;
       // $count=true should appear in query string
       expect(url).toContain('$count=true');
     });
@@ -320,7 +320,7 @@ describe('graph-tools', () => {
       const tool = server.tools.get('test-tool');
       await tool!.handler({ top: 50 });
 
-      const [url] = graphClient.graphRequest.mock.calls[0];
+      const [url] = graphClient.graphRequest.mock.calls[0]!;
       expect(url).toContain('$top=10');
     });
 
@@ -343,7 +343,7 @@ describe('graph-tools', () => {
       const tool = server.tools.get('test-tool');
       await tool!.handler({ top: 50 });
 
-      const [url] = graphClient.graphRequest.mock.calls[0];
+      const [url] = graphClient.graphRequest.mock.calls[0]!;
       expect(url).toContain('$top=50');
     });
   });
@@ -388,7 +388,7 @@ describe('graph-tools', () => {
       await tool!.handler({ 'driveItem-id': 'abc123' });
 
       // Path should NOT end with /content — it gets stripped
-      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0]!;
       expect(requestedPath).not.toContain('/content');
       expect(requestedPath).toContain('/me/drive/items/abc123');
     });
@@ -429,7 +429,7 @@ describe('graph-tools', () => {
       // Pass kebab-case 'message-id' — should still resolve to correct path
       await tool!.handler({ 'message-id': 'AAMk123abc=' });
 
-      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0]!;
       expect(requestedPath).toContain('AAMk123abc=');
       expect(requestedPath).not.toContain(':messageId');
     });
@@ -459,7 +459,7 @@ describe('graph-tools', () => {
       const tool = server.tools.get('get-mail-message2');
       await tool!.handler({ messageId: 'AAMk456xyz=' });
 
-      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0]!;
       expect(requestedPath).toContain('AAMk456xyz=');
       expect(requestedPath).not.toContain(':messageId');
     });
@@ -499,7 +499,7 @@ describe('graph-tools', () => {
       await tool!.handler({ timezone: 'Europe/Brussels' });
 
       // Verify Prefer header contains outlook.timezone
-      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const [, options] = graphClient.graphRequest.mock.calls[0]!;
       expect(options.headers['Prefer']).toContain('outlook.timezone="Europe/Brussels"');
     });
 

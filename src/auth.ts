@@ -415,7 +415,7 @@ class AuthManager {
     }
 
     // Fall back to first account (backward compatibility)
-    return accounts[0];
+    return accounts[0] ?? null;
   }
 
   async acquireTokenByDeviceCode(hack?: (message: string) => void): Promise<string | null> {
@@ -728,7 +728,7 @@ class AuthManager {
       }
       // No identifier provided
       if (accounts.length === 1) {
-        targetAccount = accounts[0];
+        targetAccount = accounts[0] ?? null;
       } else {
         // Multiple accounts: resolve by explicit selectedAccountId only — never fall back to accounts[0].
         // getCurrentAccount() has backward-compat fallback to first account which is unsafe for multi-account routing.
@@ -747,6 +747,10 @@ class AuthManager {
           );
         }
       }
+    }
+
+    if (!targetAccount) {
+      throw new Error('No target account resolved. Please login first.');
     }
 
     const silentRequest = {
