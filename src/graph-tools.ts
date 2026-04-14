@@ -387,8 +387,10 @@ async function executeGraphTool(
         let allItems = combinedResponse.value || [];
         let nextLink = combinedResponse['@odata.nextLink'];
         let pageCount = 1;
+        const maxPages = 100;
+        const maxItems = 10_000;
 
-        while (nextLink && pageCount < 100) {
+        while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
 
           const url = new URL(nextLink);
@@ -414,8 +416,13 @@ async function executeGraphTool(
           }
         }
 
-        if (pageCount >= 100) {
-          logger.warn(`Reached maximum page limit (100) for pagination`);
+        if (pageCount >= maxPages) {
+          logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
+        }
+        if (allItems.length >= maxItems) {
+          logger.warn(
+            `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+          );
         }
 
         combinedResponse.value = allItems;
