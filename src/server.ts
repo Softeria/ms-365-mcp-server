@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { buildMcpServerInstructions } from './mcp-instructions.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -76,10 +77,20 @@ class MicrosoftGraphServer {
   }
 
   private createMcpServer(): McpServer {
-    const server = new McpServer({
-      name: 'Microsoft365MCP',
-      version: this.version,
-    });
+    const server = new McpServer(
+      {
+        name: 'Microsoft365MCP',
+        version: this.version,
+      },
+      {
+        instructions: buildMcpServerInstructions({
+          discovery: Boolean(this.options.discovery),
+          orgMode: Boolean(this.options.orgMode),
+          readOnly: Boolean(this.options.readOnly),
+          multiAccount: this.multiAccount,
+        }),
+      }
+    );
 
     const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
     if (shouldRegisterAuthTools) {
