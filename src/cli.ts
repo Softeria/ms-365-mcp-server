@@ -131,6 +131,20 @@ export function parseArgs(): CommandOptions {
     options.enabledTools = process.env.ENABLED_TOOLS;
   }
 
+  // Validate tool filter regex early — fail at startup instead of silently
+  // disabling the filter at runtime (which would expose all tools)
+  if (options.enabledTools) {
+    try {
+      new RegExp(options.enabledTools, 'i');
+    } catch {
+      console.error(
+        `Error: invalid --enabled-tools regex pattern: "${options.enabledTools}". ` +
+          `Without a valid filter, all tools would be exposed.`
+      );
+      process.exit(1);
+    }
+  }
+
   if (process.env.MS365_MCP_ORG_MODE === 'true' || process.env.MS365_MCP_ORG_MODE === '1') {
     options.orgMode = true;
   }
