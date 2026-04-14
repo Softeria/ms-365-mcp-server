@@ -18,6 +18,11 @@ export default [
         ...globals.vitest,
         ...globals.jest,
         fs: 'readonly',
+        // DOM fetch primitives exposed by Node 18+ as ambient globals.
+        RequestInfo: 'readonly',
+        RequestInit: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
       },
     },
     plugins: {
