@@ -42,7 +42,7 @@ export function isBinaryContentType(contentType: string): boolean {
   return false;
 }
 
-interface GraphRequestOptions {
+export interface GraphRequestOptions {
   headers?: Record<string, string>;
   method?: string;
   body?: string;
@@ -175,6 +175,48 @@ class GraphClient {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * GET binary content from Microsoft Graph (e.g. `/drives/{id}/items/{id}/content`).
+   */
+  async fetchBinary(endpoint: string, options: GraphRequestOptions = {}): Promise<Uint8Array> {
+    const contextTokens = getRequestTokens();
+    let accessToken =
+      options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
+    const refreshToken = options.refreshToken ?? contextTokens?.refreshToken;
+
+    if (!accessToken) {
+      throw new Error('No access token available');
+    }
+
+    let response = await this.performRequest(endpoint, accessToken, options);
+
+    if (response.status === 401 && refreshToken) {
+      const newTokens = await this.refreshAccessToken(refreshToken);
+      accessToken = newTokens.accessToken;
+      response = await this.performRequest(endpoint, accessToken, options);
+    }
+
+    if (response.status === 403) {
+      const errorText = await response.text();
+      if (errorText.includes('scope') || errorText.includes('permission')) {
+        throw new Error(
+          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+        );
+      }
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
+      );
+    }
+
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   private async refreshAccessToken(

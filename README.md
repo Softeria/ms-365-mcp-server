@@ -502,6 +502,10 @@ Environment variables:
 - `MS365_MCP_KEYVAULT_URL`: Azure Key Vault URL for secrets management (see Azure Key Vault section)
 - `MS365_MCP_TOKEN_CACHE_PATH`: Custom file path for MSAL token cache (see Token Storage below)
 - `MS365_MCP_SELECTED_ACCOUNT_PATH`: Custom file path for selected account metadata (see Token Storage below)
+- `TEXT_EXTRACTION_URL`: Optional HTTP URL for the `download-drive-file-text` tool to delegate extraction before built-ins run
+- `TEXT_EXTRACTION_API_KEY`: Optional `Authorization: Bearer` value for that URL
+- `TEXT_EXTRACTION_FORMAT`: `json` (default) or `multipart` — JSON sends `{ fileBase64, mimeType, fileName }`; multipart sends `multipart/form-data` with one file field (e.g. FastAPI `UploadFile`)
+- `TEXT_EXTRACTION_MULTIPART_FIELD`: Form field name when `TEXT_EXTRACTION_FORMAT=multipart` (default: `file`)
 
 ## Token Storage
 

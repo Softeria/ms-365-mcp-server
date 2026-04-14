@@ -9,7 +9,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
-import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import {
+  SERVER_TOOL_EXTENSIONS,
+  registerServerToolExtensionsAsMcpTools,
+  serverToolExtensionMatchesSearch,
+} from './tool-extensions/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -689,40 +693,14 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  // Register parse-teams-url utility tool (no Graph API call)
-  if (!enabledToolsRegex || enabledToolsRegex.test('parse-teams-url')) {
-    try {
-      server.tool(
-        'parse-teams-url',
-        'Converts any Teams meeting URL format (short /meet/, full /meetup-join/, or recap ?threadId=) into a standard joinWebUrl. Use this before list-online-meetings when the user provides a recap or short URL.',
-        {
-          url: z.string().describe('Teams meeting URL in any format'),
-        },
-        {
-          title: 'parse-teams-url',
-          readOnlyHint: true,
-          openWorldHint: false,
-        },
-        async ({ url }) => {
-          try {
-            const joinWebUrl = parseTeamsUrl(url);
-            return { content: [{ type: 'text', text: joinWebUrl }] };
-          } catch (error) {
-            return {
-              content: [
-                { type: 'text', text: JSON.stringify({ error: (error as Error).message }) },
-              ],
-              isError: true,
-            };
-          }
-        }
-      );
-      registeredCount++;
-    } catch (error) {
-      logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
-      failedCount++;
-    }
-  }
+  registeredCount += registerServerToolExtensionsAsMcpTools(
+    server,
+    graphClient,
+    authManager,
+    multiAccount,
+    accountNames,
+    enabledToolsRegex
+  );
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
   // It is the canonical owner of account discovery — no duplicate registration here.
@@ -768,11 +746,15 @@ export function registerDiscoveryTools(
   _multiAccount: boolean = false
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
-  logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
+  const serverToolExtensions = SERVER_TOOL_EXTENSIONS;
+  const discoveryToolCount = toolsRegistry.size + serverToolExtensions.length;
+  logger.info(
+    `Discovery mode: ${discoveryToolCount} tools (${toolsRegistry.size} Graph + ${serverToolExtensions.length} extension(s))`
+  );
 
   server.tool(
     'search-tools',
-    `Search through ${toolsRegistry.size} available Microsoft Graph API tools. Use this to find tools by name, path, or description before executing them.`,
+    `Search through ${discoveryToolCount} tools (${toolsRegistry.size} Microsoft Graph API operations plus ${serverToolExtensions.length} server extension(s)). Find by name, path, or description, then call execute-tool.`,
     {
       query: z
         .string()
@@ -826,6 +808,19 @@ export function registerDiscoveryTools(
         if (results.length >= maxLimit) break;
       }
 
+      for (const ext of serverToolExtensions) {
+        if (results.length >= maxLimit) break;
+        if (!serverToolExtensionMatchesSearch(ext, categoryDef, queryLower)) {
+          continue;
+        }
+        results.push({
+          name: ext.name,
+          method: ext.method,
+          path: ext.path,
+          description: ext.description,
+        });
+      }
+
       return {
         content: [
           {
@@ -833,9 +828,9 @@ export function registerDiscoveryTools(
             text: JSON.stringify(
               {
                 found: results.length,
-                total: toolsRegistry.size,
+                total: discoveryToolCount,
                 tools: results,
-                tip: 'Use execute-tool with the tool name and required parameters to call any of these tools.',
+                tip: 'Use execute-tool with the tool name and parameters object. Non-OpenAPI extensions use the same execute-tool interface as Graph tools.',
               },
               null,
               2
@@ -848,7 +843,7 @@ export function registerDiscoveryTools(
 
   server.tool(
     'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Use search-tools first to find available tools and their parameters. ' +
+    'Execute a tool by name from search-tools results: Microsoft Graph operations or registered discovery extensions. ' +
       'For list endpoints, pass a small $top (or top) first and use $select to limit fields—avoid large page sizes unless the user needs them.',
     {
       tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
@@ -865,22 +860,33 @@ export function registerDiscoveryTools(
     },
     async ({ tool_name, parameters = {} }) => {
       const toolData = toolsRegistry.get(tool_name);
-      if (!toolData) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+      if (toolData) {
+        return executeGraphTool(
+          toolData.tool,
+          toolData.config,
+          graphClient,
+          parameters,
+          authManager
+        );
       }
 
-      return executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager);
+      const extension = serverToolExtensions.find((e) => e.name === tool_name);
+      if (extension) {
+        return extension.execute(parameters, graphClient, authManager);
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${tool_name}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
   );
 
