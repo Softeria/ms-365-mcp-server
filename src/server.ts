@@ -180,7 +180,7 @@ class MicrosoftGraphServer {
       app.use(express.urlencoded({ extended: true }));
 
       // Add CORS headers for all routes
-      const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || '*';
+      const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || 'http://localhost:3000';
       app.use((req, res, next) => {
         res.header('Access-Control-Allow-Origin', corsOrigin);
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
