@@ -589,6 +589,30 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
 
+## Testing
+
+### Unit tests
+
+```bash
+npm test
+```
+
+Includes endpoint config validation (`test/endpoints-validation.test.ts`) and graph-tools logic tests (`src/__tests__/graph-tools.test.ts`).
+
+### LLM tip evals
+
+Non-deterministic tests that verify llmTips in `endpoints.json` actually guide an LLM to make correct tool calls. Requires the `claude` CLI.
+
+```bash
+npx tsx test/llm-tip-evals.ts           # run all evals
+npx tsx test/llm-tip-evals.ts --verbose  # show full LLM responses
+npx tsx test/llm-tip-evals.ts --filter chat  # run evals matching "chat"
+```
+
+Set `CLAUDE_BIN` to override the Claude CLI path (defaults to `~/.local/bin/claude`).
+
+Results are written to `test/llm-tip-eval-results.json` (gitignored). Add new eval cases by appending to the `evalCases` array in `test/llm-tip-evals.ts`.
+
 ## Contributing
 
 We welcome contributions! Before submitting a pull request, please ensure your changes meet our quality standards.

@@ -144,6 +144,10 @@ dist
 # Server logs (may contain PII and token metadata)
 logs/
 
+# LLM eval ephemeral outputs
+test/llm-tip-eval-results.json
+test/.eval-tmp/
+
 openapi
 
 src/generated/client.ts

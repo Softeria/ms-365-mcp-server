@@ -525,4 +525,61 @@ describe('graph-tools', () => {
       expect(tool!.schema['timezone']).toBeUndefined();
     });
   });
+
+  // ---- apiVersion passthrough ----
+  describe('apiVersion passthrough to graph client', () => {
+    it('should pass apiVersion from endpoint config to graphRequest options', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'list-chats',
+        path: '/me/chats',
+      });
+      const config = makeConfig({
+        toolName: 'list-chats',
+        pathPattern: '/me/chats',
+        workScopes: ['Chat.Read'],
+        apiVersion: 'beta',
+      });
+      delete config.scopes;
+
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, undefined, false, true);
+
+      const tool = server.tools.get('list-chats');
+      expect(tool).toBeDefined();
+      await tool!.handler({ select: 'id,chatType,viewpoint' });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBe('beta');
+    });
+
+    it('should NOT set apiVersion when endpoint config has no apiVersion', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('test-tool');
+      await tool!.handler({});
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBeUndefined();
+    });
+  });
 });

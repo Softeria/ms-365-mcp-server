@@ -13,15 +13,17 @@ const { api } = await import('../src/generated/client.js');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-interface Endpoint {
+interface EndpointFull {
   toolName: string;
   pathPattern: string;
   method: string;
   scopes?: string[];
   workScopes?: string[];
+  apiVersion?: string;
+  llmTip?: string;
 }
 
-const endpoints: Endpoint[] = JSON.parse(
+const endpoints: EndpointFull[] = JSON.parse(
   readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')
 );
 
@@ -45,7 +47,10 @@ describe('endpoints.json validation', () => {
 
   it('should have a matching generated client endpoint for every entry', () => {
     const generatedTools = new Set(api.endpoints.map((e) => e.alias));
-    const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));
+    // Beta endpoints are not in the v1.0 OpenAPI spec and are registered separately at runtime
+    const orphans = endpoints.filter(
+      (e) => !generatedTools.has(e.toolName) && !e.apiVersion
+    );
 
     if (orphans.length > 0) {
       const details = orphans
@@ -56,5 +61,36 @@ describe('endpoints.json validation', () => {
           `Run npm run generate, or check that the path and method exist in the OpenAPI spec.\n${details}`
       );
     }
+  });
+});
+
+describe('chat endpoint config invariants', () => {
+  it('list-chats must use beta API for viewpoint support', () => {
+    const listChats = endpoints.find((e) => e.toolName === 'list-chats');
+    expect(listChats).toBeDefined();
+    expect(listChats!.apiVersion).toBe('beta');
+  });
+
+  it('list-chats llmTip must reference $select (not $expand) for viewpoint', () => {
+    const listChats = endpoints.find((e) => e.toolName === 'list-chats');
+    expect(listChats).toBeDefined();
+    expect(listChats!.llmTip).toBeDefined();
+    expect(listChats!.llmTip).toContain('$select');
+    expect(listChats!.llmTip).not.toContain('$expand=viewpoint');
+  });
+
+  it('list-chat-messages-delta must NOT exist (per-chat delta is not supported by Graph)', () => {
+    // /chats/{chat-id}/messages/delta() appears in Graph OData metadata but the backend
+    // returns "Change tracking is not supported against microsoft.graph.chatMessage".
+    // See: https://github.com/microsoftgraph/msgraph-metadata/issues/607
+    const chatDelta = endpoints.find((e) => e.toolName === 'list-chat-messages-delta');
+    expect(chatDelta).toBeUndefined();
+  });
+
+  it('list-chat-messages must have an llmTip guiding toward date-based filtering', () => {
+    const listChatMessages = endpoints.find((e) => e.toolName === 'list-chat-messages');
+    expect(listChatMessages).toBeDefined();
+    expect(listChatMessages!.llmTip).toBeDefined();
+    expect(listChatMessages!.llmTip).toContain('lastModifiedDateTime');
   });
 });

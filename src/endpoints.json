@@ -919,7 +919,9 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "apiVersion": "beta",
+    "llmTip": "To detect unread chats, include 'viewpoint' in $select (it is a complex property, NOT a navigation property — do NOT use $expand). This returns viewpoint.lastMessageReadDateTime. Compare against lastUpdatedDateTime — if lastUpdated > lastRead, the chat has unread messages. Use $orderby=lastMessagePreview/createdDateTime desc to get most recent chats first."
   },
   {
     "pathPattern": "/chats/{chat-id}",
@@ -938,7 +940,8 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "llmTip": "Lists messages in a specific chat. Supports $orderby=lastModifiedDateTime desc (descending only) and $top (max 50). Per-chat delta is NOT supported by Graph — for 'what's new' use $orderby=lastModifiedDateTime desc with $top and filter client-side by date. Note: $filter on createdDateTime returns 400, but $filter=lastModifiedDateTime gt {datetime} may work."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
