@@ -1442,5 +1442,12 @@
     "toolName": "update-place",
     "workScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
+  },
+  {
+    "pathPattern": "/chats",
+    "method": "post",
+    "toolName": "create-chat",
+    "workScopes": ["Chat.Create", "Chat.ReadWrite"],
+    "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
   }
 ]
