@@ -28,6 +28,7 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  apiVersion?: string; // Graph API version override (e.g., 'beta'). Defaults to 'v1.0'.
 }
 
 const endpointsData = JSON.parse(
@@ -326,10 +327,15 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      apiVersion?: string;
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    if (config?.apiVersion) {
+      options.apiVersion = config.apiVersion;
+    }
 
     if (options.method !== 'GET' && body) {
       if (config?.contentType === 'text/html') {

@@ -51,6 +51,7 @@ interface GraphRequestOptions {
   excludeResponse?: boolean;
   accessToken?: string;
   refreshToken?: string;
+  apiVersion?: string; // Graph API version override (e.g., 'beta'). Defaults to 'v1.0'.
 
   [key: string]: unknown;
 }
@@ -211,7 +212,8 @@ class GraphClient {
     options: GraphRequestOptions
   ): Promise<Response> {
     const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
-    const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
+    const version = options.apiVersion || 'v1.0';
+    const url = `${cloudEndpoints.graphApi}/${version}${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
