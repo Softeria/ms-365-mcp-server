@@ -1442,5 +1442,27 @@
     "toolName": "update-place",
     "workScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
+    "method": "post",
+    "toolName": "copy-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Asynchronously copies a file or folder to a new location. Body: { name (optional new name), parentReference: { driveId, id }, childrenOnly (optional, folder-only: copy children only, keep existing folder), includeAllVersionHistory (optional) }. Returns 202 Accepted with a Location header pointing to a monitor URL (poll for status). For same-drive copies within OneDrive, omit parentReference.driveId. Use list-drives + get-drive-item to discover target IDs."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
+    "method": "post",
+    "toolName": "get-drive-item-preview",
+    "scopes": ["Files.Read"],
+    "readOnly": true,
+    "llmTip": "Returns short-lived embeddable URLs (getUrl, postUrl, postParameters) to preview the file in a browser iframe. Body (optional): { viewer ('onedrive' or 'office'), chromeless (boolean, hide viewer chrome), allowEdit (boolean), page (number or string for specific page/slide), zoom (number) }. Default body is {} for auto-settings. URLs expire within minutes. Useful to render a file inline without downloading."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/thumbnails",
+    "method": "get",
+    "toolName": "list-drive-item-thumbnails",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
   }
 ]
