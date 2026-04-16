@@ -49,6 +49,8 @@ docker run -p 3000:3000 \
 
 ## Azure Container Apps
 
+> **Turnkey Bicep example**: see [`examples/azure-container-apps/`](../examples/azure-container-apps/) for a complete Bicep template + PowerShell deploy script that provisions Log Analytics, UAMI, Key Vault (RBAC), Container Apps Environment and the Container App in one command.
+
 1. **Push the image** to Azure Container Registry:
 
    ```bash
