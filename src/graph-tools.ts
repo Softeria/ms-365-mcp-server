@@ -10,6 +10,12 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
+export interface DiscoverySearchIndex {
+  bm25: BM25Index;
+  nameTokens: Map<string, Set<string>>;
+}
+import { describeToolSchema } from './lib/tool-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -747,7 +753,7 @@ export function registerGraphTools(
   return registeredCount;
 }
 
-function buildToolsRegistry(
+export function buildToolsRegistry(
   readOnly: boolean,
   orgMode: boolean
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
@@ -776,6 +782,80 @@ function buildToolsRegistry(
   return toolsMap;
 }
 
+/**
+ * Builds a BM25 index over the tool registry. Name tokens are weighted 3x and llmTip
+ * tokens 2x via repetition, so a tool whose name matches the query outranks one that
+ * merely mentions the query term in its Microsoft-supplied description.
+ */
+export function buildDiscoverySearchIndex(
+  toolsRegistry: ReturnType<typeof buildToolsRegistry>
+): DiscoverySearchIndex {
+  // Cap contribution from the `description` and `llmTip` fields so a verbose llmTip
+  // (e.g. the KQL search-syntax guide on list-mail-messages, ~300 tokens) doesn't
+  // inflate a tool's doc length and crush BM25's length normalization. Names and
+  // paths are short and reliable, so they stay uncapped and are repeated to carry
+  // the bulk of the ranking signal. Tip excerpt (12 tokens) is enough to capture
+  // the first "what this tool does" phrase without swamping the doc.
+  const TIP_EXCERPT_TOKENS = 12;
+  const DESC_CAP_TOKENS = 40;
+  const docs: Array<{ id: string; tokens: string[] }> = [];
+  const nameTokens = new Map<string, Set<string>>();
+  for (const [name, { tool, config }] of toolsRegistry) {
+    const nt = tokenize(name);
+    nameTokens.set(name, new Set(nt));
+    const pathTokens = tokenize(tool.path);
+    const descTokens = tokenize(tool.description).slice(0, DESC_CAP_TOKENS);
+    const tipTokens = tokenize(config?.llmTip).slice(0, TIP_EXCERPT_TOKENS);
+    const tokens = [
+      ...nt,
+      ...nt,
+      ...nt,
+      ...nt,
+      ...nt,
+      ...pathTokens,
+      ...pathTokens,
+      ...tipTokens,
+      ...descTokens,
+    ];
+    docs.push({ id: name, tokens });
+  }
+  return { bm25: buildBM25Index(docs), nameTokens };
+}
+
+/**
+ * BM25 + a "name precision" bonus: reward tools whose names contain a high fraction
+ * of the query tokens (and consist mostly of query-matching tokens). This counteracts
+ * cases where a tool with a longer or more off-topic description outranks a tool
+ * whose name directly matches — a common problem because many endpoint descriptions
+ * are the wrong Graph prose pasted in.
+ */
+export function scoreDiscoveryQuery(
+  query: string,
+  index: DiscoverySearchIndex
+): Array<{ id: string; score: number }> {
+  const queryTokenSet = new Set(tokenize(query));
+  if (queryTokenSet.size === 0) return [];
+  const ranked = scoreQuery(query, index.bm25);
+  const NAME_BONUS_WEIGHT = 2;
+  for (const r of ranked) {
+    const nt = index.nameTokens.get(r.id);
+    if (!nt || nt.size === 0) continue;
+    let matchedIdf = 0;
+    let matchedCount = 0;
+    for (const qt of queryTokenSet) {
+      if (nt.has(qt)) {
+        matchedCount++;
+        matchedIdf += index.bm25.idf.get(qt) ?? 0;
+      }
+    }
+    if (matchedCount === 0) continue;
+    const precision = matchedCount / nt.size;
+    r.score += precision * matchedIdf * NAME_BONUS_WEIGHT;
+  }
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked;
+}
+
 export function registerDiscoveryTools(
   server: McpServer,
   graphClient: GraphClient,
@@ -785,63 +865,56 @@ export function registerDiscoveryTools(
   _multiAccount: boolean = false
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
+  const searchIndex = buildDiscoverySearchIndex(toolsRegistry);
   logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
+
+  const categoryNames = Object.keys(TOOL_CATEGORIES).join(', ');
+
+  const toResultEntry = (name: string) => {
+    const entry = toolsRegistry.get(name);
+    if (!entry) return null;
+    const { tool, config } = entry;
+    return {
+      name,
+      method: tool.method.toUpperCase(),
+      path: tool.path,
+      description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+      ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
+    };
+  };
 
   server.tool(
     'search-tools',
-    `Search through ${toolsRegistry.size} available Microsoft Graph API tools. Use this to find tools by name, path, or description before executing them.`,
+    `Search through ${toolsRegistry.size} Microsoft Graph API tools. Ranks results by BM25 over tool name, llmTip, description, and path (tokenized on hyphens, camelCase, and whitespace). After picking a tool, call get-tool-schema to see its parameters, then execute-tool to invoke it.`,
     {
       query: z
         .string()
-        .describe('Search query to filter tools (searches name, path, and description)')
-        .optional(),
-      category: z
-        .string()
         .describe(
-          'Filter by category: mail, calendar, files, contacts, tasks, onenote, search, users, excel'
+          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "create calendar event", "list unread messages".'
         )
         .optional(),
-      limit: z.number().describe('Maximum results to return (default: 20, max: 50)').optional(),
+      category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
+      limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
     },
     {
       title: 'search-tools',
       readOnlyHint: true,
-      openWorldHint: true, // Searches Microsoft Graph API tools
+      openWorldHint: true,
     },
-    async ({ query, category, limit = 20 }) => {
-      const maxLimit = Math.min(limit, 50);
-      const results: Array<{
-        name: string;
-        method: string;
-        path: string;
-        description: string;
-      }> = [];
-
-      const queryLower = query?.toLowerCase();
+    async ({ query, category, limit = 10 }) => {
+      const maxLimit = Math.min(Math.max(limit, 1), 50);
       const categoryDef = category ? TOOL_CATEGORIES[category] : undefined;
+      const categoryFilter = (name: string) => !categoryDef || categoryDef.pattern.test(name);
 
-      for (const [name, { tool, config }] of toolsRegistry) {
-        if (categoryDef && !categoryDef.pattern.test(name)) {
-          continue;
-        }
-
-        if (queryLower) {
-          const searchText =
-            `${name} ${tool.path} ${tool.description || ''} ${config?.llmTip || ''}`.toLowerCase();
-          if (!searchText.includes(queryLower)) {
-            continue;
-          }
-        }
-
-        results.push({
-          name,
-          method: tool.method.toUpperCase(),
-          path: tool.path,
-          description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
-        });
-
-        if (results.length >= maxLimit) break;
+      let orderedNames: string[];
+      if (query && query.trim().length > 0) {
+        const ranked = scoreDiscoveryQuery(query, searchIndex);
+        orderedNames = ranked.map((r) => r.id).filter(categoryFilter);
+      } else {
+        orderedNames = [...toolsRegistry.keys()].filter(categoryFilter);
       }
+
+      const tools = orderedNames.slice(0, maxLimit).map(toResultEntry).filter(Boolean);
 
       return {
         content: [
@@ -849,10 +922,10 @@ export function registerDiscoveryTools(
             type: 'text',
             text: JSON.stringify(
               {
-                found: results.length,
+                found: tools.length,
                 total: toolsRegistry.size,
-                tools: results,
-                tip: 'Use execute-tool with the tool name and required parameters to call any of these tools.',
+                tools,
+                tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
               },
               null,
               2
@@ -864,21 +937,56 @@ export function registerDiscoveryTools(
   );
 
   server.tool(
+    'get-tool-schema',
+    'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
+    {
+      tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
+    },
+    {
+      title: 'get-tool-schema',
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
+    async ({ tool_name }) => {
+      const entry = toolsRegistry.get(tool_name);
+      if (!entry) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `Tool not found: ${tool_name}`,
+                tip: 'Use search-tools to find available tools.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
     'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Use search-tools first to find available tools and their parameters. ' +
-      'For list endpoints, pass a small $top (or top) first and use $select to limit fields—avoid large page sizes unless the user needs them.',
+    'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
     {
       tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
       parameters: z
         .record(z.any())
-        .describe('Parameters to pass to the tool as key-value pairs')
+        .describe(
+          'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
+        )
         .optional(),
     },
     {
       title: 'execute-tool',
       readOnlyHint: false,
-      destructiveHint: true, // Can execute any tool, including write operations
-      openWorldHint: true, // Executes against Microsoft Graph API
+      destructiveHint: true,
+      openWorldHint: true,
     },
     async ({ tool_name, parameters = {} }) => {
       const toolData = toolsRegistry.get(tool_name);
