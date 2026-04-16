@@ -1442,5 +1442,40 @@
     "toolName": "update-place",
     "workScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/copy",
+    "method": "post",
+    "toolName": "copy-mail-message",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Copies a message to another mail folder. Body: { DestinationId: '<mailFolder-id or well-known name like inbox, archive, junkemail>' }. Returns the newly created message (with a new id) in the destination folder. For moving instead of copying, use move-mail-message."
+  },
+  {
+    "pathPattern": "/me/messages/delta()",
+    "method": "get",
+    "toolName": "list-mail-messages-delta",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Incremental sync of mail messages. First call returns all messages plus a @odata.deltaLink. Subsequent calls with that link return only changes (added/modified/deleted). Use $select to limit fields. @odata.nextLink paginates within a single delta window. Deltas expire after ~30 days of inactivity — start over if the server returns 410. Prefer this over full re-list for polling inboxes."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messages/delta()",
+    "method": "get",
+    "toolName": "list-mail-folder-messages-delta",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Incremental sync of messages within a specific mail folder (e.g. inbox). Same delta semantics as list-mail-messages-delta but scoped. Use mailFolder-id = 'inbox' for the well-known inbox folder. Deltas expire after ~30 days."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "get",
+    "toolName": "list-outlook-categories",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists the user's Outlook categories (colored labels) used to tag messages, events, contacts, and tasks. Each category has displayName and color (preset0 through preset24, or 'none'). Use this to show available tags before applying via update-mail-message or update-calendar-event with body { categories: ['Category Name'] }."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "post",
+    "toolName": "create-outlook-category",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
   }
 ]
