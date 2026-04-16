@@ -1442,5 +1442,47 @@
     "toolName": "update-place",
     "workScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "get",
+    "toolName": "list-subscriptions",
+    "scopes": [],
+    "llmTip": "Lists webhook subscriptions owned by the current app/user. Returns id, resource, changeType, notificationUrl, expirationDateTime, clientState. Use $filter=resource eq '/me/messages' to find subscriptions for a specific resource. Scope depends on the subscribed resource — no 'Subscription.*' scope exists."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "post",
+    "toolName": "create-subscription",
+    "scopes": [],
+    "llmTip": "Creates a webhook subscription for change notifications. Required body: { changeType (comma-separated: 'created,updated,deleted'), notificationUrl (HTTPS, must validate with token echo), resource (e.g. '/me/mailFolders/inbox/messages', '/users/{id}/events', '/teams/{id}/channels/{id}/messages'), expirationDateTime (ISO 8601, max varies by resource type — 1 hour for calls, 24h for messages, 3 days for mail), clientState (opaque string returned in notifications, for validation) }. Optional: includeResourceData (true enables rich notifications, requires encryptionCertificate + encryptionCertificateId). Caller must have permission to read the target resource."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "get",
+    "toolName": "get-subscription",
+    "scopes": [],
+    "llmTip": "Gets a specific webhook subscription by id. Use list-subscriptions to find the id. Returns full subscription details including resource, changeType, notificationUrl, expirationDateTime, applicationId."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "patch",
+    "toolName": "update-subscription",
+    "scopes": [],
+    "llmTip": "Renews a webhook subscription by extending its expiration. Body: { expirationDateTime (ISO 8601, new expiry) }. Call before the current expirationDateTime to avoid missing notifications. Max extension varies by resource type — check Microsoft Graph docs for subscription limits."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "delete",
+    "toolName": "delete-subscription",
+    "scopes": [],
+    "llmTip": "Deletes a webhook subscription. No further change notifications will be sent. Use this to clean up stale subscriptions or stop receiving notifications. Use list-subscriptions to find the id."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}/reauthorize",
+    "method": "post",
+    "toolName": "reauthorize-subscription",
+    "scopes": [],
+    "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
   }
 ]
