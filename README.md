@@ -589,6 +589,10 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
 
+## Production Deployment
+
+See [docs/deployment.md](docs/deployment.md) for a full guide to hosting the server for organization-wide access, including Docker, Azure Container Apps, Azure App Service, Azure AD app registration, reverse proxy setup, client configuration, and exposed endpoints.
+
 ## Contributing
 
 We welcome contributions! Before submitting a pull request, please ensure your changes meet our quality standards.
