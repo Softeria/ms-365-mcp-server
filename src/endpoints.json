@@ -1442,5 +1442,12 @@
     "toolName": "update-place",
     "workScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
+  },
+  {
+    "pathPattern": "/me/insights/trending",
+    "method": "get",
+    "toolName": "list-trending-insights",
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Lists documents trending around the current user. Each item has resourceVisualization (title, type, previewImageUrl, containerDisplayName), resourceReference (webUrl, id, type), and weight (relevance score). Use $filter=resourceVisualization/type eq 'PowerPoint' to filter by file type. Use $orderby=weight/value desc to sort by relevance."
   }
 ]
