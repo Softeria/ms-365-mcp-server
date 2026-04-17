@@ -161,3 +161,6 @@ CLAUDE.md
 
 # Finder metadata files
 .DS_Store
+
+# LCI-internal deployment notes (kept local-only)
+DEPLOY.md
