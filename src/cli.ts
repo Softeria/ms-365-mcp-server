@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -63,8 +63,14 @@ program
     'Use browser-based interactive OAuth flow instead of device code for stdio mode. Opens system browser with localhost callback for seamless sign-in.'
   )
   .option(
-    '--base-url <url>',
-    'Public base URL for OAuth metadata when running behind a reverse proxy (e.g. https://mcp.example.com)'
+    '--public-url <url>',
+    'Public base URL (e.g. https://mcp.example.com) used in browser-facing OAuth redirects when running behind a reverse proxy. Server-to-server endpoints (token, register) stay on the request host.'
+  )
+  .addOption(
+    // DEPRECATED: kept only so existing deployments that set --base-url or
+    // MS365_MCP_BASE_URL do not crash at startup. Use --public-url /
+    // MS365_MCP_PUBLIC_URL instead. Hidden from --help; undocumented.
+    new Option('--base-url <url>', 'deprecated: use --public-url').hideHelp()
   );
 
 export interface CommandOptions {
@@ -91,6 +97,8 @@ export interface CommandOptions {
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
   authBrowser?: boolean;
+  publicUrl?: string;
+  /** @deprecated use publicUrl */
   baseUrl?: string;
 
   [key: string]: unknown;
