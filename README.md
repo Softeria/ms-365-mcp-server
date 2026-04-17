@@ -273,6 +273,8 @@ Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
 
 ![Open WebUI MCP Connection](https://github.com/user-attachments/assets/dcab71dd-cf02-4bcb-b7db-5725d6be4064)
 
+> **Running in Docker behind a reverse proxy?** Set `--public-url https://your-domain.com` so the OAuth authorize URL handed to the user's browser is reachable from outside the container network. See [docs/deployment.md](docs/deployment.md) for the full guide.
+
 ### Local Development
 
 For local development or testing:
@@ -449,7 +451,15 @@ npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 
 Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `all`
 
-**Experimental:** `--discovery` starts with only 2 tools (`search-tools`, `execute-tool`) for minimal token usage.
+## Dynamic Tool Discovery
+
+Instead of loading all 90+ tools upfront, use dynamic discovery so the LLM finds and loads tools only when it needs them:
+
+```bash
+npx @softeria/ms-365-mcp-server --discovery
+```
+
+Keeps the initial context small and cuts token usage, especially useful for long sessions or cost-sensitive setups (e.g. Open WebUI running against a paid API).
 
 ## CLI Options
 
@@ -481,7 +491,8 @@ When running as an MCP server, the following options can be used:
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
 --toon            (experimental) Enable TOON output format for 30-60% token reduction
---discovery       (experimental) Start with search-tools + execute-tool only
+--discovery       Dynamic tool discovery: loads tools on demand to reduce initial token usage (see "Dynamic Tool Discovery" above)
+--public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
 Environment variables:
