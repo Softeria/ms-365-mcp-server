@@ -200,17 +200,46 @@ class MicrosoftGraphServer {
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
+      // Public URL resolution for browser-facing OAuth endpoints.
+      //
+      // When running behind a reverse proxy, the request's Host header only
+      // reflects the public origin if the client reached the server through
+      // the proxy. If a client (e.g. Open WebUI) talks to the server over
+      // an internal Docker hostname, Host is that internal name, so the
+      // authorize URL we hand back to the user's browser would be
+      // unresolvable from outside. Setting MS365_MCP_PUBLIC_URL pins the
+      // browser-facing origin while the server-to-server endpoints
+      // (token, register, resource) stay on the request origin so clients
+      // that reach us internally don't need NAT loopback through the proxy.
+      //
+      // DEPRECATED: --base-url / MS365_MCP_BASE_URL. Use --public-url /
+      // MS365_MCP_PUBLIC_URL instead. The deprecated names are still read
+      // here so existing configurations don't crash at startup, but they
+      // will be removed in a future release. Note that the original
+      // --base-url was effectively a no-op in practice: it was plumbed
+      // through the SDK's mcpAuthRouter, whose metadata endpoint is
+      // shadowed by the custom handler below, so no deployment relied
+      // on its actual semantics.
+      const publicUrlRaw =
+        this.options.publicUrl ||
+        process.env.MS365_MCP_PUBLIC_URL ||
+        this.options.baseUrl ||
+        process.env.MS365_MCP_BASE_URL ||
+        null;
+      const publicBase = publicUrlRaw ? new URL(publicUrlRaw).href.replace(/\/$/, '') : null;
+
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
         const protocol = req.secure ? 'https' : 'http';
-        const url = new URL(`${protocol}://${req.get('host')}`);
+        const requestOrigin = `${protocol}://${req.get('host')}`;
+        const browserBase = publicBase ?? requestOrigin;
 
         const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         const metadata: Record<string, unknown> = {
-          issuer: url.origin,
-          authorization_endpoint: `${url.origin}/authorize`,
-          token_endpoint: `${url.origin}/token`,
+          issuer: browserBase,
+          authorization_endpoint: `${browserBase}/authorize`,
+          token_endpoint: `${requestOrigin}/token`,
           response_types_supported: ['code'],
           response_modes_supported: ['query'],
           grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -220,7 +249,7 @@ class MicrosoftGraphServer {
         };
 
         if (this.options.enableDynamicRegistration) {
-          metadata.registration_endpoint = `${url.origin}/register`;
+          metadata.registration_endpoint = `${requestOrigin}/register`;
         }
 
         res.json(metadata);
@@ -229,16 +258,17 @@ class MicrosoftGraphServer {
       // OAuth Protected Resource Discovery
       app.get('/.well-known/oauth-protected-resource', async (req, res) => {
         const protocol = req.secure ? 'https' : 'http';
-        const url = new URL(`${protocol}://${req.get('host')}`);
+        const requestOrigin = `${protocol}://${req.get('host')}`;
+        const browserBase = publicBase ?? requestOrigin;
 
         const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         res.json({
-          resource: `${url.origin}/mcp`,
-          authorization_servers: [url.origin],
+          resource: `${requestOrigin}/mcp`,
+          authorization_servers: [browserBase],
           scopes_supported: scopes,
           bearer_methods_supported: ['header'],
-          resource_documentation: `${url.origin}`,
+          resource_documentation: browserBase,
         });
       });
 
@@ -483,9 +513,7 @@ class MicrosoftGraphServer {
       app.use(
         mcpAuthRouter({
           provider: oauthProvider,
-          issuerUrl: new URL(
-            this.options.baseUrl || process.env.MS365_MCP_BASE_URL || `http://localhost:${port}`
-          ),
+          issuerUrl: new URL(publicBase ?? `http://localhost:${port}`),
         })
       );
 

@@ -42,7 +42,7 @@ For production, use Azure Key Vault instead of environment variables for secrets
 docker run -p 3000:3000 \
   -e MS365_MCP_KEYVAULT_URL=https://your-keyvault.vault.azure.net \
   -e MS365_MCP_ORG_MODE=true \
-  -e MS365_MCP_BASE_URL=https://mcp.example.com \
+  -e MS365_MCP_PUBLIC_URL=https://mcp.example.com \
   ms-365-mcp-server \
   --http 3000 --org-mode
 ```
@@ -72,7 +72,7 @@ docker run -p 3000:3000 \
      --env-vars \
        "MS365_MCP_KEYVAULT_URL=https://your-keyvault.vault.azure.net" \
        "MS365_MCP_ORG_MODE=true" \
-       "MS365_MCP_BASE_URL=https://mcp.example.com" \
+       "MS365_MCP_PUBLIC_URL=https://mcp.example.com" \
      --command "node" "dist/index.js" "--http" "3000" "--org-mode"
    ```
 
@@ -99,7 +99,7 @@ az webapp config appsettings set --name mcp-server --resource-group your-rg \
   --settings \
     MS365_MCP_KEYVAULT_URL="https://your-keyvault.vault.azure.net" \
     MS365_MCP_ORG_MODE="true" \
-    MS365_MCP_BASE_URL="https://mcp-server.azurewebsites.net" \
+    MS365_MCP_PUBLIC_URL="https://mcp-server.azurewebsites.net" \
     WEBSITES_PORT="3000"
 
 az webapp config set --name mcp-server --resource-group your-rg \
@@ -130,17 +130,17 @@ When deploying for an organization, create a dedicated app registration instead 
 
 ## Reverse Proxy / Custom Domain
 
-When running behind a reverse proxy or custom domain, set `MS365_MCP_BASE_URL` so OAuth discovery endpoints return the correct public URL:
+When running behind a reverse proxy, set `MS365_MCP_PUBLIC_URL` so that the OAuth authorize URL handed back to the user's browser is resolvable from outside the server's network:
 
 ```bash
 # Via environment variable
-MS365_MCP_BASE_URL=https://mcp.example.com
+MS365_MCP_PUBLIC_URL=https://mcp.example.com
 
 # Or via CLI flag
---base-url https://mcp.example.com
+--public-url https://mcp.example.com
 ```
 
-Without this, `/.well-known/oauth-authorization-server` would advertise `http://localhost:3000` as the authorization endpoint.
+Only browser-facing fields (`issuer`, `authorization_endpoint`, `authorization_servers`) are pinned to this URL. Server-to-server endpoints (`token_endpoint`, `registration_endpoint`, `resource`) stay on the request origin, so clients that reach the server over an internal network (e.g. another container on the same Docker network) don't have to round-trip back through the public URL.
 
 ## Client Configuration
 
