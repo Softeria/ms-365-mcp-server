@@ -33,12 +33,15 @@ MCP client (Claude Desktop / claude.ai / ...)
 ## Prerequisites
 
 ### 1. Azure
+
 - Subscription with **Contributor** + **User Access Administrator** roles on the target Resource Group (User Access Administrator is required for the UAMI → Key Vault RBAC assignment).
 - [Azure CLI 2.60+](https://learn.microsoft.com/cli/azure/install-azure-cli).
 - [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell).
 
 ### 2. Entra ID app registration
+
 Create an app registration in your tenant:
+
 - **Supported account types**: single tenant
 - **Redirect URIs** (initial): `http://localhost:3000/oauth/callback` — update after the first deploy once you know the Container App FQDN
 - **API permissions**: delegated scopes matching your run mode. Print the exact list with:
@@ -52,6 +55,7 @@ Create an app registration in your tenant:
 Collect `tenantId`, `clientId`, and (optionally) `clientSecret`.
 
 ### 3. Container image
+
 Default: `ghcr.io/softeria/ms-365-mcp-server:latest`.
 Pin a version with `ghcr.io/softeria/ms-365-mcp-server:<tag>`, or push to your own Azure Container Registry and pass the reference via `-ContainerImage`.
 
@@ -112,22 +116,26 @@ See the [Client Configuration section](../../docs/deployment.md#client-configura
 ## Operations
 
 ### Stream logs
+
 ```bash
 az containerapp logs show -n <baseName>-app -g <rg> --follow
 ```
 
 ### Force a new revision
+
 ```bash
 az containerapp update -n <baseName>-app -g <rg> --revision-suffix "manual$(date +%s)"
 ```
 
 ### Update the image
+
 ```bash
 az containerapp update -n <baseName>-app -g <rg> \
   --image ghcr.io/softeria/ms-365-mcp-server:<new-tag>
 ```
 
 ### Rotate the client secret
+
 ```bash
 # 1. Create a new secret in Entra ID (Certificates & secrets)
 # 2. Update Key Vault
@@ -137,18 +145,19 @@ az containerapp update -n <baseName>-app -g <rg> --revision-suffix "rotate$(date
 ```
 
 ### Pin minimum replicas (eliminate cold start)
+
 ```bash
 az containerapp update -n <baseName>-app -g <rg> --min-replicas 1 --max-replicas 5
 ```
 
 ## Cost (order of magnitude)
 
-| Resource | Config | Monthly (idle) |
-|---|---|---|
+| Resource      | Config                 | Monthly (idle)                             |
+| ------------- | ---------------------- | ------------------------------------------ |
 | Container App | Consumption, scale 0-3 | ~$0 with scale-to-zero, ~$15-25 with min=1 |
-| Log Analytics | 30-day retention | ~$2-5 depending on log volume |
-| Key Vault | Standard, low ops | <$1 |
-| UAMI | — | free |
+| Log Analytics | 30-day retention       | ~$2-5 depending on log volume              |
+| Key Vault     | Standard, low ops      | <$1                                        |
+| UAMI          | —                      | free                                       |
 
 Regional pricing varies — consult the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/) for your region. Scale-to-zero introduces a ~2–5 s cold start on the first request after idle.
 
@@ -170,10 +179,10 @@ az keyvault purge --name <kv-name>
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Container restarts in a loop | UAMI can't read Key Vault secrets | Wait ~5 min for role propagation, then check `az role assignment list --assignee <uami-principal-id>` |
-| 401 on `/mcp` even with a valid token | Wrong `tenantId`/`clientId` in Key Vault | `az keyvault secret show --vault-name <kv> --name ms365-mcp-client-id` |
-| OAuth fails with `redirect_uri mismatch` | Redirect URI in Entra ID not updated | Add `https://<fqdn>/oauth/callback` in the app registration |
-| Graph returns 403 | Missing scope / admin consent not granted | Re-run `--list-permissions` and grant admin consent |
-| Cold start > 10 s | Heavy startup work in custom image | Verify the image does not run `npm install` in its ENTRYPOINT |
+| Symptom                                  | Likely cause                              | Fix                                                                                                   |
+| ---------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Container restarts in a loop             | UAMI can't read Key Vault secrets         | Wait ~5 min for role propagation, then check `az role assignment list --assignee <uami-principal-id>` |
+| 401 on `/mcp` even with a valid token    | Wrong `tenantId`/`clientId` in Key Vault  | `az keyvault secret show --vault-name <kv> --name ms365-mcp-client-id`                                |
+| OAuth fails with `redirect_uri mismatch` | Redirect URI in Entra ID not updated      | Add `https://<fqdn>/oauth/callback` in the app registration                                           |
+| Graph returns 403                        | Missing scope / admin consent not granted | Re-run `--list-permissions` and grant admin consent                                                   |
+| Cold start > 10 s                        | Heavy startup work in custom image        | Verify the image does not run `npm install` in its ENTRYPOINT                                         |
