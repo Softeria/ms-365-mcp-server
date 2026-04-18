@@ -5,6 +5,7 @@ import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
+import { storeTokens } from './token-store.js';
 
 /**
  * Returns true if the given HTTP Content-Type header indicates a binary
@@ -102,6 +103,15 @@ class GraphClient {
         // Token expired, try to refresh
         const newTokens = await this.refreshAccessToken(refreshToken);
         accessToken = newTokens.accessToken;
+
+        // Persist rotated tokens so subsequent requests and client refreshes use the new RT
+        if (newTokens.refreshToken) {
+          if (contextTokens) {
+            contextTokens.accessToken = newTokens.accessToken;
+            contextTokens.refreshToken = newTokens.refreshToken;
+          }
+          storeTokens(refreshToken, newTokens.accessToken, newTokens.refreshToken);
+        }
 
         // Retry the request with new token
         response = await this.performRequest(endpoint, accessToken, options);
