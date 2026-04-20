@@ -522,10 +522,7 @@ class MicrosoftGraphServer {
       app.get(
         '/mcp',
         microsoftBearerTokenAuthMiddleware,
-        async (
-          req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
-          res: Response
-        ) => {
+        async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
@@ -543,13 +540,7 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run(
-                {
-                  accessToken: req.microsoftAuth.accessToken,
-                  refreshToken: req.microsoftAuth.refreshToken,
-                },
-                handler
-              );
+              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
             } else {
               await handler();
             }
@@ -572,10 +563,7 @@ class MicrosoftGraphServer {
       app.post(
         '/mcp',
         microsoftBearerTokenAuthMiddleware,
-        async (
-          req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
-          res: Response
-        ) => {
+        async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
@@ -593,13 +581,7 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run(
-                {
-                  accessToken: req.microsoftAuth.accessToken,
-                  refreshToken: req.microsoftAuth.refreshToken,
-                },
-                handler
-              );
+              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
             } else {
               await handler();
             }

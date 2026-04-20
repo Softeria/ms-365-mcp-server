@@ -2,35 +2,68 @@ import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
 import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
+function buildWwwAuthenticate(req: Request, error: string, description: string): string {
+  const protocol = req.secure ? 'https' : 'http';
+  const origin = `${protocol}://${req.get('host')}`;
+  const resourceMetadata = `${origin}/.well-known/oauth-protected-resource`;
+  return `Bearer resource_metadata="${resourceMetadata}", error="${error}", error_description="${description}"`;
+}
+
+// Returns true only for JWTs whose exp claim is in the past.
+// Opaque tokens (e.g. MSA compact tokens) and tokens without exp return false
+// and are passed through for Graph to validate.
+function isJwtExpired(token: string): boolean {
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Microsoft Bearer Token Auth Middleware validates that the request has a valid Microsoft access token
- * The token is passed in the Authorization header as a Bearer token
+ * Microsoft Bearer Token Auth Middleware validates that the request has a valid Microsoft access token.
+ * Returns HTTP 401 + WWW-Authenticate on missing or expired tokens so spec-compliant MCP clients
+ * refresh via the /token endpoint. Opaque tokens fall through and are validated by Graph.
  */
 export const microsoftBearerTokenAuthMiddleware = (
-  req: Request & { microsoftAuth?: { accessToken: string; refreshToken: string } },
+  req: Request & { microsoftAuth?: { accessToken: string } },
   res: Response,
   next: NextFunction
 ): void => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing or invalid access token' });
+    res
+      .status(401)
+      .set(
+        'WWW-Authenticate',
+        buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
+      )
+      .json({
+        error: 'invalid_token',
+        error_description: 'Missing or malformed Authorization header',
+      });
     return;
   }
 
   const accessToken = authHeader.substring(7);
 
-  // For Microsoft Graph, we don't validate the token here - we'll let the API calls fail if it's invalid
-  // and handle token refresh in the GraphClient
+  if (isJwtExpired(accessToken)) {
+    res
+      .status(401)
+      .set(
+        'WWW-Authenticate',
+        buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
+      )
+      .json({ error: 'invalid_token', error_description: 'The access token has expired' });
+    return;
+  }
 
-  // Extract refresh token from a custom header (if provided)
-  const refreshToken = (req.headers['x-microsoft-refresh-token'] as string) || '';
-
-  // Store tokens in request for later use
-  req.microsoftAuth = {
-    accessToken,
-    refreshToken,
-  };
+  req.microsoftAuth = { accessToken };
 
   next();
 };
