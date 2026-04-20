@@ -1449,5 +1449,47 @@
     "toolName": "list-trending-insights",
     "workScopes": ["Sites.Read.All"],
     "llmTip": "Lists documents trending around the current user. Each item has resourceVisualization (title, type, previewImageUrl, containerDisplayName), resourceReference (webUrl, id, type), and weight (relevance score). Use $filter=resourceVisualization/type eq 'PowerPoint' to filter by file type. Use $orderby=weight/value desc to sort by relevance."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/cancel",
+    "method": "post",
+    "toolName": "cancel-calendar-event",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Cancels a meeting (organizer only) and sends a cancellation message to all attendees. Body: { Comment (optional string, custom message) }. Use this instead of delete-calendar-event when you want attendees to see 'Canceled' in their calendar. Attendees calling this get HTTP 400 — they should use decline-calendar-event instead."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/forward",
+    "method": "post",
+    "toolName": "forward-calendar-event",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Forwards a meeting invitation to additional recipients. Body: { ToRecipients: [{ emailAddress: { address, name } }], Comment (optional) }. If the forwarder is an attendee (not organizer), the organizer is also notified and the new recipient is added to the organizer's attendee list."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/snoozeReminder",
+    "method": "post",
+    "toolName": "snooze-calendar-event-reminder",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Postpones a triggered event reminder. Body: { NewReminderTime: { dateTime (ISO 8601), timeZone (IANA or Windows, e.g. 'Pacific Standard Time') } }. The reminder will re-fire at the new time."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/dismissReminder",
+    "method": "post",
+    "toolName": "dismiss-calendar-event-reminder",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Dismisses a triggered event reminder so it won't re-fire. No request body required. Pair with list-calendar-events or get-schedule to find active reminders."
+  },
+  {
+    "pathPattern": "/me/events/delta()",
+    "method": "get",
+    "toolName": "list-calendar-events-delta",
+    "scopes": ["Calendars.Read"],
+    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Use $select to limit fields. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+  },
+  {
+    "pathPattern": "/me/calendarView/delta()",
+    "method": "get",
+    "toolName": "list-calendar-view-delta",
+    "scopes": ["Calendars.Read"],
+    "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
   }
 ]
