@@ -1491,5 +1491,54 @@
     "toolName": "list-calendar-view-delta",
     "scopes": ["Calendars.Read"],
     "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
+  },
+  {
+    "pathPattern": "/groups",
+    "method": "post",
+    "toolName": "create-group",
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Creates a new group. Required body: { displayName, mailEnabled (bool), mailNickname (no spaces), securityEnabled (bool) }. For Microsoft 365 group: mailEnabled=true, securityEnabled=false, groupTypes=['Unified']. For security group: mailEnabled=false, securityEnabled=true, groupTypes=[]. Optional: description, visibility ('Public' or 'Private'), owners@odata.bind and members@odata.bind arrays with user directoryObject URLs."
+  },
+  {
+    "pathPattern": "/groups/{group-id}",
+    "method": "patch",
+    "toolName": "update-group",
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Updates group properties. Body can include: displayName, description, visibility ('Public' or 'Private'), mailNickname. Use get-group to verify current values before updating."
+  },
+  {
+    "pathPattern": "/groups/{group-id}",
+    "method": "delete",
+    "toolName": "delete-group",
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Permanently deletes a group and all its associated resources (conversations, files, calendar, planner). This action is irreversible. Use get-group to verify the group before deleting."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/members/$ref",
+    "method": "post",
+    "toolName": "add-group-member",
+    "workScopes": ["GroupMember.ReadWrite.All"],
+    "llmTip": "Adds a member to a group. Body: { '@odata.id': 'https://graph.microsoft.com/v1.0/directoryObjects/{user-id}' }. Use list-users to find the user ID first. The user must not already be a member."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/members/{directoryObject-id}/$ref",
+    "method": "delete",
+    "toolName": "remove-group-member",
+    "workScopes": ["GroupMember.ReadWrite.All"],
+    "llmTip": "Removes a member from a group. Use list-group-members to find the member's directory object ID first. Cannot remove the last owner of a group."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/owners/$ref",
+    "method": "post",
+    "toolName": "add-group-owner",
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Adds an owner to a group. Body: { '@odata.id': 'https://graph.microsoft.com/v1.0/users/{user-id}' }. Use list-users to find the user ID. A group can have a maximum of 100 owners."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/owners/{directoryObject-id}/$ref",
+    "method": "delete",
+    "toolName": "remove-group-owner",
+    "workScopes": ["Group.ReadWrite.All"],
+    "llmTip": "Removes an owner from a group. A group must have at least one owner — this call fails if you try to remove the last owner. Use list-group-owners to find the owner's ID."
   }
 ]
