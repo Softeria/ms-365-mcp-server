@@ -385,7 +385,19 @@ class MicrosoftGraphServer {
 
         // Ensure we have the minimal required scopes if none provided
         if (!microsoftAuthUrl.searchParams.get('scope')) {
-          microsoftAuthUrl.searchParams.set('scope', 'User.Read Files.Read Mail.Read');
+          microsoftAuthUrl.searchParams.set(
+            'scope',
+            'User.Read Files.Read Mail.Read offline_access'
+          );
+        } else {
+          // Always include offline_access so Entra ID issues a refresh token,
+          // enabling silent token refresh once the access token expires.
+          const scopeValue = microsoftAuthUrl.searchParams.get('scope')!;
+          const scopeList = scopeValue.split(/\s+/).filter(Boolean);
+          if (!scopeList.includes('offline_access')) {
+            scopeList.push('offline_access');
+            microsoftAuthUrl.searchParams.set('scope', scopeList.join(' '));
+          }
         }
 
         // Redirect to Microsoft's authorization page

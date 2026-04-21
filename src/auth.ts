@@ -195,6 +195,10 @@ function buildScopesFromEndpoints(
     }
   });
 
+  // Always request offline_access so Entra ID issues a refresh token,
+  // enabling silent token refresh after the access token expires (~60–90 min).
+  scopesSet.add('offline_access');
+
   const scopes = Array.from(scopesSet);
   if (enabledToolsPattern) {
     logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
