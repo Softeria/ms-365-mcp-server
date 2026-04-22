@@ -20,6 +20,7 @@ import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
 import crypto from 'node:crypto';
+import OboClient from './obo-client.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -53,6 +54,7 @@ class MicrosoftGraphServer {
   private graphClient: GraphClient | null;
   private server: McpServer | null;
   private secrets: AppSecrets | null;
+  private oboClient: OboClient | null;
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
@@ -74,6 +76,7 @@ class MicrosoftGraphServer {
     this.graphClient = null; // Initialized in start() after secrets are loaded
     this.server = null;
     this.secrets = null;
+    this.oboClient = null;
   }
 
   private createMcpServer(): McpServer {
@@ -138,6 +141,20 @@ class MicrosoftGraphServer {
       }
     } catch (err) {
       logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
+    }
+
+    if (this.options.obo) {
+      if (!this.options.http) {
+        throw new Error('--obo requires --http (On-Behalf-Of flow only works in HTTP mode).');
+      }
+      if (!this.secrets.clientSecret) {
+        throw new Error(
+          '--obo requires MS365_MCP_CLIENT_SECRET to be set (confidential client required for On-Behalf-Of flow).'
+        );
+      }
+      const graphScopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+      this.oboClient = new OboClient(this.secrets, graphScopes);
+      logger.info('On-Behalf-Of (OBO) flow enabled');
     }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
@@ -261,7 +278,9 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = this.options.obo
+          ? [`api://${this.secrets!.clientId}/access_as_user`]
+          : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         res.json({
           resource: `${requestOrigin}/mcp`,
@@ -540,7 +559,11 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
+              let accessToken = req.microsoftAuth.accessToken;
+              if (this.oboClient) {
+                accessToken = await this.oboClient.exchangeToken(accessToken);
+              }
+              await requestContext.run({ accessToken }, handler);
             } else {
               await handler();
             }
@@ -581,7 +604,11 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
+              let accessToken = req.microsoftAuth.accessToken;
+              if (this.oboClient) {
+                accessToken = await this.oboClient.exchangeToken(accessToken);
+              }
+              await requestContext.run({ accessToken }, handler);
             } else {
               await handler();
             }
