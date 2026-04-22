@@ -404,7 +404,27 @@ class MicrosoftGraphServer {
 
         // Ensure we have the minimal required scopes if none provided
         if (!microsoftAuthUrl.searchParams.get('scope')) {
-          microsoftAuthUrl.searchParams.set('scope', 'User.Read Files.Read Mail.Read');
+          microsoftAuthUrl.searchParams.set(
+            'scope',
+            'User.Read Files.Read Mail.Read offline_access'
+          );
+        } else {
+          // Inject offline_access silently here (not advertised in scopes_supported)
+          // so Entra ID issues a refresh token, enabling silent token refresh after
+          // the access token expires. We deliberately do NOT add offline_access to
+          // buildScopesFromEndpoints(): advertising the scope in OAuth metadata made
+          // MCP clients request it explicitly, which triggers a "Maintain access to
+          // data" consent line that fails in tenants where user consent for
+          // applications is restricted by policy (even when admin has pre-consented
+          // every scope). Injecting silently in the forwarding path gives Entra
+          // what it needs to issue a refresh token without surfacing the scope to
+          // the client.
+          const scopeValue = microsoftAuthUrl.searchParams.get('scope')!;
+          const scopeList = scopeValue.split(/\s+/).filter(Boolean);
+          if (!scopeList.includes('offline_access')) {
+            scopeList.push('offline_access');
+            microsoftAuthUrl.searchParams.set('scope', scopeList.join(' '));
+          }
         }
 
         // Redirect to Microsoft's authorization page
@@ -506,12 +526,18 @@ class MicrosoftGraphServer {
               logger.info('Refresh endpoint: Using public client without client_secret');
             }
 
+            // Forward the incoming Origin (or Referer fallback) so Entra
+            // accepts refresh of SPA-issued refresh tokens — without it the
+            // refresh hits AADSTS9002327 the same way the code exchange does
+            // for SPA-typed redirect_uris.
+            const origin = req.get('origin') || req.get('referer') || undefined;
             const result = await refreshAccessToken(
               body.refresh_token as string,
               clientId,
               clientSecret,
               tenantId,
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              origin
             );
             res.json(result);
           } else {

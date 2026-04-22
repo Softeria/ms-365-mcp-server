@@ -104,11 +104,29 @@ export async function exchangeCodeForToken(
     params.append('code_verifier', codeVerifier);
   }
 
+  // When the app registration has the redirect_uri registered as a
+  // Single-Page Application (SPA), Entra requires the /token request to
+  // include an Origin header matching the redirect_uri's origin — otherwise
+  // it returns AADSTS9002327 ("Tokens issued for the 'Single-Page Application'
+  // client-type may only be redeemed via cross-origin requests"). SPA redirect
+  // URIs are the only way to get PKCE-without-secret working against a tenant
+  // where user-consent restrictions or a public-client-disallowed policy rule
+  // out a confidential-client flow. Emulate the cross-origin call here so
+  // server-side token redemption works for both Web and SPA redirect types
+  // (for Web redirects Entra simply ignores the Origin header).
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  try {
+    const redirectUrl = new URL(redirectUri);
+    headers['Origin'] = redirectUrl.origin;
+  } catch {
+    // redirect_uri is not a valid URL — omit Origin and let Entra decide
+  }
+
   const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: params,
   });
 
@@ -129,7 +147,8 @@ export async function refreshAccessToken(
   clientId: string,
   clientSecret: string | undefined,
   tenantId: string = 'common',
-  cloudType: CloudType = 'global'
+  cloudType: CloudType = 'global',
+  origin?: string
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -148,11 +167,21 @@ export async function refreshAccessToken(
     params.append('client_secret', clientSecret);
   }
 
+  // Refresh tokens issued via a SPA redirect carry a SPA marker; Entra rejects
+  // a server-side refresh without an Origin header matching an allowed SPA
+  // origin (same AADSTS9002327 class as the initial code exchange). Forward
+  // the incoming request's Origin when available so refresh works the same
+  // way SPA redemption does. Non-SPA deployments are unaffected.
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (origin) {
+    headers['Origin'] = origin;
+  }
+
   const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: params,
   });
 
