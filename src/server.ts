@@ -487,12 +487,18 @@ class MicrosoftGraphServer {
               logger.info('Refresh endpoint: Using public client without client_secret');
             }
 
+            // Forward the incoming Origin (or Referer fallback) so Entra
+            // accepts refresh of SPA-issued refresh tokens — without it the
+            // refresh hits AADSTS9002327 the same way the code exchange does
+            // for SPA-typed redirect_uris.
+            const origin = req.get('origin') || req.get('referer') || undefined;
             const result = await refreshAccessToken(
               body.refresh_token as string,
               clientId,
               clientSecret,
               tenantId,
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              origin
             );
             res.json(result);
           } else {

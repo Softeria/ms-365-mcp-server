@@ -147,7 +147,8 @@ export async function refreshAccessToken(
   clientId: string,
   clientSecret: string | undefined,
   tenantId: string = 'common',
-  cloudType: CloudType = 'global'
+  cloudType: CloudType = 'global',
+  origin?: string
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -166,11 +167,21 @@ export async function refreshAccessToken(
     params.append('client_secret', clientSecret);
   }
 
+  // Refresh tokens issued via a SPA redirect carry a SPA marker; Entra rejects
+  // a server-side refresh without an Origin header matching an allowed SPA
+  // origin (same AADSTS9002327 class as the initial code exchange). Forward
+  // the incoming request's Origin when available so refresh works the same
+  // way SPA redemption does. Non-SPA deployments are unaffected.
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (origin) {
+    headers['Origin'] = origin;
+  }
+
   const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: params,
   });
 
