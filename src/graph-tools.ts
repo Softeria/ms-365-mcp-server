@@ -400,15 +400,14 @@ async function executeGraphTool(
         while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
 
+          // Extract path + query string from the nextLink URL.
+          // Pass the full path (with query string) as the endpoint so that
+          // $skiptoken and other pagination params are preserved.
+          // Previously, query params were extracted into nextOptions.queryParams
+          // but graphRequest/performRequest never read that field — they were lost.
           const url = new URL(nextLink);
-          const nextPath = url.pathname.replace('/v1.0', '');
+          const nextPath = url.pathname.replace('/v1.0', '') + url.search;
           const nextOptions = { ...options };
-
-          const nextQueryParams: Record<string, string> = {};
-          for (const [key, value] of url.searchParams.entries()) {
-            nextQueryParams[key] = value;
-          }
-          nextOptions.queryParams = nextQueryParams;
 
           const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
           if (nextResponse?.content?.[0]?.text) {
