@@ -557,6 +557,59 @@
     "skipEncoding": ["address"]
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
+    "method": "patch",
+    "toolName": "update-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Set cell values, formulas, or number format on any range — does NOT require the worksheet to be a formal Excel table. Body: { values: [['v1','v2','v3']] } for a single row, or [['a','b'],['c','d']] for multi-row. Use this for append (target the next empty row's address, e.g. 'A172:H172'), update (target a single cell like 'H42'), or prepend-style edits (read existing, concatenate, write back). Number of inner-array values must match the column count of the address."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/insert",
+    "method": "post",
+    "toolName": "insert-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Insert blank cells at the given range, shifting existing content. Body: { shift: 'Down' } or { shift: 'Right' }. Use 'Down' to insert blank rows above existing data."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/delete",
+    "method": "post",
+    "toolName": "delete-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Delete cells at the given range, shifting remaining content. Body: { shift: 'Up' } or { shift: 'Left' }. Use 'Up' to delete entire rows."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
+    "method": "patch",
+    "toolName": "update-excel-table-row",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["index"],
+    "llmTip": "Update a single row in a formal Excel table by zero-based row index. Body: { values: [[...]] } with one inner array matching the column count."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
+    "method": "delete",
+    "toolName": "delete-excel-table-row",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["index"],
+    "llmTip": "Delete a single row from a formal Excel table by zero-based row index."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/tables/add",
+    "method": "post",
+    "toolName": "create-excel-table",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Convert a worksheet range into a formal Excel table. Body: { address: 'A1:H171', hasHeaders: true }. Required before using add-excel-table-rows / update-excel-table-row / delete-excel-table-row on a plain-cells sheet."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets",
     "method": "get",
     "toolName": "list-excel-worksheets",
