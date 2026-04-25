@@ -192,12 +192,17 @@ async function executeGraphTool(
       const camelCaseParamName = paramName.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
       // Look up param definition using normalized name (without $) for OData params,
-      // or camelCase equivalent for kebab-case path params
+      // or camelCase equivalent for kebab-case path params.
+      // The generated Zod client declares OData params with the `$`-prefix (e.g. `$select`);
+      // models often send the bare form (`select`) because some clients strip `$`. Without
+      // the fixedParamName fallback, the bare form silently falls out of the switch below
+      // and the query param is dropped — producing malformed Graph calls.
       const paramDef = parameterDefinitions.find(
         (p) =>
           p.name === paramName ||
           p.name === camelCaseParamName ||
-          (isOdataParam && p.name === normalizedParamName)
+          (isOdataParam && p.name === normalizedParamName) ||
+          (isOdataParam && p.name === fixedParamName)
       );
 
       if (paramDef) {
