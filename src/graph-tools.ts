@@ -904,7 +904,22 @@ export function registerDiscoveryTools(
     async ({ query, category, limit = 10 }) => {
       const maxLimit = Math.min(Math.max(limit, 1), 50);
       const categoryDef = category ? TOOL_CATEGORIES[category] : undefined;
-      const categoryFilter = (name: string) => !categoryDef || categoryDef.pattern.test(name);
+      // Match category against tool name OR its Graph path OR its llmTip. Name-only
+      // matching silently dropped tools whose names don't carry a domain keyword —
+      // e.g. get-schedule / find-meeting-times both live at calendar-ish paths
+      // (/me/calendar/getSchedule, /me/findMeetingTimes) but have "schedule" /
+      // "meeting" names, so category=calendar used to exclude them.
+      const categoryFilter = (name: string) => {
+        if (!categoryDef) return true;
+        const entry = toolsRegistry.get(name);
+        if (!entry) return false;
+        const { tool, config } = entry;
+        return (
+          categoryDef.pattern.test(name) ||
+          categoryDef.pattern.test(tool.path) ||
+          (config?.llmTip ? categoryDef.pattern.test(config.llmTip) : false)
+        );
+      };
 
       let orderedNames: string[];
       if (query && query.trim().length > 0) {
