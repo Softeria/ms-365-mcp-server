@@ -641,6 +641,30 @@
     "scopes": ["Notes.Read"]
   },
   {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-notebooks",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sections",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-notebook-sections",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/sections/{onenoteSection-id}/pages",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-section-pages",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/pages/{onenotePage-id}/content",
+    "method": "get",
+    "toolName": "get-sharepoint-site-onenote-page-content",
+    "workScopes": ["Notes.Read"]
+  },
+  {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
@@ -778,6 +802,39 @@
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-task-details (use includeHeaders=true). Checklist items use GUID keys: {\"checklist\": {\"<guid>\": {\"title\": \"...\", \"isChecked\": false}}}."
   },
   {
+    "pathPattern": "/planner/plans/{plannerPlan-id}/buckets",
+    "method": "get",
+    "toolName": "list-plan-buckets",
+    "scopes": ["Tasks.Read"]
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "get",
+    "toolName": "get-planner-bucket",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Response includes @odata.etag — required as If-Match for update-planner-bucket and delete-planner-bucket. Use includeHeaders=true."
+  },
+  {
+    "pathPattern": "/planner/buckets",
+    "method": "post",
+    "toolName": "create-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"]
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "patch",
+    "toolName": "update-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "delete",
+    "toolName": "delete-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
+  },
+  {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
@@ -900,6 +957,20 @@
     "toolName": "get-group",
     "workScopes": ["Group.Read.All"],
     "llmTip": "Gets a specific group's details: displayName, description, mail, visibility, groupTypes, membershipRule, createdDateTime. Use $select to limit returned properties."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/calendarView",
+    "method": "get",
+    "toolName": "get-group-calendar-view",
+    "workScopes": ["Group.Read.All"],
+    "supportsTimezone": true
+  },
+  {
+    "pathPattern": "/groups/{group-id}/events",
+    "method": "get",
+    "toolName": "list-group-events",
+    "workScopes": ["Group.Read.All"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/groups/{group-id}/members",
