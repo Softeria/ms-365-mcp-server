@@ -14,6 +14,46 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
     }
   }
 
+  // Synthesize operations that the Graph REST API supports but are missing from
+  // Microsoft's published OpenAPI metadata (e.g. PATCH on range(address='{address}')
+  // for cell-value writes — documented in Excel API but not in the OpenAPI spec).
+  for (const endpoint of endpoints) {
+    const pathSpec = openApiSpec.paths[endpoint.pathPattern];
+    const methodLower = endpoint.method.toLowerCase();
+    if (pathSpec && !pathSpec[methodLower]) {
+      pathSpec[methodLower] = {
+        tags: ['drives.driveItem'],
+        summary: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
+        description: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
+        operationId: endpoint.toolName,
+        requestBody:
+          methodLower === 'get' || methodLower === 'delete'
+            ? undefined
+            : {
+                description: 'Operation payload',
+                required: true,
+                content: {
+                  'application/json': {
+                    schema: { type: 'object', additionalProperties: true },
+                  },
+                },
+              },
+        responses: {
+          '2XX': {
+            description: 'Success',
+            content: {
+              'application/json': {
+                schema: { type: 'object', additionalProperties: true },
+              },
+            },
+          },
+          '4XX': { $ref: '#/components/responses/error' },
+          '5XX': { $ref: '#/components/responses/error' },
+        },
+      };
+    }
+  }
+
   for (const [key, value] of Object.entries(openApiSpec.paths)) {
     const e = endpoints.filter((ep) => ep.pathPattern === key);
     if (e.length === 0) {
