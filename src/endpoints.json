@@ -535,11 +535,13 @@
     "scopes": ["Files.ReadWrite"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format",
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format",
     "method": "patch",
     "toolName": "format-excel-range",
     "isExcelOp": true,
-    "scopes": ["Files.ReadWrite"]
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Apply font/fill/borders/alignment/wrapText/columnWidth/rowHeight to a specific range. Required path param 'address' (e.g. 'A1:E5' or 'Sheet1!A1:E5'). Body: { font: {bold,color,size,italic,name,underline}, fill: {color}, borders: [{sideIndex,style,color,weight}], horizontalAlignment, verticalAlignment, wrapText, columnWidth, rowHeight }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
@@ -555,6 +557,14 @@
     "isExcelOp": true,
     "scopes": ["Files.Read"],
     "skipEncoding": ["address"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/$value",
+    "method": "get",
+    "toolName": "get-mail-message-mime",
+    "scopes": ["Mail.Read"],
+    "acceptType": "text/plain",
+    "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
@@ -582,6 +592,41 @@
     "scopes": ["Files.ReadWrite"],
     "skipEncoding": ["address"],
     "llmTip": "Delete cells at the given range, shifting remaining content. Body: { shift: 'Up' } or { shift: 'Left' }. Use 'Up' to delete entire rows."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/merge",
+    "method": "post",
+    "toolName": "merge-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Merge the cells in the given range into a single cell. Body: { across: false } merges the entire range into one cell; { across: true } merges each row separately. Useful for building styled headers, banner rows, and report layouts."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/unmerge",
+    "method": "post",
+    "toolName": "unmerge-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Unmerge any merged cells within the given range back into individual cells. No request body. Inverse of merge-excel-range."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/clear",
+    "method": "post",
+    "toolName": "clear-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Clear cell contents and/or formatting on the given range. Body: { applyTo: 'All' | 'Formats' | 'Contents' }. 'Contents' wipes values but keeps formatting; 'Formats' resets styling but keeps values; 'All' wipes both. Use this to reset a worksheet section before a fresh write rather than overwriting cell-by-cell."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/usedRange()",
+    "method": "get",
+    "toolName": "get-excel-used-range",
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "llmTip": "Get the smallest range that encompasses any cells with values or formatting on the worksheet. Returns address, values, formulas, numberFormat, rowCount, columnCount. Use this to discover the populated bounds of a sheet before reading or appending — avoids guessing how far data extends. Optional $select to trim the response."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
