@@ -1,5 +1,12 @@
 [
   {
+    "pathPattern": "/$batch",
+    "method": "post",
+    "toolName": "graph-batch",
+    "scopes": [],
+    "llmTip": "Combine up to 20 Graph requests into a single HTTP call. Body: { requests: [{ id: '1', method: 'GET'|'POST'|'PATCH'|'DELETE', url: '/me/messages?$top=5', headers?: {...}, body?: {...}, dependsOn?: ['1'] }, ...] }. Returns { responses: [{ id, status, body, headers }] } in arbitrary order — match by id. Use cases: (1) parallelize many small reads (e.g. fetch 15 mail messages by id in one round-trip); (2) sequence dependent writes via dependsOn; (3) batch many Excel range writes into one call to dramatically reduce latency on large workbook builds. Note: each sub-request URL is relative to the Graph version root (/me/..., /drives/..., NOT https://graph.microsoft.com/v1.0/...)."
+  },
+  {
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
