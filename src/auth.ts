@@ -16,7 +16,14 @@ async function getKeytar() {
   }
   if (keytar === null) {
     try {
-      keytar = await import('keytar');
+      // Normalize ESM/CJS interop: under Node 24+ `await import('keytar')` returns a
+      // namespace object whose top-level `setPassword` is undefined (functions live on
+      // `.default`). On older Node and pure CJS, methods live on the namespace itself.
+      // Falling back to the namespace keeps backward compatibility. See issue #418.
+      const mod = (await import('keytar')) as typeof import('keytar') & {
+        default?: typeof import('keytar');
+      };
+      keytar = mod.default ?? mod;
       return keytar;
     } catch (error) {
       logger.info('keytar not available, using file-based credential storage');
