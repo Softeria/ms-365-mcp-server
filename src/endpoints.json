@@ -1618,5 +1618,47 @@
     "toolName": "create-chat",
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
     "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "get",
+    "toolName": "list-subscriptions",
+    "scopes": [],
+    "llmTip": "Lists webhook subscriptions owned by the current app/user. Returns id, resource, changeType, notificationUrl, expirationDateTime, clientState. Use $filter=resource eq '/me/messages' to find subscriptions for a specific resource. No dedicated 'Subscription.*' scope exists — the caller must already have a read permission for the subscribed resource (e.g. Mail.Read for /me/messages), which is supplied by the tool that reads that resource."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "post",
+    "toolName": "create-subscription",
+    "scopes": [],
+    "llmTip": "Creates a webhook subscription for change notifications. Required body: { changeType (comma-separated: 'created,updated,deleted'), notificationUrl (HTTPS, must validate with token echo), resource (e.g. '/me/mailFolders/inbox/messages', '/users/{id}/events', '/teams/{id}/channels/{id}/messages'), expirationDateTime (ISO 8601, max varies by resource type — 1 hour for calls, 24h for messages, 3 days for mail), clientState (opaque string returned in notifications, for validation) }. Optional: includeResourceData (true enables rich notifications, requires encryptionCertificate + encryptionCertificateId). No dedicated scope — caller must have a read permission for the target resource (e.g. Mail.Read, Calendars.Read, ChannelMessage.Read.All, Files.Read.All)."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "get",
+    "toolName": "get-subscription",
+    "scopes": [],
+    "llmTip": "Gets a specific webhook subscription by id. Use list-subscriptions to find the id. Returns full subscription details including resource, changeType, notificationUrl, expirationDateTime, applicationId."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "patch",
+    "toolName": "update-subscription",
+    "scopes": [],
+    "llmTip": "Renews a webhook subscription by extending its expiration. Body: { expirationDateTime (ISO 8601, new expiry) }. Call before the current expirationDateTime to avoid missing notifications. Max extension varies by resource type — check Microsoft Graph docs for subscription limits."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "delete",
+    "toolName": "delete-subscription",
+    "scopes": [],
+    "llmTip": "Deletes a webhook subscription. No further change notifications will be sent. Use this to clean up stale subscriptions or stop receiving notifications. Use list-subscriptions to find the id."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}/reauthorize",
+    "method": "post",
+    "toolName": "reauthorize-subscription",
+    "scopes": [],
+    "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
   }
 ]
