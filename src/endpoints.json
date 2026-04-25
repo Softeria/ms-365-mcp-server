@@ -1547,5 +1547,27 @@
     "toolName": "create-chat",
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
     "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
+    "method": "post",
+    "toolName": "copy-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Asynchronously copies a file or folder to a new location. Body: { name (optional new name), parentReference: { driveId, id }, childrenOnly (optional, folder-only: copy children only, keep existing folder), includeAllVersionHistory (optional) }. Returns 202 Accepted with a Location header pointing to a monitor URL (poll for status). For same-drive copies within OneDrive, omit parentReference.driveId. Use list-drives + get-drive-item to discover target IDs."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
+    "method": "post",
+    "toolName": "get-drive-item-preview",
+    "workScopes": ["Files.Read"],
+    "readOnly": true,
+    "llmTip": "Returns short-lived embeddable URLs (getUrl, postUrl, postParameters) to preview the file in a browser iframe. Body (optional): { viewer ('onedrive' or 'office'), chromeless (boolean, hide viewer chrome), allowEdit (boolean), page (number or string for specific page/slide), zoom (number) }. Default body is {} for auto-settings. URLs expire within minutes. Useful to render a file inline without downloading. Work/school accounts only — Graph's preview action is not supported for personal Microsoft accounts (SharePoint/OneDrive for Business only)."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/thumbnails",
+    "method": "get",
+    "toolName": "list-drive-item-thumbnails",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
   }
 ]
