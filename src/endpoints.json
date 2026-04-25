@@ -499,6 +499,27 @@
     "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
+    "method": "post",
+    "toolName": "create-drive-item-share-link",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
+    "method": "post",
+    "toolName": "copy-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
+    "method": "post",
+    "toolName": "create-drive-item-preview",
+    "scopes": ["Files.Read"],
+    "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
     "method": "get",
     "toolName": "list-drive-item-permissions",
