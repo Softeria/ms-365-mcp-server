@@ -287,7 +287,7 @@ async function executeGraphTool(
     }
 
     const bodyFormat = process.env.MS365_MCP_BODY_FORMAT || 'text';
-    if (bodyFormat !== 'html') {
+    if (bodyFormat !== 'html' && tool.method.toUpperCase() === 'GET') {
       preferValues.push(`outlook.body-content-type="${bodyFormat}"`);
     }
 
