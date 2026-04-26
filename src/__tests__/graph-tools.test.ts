@@ -525,4 +525,61 @@ describe('graph-tools', () => {
       expect(tool!.schema['timezone']).toBeUndefined();
     });
   });
+
+  // ---- 7. outlook.body-content-type Prefer header ----
+  describe('outlook.body-content-type Prefer header', () => {
+    it('should set Prefer: outlook.body-content-type="text" on GET requests', async () => {
+      const endpoint = makeEndpoint({ method: 'get' });
+      const config = makeConfig({ method: 'get' });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.headers['Prefer']).toContain('outlook.body-content-type="text"');
+    });
+
+    it('should NOT set Prefer: outlook.body-content-type on POST requests', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'create-reply-draft',
+        method: 'post',
+        path: '/me/messages/:messageId/createReply',
+        parameters: [
+          { name: 'messageId', type: 'Path', schema: z.string() },
+          { name: 'body', type: 'Body', schema: z.any() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'create-reply-draft',
+        method: 'post',
+        pathPattern: '/me/messages/{message-id}/createReply',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('create-reply-draft')!.handler({
+        messageId: 'AAMk123',
+        body: { Message: { body: { contentType: 'html', content: '<p>hi</p>' } } },
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const prefer = options.headers['Prefer'];
+      expect(prefer === undefined || !prefer.includes('outlook.body-content-type')).toBe(true);
+    });
+  });
 });
