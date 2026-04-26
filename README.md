@@ -622,6 +622,10 @@ After cloning the repository, you may need to generate the client code from the 
 npm run generate
 ```
 
+## Related Projects
+
+- [ms-365-admin-mcp-server](https://github.com/okapi-ca/ms-365-admin-mcp-server) by [@okapi-ca](https://github.com/okapi-ca): companion server for admin/daemon scenarios using application permissions (client credentials flow), covering security alerts, audit logs, service health, and usage reports.
+
 ## Support
 
 If you're having problems or need help:
