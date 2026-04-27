@@ -1715,5 +1715,26 @@
     "toolName": "reauthorize-subscription",
     "scopes": [],
     "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/extractSensitivityLabels",
+    "method": "post",
+    "toolName": "extract-drive-item-sensitivity-labels",
+    "workScopes": ["Files.Read.All"],
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
+    "method": "get",
+    "toolName": "list-sensitivity-labels",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Lists Microsoft Information Protection (MIP) sensitivity labels available to the signed-in user. Use to map label IDs (returned by extract-drive-item-sensitivity-labels) to human-readable names. Not supported for personal Microsoft accounts."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels/{sensitivityLabel-id}",
+    "method": "get",
+    "toolName": "get-sensitivity-label",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Gets a single MIP sensitivity label by id. Use list-sensitivity-labels to find ids. Not supported for personal Microsoft accounts."
   }
 ]
