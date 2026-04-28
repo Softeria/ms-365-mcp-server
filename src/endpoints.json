@@ -1381,6 +1381,48 @@
     "llmTip": "Deletes a list item permanently. This cannot be undone — the item is moved to the site recycle bin."
   },
   {
+    "pathPattern": "/sites/{site-id}/lists",
+    "method": "post",
+    "toolName": "create-sharepoint-list",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Creates a new SharePoint list in a site. Body: { displayName: 'My List', description: 'Optional', list: { template: 'genericList' }, columns: [ { name: 'Status', text: {} }, { name: 'Due', dateTime: {} } ] }. Templates include genericList, documentLibrary, tasks, calendar, contacts, links, announcements, survey. Columns can be defined inline at creation; otherwise add them later via create-sharepoint-list-column. Use search-sharepoint-sites or get-sharepoint-site-by-path to find the site ID first."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns",
+    "method": "get",
+    "toolName": "list-sharepoint-list-columns",
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Lists column definitions for a SharePoint list. Returns each column's id, name, displayName, description, type indicator (text, number, choice, dateTime, person, lookup, boolean, calculated, hyperlinkOrPicture, etc.), required, indexed, hidden, readOnly. Use this to discover the schema before creating or updating list items."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns",
+    "method": "post",
+    "toolName": "create-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Creates a new column on a SharePoint list. Body must include name and exactly one column type property: { name: 'Priority', text: {} } or { name: 'DueDate', dateTime: { format: 'dateOnly' } } or { name: 'Status', choice: { choices: ['Open','In Progress','Done'] } }. Other types: number, boolean, currency, hyperlinkOrPicture, personOrGroup, lookup, calculated. Optional: displayName, description, required, indexed, enforceUniqueValues."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-list-column",
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Gets a specific column definition by ID, including its full type configuration (choices for choice columns, format for dateTime, etc.). Use list-sharepoint-list-columns first to find the column ID."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "patch",
+    "toolName": "update-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Updates a column definition. Body: { displayName: 'New name', description: 'New description', required: true, ... }. The column type itself (text, choice, etc.) cannot be changed — only its metadata and per-type options (e.g. choices array for a choice column). Send only the fields you want to change."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "delete",
+    "toolName": "delete-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Deletes a column from a SharePoint list. This is irreversible — all data stored in this column across every list item is lost. Confirm with the user before calling. Cannot delete built-in columns (Title, Created, Modified, etc.)."
+  },
+  {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
