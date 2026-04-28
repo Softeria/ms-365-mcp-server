@@ -236,6 +236,34 @@
     "llmTip": "Deletes a message rule permanently. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules."
   },
   {
+    "pathPattern": "/me/inferenceClassification/overrides",
+    "method": "get",
+    "toolName": "list-focused-inbox-overrides",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Lists Focused Inbox classification overrides — explicit rules that force messages from a given sender (by SMTP address) into either the Focused or Other tab, regardless of what the Outlook ML classifier would predict. Each override has id, classifyAs ('focused' or 'other'), and senderEmailAddress {name, address}. Returns an empty collection if the user has never set an override."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides",
+    "method": "post",
+    "toolName": "create-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Creates a Focused Inbox override for a sender. Body: { classifyAs: 'focused', senderEmailAddress: { name: 'Display Name', address: 'sender@example.com' } }. classifyAs must be 'focused' or 'other'. If an override already exists for that SMTP address, POST updates the existing override's name and classifyAs (use this to rename a sender). Resolve the sender's address with list-users or by reading a recent mail header — do not invent SMTP addresses."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
+    "method": "patch",
+    "toolName": "update-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Updates the classifyAs field of an existing override. Body: { classifyAs: 'focused' } or { classifyAs: 'other' }. Per Graph API, PATCH cannot change senderEmailAddress — to change the SMTP address, delete and recreate the override. To rename the display name only, POST a new override with the same SMTP address (it will overwrite the name)."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
+    "method": "delete",
+    "toolName": "delete-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Deletes a Focused Inbox override. Future messages from that sender revert to the Outlook ML classifier's default behavior. Use list-focused-inbox-overrides to find the ID first."
+  },
+  {
     "pathPattern": "/me/events",
     "method": "get",
     "toolName": "list-calendar-events",
