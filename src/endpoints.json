@@ -190,13 +190,15 @@
     "pathPattern": "/me/messages/{message-id}/createReply",
     "method": "post",
     "toolName": "create-reply-draft",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
     "method": "post",
     "toolName": "create-reply-all-draft",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
@@ -499,6 +501,27 @@
     "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
+    "method": "post",
+    "toolName": "create-drive-item-share-link",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
+    "method": "post",
+    "toolName": "copy-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
+    "method": "post",
+    "toolName": "create-drive-item-preview",
+    "scopes": ["Files.Read"],
+    "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
     "method": "get",
     "toolName": "list-drive-item-permissions",
@@ -555,6 +578,59 @@
     "isExcelOp": true,
     "scopes": ["Files.Read"],
     "skipEncoding": ["address"]
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
+    "method": "patch",
+    "toolName": "update-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Set cell values, formulas, or number format on any range — does NOT require the worksheet to be a formal Excel table. Body: { values: [['v1','v2','v3']] } for a single row, or [['a','b'],['c','d']] for multi-row. Use this for append (target the next empty row's address, e.g. 'A172:H172'), update (target a single cell like 'H42'), or prepend-style edits (read existing, concatenate, write back). Number of inner-array values must match the column count of the address."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/insert",
+    "method": "post",
+    "toolName": "insert-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Insert blank cells at the given range, shifting existing content. Body: { shift: 'Down' } or { shift: 'Right' }. Use 'Down' to insert blank rows above existing data."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/delete",
+    "method": "post",
+    "toolName": "delete-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Delete cells at the given range, shifting remaining content. Body: { shift: 'Up' } or { shift: 'Left' }. Use 'Up' to delete entire rows."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
+    "method": "patch",
+    "toolName": "update-excel-table-row",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["index"],
+    "llmTip": "Update a single row in a formal Excel table by zero-based row index. Body: { values: [[...]] } with one inner array matching the column count."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
+    "method": "delete",
+    "toolName": "delete-excel-table-row",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["index"],
+    "llmTip": "Delete a single row from a formal Excel table by zero-based row index."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/tables/add",
+    "method": "post",
+    "toolName": "create-excel-table",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Convert a worksheet range into a formal Excel table. Body: { address: 'A1:H171', hasHeaders: true }. Required before using add-excel-table-rows / update-excel-table-row / delete-excel-table-row on a plain-cells sheet."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets",
@@ -639,6 +715,30 @@
     "method": "get",
     "toolName": "get-onenote-page-content",
     "scopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-notebooks",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sections",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-notebook-sections",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/sections/{onenoteSection-id}/pages",
+    "method": "get",
+    "toolName": "list-sharepoint-site-onenote-section-pages",
+    "workScopes": ["Notes.Read"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/pages/{onenotePage-id}/content",
+    "method": "get",
+    "toolName": "get-sharepoint-site-onenote-page-content",
+    "workScopes": ["Notes.Read"]
   },
   {
     "pathPattern": "/me/onenote/pages",
@@ -778,6 +878,39 @@
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-task-details (use includeHeaders=true). Checklist items use GUID keys: {\"checklist\": {\"<guid>\": {\"title\": \"...\", \"isChecked\": false}}}."
   },
   {
+    "pathPattern": "/planner/plans/{plannerPlan-id}/buckets",
+    "method": "get",
+    "toolName": "list-plan-buckets",
+    "scopes": ["Tasks.Read"]
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "get",
+    "toolName": "get-planner-bucket",
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Response includes @odata.etag — required as If-Match for update-planner-bucket and delete-planner-bucket. Use includeHeaders=true."
+  },
+  {
+    "pathPattern": "/planner/buckets",
+    "method": "post",
+    "toolName": "create-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"]
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "patch",
+    "toolName": "update-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
+  },
+  {
+    "pathPattern": "/planner/buckets/{plannerBucket-id}",
+    "method": "delete",
+    "toolName": "delete-planner-bucket",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
+  },
+  {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
@@ -900,6 +1033,20 @@
     "toolName": "get-group",
     "workScopes": ["Group.Read.All"],
     "llmTip": "Gets a specific group's details: displayName, description, mail, visibility, groupTypes, membershipRule, createdDateTime. Use $select to limit returned properties."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/calendarView",
+    "method": "get",
+    "toolName": "get-group-calendar-view",
+    "workScopes": ["Group.Read.All"],
+    "supportsTimezone": true
+  },
+  {
+    "pathPattern": "/groups/{group-id}/events",
+    "method": "get",
+    "toolName": "list-group-events",
+    "workScopes": ["Group.Read.All"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/groups/{group-id}/members",
@@ -1547,5 +1694,96 @@
     "toolName": "create-chat",
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
     "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "get",
+    "toolName": "list-subscriptions",
+    "scopes": [],
+    "llmTip": "Lists webhook subscriptions owned by the current app/user. Returns id, resource, changeType, notificationUrl, expirationDateTime, clientState. Use $filter=resource eq '/me/messages' to find subscriptions for a specific resource. No dedicated 'Subscription.*' scope exists — the caller must already have a read permission for the subscribed resource (e.g. Mail.Read for /me/messages), which is supplied by the tool that reads that resource."
+  },
+  {
+    "pathPattern": "/subscriptions",
+    "method": "post",
+    "toolName": "create-subscription",
+    "scopes": [],
+    "llmTip": "Creates a webhook subscription for change notifications. Required body: { changeType (comma-separated: 'created,updated,deleted'), notificationUrl (HTTPS, must validate with token echo), resource (e.g. '/me/mailFolders/inbox/messages', '/users/{id}/events', '/teams/{id}/channels/{id}/messages'), expirationDateTime (ISO 8601, max varies by resource type — 1 hour for calls, 24h for messages, 3 days for mail), clientState (opaque string returned in notifications, for validation) }. Optional: includeResourceData (true enables rich notifications, requires encryptionCertificate + encryptionCertificateId). No dedicated scope — caller must have a read permission for the target resource (e.g. Mail.Read, Calendars.Read, ChannelMessage.Read.All, Files.Read.All)."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "get",
+    "toolName": "get-subscription",
+    "scopes": [],
+    "llmTip": "Gets a specific webhook subscription by id. Use list-subscriptions to find the id. Returns full subscription details including resource, changeType, notificationUrl, expirationDateTime, applicationId."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "patch",
+    "toolName": "update-subscription",
+    "scopes": [],
+    "llmTip": "Renews a webhook subscription by extending its expiration. Body: { expirationDateTime (ISO 8601, new expiry) }. Call before the current expirationDateTime to avoid missing notifications. Max extension varies by resource type — check Microsoft Graph docs for subscription limits."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}",
+    "method": "delete",
+    "toolName": "delete-subscription",
+    "scopes": [],
+    "llmTip": "Deletes a webhook subscription. No further change notifications will be sent. Use this to clean up stale subscriptions or stop receiving notifications. Use list-subscriptions to find the id."
+  },
+  {
+    "pathPattern": "/subscriptions/{subscription-id}/reauthorize",
+    "method": "post",
+    "toolName": "reauthorize-subscription",
+    "scopes": [],
+    "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/extractSensitivityLabels",
+    "method": "post",
+    "toolName": "extract-drive-item-sensitivity-labels",
+    "workScopes": ["Files.Read.All"],
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
+    "method": "get",
+    "toolName": "list-sensitivity-labels",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Lists Microsoft Information Protection (MIP) sensitivity labels available to the signed-in user. Use to map label IDs (returned by extract-drive-item-sensitivity-labels) to human-readable names. Not supported for personal Microsoft accounts."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels/{sensitivityLabel-id}",
+    "method": "get",
+    "toolName": "get-sensitivity-label",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Gets a single MIP sensitivity label by id. Use list-sensitivity-labels to find ids. Not supported for personal Microsoft accounts."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/copy",
+    "method": "post",
+    "toolName": "copy-mail-message",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Copies a message to another mail folder. Body: { DestinationId: '<mailFolder-id or well-known name like inbox, archive, junkemail>' }. Returns the newly created message (with a new id) in the destination folder. For moving instead of copying, use move-mail-message."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messages/delta()",
+    "method": "get",
+    "toolName": "list-mail-folder-messages-delta",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Incremental sync of messages within a mail folder. Graph only supports delta scoped to a folder — use mailFolder-id = 'inbox' for the well-known inbox, or another folder id from list-mail-folders. First call returns all messages plus @odata.deltaLink; subsequent calls with that link return only changes (created/updated/deleted). @odata.nextLink paginates within a single delta window. Deltas expire after ~30 days of inactivity — start over if the server returns 410. Prefer this over full re-list for polling."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "get",
+    "toolName": "list-outlook-categories",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists the user's Outlook categories (colored labels) used to tag messages, events, contacts, and tasks. Each category has displayName and color (preset0 through preset24, or 'none'). Use this to show available tags before applying via update-mail-message or update-calendar-event with body { categories: ['Category Name'] }."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "post",
+    "toolName": "create-outlook-category",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
   }
 ]
