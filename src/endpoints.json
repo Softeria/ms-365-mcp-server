@@ -522,6 +522,13 @@
     "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
   },
   {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/thumbnails",
+    "method": "get",
+    "toolName": "list-drive-item-thumbnails",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
+  },
+  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
     "method": "get",
     "toolName": "list-drive-item-permissions",
