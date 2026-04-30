@@ -7,7 +7,7 @@ class OboClient {
   private cca: ConfidentialClientApplication;
   private graphScopes: string[];
 
-  constructor(secrets: AppSecrets, graphScopes: string[]) {
+  constructor(secrets: AppSecrets) {
     if (!secrets.clientSecret) {
       throw new Error(
         'On-Behalf-Of flow requires MS365_MCP_CLIENT_SECRET to be set (confidential client).'

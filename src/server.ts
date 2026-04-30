@@ -152,8 +152,7 @@ class MicrosoftGraphServer {
           '--obo requires MS365_MCP_CLIENT_SECRET to be set (confidential client required for On-Behalf-Of flow).'
         );
       }
-      const graphScopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
-      this.oboClient = new OboClient(this.secrets, graphScopes);
+      this.oboClient = new OboClient(this.secrets);
       logger.info('On-Behalf-Of (OBO) flow enabled');
     }
 
