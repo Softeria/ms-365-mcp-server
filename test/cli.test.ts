@@ -7,12 +7,24 @@ vi.mock('commander', () => {
     description: vi.fn().mockReturnThis(),
     version: vi.fn().mockReturnThis(),
     option: vi.fn().mockReturnThis(),
+    addOption: vi.fn().mockReturnThis(),
     parse: vi.fn(),
     opts: vi.fn().mockReturnValue({ file: 'test.xlsx' }),
   };
 
+  class MockOption {
+    constructor(
+      public flags: string,
+      public description: string
+    ) {}
+    hideHelp() {
+      return this;
+    }
+  }
+
   return {
     Command: vi.fn(() => mockCommand),
+    Option: MockOption,
   };
 });
 

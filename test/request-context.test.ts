@@ -8,25 +8,19 @@ describe('request-context', () => {
   it('should isolate tokens between concurrent async operations', async () => {
     const results: string[] = [];
 
-    const request1 = requestContext.run(
-      { accessToken: 'token-A', refreshToken: 'refresh-A' },
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        const tokens = getRequestTokens();
-        results.push(`req1: ${tokens?.accessToken}`);
-        return tokens?.accessToken;
-      }
-    );
+    const request1 = requestContext.run({ accessToken: 'token-A' }, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const tokens = getRequestTokens();
+      results.push(`req1: ${tokens?.accessToken}`);
+      return tokens?.accessToken;
+    });
 
-    const request2 = requestContext.run(
-      { accessToken: 'token-B', refreshToken: 'refresh-B' },
-      async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        const tokens = getRequestTokens();
-        results.push(`req2: ${tokens?.accessToken}`);
-        return tokens?.accessToken;
-      }
-    );
+    const request2 = requestContext.run({ accessToken: 'token-B' }, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const tokens = getRequestTokens();
+      results.push(`req2: ${tokens?.accessToken}`);
+      return tokens?.accessToken;
+    });
 
     const [result1, result2] = await Promise.all([request1, request2]);
 

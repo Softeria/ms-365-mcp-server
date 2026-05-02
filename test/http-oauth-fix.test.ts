@@ -108,9 +108,8 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     expect(capturedHandler).toBeDefined();
 
     // Simulate HTTP/OAuth mode: token comes from request context (middleware)
-    const result = await requestContext.run(
-      { accessToken: 'OAUTH_HTTP_TOKEN', refreshToken: 'REFRESH_TOKEN' },
-      () => capturedHandler!({})
+    const result = await requestContext.run({ accessToken: 'OAUTH_HTTP_TOKEN' }, () =>
+      capturedHandler!({})
     );
 
     // Should NOT have called getTokenForAccount (the MSAL path)

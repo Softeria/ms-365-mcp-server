@@ -23,8 +23,11 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
 }
 
 const DISCOVERY_MODE_INSTRUCTIONS_ADDON =
-  'DISCOVERY MODE ADD-ON: Graph is reached via search-tools then execute-tool (plus auth helpers). ' +
-  'Call search-tools with short keywords, then execute-tool with tool_name exactly as returned; put Graph parameters in the parameters object. ' +
+  'DISCOVERY MODE ADD-ON: Graph is reached via search-tools → get-tool-schema → execute-tool (plus auth helpers). ' +
+  'Workflow: (1) call search-tools with short natural-language keywords (BM25-ranked); ' +
+  '(2) call get-tool-schema(tool_name) to see the parameters, required fields, and enum values; ' +
+  '(3) call execute-tool with tool_name exactly as returned and parameters shaped per the schema. ' +
+  'Skipping get-tool-schema is the leading cause of Graph 400 errors here. ' +
   'If search-tools returns no matches, retry with shorter or different keywords.';
 
 /**
