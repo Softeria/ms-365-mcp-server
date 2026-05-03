@@ -7,7 +7,7 @@
 #   1. Verifies Node.js 20+ is available (installs via Homebrew on macOS if missing).
 #   2. Clones the Enabi fork at the latest release tag.
 #   3. Builds the MCP.
-#   4. Asks for Azure app credentials (or reads them from the EM365_* env vars).
+#   4. Writes the Enabi Azure app IDs to .env (override via MS365_MCP_CLIENT_ID / MS365_MCP_TENANT_ID).
 #   5. Runs the interactive Microsoft sign-in.
 #   6. Adds the MCP entry to Claude Desktop config (if installed).
 #
@@ -74,24 +74,16 @@ npm run build --silent
 green "✓ Built successfully"
 
 # 4. Credentials
+# IDs for the "Enabi M365 MCP" public-client app registration in the Enabi tenant.
+# Not secrets — public client flow, no client_secret. Override via env vars if needed.
+DEFAULT_CLIENT_ID="4c1083a7-f488-4962-a6b5-70cfbe9f2fbd"
+DEFAULT_TENANT_ID="2802a443-2b7f-4c07-afaa-7aa9e6074d9f"
 ENV_FILE="$INSTALL_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
-  if [ -n "${MS365_MCP_CLIENT_ID:-}" ] && [ -n "${MS365_MCP_TENANT_ID:-}" ]; then
-    cat > "$ENV_FILE" <<EOF
-MS365_MCP_CLIENT_ID=$MS365_MCP_CLIENT_ID
-MS365_MCP_TENANT_ID=$MS365_MCP_TENANT_ID
+  cat > "$ENV_FILE" <<EOF
+MS365_MCP_CLIENT_ID=${MS365_MCP_CLIENT_ID:-$DEFAULT_CLIENT_ID}
+MS365_MCP_TENANT_ID=${MS365_MCP_TENANT_ID:-$DEFAULT_TENANT_ID}
 EOF
-  else
-    echo
-    bold "Azure app credentials"
-    echo "Daniel keeps these in 1Password under 'Enabi M365 MCP — App Registration'."
-    CLIENT_ID=$(ask "Client ID:")
-    TENANT_ID=$(ask "Tenant ID:")
-    cat > "$ENV_FILE" <<EOF
-MS365_MCP_CLIENT_ID=$CLIENT_ID
-MS365_MCP_TENANT_ID=$TENANT_ID
-EOF
-  fi
   chmod 600 "$ENV_FILE"
 fi
 

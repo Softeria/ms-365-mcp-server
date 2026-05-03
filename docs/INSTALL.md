@@ -63,11 +63,13 @@ npm run build
 Create a `.env` file in the repo root:
 
 ```env
-MS365_MCP_CLIENT_ID=<ask Daniel for the Enabi Azure app client ID>
-MS365_MCP_TENANT_ID=<ask Daniel for the Enabi tenant ID>
+MS365_MCP_CLIENT_ID=4c1083a7-f488-4962-a6b5-70cfbe9f2fbd
+MS365_MCP_TENANT_ID=2802a443-2b7f-4c07-afaa-7aa9e6074d9f
 ```
 
-Daniel keeps these in 1Password under "Enabi M365 MCP — App Registration".
+These identify the **Enabi M365 MCP** public-client app registration in the Enabi Azure tenant. They are not secrets (no client secret involved — this is a public client flow, every employee's actual access is their own OAuth consent). They are checked into this private repo and hardcoded as defaults in `scripts/install.sh` for convenience.
+
+If you ever need to verify them yourself, sign in to https://entra.microsoft.com/ as an Enabi user and look up **App registrations → "Enabi M365 MCP" → Overview**. The values on that page must match the two above.
 
 ### 3. Sign in
 

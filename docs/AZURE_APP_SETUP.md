@@ -27,12 +27,16 @@ You want **App registrations**, NOT **Enterprise applications**. Two different s
    - **Redirect URI:** select **Public client/native (mobile & desktop)** and enter `http://localhost`. (MSAL's interactive browser auth uses a localhost loopback on an ephemeral port; this entry is what makes that work.)
 4. Click **Register**.
 
-You land on the app's overview page. Two things to copy from this page into 1Password right now:
+You land on the app's overview page. Two things to copy from this page:
 
-- **Application (client) ID** → save as `MS365_MCP_CLIENT_ID`
-- **Directory (tenant) ID** → save as `MS365_MCP_TENANT_ID`
+- **Application (client) ID** → `MS365_MCP_CLIENT_ID`
+- **Directory (tenant) ID** → `MS365_MCP_TENANT_ID`
 
-Save them in 1Password under a new entry called **"Enabi M365 MCP — App Registration"**. Anyone installing the MCP needs these two values; neither is a secret, but they are awkward to type so 1Password is the easiest distribution.
+Neither is a secret (this is a public client app — no client_secret). Anyone with Enabi tenant access can look them up here at any time, since they are tied to the app's display name "Enabi M365 MCP".
+
+**How they are distributed:** committed as defaults in `scripts/install.sh` and as the canonical values in `docs/INSTALL.md`. The repo is private to the Enabi GitHub org, so reading the file requires org membership. If the IDs ever change (e.g. the app is re-created), update both places in one PR.
+
+**Where to also note them locally:** keep a copy somewhere you can find without cloning the repo (your own notes, a pinned message). Today there is no shared password manager at Enabi.
 
 ## Step 3: Set the app to be a public client
 
@@ -78,8 +82,8 @@ If you skip this, every employee gets a separate consent prompt with multiple "a
 
 1. Back to the **Overview** page of the app.
 2. Confirm:
-   - **Application (client) ID** matches what you saved in 1Password.
-   - **Directory (tenant) ID** matches.
+   - **Application (client) ID** matches the value committed in `scripts/install.sh` and `docs/INSTALL.md`.
+   - **Directory (tenant) ID** matches the value committed in `scripts/install.sh` and `docs/INSTALL.md`.
    - **Supported account types:** "My organization only".
 
 Optional sanity check: under **Authentication → Platform configurations**, you should see "Mobile and desktop applications" listed with `http://localhost` as a redirect URI.
@@ -88,7 +92,7 @@ Optional sanity check: under **Authentication → Platform configurations**, you
 
 Post in `#engineering` (or wherever):
 
-> Enabi M365 MCP is ready to install. Run the install script from https://github.com/enabisolutions/mcp-ms365 and use the credentials in 1Password under "Enabi M365 MCP — App Registration". After install ask Claude "what is on my calendar today?" to verify.
+> Enabi M365 MCP is ready to install. Run the install script from https://github.com/enabisolutions/mcp-ms365 — it ships with the Azure app IDs baked in, you just need GitHub org access to clone. After install ask Claude "what is on my calendar today?" to verify.
 
 ## Things that can go wrong
 

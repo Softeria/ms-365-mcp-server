@@ -61,13 +61,13 @@ Or if you cloned it locally, run `--logout` from that checkout. If you cannot re
 
 ## Step 4: Install the Enabi fork
 
-Pull the credentials from 1Password ("Enabi M365 MCP — App Registration") and run:
+Run:
 
 ```bash
-export MS365_MCP_CLIENT_ID=<from 1Password>
-export MS365_MCP_TENANT_ID=<from 1Password>
 curl -fsSL https://raw.githubusercontent.com/enabisolutions/mcp-ms365/main/scripts/install.sh | bash
 ```
+
+The installer ships with the Enabi Azure app IDs baked in. If you ever need to override them (e.g. testing against a different tenant), set `MS365_MCP_CLIENT_ID` and `MS365_MCP_TENANT_ID` in your shell before running.
 
 The installer will:
 1. Clone to `~/.local/share/enabi-m365-mcp/`
