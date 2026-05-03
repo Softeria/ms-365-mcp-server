@@ -31,6 +31,8 @@ For developers working on this repo: see the developer notes at the bottom of `I
 | File | Read it when |
 |------|--------------|
 | [`docs/INSTALL.md`](docs/INSTALL.md) | You want to use the MCP in Claude Desktop or Claude Code. |
+| [`docs/MIGRATION.md`](docs/MIGRATION.md) | You already have the Softeria MCP installed and want to switch. |
+| [`docs/AZURE_APP_SETUP.md`](docs/AZURE_APP_SETUP.md) | One-time Azure AD app registration setup (Daniel does this once). |
 | [`docs/USAGE.md`](docs/USAGE.md) | You want recipes for the most common things people ask Claude to do. |
 | [`docs/SCOPES.md`](docs/SCOPES.md) | You want to know what permissions are requested and why. |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | You want the threat model and how to report issues. |

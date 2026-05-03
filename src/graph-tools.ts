@@ -11,6 +11,7 @@ import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
 import { ALLOWED_TOOLS } from './enabi-allowlist.js';
+import { audit } from './audit-log.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -124,6 +125,8 @@ async function executeGraphTool(
   params: Record<string, unknown>,
   authManager?: AuthManager
 ): Promise<CallToolResult> {
+  const auditStart = Date.now();
+  const auditAccount = (params.account as string | undefined) ?? undefined;
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
@@ -470,6 +473,14 @@ async function executeGraphTool(
       text: item.text,
     }));
 
+    audit({
+      tool: tool.alias,
+      args: params,
+      success: !response.isError,
+      durationMs: Date.now() - auditStart,
+      account: auditAccount,
+    });
+
     return {
       content,
       _meta: response._meta,
@@ -477,6 +488,14 @@ async function executeGraphTool(
     };
   } catch (error) {
     logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    audit({
+      tool: tool.alias,
+      args: params,
+      success: false,
+      durationMs: Date.now() - auditStart,
+      account: auditAccount,
+      error: (error as Error).message,
+    });
     return {
       content: [
         {
