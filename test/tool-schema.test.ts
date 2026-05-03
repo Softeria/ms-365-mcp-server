@@ -31,8 +31,12 @@ describe('describeToolSchema', () => {
     for (const p of s.parameters) {
       expect(p.schema).toBeDefined();
       expect(typeof p.schema).toBe('object');
-      // zod-to-json-schema always produces a typed node at the root for our schemas
-      expect(p.schema).toHaveProperty('type');
+      // Enabi fork: body schemas are intentionally z.any() (delegated to
+      // Microsoft Graph for validation), which produces a permissive JSON
+      // Schema without a `type`. Path/query params still carry types.
+      if (p.in === 'Path' || p.in === 'Query') {
+        expect(p.schema).toHaveProperty('type');
+      }
     }
   });
 

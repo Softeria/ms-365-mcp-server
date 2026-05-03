@@ -83,8 +83,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 1 GET endpoint + 1 parse-teams-url utility tool
-    expect(mockServer.tool).toHaveBeenCalledTimes(2);
+    // 1 GET endpoint (parse-teams-url removed — Teams out of scope)
+    expect(mockServer.tool).toHaveBeenCalledTimes(1);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -100,7 +100,7 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + 1 parse-teams-url utility tool
+    // All 5 mocked endpoints register (parse-teams-url removed — Teams out of scope)
     expect(mockServer.tool).toHaveBeenCalledTimes(5);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
@@ -110,7 +110,12 @@ describe('Read-Only Mode', () => {
     expect(toolCalls).toContain('update-mail-folder');
   });
 
-  it('should allow POST endpoints with readOnly: true in endpoints.json in read-only mode', () => {
+  // Enabi fork: get-schedule (and other read-only POST endpoints) were removed
+  // from src/endpoints.json — there are no read-only POST endpoints left in
+  // Enabi's mail/calendar/contacts scope. The registration logic that handles
+  // them still exists in graph-tools.ts, but it is unreachable from this
+  // codebase. Re-enable this test if a read-only POST is ever re-added.
+  it.skip('should allow POST endpoints with readOnly: true in endpoints.json in read-only mode', () => {
     // get-schedule is a POST endpoint with "readOnly": true in endpoints.json,
     // but it only has workScopes so orgMode must be enabled for it to be considered.
     const readOnly = true;
@@ -132,8 +137,8 @@ describe('Read-Only Mode', () => {
     // PATCH endpoint should still be skipped (readOnly bypass is POST-only)
     expect(toolCalls).not.toContain('update-mail-folder');
 
-    // 2 graph tools (list-mail-messages + get-schedule) + 1 parse-teams-url
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    // 2 graph tools (list-mail-messages + get-schedule)
+    expect(mockServer.tool).toHaveBeenCalledTimes(2);
   });
 
   it('should block PATCH and DELETE endpoints in read-only mode regardless of readOnly flag', () => {

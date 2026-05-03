@@ -111,6 +111,20 @@ export const ALLOWED_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Test-only escape hatch.
+ *
+ * Several unit tests register synthetic tool aliases (e.g. "test-tool",
+ * "list-excel-worksheets" used as a stand-in) to exercise registration logic
+ * without depending on the real endpoints.json. Production code must NEVER
+ * set this — it is gated behind an env var that we never set in production
+ * builds, and is only flipped on inside vitest setup.
+ */
+export function isAllowed(toolName: string): boolean {
+  if (process.env.ENABI_ALLOWLIST_BYPASS === '1') return true;
+  return ALLOWED_TOOLS.has(toolName);
+}
+
+/**
  * The minimum scope set Enabi will request at OAuth login.
  * This is asserted at startup against scopes derived from endpoints.json.
  * Mismatch = startup failure.

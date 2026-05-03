@@ -37,21 +37,11 @@ const cases: Case[] = [
   { query: 'list calendars', expect: 'list-calendars', inTop: 3 },
   { query: 'list calendar events', expect: 'list-calendar-events', inTop: 5 },
   { query: 'accept event', expect: 'accept-calendar-event', inTop: 5 },
-  // Teams
-  { query: 'list chats', expect: 'list-chats', inTop: 5 },
-  { query: 'chat messages', expect: 'list-chat-messages', inTop: 5 },
-  { query: 'send chat message', expect: 'send-chat-message', inTop: 5 },
-  // Excel
-  { query: 'list excel worksheets', expect: 'list-excel-worksheets', inTop: 3 },
-  { query: 'excel range', expect: 'get-excel-range', inTop: 10 },
-  // Files
+  // Enabi fork: Teams / Excel / OneDrive / Users / file-content endpoints are
+  // out of scope and were removed from the registry. Cases referencing them
+  // were dropped here. Re-add if those scopes ever return.
+  // Files (mail folders only)
   { query: 'list folders', expect: 'list-mail-folders', inTop: 10 },
-  { query: 'onedrive folder', expect: 'create-onedrive-folder', inTop: 10 },
-  { query: 'download file', expect: 'download-onedrive-file-content', inTop: 5 },
-  { query: 'upload file', expect: 'upload-file-content', inTop: 5 },
-  // Users
-  { query: 'search users', expect: 'list-users', inTop: 10 },
-  { query: 'user manager', expect: 'get-user-manager', inTop: 10 },
   // Contacts
   { query: 'list contacts', expect: 'list-outlook-contacts', inTop: 5 },
   { query: 'create contact', expect: 'create-outlook-contact', inTop: 5 },

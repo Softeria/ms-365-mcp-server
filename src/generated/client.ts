@@ -12,7 +12,18 @@ export const endpoints = makeApi([
     alias: "accept-calendar-event",
     description: "POST /me/events/{event-id}/accept",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -21,7 +32,18 @@ export const endpoints = makeApi([
     alias: "add-mail-attachment",
     description: "POST /me/messages/{message-id}/attachments",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -30,7 +52,18 @@ export const endpoints = makeApi([
     alias: "cancel-calendar-event",
     description: "POST /me/events/{event-id}/cancel",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -39,7 +72,18 @@ export const endpoints = makeApi([
     alias: "copy-mail-message",
     description: "POST /me/messages/{message-id}/copy",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -48,7 +92,13 @@ export const endpoints = makeApi([
     alias: "create-calendar",
     description: "POST /me/calendars",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -57,7 +107,13 @@ export const endpoints = makeApi([
     alias: "create-calendar-event",
     description: "POST /me/events",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -66,7 +122,13 @@ export const endpoints = makeApi([
     alias: "create-draft-email",
     description: "POST /me/messages",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -75,7 +137,13 @@ export const endpoints = makeApi([
     alias: "create-focused-inbox-override",
     description: "POST /me/inferenceClassification/overrides",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -84,7 +152,18 @@ export const endpoints = makeApi([
     alias: "create-forward-draft",
     description: "POST /me/messages/{message-id}/createForward",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -93,7 +172,18 @@ export const endpoints = makeApi([
     alias: "create-mail-attachment-upload-session",
     description: "POST /me/messages/{message-id}/attachments/createUploadSession",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -102,7 +192,18 @@ export const endpoints = makeApi([
     alias: "create-mail-child-folder",
     description: "POST /me/mailFolders/{mailFolder-id}/childFolders",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -111,7 +212,13 @@ export const endpoints = makeApi([
     alias: "create-mail-folder",
     description: "POST /me/mailFolders",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -120,7 +227,18 @@ export const endpoints = makeApi([
     alias: "create-mail-rule",
     description: "POST /me/mailFolders/{mailFolder-id}/messageRules",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -129,7 +247,13 @@ export const endpoints = makeApi([
     alias: "create-outlook-category",
     description: "POST /me/outlook/masterCategories",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -138,7 +262,13 @@ export const endpoints = makeApi([
     alias: "create-outlook-contact",
     description: "POST /me/contacts",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -147,7 +277,18 @@ export const endpoints = makeApi([
     alias: "create-reply-all-draft",
     description: "POST /me/messages/{message-id}/createReplyAll",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -156,7 +297,18 @@ export const endpoints = makeApi([
     alias: "create-reply-draft",
     description: "POST /me/messages/{message-id}/createReply",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -165,7 +317,18 @@ export const endpoints = makeApi([
     alias: "create-specific-calendar-event",
     description: "POST /me/calendars/{calendar-id}/events",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -174,7 +337,18 @@ export const endpoints = makeApi([
     alias: "decline-calendar-event",
     description: "POST /me/events/{event-id}/decline",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -183,7 +357,18 @@ export const endpoints = makeApi([
     alias: "delete-calendar",
     description: "DELETE /me/calendars/{calendar-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -192,7 +377,18 @@ export const endpoints = makeApi([
     alias: "delete-calendar-event",
     description: "DELETE /me/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -201,7 +397,18 @@ export const endpoints = makeApi([
     alias: "delete-focused-inbox-override",
     description: "DELETE /me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "inferenceClassificationOverrideId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: inferenceClassificationOverride-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -210,7 +417,23 @@ export const endpoints = makeApi([
     alias: "delete-mail-attachment",
     description: "DELETE /me/messages/{message-id}/attachments/{attachment-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "attachmentId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: attachment-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -219,7 +442,18 @@ export const endpoints = makeApi([
     alias: "delete-mail-folder",
     description: "DELETE /me/mailFolders/{mailFolder-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -228,7 +462,18 @@ export const endpoints = makeApi([
     alias: "delete-mail-message",
     description: "DELETE /me/messages/{message-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -237,7 +482,23 @@ export const endpoints = makeApi([
     alias: "delete-mail-rule",
     description: "DELETE /me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "messageRuleId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: messageRule-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -246,7 +507,18 @@ export const endpoints = makeApi([
     alias: "delete-outlook-contact",
     description: "DELETE /me/contacts/{contact-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "contactId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: contact-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -255,7 +527,23 @@ export const endpoints = makeApi([
     alias: "delete-specific-calendar-event",
     description: "DELETE /me/calendars/{calendar-id}/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -264,7 +552,18 @@ export const endpoints = makeApi([
     alias: "dismiss-calendar-event-reminder",
     description: "POST /me/events/{event-id}/dismissReminder",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -273,7 +572,18 @@ export const endpoints = makeApi([
     alias: "forward-calendar-event",
     description: "POST /me/events/{event-id}/forward",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -282,7 +592,18 @@ export const endpoints = makeApi([
     alias: "forward-mail-message",
     description: "POST /me/messages/{message-id}/forward",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -291,7 +612,53 @@ export const endpoints = makeApi([
     alias: "get-calendar-event",
     description: "GET /me/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -300,7 +667,58 @@ export const endpoints = makeApi([
     alias: "get-calendar-view",
     description: "GET /me/calendarView",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "startDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the start of the window, e.g. 2026-05-03T00:00:00Z"),
+      },
+      {
+        name: "endDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the end of the window, e.g. 2026-05-04T00:00:00Z"),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -309,7 +727,48 @@ export const endpoints = makeApi([
     alias: "get-current-user",
     description: "GET /me",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -318,7 +777,58 @@ export const endpoints = makeApi([
     alias: "get-mail-attachment",
     description: "GET /me/messages/{message-id}/attachments/{attachment-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "attachmentId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: attachment-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -327,7 +837,53 @@ export const endpoints = makeApi([
     alias: "get-mail-message",
     description: "GET /me/messages/{message-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -336,7 +892,48 @@ export const endpoints = makeApi([
     alias: "get-mailbox-settings",
     description: "GET /me/mailboxSettings",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -345,7 +942,53 @@ export const endpoints = makeApi([
     alias: "get-outlook-contact",
     description: "GET /me/contacts/{contact-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "contactId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: contact-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -354,7 +997,58 @@ export const endpoints = makeApi([
     alias: "get-shared-mailbox-message",
     description: "GET /users/{user-id}/messages/{message-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -363,7 +1057,58 @@ export const endpoints = makeApi([
     alias: "get-specific-calendar-event",
     description: "GET /me/calendars/{calendar-id}/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -372,7 +1117,63 @@ export const endpoints = makeApi([
     alias: "get-specific-calendar-view",
     description: "GET /me/calendars/{calendar-id}/calendarView",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "startDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the start of the window, e.g. 2026-05-03T00:00:00Z"),
+      },
+      {
+        name: "endDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the end of the window, e.g. 2026-05-04T00:00:00Z"),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -381,7 +1182,58 @@ export const endpoints = makeApi([
     alias: "list-calendar-event-instances",
     description: "GET /me/calendars/{calendar-id}/events/{event-id}/instances",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -390,7 +1242,48 @@ export const endpoints = makeApi([
     alias: "list-calendar-events",
     description: "GET /me/events",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -399,7 +1292,48 @@ export const endpoints = makeApi([
     alias: "list-calendar-events-delta",
     description: "GET /me/events/delta()",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -408,7 +1342,58 @@ export const endpoints = makeApi([
     alias: "list-calendar-view-delta",
     description: "GET /me/calendarView/delta()",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "startDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the start of the window, e.g. 2026-05-03T00:00:00Z"),
+      },
+      {
+        name: "endDateTime",
+        type: "Query",
+        schema: z.string().describe("ISO 8601 timestamp for the end of the window, e.g. 2026-05-04T00:00:00Z"),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -417,7 +1402,48 @@ export const endpoints = makeApi([
     alias: "list-calendars",
     description: "GET /me/calendars",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -426,7 +1452,48 @@ export const endpoints = makeApi([
     alias: "list-focused-inbox-overrides",
     description: "GET /me/inferenceClassification/overrides",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -435,7 +1502,53 @@ export const endpoints = makeApi([
     alias: "list-mail-attachments",
     description: "GET /me/messages/{message-id}/attachments",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -444,7 +1557,53 @@ export const endpoints = makeApi([
     alias: "list-mail-child-folders",
     description: "GET /me/mailFolders/{mailFolder-id}/childFolders",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -453,7 +1612,53 @@ export const endpoints = makeApi([
     alias: "list-mail-folder-messages",
     description: "GET /me/mailFolders/{mailFolder-id}/messages",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -462,7 +1667,53 @@ export const endpoints = makeApi([
     alias: "list-mail-folder-messages-delta",
     description: "GET /me/mailFolders/{mailFolder-id}/messages/delta()",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -471,7 +1722,48 @@ export const endpoints = makeApi([
     alias: "list-mail-folders",
     description: "GET /me/mailFolders",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -480,7 +1772,48 @@ export const endpoints = makeApi([
     alias: "list-mail-messages",
     description: "GET /me/messages",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -489,7 +1822,53 @@ export const endpoints = makeApi([
     alias: "list-mail-rules",
     description: "GET /me/mailFolders/{mailFolder-id}/messageRules",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -498,7 +1877,48 @@ export const endpoints = makeApi([
     alias: "list-outlook-categories",
     description: "GET /me/outlook/masterCategories",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -507,7 +1927,48 @@ export const endpoints = makeApi([
     alias: "list-outlook-contacts",
     description: "GET /me/contacts",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -516,7 +1977,58 @@ export const endpoints = makeApi([
     alias: "list-shared-mailbox-folder-messages",
     description: "GET /users/{user-id}/mailFolders/{mailFolder-id}/messages",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -525,7 +2037,53 @@ export const endpoints = makeApi([
     alias: "list-shared-mailbox-messages",
     description: "GET /users/{user-id}/messages",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -534,7 +2092,53 @@ export const endpoints = makeApi([
     alias: "list-specific-calendar-events",
     description: "GET /me/calendars/{calendar-id}/events",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "filter",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "select",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "expand",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "orderby",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+      {
+        name: "top",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "skip",
+        type: "Query",
+        schema: z.number().optional(),
+      },
+      {
+        name: "count",
+        type: "Query",
+        schema: z.boolean().optional(),
+      },
+      {
+        name: "search",
+        type: "Query",
+        schema: z.string().optional(),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -543,7 +2147,18 @@ export const endpoints = makeApi([
     alias: "move-mail-message",
     description: "POST /me/messages/{message-id}/move",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -552,7 +2167,18 @@ export const endpoints = makeApi([
     alias: "reply-all-mail-message",
     description: "POST /me/messages/{message-id}/replyAll",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -561,7 +2187,18 @@ export const endpoints = makeApi([
     alias: "reply-mail-message",
     description: "POST /me/messages/{message-id}/reply",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -570,7 +2207,18 @@ export const endpoints = makeApi([
     alias: "send-draft-message",
     description: "POST /me/messages/{message-id}/send",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -579,7 +2227,13 @@ export const endpoints = makeApi([
     alias: "send-mail",
     description: "POST /me/sendMail",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -588,7 +2242,18 @@ export const endpoints = makeApi([
     alias: "snooze-calendar-event-reminder",
     description: "POST /me/events/{event-id}/snoozeReminder",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -597,7 +2262,18 @@ export const endpoints = makeApi([
     alias: "tentatively-accept-calendar-event",
     description: "POST /me/events/{event-id}/tentativelyAccept",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -606,7 +2282,18 @@ export const endpoints = makeApi([
     alias: "update-calendar",
     description: "PATCH /me/calendars/{calendar-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -615,7 +2302,18 @@ export const endpoints = makeApi([
     alias: "update-calendar-event",
     description: "PATCH /me/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -624,7 +2322,18 @@ export const endpoints = makeApi([
     alias: "update-focused-inbox-override",
     description: "PATCH /me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "inferenceClassificationOverrideId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: inferenceClassificationOverride-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -633,7 +2342,18 @@ export const endpoints = makeApi([
     alias: "update-mail-folder",
     description: "PATCH /me/mailFolders/{mailFolder-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -642,7 +2362,18 @@ export const endpoints = makeApi([
     alias: "update-mail-message",
     description: "PATCH /me/messages/{message-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -651,7 +2382,23 @@ export const endpoints = makeApi([
     alias: "update-mail-rule",
     description: "PATCH /me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "mailFolderId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: mailFolder-id"),
+      },
+      {
+        name: "messageRuleId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: messageRule-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -660,7 +2407,13 @@ export const endpoints = makeApi([
     alias: "update-mailbox-settings",
     description: "PATCH /me/mailboxSettings",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -669,7 +2422,18 @@ export const endpoints = makeApi([
     alias: "update-outlook-contact",
     description: "PATCH /me/contacts/{contact-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "contactId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: contact-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
   {
@@ -678,7 +2442,23 @@ export const endpoints = makeApi([
     alias: "update-specific-calendar-event",
     description: "PATCH /me/calendars/{calendar-id}/events/{event-id}",
     requestFormat: "json",
-    parameters: [],
+    parameters: [
+      {
+        name: "calendarId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: calendar-id"),
+      },
+      {
+        name: "eventId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: event-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
     response: z.any(),
   },
 ]);

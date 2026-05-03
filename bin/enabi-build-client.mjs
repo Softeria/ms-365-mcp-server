@@ -11,9 +11,17 @@
  * Running the upstream generator in this fork would silently undo every
  * scope-reduction decision — never run it.
  *
- * Parameter schemas fall back to z.any() at runtime (registerGraphTools already
- * handles this). Microsoft Graph performs the real validation server-side, so
- * losing client-side schemas is acceptable for our restricted surface.
+ * Parameter strategy:
+ *   - Path params are extracted from the path pattern.
+ *   - GET endpoints get the standard OData query-param set (filter, select,
+ *     top, skip, orderby, count, search, expand) so the LLM can shape the
+ *     request without hitting "additionalProperties: false" rejection.
+ *   - Calendar-view-style endpoints additionally accept startDateTime and
+ *     endDateTime which Microsoft Graph requires for those routes.
+ *   - Non-GET endpoints (POST/PATCH/PUT/DELETE) get a passthrough `body`
+ *     parameter so the LLM can supply request bodies. The exact body shape
+ *     is intentionally `z.any()` — we do not duplicate Microsoft's schema.
+ *     The Graph API itself validates and returns a clear 400 on bad shapes.
  */
 
 import fs from 'node:fs';
@@ -27,30 +35,89 @@ const outputFile = path.join(rootDir, 'src', 'generated', 'client.ts');
 
 const endpoints = JSON.parse(fs.readFileSync(endpointsFile, 'utf8'));
 
-/**
- * Convert an endpoints.json entry into the runtime shape graph-tools.ts expects.
- * The generated `path` uses :paramName syntax (matching upstream's generated client).
- */
-function toApiEndpoint(ep) {
-  // endpoints.json uses {param-name} form; upstream client.ts uses :paramName camelCase.
-  // graph-tools.ts handles both, but emit :paramName for consistency.
-  const path = ep.pathPattern.replace(/\{([^}]+)\}/g, (_, name) => {
+const ODATA_QUERY_PARAMS = [
+  { name: 'filter', type: 'Query', schema: 'z.string().optional()' },
+  { name: 'select', type: 'Query', schema: 'z.string().optional()' },
+  { name: 'expand', type: 'Query', schema: 'z.string().optional()' },
+  { name: 'orderby', type: 'Query', schema: 'z.string().optional()' },
+  { name: 'top', type: 'Query', schema: 'z.number().optional()' },
+  { name: 'skip', type: 'Query', schema: 'z.number().optional()' },
+  { name: 'count', type: 'Query', schema: 'z.boolean().optional()' },
+  { name: 'search', type: 'Query', schema: 'z.string().optional()' },
+];
+
+// Endpoints that require a date-range window (StartDateTime/EndDateTime
+// query params). All from the calendar-view family.
+const CALENDAR_VIEW_PATTERNS = [/^\/me\/calendarView/, /\/calendarView/];
+
+function isCalendarViewPath(pathPattern) {
+  return CALENDAR_VIEW_PATTERNS.some((re) => re.test(pathPattern));
+}
+
+function extractPathParams(pathPattern) {
+  // endpoints.json uses {param-name} form. Extract them as Path params.
+  const matches = [...pathPattern.matchAll(/\{([^}]+)\}/g)];
+  return matches.map((m) => {
+    const original = m[1];
+    const camel = original.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    return {
+      name: camel,
+      type: 'Path',
+      schema: `z.string().describe(${JSON.stringify(`Path parameter: ${original}`)})`,
+    };
+  });
+}
+
+function buildParameters(ep) {
+  const params = [];
+
+  // Path params first
+  params.push(...extractPathParams(ep.pathPattern));
+
+  const method = ep.method.toUpperCase();
+
+  if (method === 'GET') {
+    // Add OData query params for all GET endpoints
+    params.push(...ODATA_QUERY_PARAMS);
+  }
+
+  // Calendar-view endpoints need date range; Microsoft Graph rejects without it.
+  if (isCalendarViewPath(ep.pathPattern)) {
+    params.push({
+      name: 'startDateTime',
+      type: 'Query',
+      schema:
+        'z.string().describe("ISO 8601 timestamp for the start of the window, e.g. 2026-05-03T00:00:00Z")',
+    });
+    params.push({
+      name: 'endDateTime',
+      type: 'Query',
+      schema:
+        'z.string().describe("ISO 8601 timestamp for the end of the window, e.g. 2026-05-04T00:00:00Z")',
+    });
+  }
+
+  // Non-GET endpoints get a passthrough body. Required for POST/PATCH/PUT
+  // (most Graph mutations); harmless on DELETE (will be ignored).
+  if (method !== 'GET') {
+    params.push({
+      name: 'body',
+      type: 'Body',
+      schema:
+        'z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint.")',
+    });
+  }
+
+  return params;
+}
+
+function buildPath(pathPattern) {
+  // endpoints.json uses {param-name}; upstream client.ts uses :paramName camelCase.
+  return pathPattern.replace(/\{([^}]+)\}/g, (_, name) => {
     const camel = name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     return `:${camel}`;
   });
-
-  return {
-    method: ep.method.toLowerCase(),
-    path,
-    alias: ep.toolName,
-    description: ep.description || `${ep.method.toUpperCase()} ${ep.pathPattern}`,
-    requestFormat: 'json',
-    parameters: [], // Schemas fall back to z.any() in registerGraphTools
-    response: 'z.any()',
-  };
 }
-
-const apiEndpoints = endpoints.map(toApiEndpoint);
 
 const lines = [
   '/* eslint-disable */',
@@ -63,14 +130,29 @@ const lines = [
   'export const endpoints = makeApi([',
 ];
 
-for (const ep of apiEndpoints) {
+for (const ep of endpoints) {
+  const params = buildParameters(ep);
   lines.push('  {');
-  lines.push(`    method: ${JSON.stringify(ep.method)},`);
-  lines.push(`    path: ${JSON.stringify(ep.path)},`);
-  lines.push(`    alias: ${JSON.stringify(ep.alias)},`);
-  lines.push(`    description: ${JSON.stringify(ep.description)},`);
-  lines.push(`    requestFormat: ${JSON.stringify(ep.requestFormat)},`);
-  lines.push('    parameters: [],');
+  lines.push(`    method: ${JSON.stringify(ep.method.toLowerCase())},`);
+  lines.push(`    path: ${JSON.stringify(buildPath(ep.pathPattern))},`);
+  lines.push(`    alias: ${JSON.stringify(ep.toolName)},`);
+  lines.push(
+    `    description: ${JSON.stringify(ep.description || `${ep.method.toUpperCase()} ${ep.pathPattern}`)},`
+  );
+  lines.push(`    requestFormat: ${JSON.stringify('json')},`);
+  if (params.length === 0) {
+    lines.push('    parameters: [],');
+  } else {
+    lines.push('    parameters: [');
+    for (const p of params) {
+      lines.push('      {');
+      lines.push(`        name: ${JSON.stringify(p.name)},`);
+      lines.push(`        type: ${JSON.stringify(p.type)},`);
+      lines.push(`        schema: ${p.schema},`);
+      lines.push('      },');
+    }
+    lines.push('    ],');
+  }
   lines.push('    response: z.any(),');
   lines.push('  },');
 }
@@ -82,4 +164,4 @@ lines.push('');
 
 fs.mkdirSync(path.dirname(outputFile), { recursive: true });
 fs.writeFileSync(outputFile, lines.join('\n'));
-console.log(`Wrote ${outputFile} with ${apiEndpoints.length} endpoints`);
+console.log(`Wrote ${outputFile} with ${endpoints.length} endpoints`);

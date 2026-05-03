@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
-import { ALLOWED_TOOLS } from './enabi-allowlist.js';
+import { isAllowed } from './enabi-allowlist.js';
 import { audit } from './audit-log.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
@@ -537,7 +537,7 @@ export function registerGraphTools(
   for (const tool of api.endpoints) {
     // Enabi allowlist: refuse to register any tool not on the explicit list.
     // This is a belt-and-suspenders defense against upstream-sync drift.
-    if (!ALLOWED_TOOLS.has(tool.alias)) {
+    if (!isAllowed(tool.alias)) {
       logger.error(
         `Enabi allowlist rejected tool "${tool.alias}" — not registered. ` +
           `If this should be exposed, add it to src/enabi-allowlist.ts and update CAPABILITY_BASELINE.json.`
@@ -759,7 +759,7 @@ export function buildToolsRegistry(
   >();
 
   for (const tool of api.endpoints) {
-    if (!ALLOWED_TOOLS.has(tool.alias)) continue;
+    if (!isAllowed(tool.alias)) continue;
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
