@@ -43,21 +43,15 @@ export const CLOUD_ENDPOINTS: Record<CloudType, CloudEndpoints> = {
 };
 
 /**
- * Default client IDs for each cloud environment.
- * These are pre-registered public client applications.
+ * Enabi fork: the upstream Softeria default client IDs are removed.
+ * Each Enabi deployment MUST set MS365_MCP_CLIENT_ID to its own Azure AD
+ * app registration. Calling this function indicates a misconfiguration.
  */
-export const DEFAULT_CLIENT_IDS: Record<CloudType, string> = {
-  global: '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
-  china: 'f3e61a6e-bc26-4281-8588-2c7359a02141',
-};
-
-/**
- * Gets the default client ID for the specified cloud type.
- * @param cloudType - The cloud environment type (default: 'global')
- * @returns The default client ID for the specified cloud
- */
-export function getDefaultClientId(cloudType: CloudType = 'global'): string {
-  return DEFAULT_CLIENT_IDS[cloudType];
+export function getDefaultClientId(_cloudType: CloudType = 'global'): string {
+  throw new Error(
+    'MS365_MCP_CLIENT_ID is not set. Enabi does not ship a fallback client ID — ' +
+      'set the environment variable to your Azure AD app registration before starting the server.'
+  );
 }
 
 /**

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import { ALLOWED_TOOLS } from './enabi-allowlist.js';
 
 // Ok so this is a hack to lazily import keytar only when needed
 // since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
@@ -166,6 +167,11 @@ function buildScopesFromEndpoints(
   }
 
   endpoints.default.forEach((endpoint) => {
+    // Enabi: never request scopes for tools that aren't allowlisted
+    if (!ALLOWED_TOOLS.has(endpoint.toolName)) {
+      return;
+    }
+
     // Skip write operations in read-only mode
     if (readOnly && endpoint.method.toUpperCase() !== 'GET') {
       return;

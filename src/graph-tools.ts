@@ -9,8 +9,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
-import { parseTeamsUrl } from './lib/teams-url-parser.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
+import { ALLOWED_TOOLS } from './enabi-allowlist.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -516,6 +516,17 @@ export function registerGraphTools(
   let failedCount = 0;
 
   for (const tool of api.endpoints) {
+    // Enabi allowlist: refuse to register any tool not on the explicit list.
+    // This is a belt-and-suspenders defense against upstream-sync drift.
+    if (!ALLOWED_TOOLS.has(tool.alias)) {
+      logger.error(
+        `Enabi allowlist rejected tool "${tool.alias}" — not registered. ` +
+          `If this should be exposed, add it to src/enabi-allowlist.ts and update CAPABILITY_BASELINE.json.`
+      );
+      skippedCount++;
+      continue;
+    }
+
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
       logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
@@ -708,40 +719,7 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  // Register parse-teams-url utility tool (no Graph API call)
-  if (!enabledToolsRegex || enabledToolsRegex.test('parse-teams-url')) {
-    try {
-      server.tool(
-        'parse-teams-url',
-        'Converts any Teams meeting URL format (short /meet/, full /meetup-join/, or recap ?threadId=) into a standard joinWebUrl. Use this before list-online-meetings when the user provides a recap or short URL.',
-        {
-          url: z.string().describe('Teams meeting URL in any format'),
-        },
-        {
-          title: 'parse-teams-url',
-          readOnlyHint: true,
-          openWorldHint: false,
-        },
-        async ({ url }) => {
-          try {
-            const joinWebUrl = parseTeamsUrl(url);
-            return { content: [{ type: 'text', text: joinWebUrl }] };
-          } catch (error) {
-            return {
-              content: [
-                { type: 'text', text: JSON.stringify({ error: (error as Error).message }) },
-              ],
-              isError: true,
-            };
-          }
-        }
-      );
-      registeredCount++;
-    } catch (error) {
-      logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
-      failedCount++;
-    }
-  }
+  // Enabi: parse-teams-url removed — Teams is out of scope.
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
   // It is the canonical owner of account discovery — no duplicate registration here.
@@ -762,6 +740,7 @@ export function buildToolsRegistry(
   >();
 
   for (const tool of api.endpoints) {
+    if (!ALLOWED_TOOLS.has(tool.alias)) continue;
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {

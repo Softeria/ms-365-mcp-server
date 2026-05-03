@@ -146,7 +146,9 @@ logs/
 
 openapi
 
-src/generated/client.ts
+# Enabi: src/generated/client.ts IS committed (built by bin/enabi-build-client.mjs).
+# It's the trimmed, deterministic output of our endpoints.json — not the
+# 270-endpoint upstream blob.
 **/.claude/settings.local.json
 
 # Claude Code instructions file
