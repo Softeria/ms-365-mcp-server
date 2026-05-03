@@ -15,6 +15,9 @@ This file lists every change Enabi has made on top of `softeria/ms-365-mcp-serve
 | `docs/ENABI_PATCHES.md` | This file. |
 | `docs/UPSTREAM_SYNC.md` | Runbook for the weekly upstream-sync PR review. |
 | `docs/INSTALL.md` | Install guide for Enabi employees. |
+| `docs/AZURE_APP_SETUP.md` | One-time Azure AD app registration procedure for the Enabi tenant. |
+| `docs/MIGRATION.md` | Runbook for moving employees off the upstream Softeria install onto the Enabi fork. |
+| `scripts/install.sh` | One-line `curl \| bash` installer that clones the Enabi fork, builds, writes `.env` with the Enabi Azure app IDs, and registers with Claude Desktop. |
 | `.github/workflows/ci.yml` | Lint, audit, secret-scan, dependency-scan on every PR. (Phase 3) |
 | `.github/workflows/upstream-sync.yml` | Weekly automated PR fetching `upstream/main`. (Phase 4) |
 | `renovate.json` | Pinned-dependency updates with no auto-merge. (Phase 3) |

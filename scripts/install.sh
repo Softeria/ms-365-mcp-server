@@ -22,7 +22,6 @@ BIN_PATH="$INSTALL_DIR/dist/index.js"
 bold()  { printf "\033[1m%s\033[0m\n" "$*"; }
 green() { printf "\033[32m%s\033[0m\n" "$*"; }
 red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
-ask()   { local prompt="$1" var; read -r -p "$prompt " var; echo "$var"; }
 
 bold "Enabi M365 MCP installer"
 echo
