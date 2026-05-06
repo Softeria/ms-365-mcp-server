@@ -865,6 +865,7 @@ export function registerGraphTools(
     accountNames,
   };
   for (const utility of UTILITY_TOOLS) {
+    if (readOnly && !utility.readOnlyHint) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
@@ -886,7 +887,8 @@ export function registerGraphTools(
 
 export function buildToolsRegistry(
   readOnly: boolean,
-  orgMode: boolean
+  orgMode: boolean,
+  enabledToolsRegex?: RegExp
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
   const toolsMap = new Map<
     string,
@@ -905,6 +907,10 @@ export function buildToolsRegistry(
       if (!(method === 'POST' && endpointConfig?.readOnly)) {
         continue;
       }
+    }
+
+    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
+      continue;
     }
 
     toolsMap.set(tool.alias, { tool, config: endpointConfig });
@@ -1003,10 +1009,27 @@ export function registerDiscoveryTools(
   orgMode: boolean = false,
   authManager?: AuthManager,
   multiAccount: boolean = false,
-  accountNames: string[] = []
+  accountNames: string[] = [],
+  enabledTools?: string
 ): void {
-  const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
-  const utilityTools = UTILITY_TOOLS;
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledTools) {
+    try {
+      enabledToolsRegex = new RegExp(enabledTools, 'i');
+      logger.info(`Discovery mode: filtering tools with pattern ${enabledTools}`);
+    } catch (error) {
+      logger.error(
+        `Invalid --enabled-tools regex ${JSON.stringify(enabledTools)} — ignoring filter: ${(error as Error).message}`
+      );
+    }
+  }
+
+  const toolsRegistry = buildToolsRegistry(readOnly, orgMode, enabledToolsRegex);
+  const utilityTools = UTILITY_TOOLS.filter((u) => {
+    if (readOnly && !u.readOnlyHint) return false;
+    if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
+    return true;
+  });
   const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
   const totalCount = toolsRegistry.size + utilityTools.length;
   logger.info(

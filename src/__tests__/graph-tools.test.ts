@@ -828,4 +828,102 @@ describe('graph-tools', () => {
       expect(payload.error).toMatch(/not found/i);
     });
   });
+
+  // ---- 11. Discovery mode respects --enabled-tools ----
+  describe('discovery mode: --enabled-tools filter', () => {
+    it('search-tools only surfaces Graph tools matching the regex', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        { toolName: 'list-mail-messages', method: 'get', pathPattern: '/me/messages' },
+        { toolName: 'list-calendar-events', method: 'get', pathPattern: '/me/events' },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any, false, false, undefined, false, [], 'mail');
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('list-mail-messages');
+      expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('utility tools obey the regex too', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '^download-bytes$'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('download-bytes');
+      expect(found).not.toContain('parse-teams-url');
+    });
+
+    it('invalid regex pattern is ignored, all tools surface', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '[invalid'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('download-bytes');
+      expect(found).toContain('parse-teams-url');
+    });
+  });
+
+  // ---- 12. Read-only mode filters utility tools without readOnlyHint ----
+  describe('utility tools in read-only mode', () => {
+    it('skips utility tools whose readOnlyHint is not true', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any, true);
+
+      // Both built-in utility tools (download-bytes, parse-teams-url) have
+      // readOnlyHint: true so they should be present.
+      expect(server.tools.has('download-bytes')).toBe(true);
+      expect(server.tools.has('parse-teams-url')).toBe(true);
+    });
+  });
 });
