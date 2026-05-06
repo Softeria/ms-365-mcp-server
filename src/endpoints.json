@@ -1,5 +1,12 @@
 [
   {
+    "pathPattern": "/$batch",
+    "method": "post",
+    "toolName": "graph-batch",
+    "scopes": [],
+    "llmTip": "Combine up to 20 Graph requests into a single HTTP call. Body: { requests: [{ id: '1', method: 'GET'|'POST'|'PATCH'|'DELETE', url: '/me/messages?$top=5', headers?: {...}, body?: {...}, dependsOn?: ['1'] }, ...] }. Returns { responses: [{ id, status, body, headers }] } in arbitrary order — match by id. Use cases: (1) parallelize many small reads (e.g. fetch 15 mail messages by id in one round-trip); (2) sequence dependent writes via dependsOn; (3) batch many Excel range writes into one call to dramatically reduce latency on large workbook builds. Note: each sub-request URL is relative to the Graph version root (/me/..., /drives/..., NOT https://graph.microsoft.com/v1.0/...)."
+  },
+  {
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
@@ -94,6 +101,12 @@
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
+    "pathPattern": "/users/{user-id}/messages",
+    "method": "post",
+    "toolName": "create-shared-mailbox-draft",
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
@@ -144,13 +157,8 @@
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
-    "scopes": ["Mail.Read"]
-  },
-  {
-    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
-    "method": "get",
-    "toolName": "get-mail-attachment",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
@@ -473,14 +481,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
-    "method": "get",
-    "toolName": "download-onedrive-file-content",
-    "scopes": ["Files.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a temporary download URL, NOT the file content directly."
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
@@ -491,7 +491,7 @@
     "method": "put",
     "toolName": "upload-file-content",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
@@ -505,7 +505,7 @@
     "method": "get",
     "toolName": "get-drive-item",
     "scopes": ["Files.Read"],
-    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference. Does not return content — use download-onedrive-file-content for that."
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl)."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -593,11 +593,13 @@
     "scopes": ["Files.ReadWrite"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/format",
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format",
     "method": "patch",
     "toolName": "format-excel-range",
     "isExcelOp": true,
-    "scopes": ["Files.ReadWrite"]
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Apply font/fill/borders/alignment/wrapText/columnWidth/rowHeight to a specific range. Required path param 'address' (e.g. 'A1:E5' or 'Sheet1!A1:E5'). Body: { font: {bold,color,size,italic,name,underline}, fill: {color}, borders: [{sideIndex,style,color,weight}], horizontalAlignment, verticalAlignment, wrapText, columnWidth, rowHeight }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
@@ -613,6 +615,14 @@
     "isExcelOp": true,
     "scopes": ["Files.Read"],
     "skipEncoding": ["address"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/$value",
+    "method": "get",
+    "toolName": "get-mail-message-mime",
+    "scopes": ["Mail.Read"],
+    "acceptType": "text/plain",
+    "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
@@ -640,6 +650,41 @@
     "scopes": ["Files.ReadWrite"],
     "skipEncoding": ["address"],
     "llmTip": "Delete cells at the given range, shifting remaining content. Body: { shift: 'Up' } or { shift: 'Left' }. Use 'Up' to delete entire rows."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/merge",
+    "method": "post",
+    "toolName": "merge-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Merge the cells in the given range into a single cell. Body: { across: false } merges the entire range into one cell; { across: true } merges each row separately. Useful for building styled headers, banner rows, and report layouts."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/unmerge",
+    "method": "post",
+    "toolName": "unmerge-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Unmerge any merged cells within the given range back into individual cells. No request body. Inverse of merge-excel-range."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/clear",
+    "method": "post",
+    "toolName": "clear-excel-range",
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Clear cell contents and/or formatting on the given range. Body: { applyTo: 'All' | 'Formats' | 'Contents' }. 'Contents' wipes values but keeps formatting; 'Formats' resets styling but keeps values; 'All' wipes both. Use this to reset a worksheet section before a fresh write rather than overwriting cell-by-cell."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/usedRange()",
+    "method": "get",
+    "toolName": "get-excel-used-range",
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "llmTip": "Get the smallest range that encompasses any cells with values or formatting on the worksheet. Returns address, values, formulas, numberFormat, rowCount, columnCount. Use this to discover the populated bounds of a sheet before reading or appending — avoids guessing how far data extends. Optional $select to trim the response."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/tables/{workbookTable-id}/rows/itemAt(index={index})",
@@ -1026,22 +1071,6 @@
     "llmTip": "Lists users who report directly to a specific user. Use with get-user-manager to traverse the org hierarchy."
   },
   {
-    "pathPattern": "/me/photo/$value",
-    "method": "get",
-    "toolName": "get-my-profile-photo",
-    "scopes": ["User.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns the current user's profile photo as binary image data. The photo is typically in JPEG format."
-  },
-  {
-    "pathPattern": "/users/{user-id}/photo/$value",
-    "method": "get",
-    "toolName": "get-user-profile-photo",
-    "workScopes": ["User.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a specific user's profile photo as binary image data. Use the user ID or UPN (email)."
-  },
-  {
     "pathPattern": "/me/people",
     "method": "get",
     "toolName": "list-relevant-people",
@@ -1133,15 +1162,7 @@
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
     "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns an array of { id, contentType }. Use get-chat-message-hosted-content with the id to download the bytes. Hosted content IDs can also be parsed from the <img src> URL in the message body between /hostedContents/ and /$value."
-  },
-  {
-    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-chat-message-hosted-content",
-    "workScopes": ["ChatMessage.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item (typically image/png or image/jpeg) attached to a Teams 1:1 or group chat message. Use list-chat-message-hosted-contents to discover IDs, or extract the ID from the <img src> URL in the message body."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
@@ -1209,15 +1230,7 @@
     "method": "get",
     "toolName": "list-channel-message-hosted-contents",
     "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns an array of { id, contentType }. Use get-channel-message-hosted-content with the id to download bytes."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-channel-message-hosted-content",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item attached to a Teams channel message. Use list-channel-message-hosted-contents to discover IDs."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",

@@ -51,6 +51,13 @@ export function generateMcpTools(openApiSpec, outputDir) {
     // Replace with: path: `/...range(param=':value')...`,
     clientCode = clientCode.replace(/(path:\s*)'(\/[^']*\([^)]*=':[\w]+'\)[^']*)'/g, '$1`$2`');
 
+    // openapi-zod-client emits z.instanceof(File) for `format: binary` bodies; MCP
+    // transports JSON so no caller produces File. Body marshaller decodes the string.
+    clientCode = clientCode.replace(
+      /z\.instanceof\(File\)/g,
+      "z.string().describe('Base64-encoded file content. The server decodes it and PUTs the raw bytes to Microsoft Graph.')"
+    );
+
     fs.writeFileSync(clientFilePath, clientCode);
 
     return true;

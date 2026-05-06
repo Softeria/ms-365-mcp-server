@@ -582,4 +582,348 @@ describe('graph-tools', () => {
       expect(prefer === undefined || !prefer.includes('outlook.body-content-type')).toBe(true);
     });
   });
+
+  // ---- 8. Binary upload (requestFormat: 'binary') ----
+  describe('binary upload bodies', () => {
+    it('decodes base64 body to bytes and sets octet-stream Content-Type', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'upload-file-content',
+        method: 'put',
+        path: '/drives/:driveId/items/:driveItemId/content',
+        requestFormat: 'binary' as const,
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+          {
+            name: 'body',
+            type: 'Body',
+            schema: z.string().describe('Base64-encoded file content'),
+          },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'upload-file-content',
+        method: 'put',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}/content',
+        scopes: ['Files.ReadWrite'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const original = 'Hello, world!';
+      const base64 = Buffer.from(original, 'utf-8').toString('base64');
+
+      await server.tools.get('upload-file-content')!.handler({
+        driveId: 'drive123',
+        driveItemId: 'item456',
+        body: base64,
+      });
+
+      const [path, options] = graphClient.graphRequest.mock.calls[0];
+      expect(path).toBe('/drives/drive123/items/item456/content');
+      expect(options.headers['Content-Type']).toBe('application/octet-stream');
+      expect(Buffer.isBuffer(options.body) || options.body instanceof Uint8Array).toBe(true);
+      expect(Buffer.from(options.body).toString('utf-8')).toBe(original);
+    });
+
+    it('honors endpoints.json contentType override on binary uploads', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'upload-file-content',
+        method: 'put',
+        path: '/drives/:driveId/items/:driveItemId/content',
+        requestFormat: 'binary' as const,
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+          { name: 'body', type: 'Body', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'upload-file-content',
+        method: 'put',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}/content',
+        scopes: ['Files.ReadWrite'],
+        contentType: 'application/pdf',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('upload-file-content')!.handler({
+        driveId: 'd',
+        driveItemId: 'i',
+        body: Buffer.from('%PDF-1.4').toString('base64'),
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.headers['Content-Type']).toBe('application/pdf');
+    });
+  });
+
+  // ---- 9. download-bytes utility tool ----
+  describe('download-bytes', () => {
+    it('routes a relative Graph path through graphRequest', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                contentType: 'image/jpeg',
+                encoding: 'base64',
+                contentBytes: 'aGk=',
+              }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('download-bytes');
+      expect(tool).toBeDefined();
+
+      await tool!.handler({ target: '/me/photo/$value' });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [path, options] = graphClient.graphRequest.mock.calls[0];
+      expect(path).toBe('/me/photo/$value');
+      expect(options.accessToken).toBeUndefined();
+    });
+
+    it('rejects absolute URLs (Graph paths only)', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any);
+
+      const tool = server.tools.get('download-bytes');
+      const result = await tool!.handler({
+        target: 'https://example.sharepoint.com/d/abc?temp=signed',
+      });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+
+    it('rejects targets that do not start with /', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any);
+
+      const tool = server.tools.get('download-bytes');
+      const result = await tool!.handler({ target: 'ftp://example.com/x' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+  });
+
+  // ---- 10. Utility tools surface in --discovery mode ----
+  describe('discovery mode: utility tools', () => {
+    it('search-tools surfaces download-bytes for "download" queries', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any);
+
+      const result = await server.tools.get('search-tools')!.handler({ query: 'download' });
+      const payload = JSON.parse(result.content[0].text);
+      const names = payload.tools.map((t: any) => t.name);
+      expect(names).toContain('download-bytes');
+    });
+
+    it('get-tool-schema returns the download-bytes parameter schema', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any);
+
+      const result = await server.tools
+        .get('get-tool-schema')!
+        .handler({ tool_name: 'download-bytes' });
+      const schema = JSON.parse(result.content[0].text);
+      expect(schema.name).toBe('download-bytes');
+      expect(schema.path).toBe('tool:download-bytes');
+      const targetParam = schema.parameters.find((p: any) => p.name === 'target');
+      expect(targetParam).toBeDefined();
+      expect(targetParam.required).toBe(true);
+    });
+
+    it('execute-tool dispatches to download-bytes for a Graph path', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                contentType: 'image/png',
+                encoding: 'base64',
+                contentBytes: 'iVBORw0K',
+              }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'download-bytes',
+        parameters: { target: '/me/photo/$value' },
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [path] = graphClient.graphRequest.mock.calls[0];
+      expect(path).toBe('/me/photo/$value');
+    });
+
+    it('execute-tool reports unknown tool when name matches neither registry', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any);
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'no-such-tool',
+        parameters: {},
+      });
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/not found/i);
+    });
+  });
+
+  // ---- 11. Discovery mode respects --enabled-tools ----
+  describe('discovery mode: --enabled-tools filter', () => {
+    it('search-tools only surfaces Graph tools matching the regex', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        { toolName: 'list-mail-messages', method: 'get', pathPattern: '/me/messages' },
+        { toolName: 'list-calendar-events', method: 'get', pathPattern: '/me/events' },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any, false, false, undefined, false, [], 'mail');
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('list-mail-messages');
+      expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('utility tools obey the regex too', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '^download-bytes$'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('download-bytes');
+      expect(found).not.toContain('parse-teams-url');
+    });
+
+    it('invalid regex pattern is ignored, all tools surface', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '[invalid'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('download-bytes');
+      expect(found).toContain('parse-teams-url');
+    });
+  });
+
+  // ---- 12. Read-only mode filters utility tools without readOnlyHint ----
+  describe('utility tools in read-only mode', () => {
+    it('skips utility tools whose readOnlyHint is not true', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any, true);
+
+      // Both built-in utility tools (download-bytes, parse-teams-url) have
+      // readOnlyHint: true so they should be present.
+      expect(server.tools.has('download-bytes')).toBe(true);
+      expect(server.tools.has('parse-teams-url')).toBe(true);
+    });
+  });
 });

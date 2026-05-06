@@ -57,3 +57,51 @@ export function describeToolSchema(
     parameters: params,
   };
 }
+
+interface UtilityDescriptor {
+  name: string;
+  method: string;
+  path: string;
+  description: string;
+  buildSchema: (ctx: never) => Record<string, z.ZodTypeAny>;
+}
+
+// Params reported as `Query` (top-level): execute-tool passes `parameters`
+// straight to utility.execute(); `Body` would mislead LLMs into nesting under `body`.
+export function describeUtilityToolSchema<C>(
+  utility: UtilityDescriptor & { buildSchema: (ctx: C) => Record<string, z.ZodTypeAny> },
+  ctx: C
+): {
+  name: string;
+  method: string;
+  path: string;
+  description: string;
+  parameters: Array<{
+    name: string;
+    in: 'Query';
+    required: boolean;
+    description?: string;
+    schema: unknown;
+  }>;
+} {
+  const schemaMap = utility.buildSchema(ctx);
+  const params = Object.entries(schemaMap).map(([name, zodSchema]) => {
+    const { inner, optional } = unwrapOptional(zodSchema);
+    const jsonSchema = zodToJsonSchema(inner, { target: 'jsonSchema7', $refStrategy: 'none' });
+    const { $schema: _s, ...schema } = jsonSchema as Record<string, unknown>;
+    return {
+      name,
+      in: 'Query' as const,
+      required: !optional,
+      description: zodSchema.description,
+      schema,
+    };
+  });
+  return {
+    name: utility.name,
+    method: utility.method,
+    path: utility.path,
+    description: utility.description,
+    parameters: params,
+  };
+}

@@ -8,24 +8,34 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
   const spec = fs.readFileSync(openapiFile, 'utf8');
   const openApiSpec = yaml.load(spec);
 
+  // Synthesize paths that the Graph REST API supports but are missing from
+  // Microsoft's published OpenAPI metadata (e.g. range(address='{address}')/format
+  // — documented in Excel API but not in the OpenAPI spec).
   for (const endpoint of endpoints) {
     if (!openApiSpec.paths[endpoint.pathPattern]) {
-      throw new Error(`Path "${endpoint.pathPattern}" not found in OpenAPI spec.`);
+      openApiSpec.paths[endpoint.pathPattern] = {};
     }
   }
 
-  // Synthesize operations that the Graph REST API supports but are missing from
-  // Microsoft's published OpenAPI metadata (e.g. PATCH on range(address='{address}')
-  // for cell-value writes — documented in Excel API but not in the OpenAPI spec).
+  // Synthesize operations on existing paths when the method is missing.
   for (const endpoint of endpoints) {
     const pathSpec = openApiSpec.paths[endpoint.pathPattern];
     const methodLower = endpoint.method.toLowerCase();
     if (pathSpec && !pathSpec[methodLower]) {
+      const pathParamMatches = [...endpoint.pathPattern.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+      const synthesizedParameters = pathParamMatches.map((paramName) => ({
+        name: paramName,
+        in: 'path',
+        required: true,
+        description: `Path parameter: ${paramName}`,
+        schema: { type: 'string' },
+      }));
       pathSpec[methodLower] = {
         tags: ['drives.driveItem'],
         summary: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
         description: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
         operationId: endpoint.toolName,
+        parameters: synthesizedParameters,
         requestBody:
           methodLower === 'get' || methodLower === 'delete'
             ? undefined

@@ -3,6 +3,7 @@ import {
   buildToolsRegistry,
   buildDiscoverySearchIndex,
   scoreDiscoveryQuery,
+  UTILITY_TOOLS,
 } from '../src/graph-tools.js';
 
 /**
@@ -12,7 +13,8 @@ import {
  * descriptions, llmTips, or the ranking weights surface here.
  */
 const registry = buildToolsRegistry(false, true);
-const index = buildDiscoverySearchIndex(registry);
+const utilityNames = new Set(UTILITY_TOOLS.map((u) => u.name));
+const index = buildDiscoverySearchIndex(registry, UTILITY_TOOLS);
 
 function topN(query: string, n: number): string[] {
   return scoreDiscoveryQuery(query, index)
@@ -47,8 +49,11 @@ const cases: Case[] = [
   // Files
   { query: 'list folders', expect: 'list-mail-folders', inTop: 10 },
   { query: 'onedrive folder', expect: 'create-onedrive-folder', inTop: 10 },
-  { query: 'download file', expect: 'download-onedrive-file-content', inTop: 5 },
   { query: 'upload file', expect: 'upload-file-content', inTop: 5 },
+  { query: 'download file', expect: 'download-bytes', inTop: 5 },
+  { query: 'download bytes', expect: 'download-bytes', inTop: 5 },
+  { query: 'profile photo', expect: 'download-bytes', inTop: 10 },
+  { query: 'parse teams url', expect: 'parse-teams-url', inTop: 5 },
   // Users
   { query: 'search users', expect: 'list-users', inTop: 10 },
   { query: 'user manager', expect: 'get-user-manager', inTop: 10 },
@@ -61,7 +66,7 @@ describe('discovery search (golden queries)', () => {
   for (const c of cases) {
     const n = c.inTop ?? 5;
     it(`"${c.query}" → ${c.expect} in top ${n}`, () => {
-      if (!registry.has(c.expect)) {
+      if (!registry.has(c.expect) && !utilityNames.has(c.expect)) {
         throw new Error(
           `Test fixture error: expected tool "${c.expect}" is not in the registry. ` +
             `Update the golden-query case or add the endpoint.`
