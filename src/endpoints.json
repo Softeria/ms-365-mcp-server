@@ -1897,5 +1897,33 @@
     "toolName": "list-supported-languages",
     "scopes": ["User.Read"],
     "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US'), displayName ('English (United States)'), and nativeName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "get",
+    "toolName": "list-my-calendar-permissions",
+    "scopes": ["Calendars.Read"],
+    "llmTip": "Lists share recipients and delegates on the user's primary calendar. Returns calendarPermission objects with id, role ('none' | 'freeBusyRead' | 'limitedRead' | 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' | 'custom'), emailAddress { name, address }, isInsideOrganization, isRemovable, allowedRoles. Returns an empty collection when called by a delegate or share recipient (only the calendar owner sees the full list). For a non-primary calendar, use /me/calendars/{calendar-id}/calendarPermissions — not currently exposed."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "post",
+    "toolName": "create-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Shares the user's primary calendar with another user (or sets up a delegate). Body: { emailAddress: { name: 'Adele Vance', address: 'adele@contoso.com' }, role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess', isInsideOrganization: true, isRemovable: true }. Use list-users to resolve the recipient SMTP. Returns the created calendarPermission with its id (used by update-my-calendar-permission and delete-my-calendar-permission)."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "patch",
+    "toolName": "update-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Changes the role (permission level) granted to an existing share recipient or delegate. Body: { role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' }. Only the role property is writable — to change the recipient's email or other properties, delete and recreate via delete-my-calendar-permission + create-my-calendar-permission. Get the permission id via list-my-calendar-permissions."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "delete",
+    "toolName": "delete-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Revokes a calendar share or delegate access. Get the permission id via list-my-calendar-permissions. Permissions where isRemovable=false (e.g. the implicit 'My Organization' default) cannot be deleted — Graph returns an error."
   }
 ]
