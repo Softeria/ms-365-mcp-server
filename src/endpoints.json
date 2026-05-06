@@ -1625,10 +1625,11 @@
     "llmTip": "Gets presence status for a specific user by their user ID or UPN (email). Returns availability and activity. Use list-users to find the user ID first."
   },
   {
-    "pathPattern": "/communications/presences",
+    "pathPattern": "/communications/getPresencesByUserId",
     "method": "post",
     "toolName": "get-presences-by-user-id",
     "workScopes": ["Presence.Read.All"],
+    "contentType": "application/json",
     "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
   },
   {
@@ -1875,5 +1876,66 @@
     "toolName": "create-outlook-category",
     "scopes": ["MailboxSettings.ReadWrite"],
     "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
+  },
+  {
+    "pathPattern": "/me/presence/setPresence",
+    "method": "post",
+    "toolName": "set-my-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability ('Available' | 'Busy' | 'DoNotDisturb' | 'BeRightBack' | 'Away' | 'Offline'), activity ('Available' | 'InACall' | 'InAMeeting' | 'Presenting' | 'Busy' | 'Away' | 'OffWork' | 'Offline'), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, max PT24H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session."
+  },
+  {
+    "pathPattern": "/me/presence/clearPresence",
+    "method": "post",
+    "toolName": "clear-my-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Ends the application's presence session for the current user. Body: { sessionId } — must match the sessionId used in set-my-presence. If this was the user's only presence session, their status returns to Offline."
+  },
+  {
+    "pathPattern": "/me/presence/setUserPreferredPresence",
+    "method": "post",
+    "toolName": "set-my-user-preferred-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability ('Available' | 'Busy' | 'DoNotDisturb' | 'BeRightBack' | 'Away' | 'Offline'), activity (same values), expirationDuration (ISO 8601 duration like 'PT2H' — omit for indefinite). Requires at least one active presence session (Teams client signed in or set-my-presence call). Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence."
+  },
+  {
+    "pathPattern": "/me/presence/clearUserPreferredPresence",
+    "method": "post",
+    "toolName": "clear-my-user-preferred-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity (e.g. Available when free, InAMeeting when in a call). No request body."
+  },
+  {
+    "pathPattern": "/me/presence/setStatusMessage",
+    "method": "post",
+    "toolName": "set-my-status-message",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's Teams status message (the free-text note shown next to their name, e.g. 'Heads-down on Q3 plan'). Body: { statusMessage: { message: { content: 'text or HTML', contentType: 'text' | 'html' }, expiryDateTime: { dateTime: '2026-05-06T17:00:00', timeZone: 'UTC' } (optional) } }. Pass an empty object {} or message.content='' to clear. expiryDateTime is optional — omit for no expiration."
+  },
+  {
+    "pathPattern": "/me/teamwork/associatedTeams",
+    "method": "get",
+    "toolName": "list-my-associated-teams",
+    "workScopes": ["Team.ReadBasic.All"],
+    "llmTip": "Lists Teams the current user is associated with — both joined teams and host teams of shared channels the user is a direct member of. Returns associatedTeamInfo objects with id, displayName, and tenantId. Broader than list-joined-teams because it includes shared-channel host teams."
+  },
+  {
+    "pathPattern": "/me/teamwork/installedApps",
+    "method": "get",
+    "toolName": "list-my-installed-teams-apps",
+    "workScopes": ["TeamsAppInstallation.ReadForUser"],
+    "llmTip": "Lists Teams apps installed in the current user's personal scope (the apps pinned to the user's Teams sidebar / accessible without joining a team or chat). Use $expand=teamsApp,teamsAppDefinition for full app metadata (displayName, version, distributionMethod). Useful before send-my-activity-notification to discover the user's own teamsAppId."
+  },
+  {
+    "pathPattern": "/me/teamwork/sendActivityNotification",
+    "method": "post",
+    "toolName": "send-my-activity-notification",
+    "workScopes": ["TeamsActivity.Send"],
+    "contentType": "application/json",
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl?: <click-through URL when source=text> }, activityType: <one of the activity types declared in the calling app's Teams manifest>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <required when caller is not a Teams app — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. activityType must exist in the Teams app manifest — see https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
   }
 ]
