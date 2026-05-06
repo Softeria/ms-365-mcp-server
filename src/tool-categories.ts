@@ -13,7 +13,7 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   calendar: {
     name: 'calendar',
-    pattern: /calendar|event/i,
+    pattern: /calendar|event|schedule|meeting/i,
     description: 'Calendar and event management',
   },
   files: {
@@ -30,7 +30,8 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   work: {
     name: 'work',
-    pattern: /team|channel|chat|sharepoint|planner|site|list|shared|search|query|download-bytes/i,
+    pattern:
+      /team|channel|chat|sharepoint|planner|site|list|shared|search|query|download-bytes|schedule|meeting/i,
     description: 'Organization/work tools (Teams, SharePoint, shared mailboxes, search)',
     requiresOrgMode: true,
   },
