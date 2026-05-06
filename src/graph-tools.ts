@@ -15,7 +15,7 @@ export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
 }
-import { describeToolSchema } from './lib/tool-schema.js';
+import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,6 +115,151 @@ interface CallToolResult {
   isError?: boolean;
 
   [key: string]: unknown;
+}
+
+interface UtilityToolContext {
+  graphClient: GraphClient;
+  authManager?: AuthManager;
+  multiAccount: boolean;
+  accountNames: string[];
+}
+
+interface UtilityTool {
+  name: string;
+  // Synthetic for display in search-tools / get-tool-schema. The `tool:` prefix
+  // marks these as non-Graph so an LLM doesn't try to construct a Graph URL from them.
+  method: string;
+  path: string;
+  description: string;
+  buildSchema: (ctx: UtilityToolContext) => Record<string, z.ZodTypeAny>;
+  execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
+  readOnlyHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+export const UTILITY_TOOLS: readonly UtilityTool[] = [
+  {
+    name: 'parse-teams-url',
+    method: 'POST',
+    path: 'tool:parse-teams-url',
+    description:
+      'Converts any Teams meeting URL format (short /meet/, full /meetup-join/, or recap ?threadId=) into a standard joinWebUrl. Use this before list-online-meetings when the user provides a recap or short URL.',
+    readOnlyHint: true,
+    openWorldHint: false,
+    buildSchema: () => ({
+      url: z.string().describe('Teams meeting URL in any format'),
+    }),
+    execute: async (params) => {
+      const url = params.url;
+      if (typeof url !== 'string') {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: 'url is required.' }) }],
+          isError: true,
+        };
+      }
+      try {
+        const joinWebUrl = parseTeamsUrl(url);
+        return { content: [{ type: 'text', text: joinWebUrl }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+  {
+    name: 'download-bytes',
+    method: 'GET',
+    path: 'tool:download-bytes',
+    description:
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Relative Microsoft Graph path starting with "/". Common paths: ' +
+              '/drives/{drive-id}/items/{driveItem-id}/content (drive file content); ' +
+              '/me/messages/{message-id}/attachments/{attachment-id}/$value (mail attachment, list-mail-attachments returns the IDs); ' +
+              '/me/photo/$value or /users/{user-id}/photo/$value (profile photo); ' +
+              '/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams chat hosted content, list-chat-message-hosted-contents returns the IDs); ' +
+              '/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams channel hosted content). ' +
+              'For meeting recordings (often large), use get-meeting-recording-content which returns a URL for out-of-band download by the client.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'target is required and must be a non-empty string.' }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!target.startsWith('/')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a relative Microsoft Graph path starting with "/", e.g. /me/photo/$value or /drives/{drive-id}/items/{driveItem-id}/content. Absolute URLs are not accepted; if you have an @microsoft.graph.downloadUrl, use the equivalent /content or /$value path instead (Graph 302-redirects to the same bytes).',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        return await graphClient.graphRequest(target, { accessToken: accountAccessToken });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+];
+
+function registerUtilityToolWithMcp(
+  server: McpServer,
+  utility: UtilityTool,
+  ctx: UtilityToolContext
+): void {
+  server.tool(
+    utility.name,
+    utility.description,
+    utility.buildSchema(ctx),
+    {
+      title: utility.name,
+      readOnlyHint: utility.readOnlyHint ?? true,
+      openWorldHint: utility.openWorldHint ?? true,
+    },
+    async (params) => utility.execute(params, ctx)
+  );
 }
 
 async function executeGraphTool(
@@ -326,7 +471,7 @@ async function executeGraphTool(
     const options: {
       method: string;
       headers: Record<string, string>;
-      body?: string;
+      body?: string | Buffer | Uint8Array;
       rawResponse?: boolean;
       includeHeaders?: boolean;
       excludeResponse?: boolean;
@@ -338,7 +483,12 @@ async function executeGraphTool(
     };
 
     if (options.method !== 'GET' && body) {
-      if (config?.contentType === 'text/html') {
+      if (tool.requestFormat === 'binary' && typeof body === 'string') {
+        options.body = Buffer.from(body, 'base64');
+        if (!config?.contentType) {
+          headers['Content-Type'] = 'application/octet-stream';
+        }
+      } else if (config?.contentType === 'text/html') {
         if (typeof body === 'string') {
           options.body = body;
         } else if (typeof body === 'object' && 'content' in body) {
@@ -708,37 +858,19 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  // Register parse-teams-url utility tool (no Graph API call)
-  if (!enabledToolsRegex || enabledToolsRegex.test('parse-teams-url')) {
+  const utilityCtx: UtilityToolContext = {
+    graphClient,
+    authManager,
+    multiAccount,
+    accountNames,
+  };
+  for (const utility of UTILITY_TOOLS) {
+    if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
-      server.tool(
-        'parse-teams-url',
-        'Converts any Teams meeting URL format (short /meet/, full /meetup-join/, or recap ?threadId=) into a standard joinWebUrl. Use this before list-online-meetings when the user provides a recap or short URL.',
-        {
-          url: z.string().describe('Teams meeting URL in any format'),
-        },
-        {
-          title: 'parse-teams-url',
-          readOnlyHint: true,
-          openWorldHint: false,
-        },
-        async ({ url }) => {
-          try {
-            const joinWebUrl = parseTeamsUrl(url);
-            return { content: [{ type: 'text', text: joinWebUrl }] };
-          } catch (error) {
-            return {
-              content: [
-                { type: 'text', text: JSON.stringify({ error: (error as Error).message }) },
-              ],
-              isError: true,
-            };
-          }
-        }
-      );
+      registerUtilityToolWithMcp(server, utility, utilityCtx);
       registeredCount++;
     } catch (error) {
-      logger.error(`Failed to register tool parse-teams-url: ${(error as Error).message}`);
+      logger.error(`Failed to register tool ${utility.name}: ${(error as Error).message}`);
       failedCount++;
     }
   }
@@ -787,7 +919,8 @@ export function buildToolsRegistry(
  * merely mentions the query term in its Microsoft-supplied description.
  */
 export function buildDiscoverySearchIndex(
-  toolsRegistry: ReturnType<typeof buildToolsRegistry>
+  toolsRegistry: ReturnType<typeof buildToolsRegistry>,
+  utilityTools: readonly UtilityTool[] = []
 ): DiscoverySearchIndex {
   // Cap contribution from the `description` and `llmTip` fields so a verbose llmTip
   // (e.g. the KQL search-syntax guide on list-mail-messages, ~300 tokens) doesn't
@@ -817,6 +950,14 @@ export function buildDiscoverySearchIndex(
       ...descTokens,
     ];
     docs.push({ id: name, tokens });
+  }
+  for (const utility of utilityTools) {
+    const nt = tokenize(utility.name);
+    nameTokens.set(utility.name, new Set(nt));
+    const pathTokens = tokenize(utility.path);
+    const descTokens = tokenize(utility.description).slice(0, DESC_CAP_TOKENS);
+    const tokens = [...nt, ...nt, ...nt, ...nt, ...nt, ...pathTokens, ...pathTokens, ...descTokens];
+    docs.push({ id: utility.name, tokens });
   }
   return { bm25: buildBM25Index(docs), nameTokens };
 }
@@ -861,35 +1002,59 @@ export function registerDiscoveryTools(
   readOnly: boolean = false,
   orgMode: boolean = false,
   authManager?: AuthManager,
-  _multiAccount: boolean = false
+  multiAccount: boolean = false,
+  accountNames: string[] = []
 ): void {
   const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
-  const searchIndex = buildDiscoverySearchIndex(toolsRegistry);
-  logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
+  const utilityTools = UTILITY_TOOLS;
+  const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
+  const totalCount = toolsRegistry.size + utilityTools.length;
+  logger.info(
+    `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} utility)`
+  );
+
+  const utilityCtx: UtilityToolContext = {
+    graphClient,
+    authManager,
+    multiAccount,
+    accountNames,
+  };
+  const utilityByName = new Map(utilityTools.map((u) => [u.name, u]));
 
   const categoryNames = Object.keys(TOOL_CATEGORIES).join(', ');
 
   const toResultEntry = (name: string) => {
     const entry = toolsRegistry.get(name);
-    if (!entry) return null;
-    const { tool, config } = entry;
-    return {
-      name,
-      method: tool.method.toUpperCase(),
-      path: tool.path,
-      description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
-      ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
-    };
+    if (entry) {
+      const { tool, config } = entry;
+      return {
+        name,
+        method: tool.method.toUpperCase(),
+        path: tool.path,
+        description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+        ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
+      };
+    }
+    const utility = utilityByName.get(name);
+    if (utility) {
+      return {
+        name: utility.name,
+        method: utility.method,
+        path: utility.path,
+        description: utility.description,
+      };
+    }
+    return null;
   };
 
   server.tool(
     'search-tools',
-    `Search through ${toolsRegistry.size} Microsoft Graph API tools. Ranks results by BM25 over tool name, llmTip, description, and path (tokenized on hyphens, camelCase, and whitespace). After picking a tool, call get-tool-schema to see its parameters, then execute-tool to invoke it.`,
+    `Search through ${totalCount} tools (${toolsRegistry.size} Microsoft Graph API operations + ${utilityTools.length} server utilities like download-bytes). Ranks results by BM25 over tool name, llmTip, description, and path. After picking a tool, call get-tool-schema for parameters, then execute-tool.`,
     {
       query: z
         .string()
         .describe(
-          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "create calendar event", "list unread messages".'
+          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
         )
         .optional(),
       category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
@@ -910,7 +1075,9 @@ export function registerDiscoveryTools(
         const ranked = scoreDiscoveryQuery(query, searchIndex);
         orderedNames = ranked.map((r) => r.id).filter(categoryFilter);
       } else {
-        orderedNames = [...toolsRegistry.keys()].filter(categoryFilter);
+        orderedNames = [...toolsRegistry.keys(), ...utilityTools.map((u) => u.name)].filter(
+          categoryFilter
+        );
       }
 
       const tools = orderedNames.slice(0, maxLimit).map(toResultEntry).filter(Boolean);
@@ -922,7 +1089,7 @@ export function registerDiscoveryTools(
             text: JSON.stringify(
               {
                 found: tools.length,
-                total: toolsRegistry.size,
+                total: totalCount,
                 tools,
                 tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
               },
@@ -948,23 +1115,30 @@ export function registerDiscoveryTools(
     },
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
-      if (!entry) {
+      if (entry) {
+        const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
         return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
+          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };
       }
-      const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
+      const utility = utilityByName.get(tool_name);
+      if (utility) {
+        const schema = describeUtilityToolSchema(utility, utilityCtx);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
+        };
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${tool_name}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
       };
     }
   );
@@ -989,22 +1163,31 @@ export function registerDiscoveryTools(
     },
     async ({ tool_name, parameters = {} }) => {
       const toolData = toolsRegistry.get(tool_name);
-      if (!toolData) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+      if (toolData) {
+        return executeGraphTool(
+          toolData.tool,
+          toolData.config,
+          graphClient,
+          parameters,
+          authManager
+        );
       }
-
-      return executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager);
+      const utility = utilityByName.get(tool_name);
+      if (utility) {
+        return utility.execute(parameters, utilityCtx);
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${tool_name}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
   );
 

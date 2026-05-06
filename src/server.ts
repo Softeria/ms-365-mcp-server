@@ -107,7 +107,8 @@ class MicrosoftGraphServer {
         this.options.readOnly,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        this.accountNames
       );
     } else {
       registerGraphTools(

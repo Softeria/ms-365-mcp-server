@@ -8,7 +8,7 @@ export interface ToolCategory {
 export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   mail: {
     name: 'mail',
-    pattern: /mail|attachment|draft/i,
+    pattern: /mail|attachment|draft|download-bytes/i,
     description: 'Email operations (read, send, manage folders, attachments)',
   },
   calendar: {
@@ -24,13 +24,13 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   personal: {
     name: 'personal',
     pattern:
-      /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder|search|query/i,
+      /mail|calendar|drive|contact|todo|onenote|attachment|draft|event|file|folder|search|query|download-bytes|parse-teams-url/i,
     description:
       'Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)',
   },
   work: {
     name: 'work',
-    pattern: /team|channel|chat|sharepoint|planner|site|list|shared|search|query/i,
+    pattern: /team|channel|chat|sharepoint|planner|site|list|shared|search|query|download-bytes/i,
     description: 'Organization/work tools (Teams, SharePoint, shared mailboxes, search)',
     requiresOrgMode: true,
   },
@@ -61,7 +61,7 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   users: {
     name: 'users',
-    pattern: /user|list-users/i,
+    pattern: /user|list-users|download-bytes/i,
     description: 'User directory access',
     requiresOrgMode: true,
   },

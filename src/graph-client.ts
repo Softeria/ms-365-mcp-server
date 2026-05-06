@@ -44,7 +44,7 @@ export function isBinaryContentType(contentType: string): boolean {
 interface GraphRequestOptions {
   headers?: Record<string, string>;
   method?: string;
-  body?: string;
+  body?: string | Buffer | Uint8Array;
   rawResponse?: boolean;
   includeHeaders?: boolean;
   excludeResponse?: boolean;
@@ -184,7 +184,8 @@ class GraphClient {
     return fetch(url, {
       method: options.method || 'GET',
       headers,
-      body: options.body,
+      // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
+      body: options.body as unknown as string,
     });
   }
 

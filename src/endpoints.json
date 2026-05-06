@@ -151,13 +151,8 @@
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
-    "scopes": ["Mail.Read"]
-  },
-  {
-    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
-    "method": "get",
-    "toolName": "get-mail-attachment",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
@@ -480,14 +475,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
-    "method": "get",
-    "toolName": "download-onedrive-file-content",
-    "scopes": ["Files.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a temporary download URL, NOT the file content directly."
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
@@ -498,7 +485,7 @@
     "method": "put",
     "toolName": "upload-file-content",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
@@ -512,7 +499,7 @@
     "method": "get",
     "toolName": "get-drive-item",
     "scopes": ["Files.Read"],
-    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference. Does not return content — use download-onedrive-file-content for that."
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl)."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -1078,22 +1065,6 @@
     "llmTip": "Lists users who report directly to a specific user. Use with get-user-manager to traverse the org hierarchy."
   },
   {
-    "pathPattern": "/me/photo/$value",
-    "method": "get",
-    "toolName": "get-my-profile-photo",
-    "scopes": ["User.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns the current user's profile photo as binary image data. The photo is typically in JPEG format."
-  },
-  {
-    "pathPattern": "/users/{user-id}/photo/$value",
-    "method": "get",
-    "toolName": "get-user-profile-photo",
-    "workScopes": ["User.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a specific user's profile photo as binary image data. Use the user ID or UPN (email)."
-  },
-  {
     "pathPattern": "/me/people",
     "method": "get",
     "toolName": "list-relevant-people",
@@ -1185,15 +1156,7 @@
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
     "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns an array of { id, contentType }. Use get-chat-message-hosted-content with the id to download the bytes. Hosted content IDs can also be parsed from the <img src> URL in the message body between /hostedContents/ and /$value."
-  },
-  {
-    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-chat-message-hosted-content",
-    "workScopes": ["ChatMessage.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item (typically image/png or image/jpeg) attached to a Teams 1:1 or group chat message. Use list-chat-message-hosted-contents to discover IDs, or extract the ID from the <img src> URL in the message body."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
@@ -1261,15 +1224,7 @@
     "method": "get",
     "toolName": "list-channel-message-hosted-contents",
     "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns an array of { id, contentType }. Use get-channel-message-hosted-content with the id to download bytes."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-channel-message-hosted-content",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item attached to a Teams channel message. Use list-channel-message-hosted-contents to discover IDs."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
