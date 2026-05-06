@@ -101,6 +101,12 @@
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
+    "pathPattern": "/users/{user-id}/messages",
+    "method": "post",
+    "toolName": "create-shared-mailbox-draft",
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
