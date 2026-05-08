@@ -12,3 +12,4 @@ coverage
 .env.*
 .token-cache.json
 .selected-account.json
+.mcp.json
