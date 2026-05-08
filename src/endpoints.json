@@ -1882,22 +1882,21 @@
     "method": "post",
     "toolName": "get-mail-tips",
     "scopes": ["Mail.Read"],
-    "contentType": "application/json",
-    "llmTip": "Looks up MailTips for one or more recipients before sending an email — answers 'is this person on auto-reply / OOF?', 'will my email exceed their mailbox quota?', 'are they an external recipient?', 'is this a mailbox or distribution list?'. Body: { EmailAddresses: ['user@contoso.com', ...] (max 100), MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, totalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, recipientSuggestions' (comma-separated subset) }. Returns mailTips per recipient with the requested fields populated. Use this to short-circuit urgent emails when a recipient is OOF, or to warn before fanning out to a large DL."
+    "llmTip": "Looks up MailTips for one or more recipients before sending an email — answers 'is this person on auto-reply / OOF?', 'will my email exceed their mailbox quota?', 'are they an external recipient?', 'is this a mailbox or distribution list?'. Body: { EmailAddresses: ['user@contoso.com', ...], MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, totalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, recipientSuggestions' (comma-separated subset) }. Returns mailTips per recipient with the requested fields populated. Use this to short-circuit urgent emails when a recipient is OOF, or to warn before fanning out to a large DL."
   },
   {
     "pathPattern": "/me/outlook/supportedTimeZones(TimeZoneStandard='{TimeZoneStandard}')",
     "method": "get",
     "toolName": "list-supported-time-zones",
     "scopes": ["User.Read"],
-    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: 'windows' (default — Windows time zone names like 'Pacific Standard Time'), or 'iana' (IANA / Olson names like 'America/Los_Angeles'). Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
   },
   {
     "pathPattern": "/me/outlook/supportedLanguages()",
     "method": "get",
     "toolName": "list-supported-languages",
     "scopes": ["User.Read"],
-    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US'), displayName ('English (United States)'), and nativeName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
+    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US') and displayName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
   },
   {
     "pathPattern": "/me/calendar/calendarPermissions",
@@ -1939,35 +1938,35 @@
     "method": "post",
     "toolName": "create-contact-child-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Names must be unique among siblings under the same parent. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth."
+    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth."
   },
   {
     "pathPattern": "/me/contactFolders",
     "method": "get",
     "toolName": "list-contact-folders",
     "scopes": ["Contacts.Read"],
-    "llmTip": "Lists the user's Outlook contact folders (the named buckets that organize contacts). Always includes the built-in 'Contacts' folder; user-created folders also appear. Returns id, displayName, parentFolderId, and wellKnownName ('contacts' for the default). Use this before list-contact-folder-contacts or create-contact-in-folder to discover folder ids. Supports $filter, $top, $orderby."
+    "llmTip": "Lists the user's Outlook contact folders (the named buckets that organize contacts). Always includes the built-in 'Contacts' folder; user-created folders also appear. Returns id, displayName, and parentFolderId. To identify the default folder, match displayName === 'Contacts'. Use this before list-contact-folder-contacts or create-contact-in-folder to discover folder ids. Supports OData query parameters."
   },
   {
     "pathPattern": "/me/contactFolders",
     "method": "post",
     "toolName": "create-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Creates a new contact folder under the user's mailbox root. Body: { displayName: 'Family' }. Returns the created contactFolder with its id. Folder names must be unique among siblings. To create a sub-folder, POST to /me/contactFolders/{parent-id}/childFolders instead — not currently exposed."
+    "llmTip": "Creates a new contact folder under the user's mailbox root. Body: { displayName: 'Family' }. Returns the created contactFolder with its id. To create a sub-folder under an existing folder, use create-contact-child-folder."
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}",
     "method": "patch",
     "toolName": "update-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Renames a contact folder. Body: { displayName: 'New name' }. Only displayName is writable. The default 'Contacts' folder cannot be renamed — Graph returns an error. Get the folder id via list-contact-folders."
+    "llmTip": "Updates a contact folder. Body: { displayName?: 'New name', parentFolderId?: '<id>' } — both displayName (rename) and parentFolderId (move) are writable. The default 'Contacts' folder may not be renameable. Get the folder id via list-contact-folders."
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}",
     "method": "delete",
     "toolName": "delete-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Deletes a contact folder and ALL contacts in it (cascades). The default 'Contacts' folder cannot be deleted — Graph returns an error. Get the folder id via list-contact-folders. Operation is irreversible."
+    "llmTip": "Deletes a contact folder. The default 'Contacts' folder cannot be deleted — Graph returns an error. The folder (and its contents) typically lands in Deleted Items rather than being permanently removed. Get the folder id via list-contact-folders."
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}/contacts",
@@ -2010,14 +2009,14 @@
     "method": "delete",
     "toolName": "delete-todo-task-list",
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Deletes a Microsoft To Do task list and ALL of its tasks (cascades). Built-in lists cannot be deleted — the API returns an error for those. Get list ids via list-todo-task-lists. Operation is irreversible."
+    "llmTip": "Deletes a Microsoft To Do task list. Built-in lists (Flagged emails, the default Tasks list) cannot be deleted — the API returns an error for those. Get list ids via list-todo-task-lists."
   },
   {
     "pathPattern": "/me/onenote/pages",
     "method": "get",
     "toolName": "list-onenote-pages",
     "scopes": ["Notes.Read"],
-    "llmTip": "Lists all OneNote pages across every notebook and section the user has access to — transverse alternative to walking notebooks → sections → pages. Default returns top 20 ordered by lastModifiedTime desc. Supports $search='query' for full-text search across page titles and bodies, $filter (e.g. lastModifiedTime gt 2026-01-01), $top (max 100), $select, and $expand=parentNotebook,parentSection. Use $search before bouncing through list-onenote-notebooks / list-all-onenote-sections / list-onenote-section-pages when you only have a topic in mind."
+    "llmTip": "Lists all OneNote pages across every notebook and section the user has access to — transverse alternative to walking notebooks → sections → pages. Default returns top 20 ordered by lastModifiedTime desc. Supports $filter (e.g. lastModifiedTime gt 2026-01-01, or contains(tolower(title), 'topic') for title search), $top (max 100), $select, and $expand=parentNotebook,parentSection. Use this instead of bouncing through list-onenote-notebooks / list-all-onenote-sections / list-onenote-section-pages when you have a topic in mind."
   },
   {
     "pathPattern": "/me/onenote/sectionGroups",
@@ -2032,7 +2031,7 @@
     "toolName": "get-onenote-notebook-from-web-url",
     "workScopes": ["Notes.Read"],
     "contentType": "application/json",
-    "llmTip": "Resolves a OneNote notebook from its web URL (the link a user copies from OneNote / SharePoint / Teams). Body: { webUrl: 'https://...' }. Returns a CopyNotebookModel with the notebook's id, displayName, sectionsUrl, sectionGroupsUrl, and isShared — you can then list its sections via list-onenote-notebook-sections. Accepts user notebooks, group notebooks, and SharePoint-hosted team notebooks. Personal Microsoft accounts are not supported."
+    "llmTip": "Resolves a OneNote notebook from its web URL (the link a user copies from OneNote / SharePoint / Teams). Body: { webUrl: 'https://...' }. Returns a notebook object with id, displayName, sectionsUrl, sectionGroupsUrl, and isShared — you can then list its sections via list-onenote-notebook-sections. Accepts user notebooks, group notebooks, and SharePoint-hosted team notebooks. Personal Microsoft accounts are not supported."
   },
   {
     "pathPattern": "/me/presence/setPresence",
@@ -2040,7 +2039,7 @@
     "toolName": "set-my-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability ('Available' | 'Busy' | 'DoNotDisturb' | 'BeRightBack' | 'Away' | 'Offline'), activity ('Available' | 'InACall' | 'InAMeeting' | 'Presenting' | 'Busy' | 'Away' | 'OffWork' | 'Offline'), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, max PT24H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session."
+    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability + activity (must be one of these documented combos: Available/Available, Busy/InACall, Busy/InAConferenceCall, Away/Away, DoNotDisturb/Presenting), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, valid range PT5M–PT4H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session."
   },
   {
     "pathPattern": "/me/presence/clearPresence",
@@ -2056,14 +2055,15 @@
     "toolName": "set-my-user-preferred-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability ('Available' | 'Busy' | 'DoNotDisturb' | 'BeRightBack' | 'Away' | 'Offline'), activity (same values), expirationDuration (ISO 8601 duration like 'PT2H' — omit for indefinite). Requires at least one active presence session (Teams client signed in or set-my-presence call). Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence."
+    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability + activity (must be one of these documented combos: Available/Available, Busy/Busy, DoNotDisturb/DoNotDisturb, BeRightBack/BeRightBack, Away/Away, Offline/OffWork), expirationDuration (ISO 8601 duration like 'PT2H' — if omitted, defaults to 1 day for DoNotDisturb/Busy and 7 days for other availability values; not 'indefinite'). Requires at least one active presence session (Teams client signed in or set-my-presence call) — otherwise the user appears Offline. Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence."
   },
   {
     "pathPattern": "/me/presence/clearUserPreferredPresence",
     "method": "post",
     "toolName": "clear-my-user-preferred-presence",
     "workScopes": ["Presence.ReadWrite"],
-    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity (e.g. Available when free, InAMeeting when in a call). No request body."
+    "contentType": "application/json",
+    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity. Body: {} (an empty JSON object — required, not 'no body')."
   },
   {
     "pathPattern": "/me/presence/setStatusMessage",
@@ -2093,6 +2093,6 @@
     "toolName": "send-my-activity-notification",
     "workScopes": ["TeamsActivity.Send"],
     "contentType": "application/json",
-    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl?: <click-through URL when source=text> }, activityType: <one of the activity types declared in the calling app's Teams manifest>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <required when caller is not a Teams app — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. activityType must exist in the Teams app manifest — see https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
   }
 ]
