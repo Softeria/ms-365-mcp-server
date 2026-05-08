@@ -15,6 +15,10 @@ import {
   microsoftBearerTokenAuthMiddleware,
   refreshAccessToken,
 } from './lib/microsoft-auth.js';
+import {
+  isAllowedRedirectUri,
+  parseAllowlist,
+} from './lib/redirect-uri-validation.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
@@ -326,6 +330,30 @@ class MicrosoftGraphServer {
         const clientCodeChallenge = url.searchParams.get('code_challenge');
         const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
         const state = url.searchParams.get('state');
+
+        // Validate redirect_uri before forwarding to Microsoft to mitigate
+        // CWE-601 (open redirect). Microsoft Entra performs its own redirect
+        // URI validation, but a permissively configured app registration
+        // (e.g. wildcard reply URLs) would let an attacker craft an
+        // /authorize link whose authorization code is delivered to an
+        // attacker-controlled origin. We defensively reject obviously
+        // dangerous schemes (javascript:, data:, file:) and arbitrary
+        // non-loopback http URIs here, and honour an explicit allowlist
+        // configured via MS365_MCP_ALLOWED_REDIRECT_URIS.
+        const redirectUriParam = url.searchParams.get('redirect_uri');
+        if (redirectUriParam) {
+          const allowlist = parseAllowlist(process.env.MS365_MCP_ALLOWED_REDIRECT_URIS);
+          if (!isAllowedRedirectUri(redirectUriParam, allowlist)) {
+            logger.warn('Rejected /authorize request with disallowed redirect_uri', {
+              redirect_uri: redirectUriParam,
+            });
+            res.status(400).json({
+              error: 'invalid_request',
+              error_description: 'redirect_uri is not allowed',
+            });
+            return;
+          }
+        }
 
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
