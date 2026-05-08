@@ -107,6 +107,27 @@
     "workScopes": ["Mail.ReadWrite.Shared"]
   },
   {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Reply to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). The 'comment' field is your reply text. Do NOT reconstruct the email manually. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Reply-all to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address. The 'comment' field is your reply text. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Forward a message from a shared mailbox preserving full HTML formatting and attachments. The 'user-id' is the shared mailbox email address. 'toRecipients' is required. The 'comment' field adds text above the forwarded content. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
