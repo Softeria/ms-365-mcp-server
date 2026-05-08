@@ -1877,6 +1877,70 @@
     "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
   },
   {
+    "pathPattern": "/me/getMailTips",
+    "method": "post",
+    "toolName": "get-mail-tips",
+    "scopes": ["Mail.Read"],
+    "contentType": "application/json",
+    "llmTip": "Looks up MailTips for one or more recipients before sending an email — answers 'is this person on auto-reply / OOF?', 'will my email exceed their mailbox quota?', 'are they an external recipient?', 'is this a mailbox or distribution list?'. Body: { EmailAddresses: ['user@contoso.com', ...] (max 100), MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, totalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, recipientSuggestions' (comma-separated subset) }. Returns mailTips per recipient with the requested fields populated. Use this to short-circuit urgent emails when a recipient is OOF, or to warn before fanning out to a large DL."
+  },
+  {
+    "pathPattern": "/me/outlook/supportedTimeZones(TimeZoneStandard='{TimeZoneStandard}')",
+    "method": "get",
+    "toolName": "list-supported-time-zones",
+    "scopes": ["User.Read"],
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: 'windows' (default — Windows time zone names like 'Pacific Standard Time'), or 'iana' (IANA / Olson names like 'America/Los_Angeles'). Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+  },
+  {
+    "pathPattern": "/me/outlook/supportedLanguages()",
+    "method": "get",
+    "toolName": "list-supported-languages",
+    "scopes": ["User.Read"],
+    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US'), displayName ('English (United States)'), and nativeName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "get",
+    "toolName": "list-my-calendar-permissions",
+    "scopes": ["Calendars.Read"],
+    "llmTip": "Lists share recipients and delegates on the user's primary calendar. Returns calendarPermission objects with id, role ('none' | 'freeBusyRead' | 'limitedRead' | 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' | 'custom'), emailAddress { name, address }, isInsideOrganization, isRemovable, allowedRoles. Returns an empty collection when called by a delegate or share recipient (only the calendar owner sees the full list). For a non-primary calendar, use /me/calendars/{calendar-id}/calendarPermissions — not currently exposed."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "post",
+    "toolName": "create-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Shares the user's primary calendar with another user (or sets up a delegate). Body: { emailAddress: { name: 'Adele Vance', address: 'adele@contoso.com' }, role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess', isInsideOrganization: true, isRemovable: true }. Use list-users to resolve the recipient SMTP. Returns the created calendarPermission with its id (used by update-my-calendar-permission and delete-my-calendar-permission)."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "patch",
+    "toolName": "update-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Changes the role (permission level) granted to an existing share recipient or delegate. Body: { role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' }. Only the role property is writable — to change the recipient's email or other properties, delete and recreate via delete-my-calendar-permission + create-my-calendar-permission. Get the permission id via list-my-calendar-permissions."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "delete",
+    "toolName": "delete-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Revokes a calendar share or delegate access. Get the permission id via list-my-calendar-permissions. Permissions where isRemovable=false (e.g. the implicit 'My Organization' default) cannot be deleted — Graph returns an error."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-contact-folder-child-folders",
+    "scopes": ["Contacts.Read"],
+    "llmTip": "Lists immediate sub-folders under a given contact folder. Returns id, displayName, parentFolderId. Use list-contact-folders to discover top-level folders, then this tool to traverse one level deeper. Supports $filter, $top, $orderby. Note: contact folders are typically a flat list in Outlook clients, but Graph allows nesting via this endpoint."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
+    "method": "post",
+    "toolName": "create-contact-child-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Names must be unique among siblings under the same parent. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth."
+  },
+  {
     "pathPattern": "/me/contactFolders",
     "method": "get",
     "toolName": "list-contact-folders",
