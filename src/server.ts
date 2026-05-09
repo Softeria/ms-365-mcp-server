@@ -15,10 +15,7 @@ import {
   microsoftBearerTokenAuthMiddleware,
   refreshAccessToken,
 } from './lib/microsoft-auth.js';
-import {
-  isAllowedRedirectUri,
-  parseAllowlist,
-} from './lib/redirect-uri-validation.js';
+import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';

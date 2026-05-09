@@ -130,6 +130,28 @@ When deploying for an organization, create a dedicated app registration instead 
 
 5. **Store credentials** in Key Vault (see [Azure Key Vault Integration](../README.md#azure-key-vault-integration))
 
+## Redirect URI Validation
+
+The /authorize endpoint defensively validates client-supplied `redirect_uri` values before forwarding them to Microsoft Entra (CWE-601, Open Redirect). Microsoft Entra also validates the URI against your app registration, but this server-side check rejects obviously dangerous schemes (`javascript:`, `data:`, `file:`, …) and arbitrary remote `http://` origins before the request leaves the server.
+
+Default behaviour (no explicit allowlist):
+
+- Only `http:` and `https:` schemes are accepted.
+- `http:` is only allowed for loopback hosts (`localhost`, `127.0.0.1`, `::1`).
+- All other `https://` origins are accepted (Entra still has the final say).
+
+For production deployments, configure an explicit allowlist via the `MS365_MCP_ALLOWED_REDIRECT_URIS` environment variable. It takes a comma-separated list of exact URIs; only exact string matches pass validation:
+
+```bash
+# Single redirect URI
+MS365_MCP_ALLOWED_REDIRECT_URIS=https://mcp.example.com/auth/callback
+
+# Multiple URIs (comma-separated, no spaces required)
+MS365_MCP_ALLOWED_REDIRECT_URIS=https://mcp.example.com/auth/callback,https://staging.example.com/auth/callback
+```
+
+The list should mirror the redirect URIs registered on your Azure AD app registration. Leaving the variable unset falls back to the default behaviour above, which is appropriate for local development but not recommended for shared/production deployments.
+
 ## Reverse Proxy / Custom Domain
 
 When running behind a reverse proxy, set `MS365_MCP_PUBLIC_URL` so that the OAuth authorize URL handed back to the user's browser is resolvable from outside the server's network:
