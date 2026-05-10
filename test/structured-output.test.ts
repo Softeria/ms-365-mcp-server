@@ -40,6 +40,16 @@ vi.mock('../src/generated/client.js', () => ({
         description: 'Send mail',
         parameters: [],
       },
+      {
+        alias: 'me.onlineMeetings.GetTranscriptsMetadataContent',
+        method: 'get',
+        path: '/me/onlineMeetings/:onlineMeetingId/transcripts/:callTranscriptId/metadataContent',
+        description: 'Get transcript metadata content',
+        parameters: [
+          { name: 'onlineMeetingId', type: 'Path', schema: z.string() },
+          { name: 'callTranscriptId', type: 'Path', schema: z.string() },
+        ],
+      },
     ],
   },
 }));
@@ -283,5 +293,49 @@ describe('Phase 8 structured discovery tool integration', () => {
     expect(executed.content[0]?.text.trim().length).toBeGreaterThan(0);
     expect(executed.structuredContent?.summary).toBe('Executed me.ListMessages.');
     expect(McpResultEnvelopeZod.parse(executed)).toEqual(executed);
+  });
+
+  it('preserves full transcript VTT text from discovery execute-tool', async () => {
+    const { registerDiscoveryTools } = (await import('../src/graph-tools.js')) as {
+      registerDiscoveryTools: typeof registerDiscoveryToolsType;
+    };
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const vtt = `WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n${'Transcript line. '.repeat(400)}END`;
+    const graphClient = {
+      graphRequest: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: JSON.stringify({ message: 'OK!', rawResponse: vtt }) }],
+      }),
+    };
+    registerDiscoveryTools(
+      server,
+      graphClient as unknown as Parameters<typeof registerDiscoveryTools>[1],
+      false,
+      true
+    );
+
+    const ctx = {
+      tenantId: '11111111-1111-4111-8111-111111111111',
+      enabledToolsSet: new Set(['me.onlineMeetings.GetTranscriptsMetadataContent']),
+      enabledToolsExplicit: true,
+      presetVersion: 'discovery-v1',
+    };
+
+    const executed = await requestContext.run(ctx, () =>
+      callTool(server, 'execute-tool', {
+        tool_name: 'me.onlineMeetings.GetTranscriptsMetadataContent',
+        parameters: { onlineMeetingId: 'meeting-1', callTranscriptId: 'transcript-1' },
+      })
+    );
+
+    expect(executed.structuredContent).toBeUndefined();
+    expect(executed.content[0]?.text).toBe(vtt);
+    expect(executed.content[0]?.text.length).toBeGreaterThan(4000);
+    expect(executed.content[0]?.text.endsWith('END')).toBe(true);
+
+    expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    const [path, options] = graphClient.graphRequest.mock.calls[0];
+    expect(path).toBe('/me/onlineMeetings/meeting-1/transcripts/transcript-1/metadataContent');
+    expect(options.headers.Accept).toBe('text/vtt');
+    expect(options.rawResponse).toBe(true);
   });
 });

@@ -36,8 +36,8 @@ MS365_MCP_DATABASE_URL=postgres://mcp:<password>@postgres:5432/mcp
 MS365_MCP_REDIS_URL=redis://redis:6379
 MS365_MCP_KEK=<base64-32-byte-key>
 MS365_MCP_PUBLIC_URL=https://mcp.example.com
-MS365_MCP_CORS_ORIGINS=https://claude.ai,https://mcp.example.com
-MS365_MCP_OAUTH_REDIRECT_HOSTS=claude.ai
+MS365_MCP_CORS_ORIGINS=https://claude.ai,https://chatgpt.com,https://chat.openai.com,https://mcp.example.com
+MS365_MCP_OAUTH_REDIRECT_HOSTS=claude.ai,chatgpt.com,chat.openai.com
 ```
 
 Then run:

@@ -64,7 +64,10 @@ interface AppHarness {
   mockMsalAcquireByCode: ReturnType<typeof vi.fn>;
 }
 
-async function startApp(tenantOverrides: Partial<TenantRow> = {}): Promise<AppHarness> {
+async function startApp(
+  tenantOverrides: Partial<TenantRow> = {},
+  authorizeOptions: { extraAllowedHosts?: readonly string[] } = {}
+): Promise<AppHarness> {
   const redis = new MemoryRedisFacade();
   const pkceStore = new RedisPkceStore(redis);
   const tenant = makeTenant(tenantOverrides);
@@ -104,7 +107,7 @@ async function startApp(tenantOverrides: Partial<TenantRow> = {}): Promise<AppHa
     next();
   };
 
-  app.get('/authorize', loadTenantStub, createAuthorizeHandler({ pkceStore }));
+  app.get('/authorize', loadTenantStub, createAuthorizeHandler({ pkceStore, ...authorizeOptions }));
   app.post(
     '/token',
     loadTenantStub,
@@ -200,6 +203,68 @@ describe('Delegated OAuth flow (AUTH-01)', () => {
 
     const params = new URLSearchParams({
       redirect_uri: 'https://attacker.example.com/steal',
+      code_challenge: clientChallenge,
+      code_challenge_method: 'S256',
+      state: 'xyz',
+      client_id: harness.tenant.client_id,
+    });
+
+    const res = await fetch(`${harness.url}/authorize?${params}`, {
+      redirect: 'manual',
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('invalid_redirect_uri');
+  });
+
+  it('allows trusted hosted connector redirect host without exact path allowlist', async () => {
+    harness = await startApp(
+      {
+        redirect_uri_allowlist: ['https://claude.ai/api/mcp/auth_callback'],
+      },
+      { extraAllowedHosts: ['chatgpt.com'] }
+    );
+
+    const clientVerifier = crypto.randomBytes(32).toString('base64url');
+    const clientChallenge = crypto.createHash('sha256').update(clientVerifier).digest('base64url');
+    const redirectUri = 'https://chatgpt.com/connector/oauth/generatedPath';
+
+    const params = new URLSearchParams({
+      redirect_uri: redirectUri,
+      code_challenge: clientChallenge,
+      code_challenge_method: 'S256',
+      state: 'xyz',
+      client_id: harness.tenant.client_id,
+    });
+
+    const res = await fetch(`${harness.url}/authorize?${params}`, {
+      redirect: 'manual',
+    });
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location');
+    expect(location).toBeTruthy();
+    const loc = new URL(location!);
+    expect(loc.searchParams.get('redirect_uri')).toBe(redirectUri);
+
+    const entry = await harness.pkceStore.takeByChallenge(harness.tenant.id, clientChallenge);
+    expect(entry?.redirectUri).toBe(redirectUri);
+  });
+
+  it('rejects hosted connector lookalike hosts', async () => {
+    harness = await startApp(
+      {
+        redirect_uri_allowlist: ['https://claude.ai/api/mcp/auth_callback'],
+      },
+      { extraAllowedHosts: ['chatgpt.com'] }
+    );
+
+    const clientVerifier = crypto.randomBytes(32).toString('base64url');
+    const clientChallenge = crypto.createHash('sha256').update(clientVerifier).digest('base64url');
+
+    const params = new URLSearchParams({
+      redirect_uri: 'https://evilchatgpt.com/connector/oauth/generatedPath',
       code_challenge: clientChallenge,
       code_challenge_method: 'S256',
       state: 'xyz',

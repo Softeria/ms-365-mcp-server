@@ -158,6 +158,14 @@ type ResourceContent = ResourceTextContent | ResourceBlobContent;
 
 type ContentItem = TextContent | ImageContent | AudioContent | ResourceContent;
 
+type TextToolResult = {
+  content: TextContent[];
+  _meta?: Record<string, unknown>;
+  isError?: boolean;
+
+  [key: string]: unknown;
+};
+
 export interface CallToolResult {
   content: ContentItem[];
   _meta?: Record<string, unknown>;
@@ -304,6 +312,61 @@ function summarizeSerializedBody(
     present: true,
     bytes: Buffer.byteLength(body, 'utf8'),
     contentType: headers['Content-Type'] ?? headers['content-type'],
+  };
+}
+
+const TRANSCRIPT_VTT_ACCEPT = 'text/vtt';
+
+function normalizedToolAlias(alias: string): string {
+  return alias.replace(/^__beta__/, '').toLowerCase();
+}
+
+function isTranscriptContentAlias(alias: string): boolean {
+  const normalized = normalizedToolAlias(alias);
+  return (
+    normalized.endsWith('.gettranscriptscontent') ||
+    normalized.endsWith('.gettranscriptsmetadatacontent') ||
+    normalized === 'get-meeting-transcript-content'
+  );
+}
+
+function pathWithoutQuery(path: string): string {
+  return path.split('?')[0] ?? path;
+}
+
+function isTranscriptContentTool(
+  tool: Pick<(typeof api.endpoints)[0], 'alias' | 'method' | 'path'>
+) {
+  if (tool.method.toUpperCase() !== 'GET') return false;
+  if (isTranscriptContentAlias(tool.alias)) return true;
+
+  const requestPath = pathWithoutQuery(tool.path).toLowerCase();
+  return /\/transcripts\/:[^/]+\/(metadata)?content$/.test(requestPath);
+}
+
+function extractRawResponseText(result: TextToolResult): string | undefined {
+  const text = result.content.find((item) => item.type === 'text')?.text;
+  if (!text) return undefined;
+  try {
+    const parsed = JSON.parse(text) as { rawResponse?: unknown };
+    return typeof parsed.rawResponse === 'string' ? parsed.rawResponse : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function preserveRawTranscriptText(result: TextToolResult): TextToolResult {
+  if (result.isError) return result;
+  const raw = extractRawResponseText(result);
+  if (raw === undefined) return result;
+  return {
+    ...result,
+    content: [{ type: 'text', text: raw }],
+    _meta: {
+      ...result._meta,
+      contentType: TRANSCRIPT_VTT_ACCEPT,
+      rawTextResponse: true,
+    },
   };
 }
 
@@ -767,9 +830,12 @@ async function executeGraphToolInner(
       logger.info(`Setting custom Content-Type: ${config.contentType}`);
     }
 
-    if (config?.acceptType) {
-      headers['Accept'] = config.acceptType;
-      logger.info(`Setting custom Accept: ${config.acceptType}`);
+    const isTranscriptContent = isTranscriptContentTool(tool);
+    const acceptType =
+      config?.acceptType ?? (isTranscriptContent ? TRANSCRIPT_VTT_ACCEPT : undefined);
+    if (acceptType) {
+      headers['Accept'] = acceptType;
+      logger.info(`Setting custom Accept: ${acceptType}`);
     }
 
     if (Object.keys(queryParams).length > 0) {
@@ -813,9 +879,11 @@ async function executeGraphToolInner(
       }
     }
 
+    const requestPath = pathWithoutQuery(path);
     const isProbablyMediaContent =
+      isTranscriptContent ||
       tool.errors?.some((error) => error.description === 'Retrieved media content') ||
-      path.endsWith('/content');
+      requestPath.endsWith('/content');
 
     if (config?.returnDownloadUrl && path.endsWith('/content')) {
       path = path.replace(/\/content$/, '');
@@ -851,6 +919,9 @@ async function executeGraphToolInner(
     );
 
     let response = await graphClient.graphRequest(path, options);
+    if (isTranscriptContent) {
+      response = preserveRawTranscriptText(response);
+    }
 
     // Plan 02-04 / MWARE-04: delegate pagination to src/lib/middleware/page-iterator.ts.
     // The v1 inline loop at this site silently swallowed mid-stream errors
@@ -2098,7 +2169,7 @@ export function registerDiscoveryTools(
         readOnly,
         orgMode,
       });
-      if (result.isError) return result;
+      if (result.isError || isTranscriptContentAlias(tool_name)) return result;
       const data = graphResultData(result);
       const resources = graphResourceLinksForToolResult({
         toolName: tool_name,

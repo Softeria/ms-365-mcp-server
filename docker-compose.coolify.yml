@@ -61,12 +61,12 @@ services:
       # Claude connectors fetch /.well-known/oauth-authorization-server and
       # redirect the browser to the URL this declares.
       MS365_MCP_PUBLIC_URL: '${MS365_MCP_PUBLIC_URL:?set to your Coolify-assigned https://… URL}'
-      # Include https://claude.ai for the Claude custom-connector flow.
-      MS365_MCP_CORS_ORIGINS: '${MS365_MCP_CORS_ORIGINS:-https://claude.ai}'
+      # Include Claude and ChatGPT connector origins for hosted custom-connector flows.
+      MS365_MCP_CORS_ORIGINS: '${MS365_MCP_CORS_ORIGINS:-https://claude.ai,https://chatgpt.com,https://chat.openai.com}'
       # OAuth DCR redirect_uri host allowlist — third-party MCP connectors
       # (Claude.ai, ChatGPT, etc.) register callbacks on their own domain.
-      # CSV of bare hostnames (no scheme, no port). Defaults to claude.ai.
-      MS365_MCP_OAUTH_REDIRECT_HOSTS: '${MS365_MCP_OAUTH_REDIRECT_HOSTS:-claude.ai}'
+      # CSV of bare hostnames (no scheme, no port).
+      MS365_MCP_OAUTH_REDIRECT_HOSTS: '${MS365_MCP_OAUTH_REDIRECT_HOSTS:-claude.ai,chatgpt.com,chat.openai.com}'
       MS365_MCP_KEK: '${MS365_MCP_KEK:?MS365_MCP_KEK must be set - generate with openssl rand -base64 32}'
       MS365_MCP_CLIENT_ID: ${MS365_MCP_CLIENT_ID:-}
       MS365_MCP_CLIENT_SECRET: ${MS365_MCP_CLIENT_SECRET:-}

@@ -36,6 +36,25 @@ function normalizeRedirectUri(u: string): string {
   }
 }
 
+function isTrustedHostedConnectorRedirect(
+  redirectUri: string,
+  extraAllowedHosts?: readonly string[]
+): boolean {
+  if (!extraAllowedHosts?.length) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+
+  return (
+    parsed.protocol === 'https:' &&
+    extraAllowedHosts.some((host) => host.trim().toLowerCase() === parsed.hostname)
+  );
+}
+
 export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
   const { pkceStore, pgPool, extraAllowedHosts } = config;
 
@@ -91,7 +110,9 @@ export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
 
     const normalizedRedirect = normalizeRedirectUri(redirectUri);
     const allowlistNormalized = tenant.redirect_uri_allowlist.map(normalizeRedirectUri);
-    if (!allowlistNormalized.includes(normalizedRedirect)) {
+    const allowedByTenant = allowlistNormalized.includes(normalizedRedirect);
+    const allowedByTrustedHost = isTrustedHostedConnectorRedirect(redirectUri, extraAllowedHosts);
+    if (!allowedByTenant && !allowedByTrustedHost) {
       emitAudit(tenant.id, 'failure', redirectUri, { error: 'invalid_redirect_uri' }, req);
       res.status(400).json({ error: 'invalid_redirect_uri' });
       return;
