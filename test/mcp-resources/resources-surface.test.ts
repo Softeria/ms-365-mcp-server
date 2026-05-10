@@ -210,9 +210,9 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
       await readMcpResource(`mcp://tenant/${TENANT_A}/facts.json`, {});
     });
 
-    expect(memoryMocks.listBookmarks).toHaveBeenCalledWith(TENANT_A);
-    expect(memoryMocks.listRecipes).toHaveBeenCalledWith(TENANT_A);
-    expect(memoryMocks.recallFacts).toHaveBeenCalledWith(TENANT_A, { limit: 100 });
+    expect(memoryMocks.listBookmarks).toHaveBeenCalledWith(TENANT_A, undefined, undefined);
+    expect(memoryMocks.listRecipes).toHaveBeenCalledWith(TENANT_A, undefined, undefined);
+    expect(memoryMocks.recallFacts).toHaveBeenCalledWith(TENANT_A, { limit: 100 }, undefined);
   });
 
   it('fails closed on tenant URI mismatch before tenant view reads', async () => {

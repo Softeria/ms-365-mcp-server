@@ -511,29 +511,46 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
       last_used_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, alias)
+      created_at timestamptz NOT NULL DEFAULT NOW()
     );
+
+    CREATE UNIQUE INDEX idx_tenant_tool_bookmarks_unique_tenant_alias
+      ON tenant_tool_bookmarks (tenant_id, alias)
+      WHERE owner_subject IS NULL;
+
+    CREATE UNIQUE INDEX idx_tenant_tool_bookmarks_unique_owner_alias
+      ON tenant_tool_bookmarks (tenant_id, owner_subject, alias)
+      WHERE owner_subject IS NOT NULL;
 
     CREATE TABLE tenant_tool_recipes (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL,
+      owner_subject text,
       name text NOT NULL,
       alias text NOT NULL,
       params jsonb NOT NULL DEFAULT '{}'::jsonb,
       note text,
       last_run_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, name)
+      created_at timestamptz NOT NULL DEFAULT NOW()
     );
+
+    CREATE UNIQUE INDEX idx_tenant_tool_recipes_unique_tenant_name
+      ON tenant_tool_recipes (tenant_id, name)
+      WHERE owner_subject IS NULL;
+
+    CREATE UNIQUE INDEX idx_tenant_tool_recipes_unique_owner_name
+      ON tenant_tool_recipes (tenant_id, owner_subject, name)
+      WHERE owner_subject IS NOT NULL;
 
     CREATE TABLE tenant_facts (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL,
+      owner_subject text,
       scope text NOT NULL,
       content text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT NOW(),

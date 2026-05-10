@@ -47,14 +47,20 @@ export interface RegisterSkillToolsDeps {
 
 const EmptyInputZod = z.object({}).passthrough();
 const SkillLookupZod = z.object({ name: SkillNameZod });
-const RenderSkillInputZod = z.object({
-  name: SkillNameZod,
-  args: z.record(z.unknown()).optional(),
-  arguments: z.record(z.unknown()).optional(),
-});
+const RenderSkillInputZod = z
+  .object({
+    name: SkillNameZod,
+    args: z.record(z.unknown()).optional(),
+    arguments: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+const RenderSkillReservedKeys = new Set(['name', 'args', 'arguments']);
 const RenderSkillZod = RenderSkillInputZod.transform((input) => ({
   name: input.name,
-  args: input.args ?? input.arguments ?? {},
+  args:
+    input.args ??
+    input.arguments ??
+    Object.fromEntries(Object.entries(input).filter(([key]) => !RenderSkillReservedKeys.has(key))),
 }));
 const SaveSkillZod = z
   .object({
@@ -367,15 +373,15 @@ export function registerSkillTools(server: McpServer, deps: RegisterSkillToolsDe
     }
   );
 
-  server.tool(
+  server.registerTool(
     'render-skill',
-    'Render a visible skill without executing Graph calls.',
     {
-      name: RenderSkillInputZod.shape.name,
-      args: RenderSkillInputZod.shape.args,
-      arguments: RenderSkillInputZod.shape.arguments,
+      title: 'render-skill',
+      description: 'Render a visible skill without executing Graph calls.',
+      inputSchema: RenderSkillInputZod,
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    { title: 'render-skill', readOnlyHint: true, openWorldHint: false },
     async (args) => {
       const tenant = requireTenant();
       if (!tenant) return result('render-skill', { error: 'tenant_required' }, true);

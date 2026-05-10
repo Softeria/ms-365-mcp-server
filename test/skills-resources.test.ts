@@ -54,6 +54,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_recipes (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       name text NOT NULL,
       alias text NOT NULL,
       params jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -64,6 +65,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
@@ -73,6 +75,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_facts (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       scope text NOT NULL,
       content text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT NOW(),
