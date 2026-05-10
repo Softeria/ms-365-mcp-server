@@ -165,6 +165,16 @@ describe('validateRedirectUri — extraAllowedHosts (DCR)', () => {
     ).toEqual({ ok: true });
   });
 
+  it('accepts URL-form extraAllowedHosts entries by normalizing to hostnames', () => {
+    expect(
+      validateRedirectUri('https://chatgpt.com/connector/oauth/generated', {
+        mode: 'prod',
+        publicUrlHost: null,
+        extraAllowedHosts: ['https://chatgpt.com', 'https://claude.ai/api/mcp/auth_callback'],
+      })
+    ).toEqual({ ok: true });
+  });
+
   it('rejects http://claude.ai/cb (only https is allowed via extraAllowedHosts)', () => {
     const result = validateRedirectUri('http://claude.ai/cb', policy_prod_with_claude);
     expect(result.ok).toBe(false);

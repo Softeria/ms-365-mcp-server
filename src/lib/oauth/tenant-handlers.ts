@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import logger from '../../logger.js';
 import { getCloudEndpoints } from '../../cloud-config.js';
 import { getRequestTokens } from '../../request-context.js';
-import { validateRedirectUri } from '../redirect-uri.js';
+import { normalizeRedirectHostEntry, validateRedirectUri } from '../redirect-uri.js';
 import {
   delegatedAccessTokenTtlSeconds,
   rememberDelegatedAccessToken,
@@ -51,7 +51,7 @@ function isTrustedHostedConnectorRedirect(
 
   return (
     parsed.protocol === 'https:' &&
-    extraAllowedHosts.some((host) => host.trim().toLowerCase() === parsed.hostname)
+    extraAllowedHosts.some((host) => normalizeRedirectHostEntry(host) === parsed.hostname)
   );
 }
 

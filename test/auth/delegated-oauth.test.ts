@@ -223,7 +223,7 @@ describe('Delegated OAuth flow (AUTH-01)', () => {
       {
         redirect_uri_allowlist: ['https://claude.ai/api/mcp/auth_callback'],
       },
-      { extraAllowedHosts: ['chatgpt.com'] }
+      { extraAllowedHosts: ['https://chatgpt.com'] }
     );
 
     const clientVerifier = crypto.randomBytes(32).toString('base64url');
