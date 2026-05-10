@@ -47,14 +47,20 @@ export interface RegisterSkillToolsDeps {
 
 const EmptyInputZod = z.object({}).passthrough();
 const SkillLookupZod = z.object({ name: SkillNameZod });
-const RenderSkillInputZod = z.object({
-  name: SkillNameZod,
-  args: z.record(z.unknown()).optional(),
-  arguments: z.record(z.unknown()).optional(),
-});
+const RenderSkillInputZod = z
+  .object({
+    name: SkillNameZod,
+    args: z.record(z.unknown()).optional(),
+    arguments: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+const RenderSkillReservedKeys = new Set(['name', 'args', 'arguments']);
 const RenderSkillZod = RenderSkillInputZod.transform((input) => ({
   name: input.name,
-  args: input.args ?? input.arguments ?? {},
+  args:
+    input.args ??
+    input.arguments ??
+    Object.fromEntries(Object.entries(input).filter(([key]) => !RenderSkillReservedKeys.has(key))),
 }));
 const SaveSkillZod = z
   .object({
