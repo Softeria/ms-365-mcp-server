@@ -22,6 +22,11 @@ services:
       POSTGRES_DB: mcp
     volumes:
       - mcp_pg_data:/var/lib/postgresql/data
+    networks:
+      default:
+      pgadmin:
+        aliases:
+          - m365-postgres
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U mcp -d mcp']
       interval: 5s
@@ -96,3 +101,7 @@ services:
 volumes:
   mcp_pg_data:
   mcp_redis_data:
+
+networks:
+  pgadmin:
+    name: ${MS365_MCP_PGADMIN_NETWORK:-m365-db-net}

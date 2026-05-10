@@ -50,6 +50,16 @@ vi.mock('../src/generated/client.js', () => ({
           { name: 'callTranscriptId', type: 'Path', schema: z.string() },
         ],
       },
+      {
+        alias: 'me.onlineMeetings.GetTranscriptsContent',
+        method: 'get',
+        path: '/me/onlineMeetings/:onlineMeetingId/transcripts/:callTranscriptId/content',
+        description: 'Get transcript content',
+        parameters: [
+          { name: 'onlineMeetingId', type: 'Path', schema: z.string() },
+          { name: 'callTranscriptId', type: 'Path', schema: z.string() },
+        ],
+      },
     ],
   },
 }));
@@ -295,7 +305,7 @@ describe('Phase 8 structured discovery tool integration', () => {
     expect(McpResultEnvelopeZod.parse(executed)).toEqual(executed);
   });
 
-  it('preserves full transcript VTT text from discovery execute-tool', async () => {
+  it('preserves full transcript VTT text in structured discovery execute-tool output', async () => {
     const { registerDiscoveryTools } = (await import('../src/graph-tools.js')) as {
       registerDiscoveryTools: typeof registerDiscoveryToolsType;
     };
@@ -313,29 +323,47 @@ describe('Phase 8 structured discovery tool integration', () => {
       true
     );
 
+    const transcriptTools = [
+      {
+        name: 'me.onlineMeetings.GetTranscriptsMetadataContent',
+        path: '/me/onlineMeetings/meeting-1/transcripts/transcript-1/metadataContent',
+      },
+      {
+        name: 'me.onlineMeetings.GetTranscriptsContent',
+        path: '/me/onlineMeetings/meeting-1/transcripts/transcript-1/content',
+      },
+    ];
     const ctx = {
       tenantId: '11111111-1111-4111-8111-111111111111',
-      enabledToolsSet: new Set(['me.onlineMeetings.GetTranscriptsMetadataContent']),
+      enabledToolsSet: new Set(transcriptTools.map((tool) => tool.name)),
       enabledToolsExplicit: true,
       presetVersion: 'discovery-v1',
     };
 
-    const executed = await requestContext.run(ctx, () =>
-      callTool(server, 'execute-tool', {
-        tool_name: 'me.onlineMeetings.GetTranscriptsMetadataContent',
-        parameters: { onlineMeetingId: 'meeting-1', callTranscriptId: 'transcript-1' },
-      })
-    );
+    for (const tool of transcriptTools) {
+      graphClient.graphRequest.mockClear();
+      const executed = await requestContext.run(ctx, () =>
+        callTool(server, 'execute-tool', {
+          tool_name: tool.name,
+          parameters: { onlineMeetingId: 'meeting-1', callTranscriptId: 'transcript-1' },
+        })
+      );
 
-    expect(executed.structuredContent).toBeUndefined();
-    expect(executed.content[0]?.text).toBe(vtt);
-    expect(executed.content[0]?.text.length).toBeGreaterThan(4000);
-    expect(executed.content[0]?.text.endsWith('END')).toBe(true);
+      expect(executed.content[0]?.text).toContain('Fetched transcript content');
+      expect(executed.content[0]?.text).not.toBe(vtt);
+      expect(executed.structuredContent?.summary).toBe('Fetched transcript content.');
+      expect(executed.structuredContent?.data).toMatchObject({
+        contentType: 'text/vtt',
+        content: vtt,
+      });
+      expect(JSON.stringify(executed.structuredContent?.data).length).toBeGreaterThan(4000);
+      expect(McpResultEnvelopeZod.parse(executed)).toEqual(executed);
 
-    expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
-    const [path, options] = graphClient.graphRequest.mock.calls[0];
-    expect(path).toBe('/me/onlineMeetings/meeting-1/transcripts/transcript-1/metadataContent');
-    expect(options.headers.Accept).toBe('text/vtt');
-    expect(options.rawResponse).toBe(true);
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [path, options] = graphClient.graphRequest.mock.calls[0];
+      expect(path).toBe(tool.path);
+      expect(options.headers.Accept).toBe('text/vtt');
+      expect(options.rawResponse).toBe(true);
+    }
   });
 });

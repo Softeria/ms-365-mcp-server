@@ -23,6 +23,11 @@ services:
       POSTGRES_DB: mcp
     volumes:
       - mcp_pg_data:/var/lib/postgresql/data
+    networks:
+      default:
+      pgadmin:
+        aliases:
+          - m365-postgres
     ports:
       - '127.0.0.1:5432:5432'
     healthcheck:
@@ -100,3 +105,7 @@ services:
 volumes:
   mcp_pg_data:
   mcp_redis_data:
+
+networks:
+  pgadmin:
+    name: ${MS365_MCP_PGADMIN_NETWORK:-m365-db-net}

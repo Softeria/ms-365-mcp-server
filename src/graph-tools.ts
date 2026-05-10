@@ -27,7 +27,10 @@ import { safeBookmarkBoost } from './lib/memory/bookmark-boost.js';
 import { getBookmarkCountsByAlias } from './lib/memory/bookmarks.js';
 import { emitMcpLogEvent } from './lib/mcp-logging/register.js';
 import { createMcpErrorEnvelope, createMcpResultEnvelope } from './lib/mcp-results/envelope.js';
-import { MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA } from './lib/mcp-results/schemas.js';
+import {
+  MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+  McpResultEnvelopeZod,
+} from './lib/mcp-results/schemas.js';
 import {
   graphResourceLinksForToolResult,
   shouldUseResourceLinkedText,
@@ -370,6 +373,52 @@ function preserveRawTranscriptText(result: TextToolResult): TextToolResult {
   };
 }
 
+function transcriptTextFromResult(result: CallToolResult): string | undefined {
+  return result.content.find((item): item is TextContent => item.type === 'text')?.text;
+}
+
+function createTranscriptStructuredResult(
+  toolName: string,
+  result: CallToolResult
+): CallToolResult {
+  const content = transcriptTextFromResult(result);
+  const contentType =
+    typeof result._meta?.contentType === 'string'
+      ? result._meta.contentType
+      : TRANSCRIPT_VTT_ACCEPT;
+  const parsed = McpResultEnvelopeZod.safeParse({
+    content: [
+      {
+        type: 'text',
+        text: `Fetched transcript content (${Buffer.byteLength(content ?? '', 'utf8')} bytes).`,
+      },
+    ],
+    structuredContent: {
+      summary: 'Fetched transcript content.',
+      data: {
+        contentType,
+        content: content ?? '',
+      },
+      resources: [],
+      nextActions: ['Read structuredContent.data.content for the complete WEBVTT transcript.'],
+      warnings: [],
+    },
+    _meta: {
+      toolAlias: toolName,
+      contentType,
+      rawTextResponse: true,
+    },
+  });
+
+  if (parsed.success) return parsed.data as CallToolResult;
+  return createMcpErrorEnvelope({
+    toolName: 'execute-tool',
+    summary: 'Transcript content output validation failed.',
+    code: 'transcript_output_validation_failed',
+    message: parsed.error.message,
+    meta: { toolAlias: toolName },
+  });
+}
 function parameterValidationError(
   toolAlias: string,
   parameter: string,
@@ -2169,7 +2218,10 @@ export function registerDiscoveryTools(
         readOnly,
         orgMode,
       });
-      if (result.isError || isTranscriptContentAlias(tool_name)) return result;
+      if (result.isError) return result;
+      if (isTranscriptContentAlias(tool_name)) {
+        return createTranscriptStructuredResult(tool_name, result);
+      }
       const data = graphResultData(result);
       const resources = graphResourceLinksForToolResult({
         toolName: tool_name,
