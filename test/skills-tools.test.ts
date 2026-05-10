@@ -216,6 +216,11 @@ describe('Phase 8 Plan 08-06 skill tools', () => {
             args: { account: '<inbox>' },
           });
           expect(bodyOf(rendered)).toMatchObject({ text: 'Edited &lt;inbox&gt;' });
+          const renderedWithArguments = await callTool(server, 'render-skill', {
+            name: 'triage',
+            arguments: { account: 'latest' },
+          });
+          expect(bodyOf(renderedWithArguments)).toMatchObject({ text: 'Edited latest' });
 
           const listed = await callTool(server, 'list-skills', {});
           expect(
