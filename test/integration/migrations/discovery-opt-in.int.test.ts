@@ -62,13 +62,21 @@ async function makePool(): Promise<Pool> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
       last_used_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, alias)
+      created_at timestamptz NOT NULL DEFAULT NOW()
     );
+
+    CREATE UNIQUE INDEX idx_tenant_tool_bookmarks_unique_tenant_alias
+      ON tenant_tool_bookmarks (tenant_id, alias)
+      WHERE owner_subject IS NULL;
+
+    CREATE UNIQUE INDEX idx_tenant_tool_bookmarks_unique_owner_alias
+      ON tenant_tool_bookmarks (tenant_id, owner_subject, alias)
+      WHERE owner_subject IS NOT NULL;
   `);
   return pool;
 }

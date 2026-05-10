@@ -373,15 +373,15 @@ export function registerSkillTools(server: McpServer, deps: RegisterSkillToolsDe
     }
   );
 
-  server.tool(
+  server.registerTool(
     'render-skill',
-    'Render a visible skill without executing Graph calls.',
     {
-      name: RenderSkillInputZod.shape.name,
-      args: RenderSkillInputZod.shape.args,
-      arguments: RenderSkillInputZod.shape.arguments,
+      title: 'render-skill',
+      description: 'Render a visible skill without executing Graph calls.',
+      inputSchema: RenderSkillInputZod,
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    { title: 'render-skill', readOnlyHint: true, openWorldHint: false },
     async (args) => {
       const tenant = requireTenant();
       if (!tenant) return result('render-skill', { error: 'tenant_required' }, true);

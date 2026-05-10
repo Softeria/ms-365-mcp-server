@@ -142,6 +142,24 @@ async function callTool(
   return tool.handler(args, { requestId: 'test' });
 }
 
+async function callToolThroughSdk(
+  server: McpServer,
+  name: string,
+  args: Record<string, unknown>
+): Promise<CallToolResult> {
+  const handlers = (
+    server.server as unknown as {
+      _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<CallToolResult>>;
+    }
+  )._requestHandlers;
+  const handler = handlers.get('tools/call');
+  if (!handler) throw new Error('tools/call handler not registered');
+  return handler(
+    { method: 'tools/call', params: { name, arguments: args } },
+    { requestId: 'test', sendNotification: vi.fn(), sendRequest: vi.fn() }
+  );
+}
+
 function bodyOf(result: CallToolResult): Record<string, unknown> {
   return JSON.parse(result.content[0].text) as Record<string, unknown>;
 }
@@ -221,7 +239,7 @@ describe('Phase 8 Plan 08-06 skill tools', () => {
             arguments: { account: 'latest' },
           });
           expect(bodyOf(renderedWithArguments)).toMatchObject({ text: 'Edited latest' });
-          const renderedWithFlatArgs = await callTool(server, 'render-skill', {
+          const renderedWithFlatArgs = await callToolThroughSdk(server, 'render-skill', {
             name: 'triage',
             account: 'team inbox',
           });
