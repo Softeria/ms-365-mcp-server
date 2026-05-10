@@ -87,7 +87,7 @@ describe('plan 05.1-07 — compile-preset 6-preset pipeline', () => {
     expect(Object.isFrozen(specs)).toBe(true);
 
     const byVersion = Object.fromEntries(specs.map((s) => [s.version, s]));
-    expect(byVersion['discovery-v1']).toMatchObject({ exactCount: 12, prefix: null });
+    expect(byVersion['discovery-v1']).toMatchObject({ exactCount: 28, prefix: null });
     expect(byVersion['essentials-v1']).toMatchObject({ exactCount: 150, prefix: null });
     expect(byVersion['powerbi-essentials']).toMatchObject({ prefix: '__powerbi__' });
     expect(byVersion['pwrapps-essentials']).toMatchObject({ prefix: '__pwrapps__' });
