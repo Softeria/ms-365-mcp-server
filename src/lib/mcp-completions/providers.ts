@@ -206,7 +206,7 @@ export async function completeRecipeName(value: string): Promise<string[]> {
   const tenant = getRequestTenant();
   if (!tenant.id) return [];
   try {
-    const recipes = await listRecipes(tenant.id, value);
+    const recipes = await listRecipes(tenant.id, value, getRequestOwnerSubject());
     return bound(recipes.map((recipe) => recipe.name));
   } catch {
     return [];
@@ -217,7 +217,7 @@ export async function completeBookmark(value: string): Promise<string[]> {
   const tenant = getRequestTenant();
   if (!tenant.id) return [];
   try {
-    const bookmarks = await listBookmarks(tenant.id, value);
+    const bookmarks = await listBookmarks(tenant.id, value, getRequestOwnerSubject());
     return bound(
       bookmarks.flatMap((bookmark) => [bookmark.label, bookmark.alias]).filter(isString)
     );
@@ -230,7 +230,10 @@ export async function completeFactScope(value: string): Promise<string[]> {
   const tenant = getRequestTenant();
   if (!tenant.id) return [];
   try {
-    const facts = await listFactsForAdmin(tenant.id, { limit: MAX_COMPLETION_VALUES });
+    const facts = await listFactsForAdmin(tenant.id, {
+      limit: MAX_COMPLETION_VALUES,
+      ownerSubject: getRequestOwnerSubject(),
+    });
     const needle = normalizedNeedle(value);
     return bound(
       facts.facts.map((fact) => fact.scope).filter((scope) => startsOrIncludes(scope, needle))

@@ -4,7 +4,7 @@ import logger from '../../logger.js';
 import type AuthManager from '../../auth.js';
 import type GraphClient from '../../graph-client.js';
 import { executeToolAlias } from '../../graph-tools.js';
-import { getRequestTenant } from '../../request-context.js';
+import { getRequestOwnerSubject, getRequestTenant } from '../../request-context.js';
 import type { RedisClient } from '../redis.js';
 import { publishResourceUpdated } from '../mcp-notifications/events.js';
 import { emitMcpLogEvent } from '../mcp-logging/register.js';
@@ -15,6 +15,7 @@ import {
   RecipeNameZod,
   RecipeNoteZod,
   RecipeParamsZod,
+  RecipeVisibilityZod,
   getRecipeByName,
   listRecipes,
   markRecipeRun,
@@ -29,6 +30,9 @@ const SaveRecipeInputZod = z.object({
   alias: RecipeAliasZod.describe('Exact Graph/product alias discovered by search-tools.'),
   params: RecipeParamsZod.describe('Known-good parameters to replay when this recipe runs.'),
   note: RecipeNoteZod.describe('Optional note describing when this recipe is useful.'),
+  visibility: RecipeVisibilityZod.default('tenant').describe(
+    'tenant shares with all callers; user keeps it private to the authenticated caller.'
+  ),
 });
 
 const ListRecipesInputZod = z.object({
@@ -86,6 +90,10 @@ function requireTenant():
   return { id: tenant.id };
 }
 
+function ownerForVisibility(visibility: 'tenant' | 'user'): string | undefined {
+  return visibility === 'user' ? getRequestOwnerSubject() : undefined;
+}
+
 async function publishRecipeChange(redis: RedisClient, tenantId: string): Promise<void> {
   try {
     await publishResourceUpdated(
@@ -111,6 +119,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
       alias: SaveRecipeInputZod.shape.alias,
       params: SaveRecipeInputZod.shape.params,
       note: SaveRecipeInputZod.shape.note,
+      visibility: SaveRecipeInputZod.shape.visibility,
     },
     {
       title: 'save-recipe',
@@ -132,7 +141,18 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
         );
       }
 
-      const recipe = await saveRecipe(tenant.id, parsed.data);
+      const ownerSubject = ownerForVisibility(parsed.data.visibility);
+      if (parsed.data.visibility === 'user' && !ownerSubject) {
+        return jsonResult({ error: 'owner_subject_required' }, true, 'save-recipe');
+      }
+
+      const recipeInput = {
+        name: parsed.data.name,
+        alias: parsed.data.alias,
+        params: parsed.data.params,
+        note: parsed.data.note,
+      };
+      const recipe = await saveRecipe(tenant.id, recipeInput, ownerSubject);
       await emitMcpLogEvent({
         tenantId: tenant.id,
         event: 'recipe.saved',
@@ -173,7 +193,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
         );
       }
 
-      const recipes = await listRecipes(tenant.id, parsed.data.filter);
+      const recipes = await listRecipes(tenant.id, parsed.data.filter, getRequestOwnerSubject());
       return jsonResult({ recipes }, false, 'list-recipes');
     }
   );
@@ -206,7 +226,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
         );
       }
 
-      const recipe = await getRecipeByName(tenant.id, parsed.data.name);
+      const recipe = await getRecipeByName(tenant.id, parsed.data.name, getRequestOwnerSubject());
       if (!recipe) {
         return jsonResult({ error: 'recipe_not_found' }, true);
       }
@@ -232,7 +252,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
       }
 
       if (!result.isError) {
-        await markRecipeRun(tenant.id, recipe.name);
+        await markRecipeRun(tenant.id, recipe.name, recipe.ownerSubject);
         await publishRecipeChange(deps.redis, tenant.id);
       }
 

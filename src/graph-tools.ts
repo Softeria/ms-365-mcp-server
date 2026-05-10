@@ -25,6 +25,7 @@ import { clampTopQueryParam } from './lib/graph-tools-pure.js';
 import { resolveDiscoveryCatalog } from './lib/discovery-catalog/catalog.js';
 import { safeBookmarkBoost } from './lib/memory/bookmark-boost.js';
 import { getBookmarkCountsByAlias } from './lib/memory/bookmarks.js';
+import { getRequestOwnerSubject } from './request-context.js';
 import { emitMcpLogEvent } from './lib/mcp-logging/register.js';
 import { createMcpErrorEnvelope, createMcpResultEnvelope } from './lib/mcp-results/envelope.js';
 import {
@@ -2060,7 +2061,7 @@ export function registerDiscoveryTools(
         const nameTokens = buildTenantNameTokens(catalogSet, projectedRegistry);
         let bookmarkCounts = new Map<string, number>();
         try {
-          bookmarkCounts = await getBookmarkCountsByAlias(tenant.id);
+          bookmarkCounts = await getBookmarkCountsByAlias(tenant.id, getRequestOwnerSubject());
         } catch (err) {
           logger.warn(
             { tenantId: tenant.id, err: (err as Error).message },

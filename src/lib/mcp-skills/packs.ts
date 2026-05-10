@@ -475,9 +475,12 @@ export async function importSkillPack(
   const renamed: Array<{ from: string; to: string }> = [];
   let importedSkills = 0;
 
-  for (const recipe of pack.recipes) await saveRecipe(tenantId, recipe as RecipeSeed);
-  for (const bookmark of pack.bookmarks) await upsertBookmark(tenantId, bookmark as BookmarkSeed);
-  for (const fact of pack.facts) await recordFact(tenantId, fact as FactSeed);
+  const memoryOwnerSubject = options.ownerSubject;
+  for (const recipe of pack.recipes)
+    await saveRecipe(tenantId, recipe as RecipeSeed, memoryOwnerSubject);
+  for (const bookmark of pack.bookmarks)
+    await upsertBookmark(tenantId, bookmark as BookmarkSeed, memoryOwnerSubject);
+  for (const fact of pack.facts) await recordFact(tenantId, fact as FactSeed, memoryOwnerSubject);
 
   for (const skill of pack.skills) {
     const saved = await saveImportedSkill(tenantId, skill, {
@@ -525,9 +528,13 @@ function skillRefs(skills: readonly SkillRecord[]): {
   return { recipes, bookmarks, facts };
 }
 
-async function exportedFacts(tenantId: string, scopes: ReadonlySet<string>): Promise<Fact[]> {
+async function exportedFacts(
+  tenantId: string,
+  scopes: ReadonlySet<string>,
+  ownerSubject?: string
+): Promise<Fact[]> {
   const facts = await Promise.all(
-    [...scopes].map((scope) => recallFacts(tenantId, { scope, limit: 50 }))
+    [...scopes].map((scope) => recallFacts(tenantId, { scope, limit: 50 }, ownerSubject))
   );
   return facts.flat();
 }
@@ -560,14 +567,18 @@ export async function exportSkillPack(
   const refs = skillRefs(skills);
   const includeMemory = options.includeMemory ?? true;
   const recipes = includeMemory
-    ? (await listRecipes(tenantId)).filter((recipe) => refs.recipes.has(recipe.name))
+    ? (await listRecipes(tenantId, undefined, options.ownerSubject)).filter((recipe) =>
+        refs.recipes.has(recipe.name)
+      )
     : [];
   const bookmarks = includeMemory
-    ? (await listBookmarks(tenantId)).filter(
+    ? (await listBookmarks(tenantId, undefined, options.ownerSubject)).filter(
         (bookmark) => refs.bookmarks.has(bookmark.alias) || refs.bookmarks.has(bookmark.label ?? '')
       )
     : [];
-  const facts = includeMemory ? await exportedFacts(tenantId, refs.facts) : [];
+  const facts = includeMemory
+    ? await exportedFacts(tenantId, refs.facts, options.ownerSubject)
+    : [];
   const manifest: SkillPackManifest = {
     id: packName,
     packName,

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import logger from '../../logger.js';
-import { getRequestTenant } from '../../request-context.js';
+import { getRequestOwnerSubject, getRequestTenant } from '../../request-context.js';
 import type { RedisClient } from '../redis.js';
 import { publishResourceUpdated } from '../mcp-notifications/events.js';
 import { emitMcpLogEvent } from '../mcp-logging/register.js';
@@ -12,6 +12,7 @@ import {
   BookmarkAliasZod,
   BookmarkLabelZod,
   BookmarkNoteZod,
+  BookmarkVisibilityZod,
   deleteBookmark,
   listBookmarks,
   upsertBookmark,
@@ -23,6 +24,9 @@ const BookmarkToolInputZod = z.object({
   alias: BookmarkAliasZod.describe('Exact Graph/product alias discovered by search-tools.'),
   label: BookmarkLabelZod.describe('Optional short label for this bookmark.'),
   note: BookmarkNoteZod.describe('Optional note describing when this alias works well.'),
+  visibility: BookmarkVisibilityZod.default('tenant').describe(
+    'tenant shares with all callers; user keeps it private to the authenticated caller.'
+  ),
 });
 
 const ListBookmarksInputZod = z.object({
@@ -80,6 +84,10 @@ function requireTenant():
   return { id: tenant.id };
 }
 
+function ownerForVisibility(visibility: 'tenant' | 'user'): string | undefined {
+  return visibility === 'user' ? getRequestOwnerSubject() : undefined;
+}
+
 async function publishBookmarkChange(redis: RedisClient, tenantId: string): Promise<void> {
   try {
     await publishToolSelectionInvalidation(redis, tenantId, BOOKMARK_CHANGE_REASON);
@@ -106,6 +114,7 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
         alias: BookmarkToolInputZod.shape.alias,
         label: BookmarkToolInputZod.shape.label,
         note: BookmarkToolInputZod.shape.note,
+        visibility: BookmarkToolInputZod.shape.visibility,
       },
       {
         title: 'bookmark-tool',
@@ -127,7 +136,17 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
           );
         }
 
-        const bookmark = await upsertBookmark(tenant.id, parsed.data);
+        const ownerSubject = ownerForVisibility(parsed.data.visibility);
+        if (parsed.data.visibility === 'user' && !ownerSubject) {
+          return jsonResult({ error: 'owner_subject_required' }, true, 'bookmark-tool');
+        }
+
+        const bookmarkInput = {
+          alias: parsed.data.alias,
+          label: parsed.data.label,
+          note: parsed.data.note,
+        };
+        const bookmark = await upsertBookmark(tenant.id, bookmarkInput, ownerSubject);
         await emitMcpLogEvent({
           tenantId: tenant.id,
           event: 'bookmark.created',
@@ -171,7 +190,11 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
           );
         }
 
-        const bookmarks = await listBookmarks(tenant.id, parsed.data.filter);
+        const bookmarks = await listBookmarks(
+          tenant.id,
+          parsed.data.filter,
+          getRequestOwnerSubject()
+        );
         return jsonResult({ bookmarks }, false, 'list-bookmarks');
       }
     )
@@ -204,7 +227,11 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
         );
       }
 
-      const result = await deleteBookmark(tenant.id, parsed.data.label_or_alias);
+      const result = await deleteBookmark(
+        tenant.id,
+        parsed.data.label_or_alias,
+        getRequestOwnerSubject()
+      );
       if (result.ambiguous) {
         return jsonResult(
           {

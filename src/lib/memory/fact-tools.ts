@@ -1,19 +1,29 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import logger from '../../logger.js';
-import { getRequestTenant } from '../../request-context.js';
+import { getRequestOwnerSubject, getRequestTenant } from '../../request-context.js';
 import type { RedisClient } from '../redis.js';
 import { publishResourceUpdated } from '../mcp-notifications/events.js';
 import { emitMcpLogEvent } from '../mcp-logging/register.js';
 import { createMcpErrorEnvelope, createMcpResultEnvelope } from '../mcp-results/envelope.js';
 import { MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA } from '../mcp-results/schemas.js';
-import { FactContentZod, FactScopeZod, forgetFact, recallFacts, recordFact } from './facts.js';
+import {
+  FactContentZod,
+  FactScopeZod,
+  FactVisibilityZod,
+  forgetFact,
+  recallFacts,
+  recordFact,
+} from './facts.js';
 
 const FACT_RESOURCE_REASON = 'fact-change';
 
 const RecordFactInputZod = z.object({
   scope: FactScopeZod.describe('Caller-defined namespace for this fact.'),
   fact: FactContentZod.describe('Durable tenant fact or preference to remember.'),
+  visibility: FactVisibilityZod.default('tenant').describe(
+    'tenant shares with all callers; user keeps it private to the authenticated caller.'
+  ),
 });
 
 const RecallFactsInputZod = z.object({
@@ -68,6 +78,10 @@ function requireTenant():
   return { id: tenant.id };
 }
 
+function ownerForVisibility(visibility: 'tenant' | 'user'): string | undefined {
+  return visibility === 'user' ? getRequestOwnerSubject() : undefined;
+}
+
 async function publishFactChange(redis: RedisClient, tenantId: string): Promise<void> {
   try {
     await publishResourceUpdated(redis, tenantId, [
@@ -89,6 +103,7 @@ export function registerFactTools(server: McpServer, deps: FactToolDeps): void {
     {
       scope: RecordFactInputZod.shape.scope,
       fact: RecordFactInputZod.shape.fact,
+      visibility: RecordFactInputZod.shape.visibility,
     },
     {
       title: 'record-fact',
@@ -110,10 +125,19 @@ export function registerFactTools(server: McpServer, deps: FactToolDeps): void {
         );
       }
 
-      const fact = await recordFact(tenant.id, {
-        scope: parsed.data.scope,
-        content: parsed.data.fact,
-      });
+      const ownerSubject = ownerForVisibility(parsed.data.visibility);
+      if (parsed.data.visibility === 'user' && !ownerSubject) {
+        return jsonResult({ error: 'owner_subject_required' }, true, 'record-fact');
+      }
+
+      const fact = await recordFact(
+        tenant.id,
+        {
+          scope: parsed.data.scope,
+          content: parsed.data.fact,
+        },
+        ownerSubject
+      );
       await emitMcpLogEvent({
         tenantId: tenant.id,
         event: 'fact.recorded',
@@ -155,7 +179,7 @@ export function registerFactTools(server: McpServer, deps: FactToolDeps): void {
         );
       }
 
-      const facts = await recallFacts(tenant.id, parsed.data);
+      const facts = await recallFacts(tenant.id, parsed.data, getRequestOwnerSubject());
       return jsonResult({ facts }, false, 'recall-facts');
     }
   );
@@ -187,7 +211,7 @@ export function registerFactTools(server: McpServer, deps: FactToolDeps): void {
         );
       }
 
-      const result = await forgetFact(tenant.id, parsed.data.id);
+      const result = await forgetFact(tenant.id, parsed.data.id, getRequestOwnerSubject());
       if (result.deleted) await publishFactChange(deps.redis, tenant.id);
       return jsonResult(result, false, 'forget-fact');
     }

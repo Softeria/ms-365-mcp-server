@@ -3,8 +3,10 @@ import logger from '../../logger.js';
 import { getPool } from '../postgres.js';
 
 const TenantIdZod = z.string().uuid();
+const OwnerSubjectZod = z.string().trim().min(1).max(512).optional();
 export const FactScopeZod = z.string().trim().min(1).max(256);
 export const FactContentZod = z.string().trim().min(1).max(8000);
+export const FactVisibilityZod = z.enum(['tenant', 'user']);
 const FactIdZod = z.string().trim().min(1).max(512);
 const FactQueryZod = z.string().trim().min(1).max(1000).optional();
 const FactLimitZod = z.number().int().optional();
@@ -26,6 +28,8 @@ export interface FactInput {
 
 export interface Fact {
   id: string;
+  ownerSubject: string | null;
+  visibility: z.infer<typeof FactVisibilityZod>;
   scope: string;
   content: string;
   createdAt: string;
@@ -44,6 +48,7 @@ export interface ListFactsForAdminInput {
   scope?: string;
   limit?: number;
   cursor?: string;
+  ownerSubject?: string;
 }
 
 export interface DeleteFactResult {
@@ -57,6 +62,7 @@ export interface AdminFactList {
 
 interface FactRow {
   id: string;
+  owner_subject: string | null;
   scope: string;
   content: string;
   created_at: Date | string;
@@ -84,6 +90,16 @@ function clampLimit(limit: number | undefined, fallback = 10): number {
   return Math.min(Math.max(parsed, 1), 50);
 }
 
+function parseOwnerSubject(ownerSubject?: string): string | null {
+  return OwnerSubjectZod.parse(ownerSubject) ?? null;
+}
+
+function visibleOwnerWhere(ownerSubject: string | null): string {
+  return ownerSubject === null
+    ? 'owner_subject IS NULL'
+    : '(owner_subject IS NULL OR owner_subject = $2::text)';
+}
+
 function toIsoString(value: Date | string): string {
   if (value instanceof Date) return value.toISOString();
   return new Date(value).toISOString();
@@ -99,6 +115,8 @@ function rowToFact(row: FactRow): Fact {
   const score = toOptionalScore(row.score);
   return {
     id: row.id,
+    ownerSubject: row.owner_subject,
+    visibility: row.owner_subject === null ? 'tenant' : 'user',
     scope: row.scope,
     content: row.content,
     createdAt: toIsoString(row.created_at),
@@ -188,20 +206,30 @@ export async function isPgvectorRecallEnabled(queryEmbedding?: number[]): Promis
   return getPgvectorAvailability();
 }
 
-export async function recordFact(tenantId: string, input: FactInput): Promise<Fact> {
+export async function recordFact(
+  tenantId: string,
+  input: FactInput,
+  ownerSubject?: string
+): Promise<Fact> {
   const tid = parseTenantId(tenantId);
+  const owner = parseOwnerSubject(ownerSubject);
   const body = FactInputZod.parse(input);
   const result = await getPool().query<FactRow>(
-    `INSERT INTO tenant_facts (tenant_id, scope, content)
-     VALUES ($1, $2, $3)
-     RETURNING id, scope, content, created_at, updated_at`,
-    [tid, body.scope, body.content]
+    `INSERT INTO tenant_facts (tenant_id, owner_subject, scope, content)
+     VALUES ($1, $2::text, $3, $4)
+     RETURNING id, owner_subject, scope, content, created_at, updated_at`,
+    [tid, owner, body.scope, body.content]
   );
   return rowToFact(result.rows[0]);
 }
 
-export async function recallFacts(tenantId: string, input: RecallFactsInput = {}): Promise<Fact[]> {
+export async function recallFacts(
+  tenantId: string,
+  input: RecallFactsInput = {},
+  ownerSubject?: string
+): Promise<Fact[]> {
   const tid = parseTenantId(tenantId);
+  const owner = parseOwnerSubject(ownerSubject);
   const parsed = z
     .object({
       scope: FactScopeZod.optional(),
@@ -218,6 +246,7 @@ export async function recallFacts(tenantId: string, input: RecallFactsInput = {}
     (await isPgvectorRecallEnabled(parsed.queryEmbedding))
   ) {
     return recallFactsByVector(tid, {
+      ownerSubject: owner,
       scope: parsed.scope,
       queryEmbedding: parsed.queryEmbedding,
       limit,
@@ -226,6 +255,7 @@ export async function recallFacts(tenantId: string, input: RecallFactsInput = {}
 
   if (parsed.query) {
     return recallFactsByFullText(tid, {
+      ownerSubject: owner,
       scope: parsed.scope,
       query: parsed.query,
       limit,
@@ -233,6 +263,7 @@ export async function recallFacts(tenantId: string, input: RecallFactsInput = {}
   }
 
   return recallFactsByUpdatedAt(tid, {
+    ownerSubject: owner,
     scope: parsed.scope,
     limit,
   });
@@ -240,10 +271,11 @@ export async function recallFacts(tenantId: string, input: RecallFactsInput = {}
 
 async function recallFactsByFullText(
   tenantId: string,
-  input: { scope?: string; query: string; limit: number }
+  input: { ownerSubject: string | null; scope?: string; query: string; limit: number }
 ): Promise<Fact[]> {
-  const params: unknown[] = [tenantId];
-  const where = ['tenant_id = $1'];
+  const params: unknown[] =
+    input.ownerSubject === null ? [tenantId] : [tenantId, input.ownerSubject];
+  const where = ['tenant_id = $1', visibleOwnerWhere(input.ownerSubject)];
 
   if (input.scope) {
     params.push(input.scope);
@@ -257,7 +289,7 @@ async function recallFactsByFullText(
 
   const rankExpr = `ts_rank_cd(content_tsv, plainto_tsquery('english', ${queryParam}))`;
   const result = await getPool().query<FactRow>(
-    `SELECT id, scope, content, created_at, updated_at, ${rankExpr} AS score
+    `SELECT id, owner_subject, scope, content, created_at, updated_at, ${rankExpr} AS score
      FROM tenant_facts
      WHERE ${where.join(' AND ')}
        AND content_tsv @@ plainto_tsquery('english', ${queryParam})
@@ -270,10 +302,11 @@ async function recallFactsByFullText(
 
 async function recallFactsByUpdatedAt(
   tenantId: string,
-  input: { scope?: string; limit: number }
+  input: { ownerSubject: string | null; scope?: string; limit: number }
 ): Promise<Fact[]> {
-  const params: unknown[] = [tenantId];
-  const where = ['tenant_id = $1'];
+  const params: unknown[] =
+    input.ownerSubject === null ? [tenantId] : [tenantId, input.ownerSubject];
+  const where = ['tenant_id = $1', visibleOwnerWhere(input.ownerSubject)];
 
   if (input.scope) {
     params.push(input.scope);
@@ -284,7 +317,7 @@ async function recallFactsByUpdatedAt(
   const limitParam = `$${params.length}`;
 
   const result = await getPool().query<FactRow>(
-    `SELECT id, scope, content, created_at, updated_at
+    `SELECT id, owner_subject, scope, content, created_at, updated_at
      FROM tenant_facts
      WHERE ${where.join(' AND ')}
      ORDER BY updated_at DESC, created_at DESC
@@ -296,10 +329,11 @@ async function recallFactsByUpdatedAt(
 
 async function recallFactsByVector(
   tenantId: string,
-  input: { scope?: string; queryEmbedding: number[]; limit: number }
+  input: { ownerSubject: string | null; scope?: string; queryEmbedding: number[]; limit: number }
 ): Promise<Fact[]> {
-  const params: unknown[] = [tenantId];
-  const where = ['tenant_id = $1', 'embedding IS NOT NULL'];
+  const params: unknown[] =
+    input.ownerSubject === null ? [tenantId] : [tenantId, input.ownerSubject];
+  const where = ['tenant_id = $1', visibleOwnerWhere(input.ownerSubject), 'embedding IS NOT NULL'];
 
   if (input.scope) {
     params.push(input.scope);
@@ -312,7 +346,7 @@ async function recallFactsByVector(
   const limitParam = `$${params.length}`;
 
   const result = await getPool().query<FactRow>(
-    `SELECT id, scope, content, created_at, updated_at, 1 - (embedding <=> ${vectorParam}::vector) AS score
+    `SELECT id, owner_subject, scope, content, created_at, updated_at, 1 - (embedding <=> ${vectorParam}::vector) AS score
      FROM tenant_facts
      WHERE ${where.join(' AND ')}
      ORDER BY embedding <=> ${vectorParam}::vector ASC, updated_at DESC
@@ -322,14 +356,19 @@ async function recallFactsByVector(
   return result.rows.map(rowToFact);
 }
 
-export async function forgetFact(tenantId: string, id: string): Promise<DeleteFactResult> {
+export async function forgetFact(
+  tenantId: string,
+  id: string,
+  ownerSubject?: string
+): Promise<DeleteFactResult> {
   const tid = parseTenantId(tenantId);
+  const owner = parseOwnerSubject(ownerSubject);
   const parsedId = FactIdZod.parse(id);
   const result = await getPool().query<{ id: string }>(
     `DELETE FROM tenant_facts
-     WHERE tenant_id = $1 AND id::text = $2
+     WHERE tenant_id = $1 AND ${visibleOwnerWhere(owner)} AND id::text = $${owner === null ? 2 : 3}
      RETURNING id`,
-    [tid, parsedId]
+    owner === null ? [tid, parsedId] : [tid, owner, parsedId]
   );
   return { deleted: result.rows.length > 0 };
 }
@@ -381,11 +420,13 @@ export async function listFactsForAdmin(
       scope: FactScopeZod.optional(),
       limit: FactLimitZod,
       cursor: z.string().trim().min(1).optional(),
+      ownerSubject: OwnerSubjectZod,
     })
     .parse(input);
   const limit = clampLimit(parsed.limit);
-  const params: unknown[] = [tid];
-  const where = ['tenant_id = $1'];
+  const owner = parseOwnerSubject(parsed.ownerSubject);
+  const params: unknown[] = owner === null ? [tid] : [tid, owner];
+  const where = ['tenant_id = $1', visibleOwnerWhere(owner)];
 
   if (parsed.scope) {
     params.push(parsed.scope);
@@ -406,7 +447,7 @@ export async function listFactsForAdmin(
   const limitParam = `$${params.length}`;
 
   const result = await getPool().query<FactRow>(
-    `SELECT id, scope, content, created_at, updated_at
+    `SELECT id, owner_subject, scope, content, created_at, updated_at
      FROM tenant_facts
      WHERE ${where.join(' AND ')}
      ORDER BY updated_at DESC, id DESC

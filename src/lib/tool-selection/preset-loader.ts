@@ -14,7 +14,7 @@
  * to a wider surface.
  *
  * Preset catalog:
- *   - `discovery-v1`          — Phase 7 discovery-mode meta surface (12 aliases).
+ *   - `discovery-v1`          — Phase 7 discovery-mode meta/app surface (28 aliases).
  *   - `essentials-v1`         — legacy cross-product Graph default (150 ops).
  *   - `powerbi-essentials`    — Plan 05.1-07, __powerbi__* admin read-first.
  *   - `pwrapps-essentials`    — Plan 05.1-07, __pwrapps__* admin read-first.

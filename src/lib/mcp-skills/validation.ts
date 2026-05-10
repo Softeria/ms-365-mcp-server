@@ -12,6 +12,7 @@ export interface SkillValidationDeps {
   readonly enabledToolsSet?: ReadonlySet<string>;
   readonly readOnly?: boolean;
   readonly orgMode?: boolean;
+  readonly ownerSubject?: string;
 }
 
 export interface SkillValidationIssue {
@@ -40,9 +41,12 @@ function issue(code: string, message: string, ref?: string): SkillValidationIssu
 
 async function validateRecipeRefs(
   tenantId: string,
-  refs: readonly string[]
+  refs: readonly string[],
+  ownerSubject?: string
 ): Promise<SkillValidationIssue[]> {
-  const checks = await Promise.all(refs.map((name) => getRecipeByName(tenantId, name)));
+  const checks = await Promise.all(
+    refs.map((name) => getRecipeByName(tenantId, name, ownerSubject))
+  );
   return refs.flatMap((ref, index) =>
     checks[index]
       ? []
@@ -52,10 +56,11 @@ async function validateRecipeRefs(
 
 async function validateBookmarkRefs(
   tenantId: string,
-  refs: readonly string[]
+  refs: readonly string[],
+  ownerSubject?: string
 ): Promise<SkillValidationIssue[]> {
   if (refs.length === 0) return [];
-  const bookmarks = await listBookmarks(tenantId);
+  const bookmarks = await listBookmarks(tenantId, undefined, ownerSubject);
   return refs.flatMap((ref) => {
     const found = bookmarks.some(
       (bookmark) => bookmark.id === ref || bookmark.alias === ref || bookmark.label === ref
@@ -68,9 +73,12 @@ async function validateBookmarkRefs(
 
 async function validateFactRefs(
   tenantId: string,
-  refs: readonly string[]
+  refs: readonly string[],
+  ownerSubject?: string
 ): Promise<SkillValidationIssue[]> {
-  const checks = await Promise.all(refs.map((scope) => recallFacts(tenantId, { scope, limit: 1 })));
+  const checks = await Promise.all(
+    refs.map((scope) => recallFacts(tenantId, { scope, limit: 1 }, ownerSubject))
+  );
   return refs.flatMap((ref, index) =>
     checks[index].length > 0
       ? []
@@ -146,9 +154,13 @@ export async function validateSkillReferences(
   const skill = parsed.data;
   const toolResult = validateToolRefs(skill, deps);
   const [recipeErrors, bookmarkErrors, factErrors] = await Promise.all([
-    validateRecipeRefs(deps.tenantId, stringArray(skill.frontmatter.recipes)),
-    validateBookmarkRefs(deps.tenantId, stringArray(skill.frontmatter.bookmarks)),
-    validateFactRefs(deps.tenantId, stringArray(skill.frontmatter.facts)),
+    validateRecipeRefs(deps.tenantId, stringArray(skill.frontmatter.recipes), deps.ownerSubject),
+    validateBookmarkRefs(
+      deps.tenantId,
+      stringArray(skill.frontmatter.bookmarks),
+      deps.ownerSubject
+    ),
+    validateFactRefs(deps.tenantId, stringArray(skill.frontmatter.facts), deps.ownerSubject),
   ]);
   const resourceErrors = validateResourceRefs(
     deps.tenantId,

@@ -51,12 +51,12 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
       last_used_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, alias)
+      created_at timestamptz NOT NULL DEFAULT NOW()
     );
 
     CREATE INDEX idx_tenant_tool_bookmarks_tenant

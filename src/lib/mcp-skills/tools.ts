@@ -290,6 +290,7 @@ export function registerSkillTools(server: McpServer, deps: RegisterSkillToolsDe
         enabledToolsSet: tenant.enabledToolsSet,
         readOnly: deps.readOnly,
         orgMode: deps.orgMode,
+        ownerSubject,
       });
       if (published && !validation.validation.ok) {
         return result(
@@ -410,6 +411,7 @@ export function registerSkillTools(server: McpServer, deps: RegisterSkillToolsDe
         enabledToolsSet: tenant.enabledToolsSet,
         readOnly: deps.readOnly,
         orgMode: deps.orgMode,
+        ownerSubject: getRequestOwnerSubject(),
       });
       return result('validate-skill', { validation: validation.validation });
     }

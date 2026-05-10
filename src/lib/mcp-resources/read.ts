@@ -392,11 +392,20 @@ async function readTenantResource(
     case 'audit/recent':
       return jsonResult(canonical, await readAuditRecent(owned.tenantId));
     case 'bookmarks':
-      return jsonResult(canonical, await listBookmarks(owned.tenantId));
+      return jsonResult(
+        canonical,
+        await listBookmarks(owned.tenantId, undefined, getRequestOwnerSubject())
+      );
     case 'recipes':
-      return jsonResult(canonical, await listRecipes(owned.tenantId));
+      return jsonResult(
+        canonical,
+        await listRecipes(owned.tenantId, undefined, getRequestOwnerSubject())
+      );
     case 'facts':
-      return jsonResult(canonical, await recallFacts(owned.tenantId, { limit: 100 }));
+      return jsonResult(
+        canonical,
+        await recallFacts(owned.tenantId, { limit: 100 }, getRequestOwnerSubject())
+      );
   }
 }
 

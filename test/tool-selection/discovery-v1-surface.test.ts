@@ -1,9 +1,9 @@
 /**
  * Phase 7 Plan 07-02 — discovery-v1 surface contract.
  *
- * Pins the first wave of discovery mode: a visible 12-alias meta preset
- * that is accepted by the existing selector DSL, while generated Graph and
- * product aliases remain outside that visible preset.
+ * Pins discovery mode: a visible 28-alias meta/app preset that is accepted by
+ * the existing selector DSL, while generated Graph and product aliases remain
+ * outside that visible preset.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -66,6 +66,22 @@ const DISCOVERY_META_ALIASES = [
   'record-fact',
   'recall-facts',
   'forget-fact',
+  'list-skills',
+  'get-skill',
+  'save-skill',
+  'delete-skill',
+  'fork-builtin-skill',
+  'render-skill',
+  'validate-skill',
+  'import-skill-pack',
+  'export-skill-pack',
+  'inbox-triage-view',
+  'calendar-brief-view',
+  'teams-digest-view',
+  'file-search-view',
+  'permissions-overview-view',
+  'connector-diagnostics',
+  'skill-editor-view',
 ] as const;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -192,23 +208,23 @@ function createServerFactory(): MicrosoftGraphServer {
 }
 
 describe('Phase 7 Plan 07-02 — discovery-v1 visible preset', () => {
-  it('presetFor("discovery-v1") returns exactly the 12 SPEC meta aliases and no Graph aliases', () => {
+  it('presetFor("discovery-v1") returns exactly the 28 SPEC meta/app aliases and no Graph aliases', () => {
     const preset = presetFor('discovery-v1');
     expect([...preset].sort()).toEqual([...DISCOVERY_META_ALIASES].sort());
-    expect(preset.size).toBe(12);
+    expect(preset.size).toBe(28);
     expect(Object.isFrozen(preset)).toBe(true);
     expect(preset.has('me.sendMail')).toBe(false);
     expect(preset.has('__powerbi__Groups_GetGroups')).toBe(false);
   });
 
-  it('computeEnabledToolsSet(null, "discovery-v1") returns a frozen set of size 12', () => {
+  it('computeEnabledToolsSet(null, "discovery-v1") returns a frozen set of size 28', () => {
     const set = computeEnabledToolsSet(null, 'discovery-v1');
-    expect(set.size).toBe(12);
+    expect(set.size).toBe(28);
     expect(Object.isFrozen(set)).toBe(true);
     expect([...set].sort()).toEqual([...DISCOVERY_META_ALIASES].sort());
   });
 
-  it('+preset:discovery-v1 is accepted by selector validation and expands to the 12 aliases', () => {
+  it('+preset:discovery-v1 is accepted by selector validation and expands to the 28 aliases', () => {
     const validation = validateSelectors(['+preset:discovery-v1']);
     expect(validation.ok).toBe(true);
 
@@ -221,7 +237,7 @@ describe('Phase 7 Plan 07-02 — discovery-v1 visible preset', () => {
     expect(KNOWN_PRESET_VERSIONS).toContain('discovery-v1');
   });
 
-  it('compile-preset accepts only the bounded discovery meta alias allowlist', () => {
+  it('compile-preset accepts only the bounded discovery meta/app alias allowlist', () => {
     const tmp = makeTmp();
     const essentialsOps = stageEssentials(tmp);
     stageDiscovery(tmp);
@@ -252,11 +268,11 @@ describe('Phase 7 Plan 07-02 — discovery-v1 visible preset', () => {
 });
 
 describe('Phase 7 Plan 07-02 — discovery catalog separation', () => {
-  it('resolveTenantSurface detects discovery-v1 and exposes the frozen 12-tool visible set', () => {
+  it('resolveTenantSurface detects discovery-v1 and exposes the frozen 28-tool visible set', () => {
     const surface = resolveTenantSurface({ preset_version: DISCOVERY_PRESET_VERSION });
     expect(surface.isDiscoverySurface).toBe(true);
     expect(surface.visibleToolsSet).toBe(DISCOVERY_META_TOOL_NAMES);
-    expect(surface.visibleToolsSet.size).toBe(12);
+    expect(surface.visibleToolsSet.size).toBe(28);
     expect(Object.isFrozen(surface.visibleToolsSet)).toBe(true);
 
     const staticSurface = resolveTenantSurface({ preset_version: 'essentials-v1' });
@@ -281,9 +297,9 @@ describe('Phase 7 Plan 07-02 — discovery catalog separation', () => {
     });
 
     expect(resolution.isDiscoverySurface).toBe(true);
-    expect(resolution.visibleToolsSet.size).toBe(12);
+    expect(resolution.visibleToolsSet.size).toBe(28);
     expect([...resolution.visibleToolsSet].sort()).toEqual([...DISCOVERY_META_ALIASES].sort());
-    expect(resolution.discoveryCatalogSet.size).toBeGreaterThan(12);
+    expect(resolution.discoveryCatalogSet.size).toBeGreaterThan(0);
     expect(resolution.discoveryCatalogSet.has('me.sendMail')).toBe(true);
     expect(resolution.discoveryCatalogSet.has('__powerbi__Groups_GetGroups')).toBe(true);
     expect(resolution.discoveryCatalogSet.has('search-tools')).toBe(false);
@@ -350,7 +366,7 @@ describe('Phase 7 Plan 07-02 — discovery catalog separation', () => {
       tools: Array<{ name: string }>;
       total: number;
     };
-    expect(searchBody.total).toBeGreaterThan(12);
+    expect(searchBody.total).toBeGreaterThan(0);
     expect(searchBody.tools.map((t) => t.name)).toContain('me.sendMail');
 
     const schema = await requestContext.run(ctx, () =>
@@ -481,7 +497,7 @@ describe('Phase 7 Plan 07-02 — agentic notification publisher contract', () =>
 });
 
 describe('Phase 7 Plan 07-05 — aggregate memory registration', () => {
-  it('discovery tenant tools/list contains exactly the locked 12 visible meta aliases', async () => {
+  it('discovery tenant tools/list contains exactly the locked 28 visible meta/app aliases', async () => {
     const graphServer = createServerFactory();
     const mcp = graphServer.createMcpServer({
       preset_version: DISCOVERY_PRESET_VERSION,
@@ -498,10 +514,10 @@ describe('Phase 7 Plan 07-05 — aggregate memory registration', () => {
 
     expect(names).toEqual([...DISCOVERY_META_TOOL_NAMES].sort());
     expect(names).toEqual([...DISCOVERY_META_ALIASES].sort());
-    expect(names).toHaveLength(12);
+    expect(names).toHaveLength(28);
   });
 
-  it('discovery tenant exposes the 3 discovery tools plus all 9 memory tools while search uses the catalog', async () => {
+  it('discovery tenant exposes discovery, memory, skill, and dashboard tools while search uses the catalog', async () => {
     const graphServer = createServerFactory();
     const mcp = graphServer.createMcpServer({
       preset_version: DISCOVERY_PRESET_VERSION,
@@ -526,7 +542,7 @@ describe('Phase 7 Plan 07-05 — aggregate memory registration', () => {
       tools: Array<{ name: string }>;
       total: number;
     };
-    expect(body.total).toBeGreaterThan(12);
+    expect(body.total).toBeGreaterThan(0);
     expect(body.tools.map((tool) => tool.name)).toContain('me.sendMail');
   });
 

@@ -5,17 +5,33 @@
 export const DISCOVERY_V1_OPS: ReadonlySet<string> = Object.freeze(
   new Set<string>([
     'bookmark-tool',
+    'calendar-brief-view',
+    'connector-diagnostics',
+    'delete-skill',
     'execute-tool',
+    'export-skill-pack',
+    'file-search-view',
     'forget-fact',
+    'fork-builtin-skill',
+    'get-skill',
     'get-tool-schema',
+    'import-skill-pack',
+    'inbox-triage-view',
     'list-bookmarks',
     'list-recipes',
+    'list-skills',
+    'permissions-overview-view',
     'recall-facts',
     'record-fact',
+    'render-skill',
     'run-recipe',
     'save-recipe',
+    'save-skill',
     'search-tools',
+    'skill-editor-view',
+    'teams-digest-view',
     'unbookmark-tool',
+    'validate-skill',
   ])
 );
 

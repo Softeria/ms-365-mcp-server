@@ -49,6 +49,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_facts (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       scope text NOT NULL,
       content text NOT NULL,
       content_tsv text,

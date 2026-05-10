@@ -43,13 +43,13 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_recipes (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       name text NOT NULL,
       alias text NOT NULL,
       params jsonb NOT NULL DEFAULT '{}'::jsonb,
       note text,
       last_run_at timestamptz,
-      created_at timestamptz NOT NULL DEFAULT NOW(),
-      UNIQUE (tenant_id, name)
+      created_at timestamptz NOT NULL DEFAULT NOW()
     );
 
     CREATE INDEX idx_tenant_tool_recipes_tenant

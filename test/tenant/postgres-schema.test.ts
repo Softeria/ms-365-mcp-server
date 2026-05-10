@@ -144,6 +144,8 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
       '20261001000000_tenant_memory.sql',
       // Plan 08-05: tenant editable skills.
       '20261101000000_tenant_skills.sql',
+      // Private owner scoping for memory rows.
+      '20261102000000_user_scoped_memory.sql',
     ]);
   });
 
@@ -189,6 +191,9 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
     );
     expect(byFile.get('20261101000000_tenant_skills.sql')).toMatch(
       /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+tenant_skills/i
+    );
+    expect(byFile.get('20261102000000_user_scoped_memory.sql')).toMatch(
+      /ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+owner_subject/i
     );
   });
 

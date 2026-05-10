@@ -47,6 +47,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_recipes (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       name text NOT NULL,
       alias text NOT NULL,
       params jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -58,6 +59,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
@@ -68,6 +70,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_facts (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       scope text NOT NULL,
       content text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -189,5 +192,39 @@ describe('Phase 8 Plan 08-07 memory convergence isolation', () => {
     expect(await listVisibleSkillRecords(TENANT_A, 'user-b')).toEqual([]);
     expect(await listVisibleSkillRecords(TENANT_A)).toEqual([]);
     expect(await listVisibleSkillRecords(TENANT_B, 'user-a')).toEqual([]);
+  });
+
+  it('keeps user-scoped recipes, bookmarks, and facts private to matching owners', async () => {
+    const { saveRecipe, listRecipes } = await import('../src/lib/memory/recipes.js');
+    const { upsertBookmark, listBookmarks } = await import('../src/lib/memory/bookmarks.js');
+    const { recordFact, recallFacts } = await import('../src/lib/memory/facts.js');
+
+    await saveRecipe(TENANT_A, { name: 'tenant-recipe', alias: 'list-mail-messages', params: {} });
+    await saveRecipe(
+      TENANT_A,
+      { name: 'private-recipe', alias: 'list-mail-messages', params: {} },
+      'user-a'
+    );
+    await upsertBookmark(TENANT_A, { alias: 'tenant-alias', label: 'tenant-bookmark' });
+    await upsertBookmark(TENANT_A, { alias: 'private-alias', label: 'private-bookmark' }, 'user-a');
+    await recordFact(TENANT_A, { scope: 'tenant-facts', content: 'Tenant fact.' });
+    await recordFact(TENANT_A, { scope: 'private-facts', content: 'Private fact.' }, 'user-a');
+
+    expect(
+      (await listRecipes(TENANT_A, undefined, 'user-a')).map((recipe) => recipe.name).sort()
+    ).toEqual(['private-recipe', 'tenant-recipe']);
+    expect((await listRecipes(TENANT_A, undefined, 'user-b')).map((recipe) => recipe.name)).toEqual(
+      ['tenant-recipe']
+    );
+    expect((await listBookmarks(TENANT_A, undefined, 'user-a')).map((b) => b.label).sort()).toEqual(
+      ['private-bookmark', 'tenant-bookmark']
+    );
+    expect((await listBookmarks(TENANT_A, undefined, 'user-b')).map((b) => b.label)).toEqual([
+      'tenant-bookmark',
+    ]);
+    expect(
+      (await recallFacts(TENANT_A, { scope: 'private-facts' }, 'user-a')).map((f) => f.content)
+    ).toEqual(['Private fact.']);
+    expect(await recallFacts(TENANT_A, { scope: 'private-facts' }, 'user-b')).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@
  * Plan 05-03 + 05.1-07 — essentials preset compile step.
  *
  * Compiles src/presets/*.json (currently 7 presets: the Phase 7
- * `discovery-v1` meta surface, the legacy `essentials-v1` cross-product
+ * `discovery-v1` meta/app surface, the legacy `essentials-v1` cross-product
  * preset, plus 5 per-product essentials added in plan 05.1-07) into a
  * single emitted src/presets/generated-index.ts.
  *
@@ -16,7 +16,7 @@
  * presets remain strict when their product registry is present.
  *
  * Presets compiled:
- *   - discovery-v1         (12 meta aliases — Plan 07-02)
+ *   - discovery-v1         (28 meta/app aliases — Plan 07-02)
  *   - essentials-v1        (150 ops — Plan 05-03, cross-product Graph default)
  *   - powerbi-essentials    (plan 05.1-07, __powerbi__* subset)
  *   - pwrapps-essentials    (plan 05.1-07, __pwrapps__* subset)
@@ -28,7 +28,7 @@
  *   - preset.version MUST equal the preset-name literal (enforced here,
  *     and pinned at runtime by the PRESET_VERSIONS map key).
  *   - preset.ops MUST be a non-empty array of non-empty strings.
- *   - discovery-v1 MUST have exactly 12 ops and every op MUST be one of
+ *   - discovery-v1 MUST have exactly 28 ops and every op MUST be one of
  *     the bounded meta aliases in DISCOVERY_META_ALIAS_ALLOWLIST.
  *   - essentials-v1 MUST have exactly 150 ops (D-19 legacy invariant).
  *   - every per-product preset op MUST carry the product's `__<prefix>__`
@@ -67,6 +67,22 @@ const DISCOVERY_META_ALIAS_ALLOWLIST = Object.freeze(
     'record-fact',
     'recall-facts',
     'forget-fact',
+    'list-skills',
+    'get-skill',
+    'save-skill',
+    'delete-skill',
+    'fork-builtin-skill',
+    'render-skill',
+    'validate-skill',
+    'import-skill-pack',
+    'export-skill-pack',
+    'inbox-triage-view',
+    'calendar-brief-view',
+    'teams-digest-view',
+    'file-search-view',
+    'permissions-overview-view',
+    'connector-diagnostics',
+    'skill-editor-view',
   ])
 );
 
@@ -86,7 +102,7 @@ const PRESET_SPECS = Object.freeze([
     version: 'discovery-v1',
     filename: 'discovery-v1.json',
     constName: 'DISCOVERY_V1_OPS',
-    exactCount: 12,
+    exactCount: 28,
     prefix: null,
     metaAllowlist: DISCOVERY_META_ALIAS_ALLOWLIST,
   }),
@@ -214,7 +230,7 @@ function loadAndValidatePreset(spec, presetJsonPath, registry) {
       const tail =
         disallowed.length > previewCount ? ` (and ${disallowed.length - previewCount} more)` : '';
       throw new Error(
-        `${spec.version}: ${disallowed.length} op(s) outside meta alias allowlist: ${preview}${tail}`
+        `${spec.version}: ${disallowed.length} op(s) outside meta/app alias allowlist: ${preview}${tail}`
       );
     }
   }

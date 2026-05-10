@@ -1,7 +1,7 @@
 {
   "version": "discovery-v1",
   "generated_at": "2026-04-25T00:00:00Z",
-  "_comment": "Phase 7 Plan 07-02. Visible discovery-mode meta surface. Exactly 12 aliases, no generated Graph/product aliases.",
+  "_comment": "Phase 7 Plan 07-02. Visible discovery-mode meta surface. Includes discovery, memory, skills, and dashboard/app tools; no generated Graph/product aliases.",
   "ops": [
     "search-tools",
     "get-tool-schema",
@@ -14,6 +14,22 @@
     "run-recipe",
     "record-fact",
     "recall-facts",
-    "forget-fact"
+    "forget-fact",
+    "list-skills",
+    "get-skill",
+    "save-skill",
+    "delete-skill",
+    "fork-builtin-skill",
+    "render-skill",
+    "validate-skill",
+    "import-skill-pack",
+    "export-skill-pack",
+    "inbox-triage-view",
+    "calendar-brief-view",
+    "teams-digest-view",
+    "file-search-view",
+    "permissions-overview-view",
+    "connector-diagnostics",
+    "skill-editor-view"
   ]
 }

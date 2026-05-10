@@ -261,7 +261,10 @@ export async function saveTenantSkill(
   const { ownerSubject: rawOwnerSubject, ...rawSkill } = input;
   const ownerSubject = OwnerSubjectZod.parse(rawOwnerSubject ?? undefined) ?? null;
   const skill = SkillInputZod.parse(rawSkill);
-  const ownerWhere = ownerSubject === null ? 'owner_subject IS NULL' : 'owner_subject = $2';
+  const ownerWhere =
+    ownerSubject === null
+      ? 'owner_subject IS NULL AND $2::text IS NULL'
+      : 'owner_subject = $2::text';
   const existing = await getPool().query<{ id: string; version: number }>(
     `SELECT id, version
      FROM tenant_skills
@@ -326,7 +329,8 @@ export async function disableTenantSkill(
   const tid = TenantIdZod.parse(tenantId);
   const parsedName = SkillNameZod.parse(name);
   const owner = OwnerSubjectZod.parse(ownerSubject) ?? null;
-  const ownerWhere = owner === null ? 'owner_subject IS NULL' : 'owner_subject = $2';
+  const ownerWhere =
+    owner === null ? 'owner_subject IS NULL AND $2::text IS NULL' : 'owner_subject = $2::text';
   const result = await getPool().query<{ id: string }>(
     `UPDATE tenant_skills
      SET enabled = false, updated_at = NOW()

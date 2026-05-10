@@ -44,6 +44,26 @@ function makePool(): Pool {
   return new PgMemPool() as Pool;
 }
 
+function assertContiguousPgPlaceholders(query: unknown, values: unknown): void {
+  if (typeof query !== 'string' || !Array.isArray(values)) return;
+  const indexes = [...query.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]));
+  if (indexes.length === 0) return;
+  const used = new Set(indexes);
+  for (let index = 1; index <= Math.max(...indexes); index += 1) {
+    expect(used.has(index), `SQL parameter $${index} must be referenced`).toBe(true);
+  }
+}
+
+function guardPoolQueryPlaceholders(pool: Pool): Pool {
+  return {
+    ...pool,
+    query: ((query: unknown, values?: unknown) => {
+      assertContiguousPgPlaceholders(query, values);
+      return pool.query(query as string, values as unknown[] | undefined);
+    }) as Pool['query'],
+  } as Pool;
+}
+
 async function installSchema(pool: Pool): Promise<void> {
   await pool.query(`
     CREATE TABLE tenants (id uuid PRIMARY KEY);
@@ -69,6 +89,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_recipes (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       name text NOT NULL,
       alias text NOT NULL,
       params jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -80,6 +101,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_tool_bookmarks (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       alias text NOT NULL,
       label text,
       note text,
@@ -90,6 +112,7 @@ async function installSchema(pool: Pool): Promise<void> {
     CREATE TABLE tenant_facts (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      owner_subject text,
       scope text NOT NULL,
       content text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -175,7 +198,7 @@ describe('Phase 8 Plan 08-07 skill packs', () => {
   beforeEach(async () => {
     pool = makePool();
     await installSchema(pool);
-    __setPoolForTesting(pool);
+    __setPoolForTesting(guardPoolQueryPlaceholders(pool));
   });
 
   afterEach(async () => {
