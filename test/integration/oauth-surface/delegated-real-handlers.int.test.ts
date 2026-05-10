@@ -187,6 +187,66 @@ describe('plan 06-05 — real delegated OAuth handlers', () => {
     expect(entry?.clientCodeChallengeMethod).toBe('S256');
   });
 
+  it('/authorize exact duplicate retry reuses the stored server challenge', async () => {
+    harness = await startApp({});
+    const pkce = newPkce();
+    const params = new URLSearchParams({
+      redirect_uri: 'http://localhost:3000/callback',
+      code_challenge: pkce.challenge,
+      code_challenge_method: 'S256',
+      state: crypto.randomBytes(16).toString('base64url'),
+      client_id: harness.tenant.client_id,
+    });
+
+    const first = await fetch(`${harness.url}/authorize?${params}`, { redirect: 'manual' });
+    const second = await fetch(`${harness.url}/authorize?${params}`, { redirect: 'manual' });
+
+    expect(first.status).toBe(302);
+    expect(second.status).toBe(302);
+    const firstRedirect = new URL(first.headers.get('location')!);
+    const secondRedirect = new URL(second.headers.get('location')!);
+    expect(secondRedirect.searchParams.get('code_challenge')).toBe(
+      firstRedirect.searchParams.get('code_challenge')
+    );
+
+    const token = await fetch(`${harness.url}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: 'auth-code-after-retry',
+        redirect_uri: 'http://localhost:3000/callback',
+        code_verifier: pkce.verifier,
+      }),
+    });
+    expect(token.status).toBe(200);
+  });
+
+  it('/authorize duplicate challenge with different state still fails closed', async () => {
+    harness = await startApp({});
+    const pkce = newPkce();
+    const baseParams = {
+      redirect_uri: 'http://localhost:3000/callback',
+      code_challenge: pkce.challenge,
+      code_challenge_method: 'S256',
+      client_id: harness.tenant.client_id,
+    };
+
+    const first = await fetch(
+      `${harness.url}/authorize?${new URLSearchParams({ ...baseParams, state: 'state-1' })}`,
+      { redirect: 'manual' }
+    );
+    const second = await fetch(
+      `${harness.url}/authorize?${new URLSearchParams({ ...baseParams, state: 'state-2' })}`,
+      { redirect: 'manual' }
+    );
+
+    expect(first.status).toBe(302);
+    expect(second.status).toBe(400);
+    const body = (await second.json()) as { error: string };
+    expect(body.error).toBe('pkce_challenge_collision');
+  });
+
   it('/authorize rejects forbidden schemes, allowlist misses, and malformed challenges', async () => {
     harness = await startApp({});
     const pkce = newPkce();

@@ -10,7 +10,7 @@ import {
   rememberDelegatedAccessToken,
 } from '../delegated-access-tokens.js';
 import type { RedisClient } from '../redis.js';
-import type { PkceStore } from '../pkce-store/pkce-store.js';
+import type { PkceEntry, PkceStore } from '../pkce-store/pkce-store.js';
 import type { TenantRow } from '../tenant/tenant-row.js';
 import type { TenantPool } from '../tenant/tenant-pool.js';
 
@@ -52,6 +52,32 @@ function isTrustedHostedConnectorRedirect(
   return (
     parsed.protocol === 'https:' &&
     extraAllowedHosts.some((host) => host.trim().toLowerCase() === parsed.hostname)
+  );
+}
+
+function pkceChallengeForVerifier(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
+
+function isSameAuthorizeRequest(
+  entry: PkceEntry,
+  expected: Pick<
+    PkceEntry,
+    | 'state'
+    | 'clientCodeChallenge'
+    | 'clientCodeChallengeMethod'
+    | 'clientId'
+    | 'redirectUri'
+    | 'tenantId'
+  >
+): boolean {
+  return (
+    entry.state === expected.state &&
+    entry.clientCodeChallenge === expected.clientCodeChallenge &&
+    entry.clientCodeChallengeMethod === expected.clientCodeChallengeMethod &&
+    entry.clientId === expected.clientId &&
+    entry.redirectUri === expected.redirectUri &&
+    entry.tenantId === expected.tenantId
   );
 }
 
@@ -130,12 +156,8 @@ export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
     const tenantKey = tenant.id;
 
     const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
-    const serverChallenge = crypto
-      .createHash('sha256')
-      .update(serverCodeVerifier)
-      .digest('base64url');
-
-    const ok = await pkceStore.put(tenantKey, {
+    let serverChallenge = pkceChallengeForVerifier(serverCodeVerifier);
+    const pkceEntry: PkceEntry = {
       state,
       clientCodeChallenge,
       clientCodeChallengeMethod,
@@ -144,15 +166,30 @@ export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
       redirectUri,
       tenantId: tenantKey,
       createdAt: Date.now(),
-    });
+    };
+
+    const ok = await pkceStore.put(tenantKey, pkceEntry);
     if (!ok) {
-      emitAudit(tenant.id, 'failure', redirectUri, { error: 'pkce_challenge_collision' }, req);
-      res.status(400).json({
-        error: 'pkce_challenge_collision',
-        error_description:
-          'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
-      });
-      return;
+      const existing = await pkceStore.getByChallenge(tenantKey, clientCodeChallenge);
+      if (existing && isSameAuthorizeRequest(existing, pkceEntry)) {
+        serverChallenge = pkceChallengeForVerifier(existing.serverCodeVerifier);
+        logger.info(
+          {
+            tenantId: tenant.id,
+            state: state.substring(0, 8) + '...',
+            challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
+          },
+          'Two-leg PKCE: reused existing challenge for duplicate authorize retry'
+        );
+      } else {
+        emitAudit(tenant.id, 'failure', redirectUri, { error: 'pkce_challenge_collision' }, req);
+        res.status(400).json({
+          error: 'pkce_challenge_collision',
+          error_description:
+            'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
+        });
+        return;
+      }
     }
 
     const cloudEndpoints = getCloudEndpoints(tenant.cloud_type);

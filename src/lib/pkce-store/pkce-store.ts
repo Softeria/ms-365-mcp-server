@@ -45,6 +45,12 @@ export interface PkceStore {
   put(tenantId: string, entry: PkceEntry): Promise<boolean>;
 
   /**
+   * Read the entry at (tenantId, clientCodeChallenge) without consuming it.
+   * Used only to make exact duplicate /authorize retries idempotent.
+   */
+  getByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null>;
+
+  /**
    * Atomically read AND delete the entry at (tenantId, clientCodeChallenge).
    * Returns the entry on hit, null on miss. Two concurrent calls with the
    * same key: exactly one gets the entry, the other gets null.

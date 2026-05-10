@@ -52,7 +52,7 @@ export type {
   AuthorizeHandlerConfig,
   TenantTokenHandlerConfig,
 } from './lib/oauth/tenant-handlers.js';
-import type { PkceStore } from './lib/pkce-store/pkce-store.js';
+import type { PkceEntry, PkceStore } from './lib/pkce-store/pkce-store.js';
 import { MemoryPkceStore } from './lib/pkce-store/memory-store.js';
 import type { TenantRow } from './lib/tenant/tenant-row.js';
 import type { TenantPool } from './lib/tenant/tenant-pool.js';
@@ -78,6 +78,32 @@ import { pinoHttp } from 'pino-http';
 import { nanoid } from 'nanoid';
 
 const LEGACY_SINGLE_TENANT_KEY = '_';
+
+function pkceChallengeForVerifier(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
+
+function isSameAuthorizeRequest(
+  entry: PkceEntry,
+  expected: Pick<
+    PkceEntry,
+    | 'state'
+    | 'clientCodeChallenge'
+    | 'clientCodeChallengeMethod'
+    | 'clientId'
+    | 'redirectUri'
+    | 'tenantId'
+  >
+): boolean {
+  return (
+    entry.state === expected.state &&
+    entry.clientCodeChallenge === expected.clientCodeChallenge &&
+    entry.clientCodeChallengeMethod === expected.clientCodeChallengeMethod &&
+    entry.clientId === expected.clientId &&
+    entry.redirectUri === expected.redirectUri &&
+    entry.tenantId === expected.tenantId
+  );
+}
 
 function createHttpRouteRateLimit(): RequestHandler {
   const rawLimit = process.env.MS365_MCP_HTTP_ROUTE_RATE_LIMIT_PER_MIN;
@@ -1141,13 +1167,10 @@ class MicrosoftGraphServer {
         // sha256(client_verifier) and does a single O(1) takeByChallenge.
         if (clientCodeChallenge && state) {
           const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
-          const serverCodeChallenge = crypto
-            .createHash('sha256')
-            .update(serverCodeVerifier)
-            .digest('base64url');
+          let serverCodeChallenge = pkceChallengeForVerifier(serverCodeVerifier);
 
           const redirectUri = url.searchParams.get('redirect_uri') ?? '';
-          const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, {
+          const pkceEntry: PkceEntry = {
             state,
             clientCodeChallenge,
             clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
@@ -1156,22 +1179,35 @@ class MicrosoftGraphServer {
             redirectUri,
             tenantId: LEGACY_SINGLE_TENANT_KEY,
             createdAt: Date.now(),
-          });
+          };
+          const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, pkceEntry);
 
           if (!ok) {
-            // NX rejected the write — another /authorize already staked
-            // this exact challenge. Rare but possible; surface 400 so the
-            // client regenerates its verifier/challenge and retries.
-            logger.warn(
-              { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
-              'PKCE challenge collision on put'
+            const existing = await this.pkceStore.getByChallenge(
+              LEGACY_SINGLE_TENANT_KEY,
+              clientCodeChallenge
             );
-            res.status(400).json({
-              error: 'pkce_challenge_collision',
-              error_description:
-                'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
-            });
-            return;
+            if (existing && isSameAuthorizeRequest(existing, pkceEntry)) {
+              serverCodeChallenge = pkceChallengeForVerifier(existing.serverCodeVerifier);
+              logger.info(
+                {
+                  state: state.substring(0, 8) + '...',
+                  challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
+                },
+                'Legacy /authorize: reused existing challenge for duplicate authorize retry'
+              );
+            } else {
+              logger.warn(
+                { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
+                'PKCE challenge collision on put'
+              );
+              res.status(400).json({
+                error: 'pkce_challenge_collision',
+                error_description:
+                  'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
+              });
+              return;
+            }
           }
 
           // Send our server-generated code_challenge to Microsoft
