@@ -47,7 +47,15 @@ export interface RegisterSkillToolsDeps {
 
 const EmptyInputZod = z.object({}).passthrough();
 const SkillLookupZod = z.object({ name: SkillNameZod });
-const RenderSkillZod = z.object({ name: SkillNameZod, args: z.record(z.unknown()).default({}) });
+const RenderSkillInputZod = z.object({
+  name: SkillNameZod,
+  args: z.record(z.unknown()).optional(),
+  arguments: z.record(z.unknown()).optional(),
+});
+const RenderSkillZod = RenderSkillInputZod.transform((input) => ({
+  name: input.name,
+  args: input.args ?? input.arguments ?? {},
+}));
 const SaveSkillZod = z
   .object({
     name: SkillNameZod,
@@ -362,7 +370,11 @@ export function registerSkillTools(server: McpServer, deps: RegisterSkillToolsDe
   server.tool(
     'render-skill',
     'Render a visible skill without executing Graph calls.',
-    { name: RenderSkillZod.shape.name, args: RenderSkillZod.shape.args },
+    {
+      name: RenderSkillInputZod.shape.name,
+      args: RenderSkillInputZod.shape.args,
+      arguments: RenderSkillInputZod.shape.arguments,
+    },
     { title: 'render-skill', readOnlyHint: true, openWorldHint: false },
     async (args) => {
       const tenant = requireTenant();
