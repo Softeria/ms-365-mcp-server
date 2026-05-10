@@ -48,6 +48,9 @@ function makeServer(sent: SentNotification[]) {
     sendResourceUpdated: vi.fn((params: unknown) => {
       sent.push({ method: 'notifications/resources/updated', params });
     }),
+    sendPromptListChanged: vi.fn(() => {
+      sent.push({ method: 'notifications/prompts/list_changed' });
+    }),
     sendLoggingMessage: vi.fn(),
   };
 }
@@ -206,7 +209,10 @@ describe('Phase 7 Plan 07-08 Task 2 — resource subscriptions', () => {
     await waitFor(() => subscribed.length === 1);
 
     expect(subscribed).toEqual([
-      { method: 'notifications/resources/updated', params: { uri: BOOKMARKS_URI } },
+      {
+        method: 'notifications/resources/updated',
+        params: { uri: BOOKMARKS_URI, _meta: { reason: 'bookmark-change' } },
+      },
     ]);
     expect(unsubscribed).toEqual([]);
   });
@@ -247,7 +253,10 @@ describe('Phase 7 Plan 07-08 Task 2 — resource subscriptions', () => {
       });
       await waitFor(() => delivered.length === 1);
       expect(delivered).toEqual([
-        { method: 'notifications/resources/updated', params: { uri: AUDIT_URI } },
+        {
+          method: 'notifications/resources/updated',
+          params: { uri: AUDIT_URI, _meta: { reason: 'audit-write' } },
+        },
       ]);
 
       const beforeRollback = rawEvents.length;

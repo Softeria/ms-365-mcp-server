@@ -98,7 +98,7 @@ async function startApp(tenantOverrides: Partial<TenantRow> = {}): Promise<Harne
     getDekForTenant: vi.fn(() => dek),
   };
 
-  const { createTenantTokenHandler } = await import('../../src/server.js');
+  const { createTenantTokenHandler } = await import('../../src/lib/oauth/tenant-handlers.js');
 
   const app = express();
   app.use(express.json());

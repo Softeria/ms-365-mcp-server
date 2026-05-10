@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: human_needed
-stopped_at: Phase 07 complete; Claude.ai connector UX verification pending
-last_updated: "2026-04-25T20:23:17Z"
-last_activity: 2026-04-25 -- Phase 07 review fixes applied and gates passed
+status: completed
+stopped_at: context exhaustion at 75% (2026-05-09)
+last_updated: "2026-05-09T01:20:00.000Z"
+last_activity: "2026-05-09 -- Phase 08 complete; final verifier passed"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 8
-  total_plans: 72
-  completed_plans: 72
+  total_plans: 86
+  completed_plans: 86
   percent: 100
 ---
 
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-18)
 
 **Core value:** One deployable, multi-tenant MCP gateway that exposes the entire Microsoft Graph surface an organization needs — with tenant isolation, resilient Graph transport, and all four identity flows — so AI assistants can safely act on behalf of any user or app across any registered tenant.
-**Current focus:** Phase 07 — agentic-tool-surface-discovery-default-mcp-resources-prompts
+**Current focus:** Phase 08 — maximal-mcp-claude-connector-surface (complete)
 
 ## Current Position
 
-Phase: 07 (agentic-tool-surface-discovery-default-mcp-resources-prompts) — COMPLETE / HUMAN_NEEDED
-Plan: 12 of 12
-Status: Phase 07 code complete; external Claude.ai connector UX verification remains
-Last activity: 2026-04-25 -- Phase 07 review fixes applied and gates passed
+Phase: 08 (maximal-mcp-claude-connector-surface) — COMPLETE
+Plan: 14 of 14
+Status: Phase 08 complete; review fixes validated; final verifier passed; full suite remains resource-inconclusive with exit 137
+Last activity: 2026-05-09 -- Phase 08 complete; final verifier passed
 
-Progress: [██████████] 100% (8/8 phases)
+Progress: [██████████] 100% (86/86 tracked plans; 8/9 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 19
+- Total plans completed: 22
 - Average duration: -
 - Total execution time: -
 
@@ -49,7 +49,7 @@ Progress: [██████████] 100% (8/8 phases)
 
 **Recent Trend:**
 
-- Last 5 plans: 07-08, 07-09, 07-10, 07-11, 07-12
+- Last 5 plans: 08-10, 08-11, 08-12, 08-13, 08-14
 - Trend: complete
 
 *Updated after each plan completion*
@@ -69,10 +69,18 @@ Recent decisions affecting current work:
 - [Phase 07]: Tenant resource reads compare URI tenant id against getRequestTenant().id before any data read. — Mitigates tenant resource URI information disclosure for Plan 07-11.
 - [Phase 07]: Endpoint schema resources validate aliases against discoveryCatalogSet, not the visible discovery-v1 meta-tool set. — Allows discovery tenants to inspect generated Graph/product schemas without exposing them in tools/list.
 - [Phase 07]: Tenant resources are registered as concrete caller-tenant URIs; templates are limited to workload and endpoint schema families. — Prevents cross-tenant template enumeration while keeping resources/list discoverable for the caller tenant.
+- [Phase 08]: Editable skills are now exposed through discovery-mode skill tools and canonical `m365://tenant/{tenantId}/skills/...` resources with `mcp://` compatibility aliases; published saves validate tool/memory/resource references before persistence.
+- [Phase 08]: MCP Apps foundation registers discovery-gated `ui://m365/*.html` dashboard resources with strict CSP/sandbox metadata and exact text/structured/resource fallback for non-Apps clients.
+- [Phase 08]: Skill packs import/export editable skills plus referenced recipes/bookmarks/facts through non-roots fallback; reserved signature/checksum metadata is parsed but not trusted.
+- [Phase 08]: Dashboard app tools now own the seven dashboard tool names while `registerMcpApps` can register only `ui://` resources; every dashboard returns text, structured JSON, `m365://` resources, and optional `ui://` metadata.
+- [Phase 08]: Rich resources now use canonical `m365://` with `mcp://` compatibility aliases, bounded Graph-backed reads, tenant/scope/tool gates, and durable resource links from discovery `execute-tool` results.
+- [Phase 08]: Notification surface delivers `prompts/list_changed` and `resources/updated` (with `_meta.{source,reason,changeType}`) only to matching tenant + discovery sessions, optionally subscription-filtered, then coalesced 2s by tenant/session/uri/changeType. Mail-message Graph webhooks map to `m365://tenant/{id}/mail/messages/{id}.json` with `source='graph-webhook'` and zero PII in logs.
+- [Phase 08]: MCP completions are explicitly registered and now cover tenant-scoped aliases/accounts/skills/memory plus bounded Graph-backed object lookups with cache keys isolated by tenant, session, account, enabled tools, and capability profile.
 
 ### Roadmap Evolution
 
 - Phase 7 added: agentic-tool-surface — discovery-mode default + MCP Resources (templated, per-tenant) + Prompts (10 canned workflows) + Notifications (tools/list, resources/list, resources/updated) + Logging capability + Completions + per-tenant memory (bookmarks, recipes, facts via Postgres + BM25 + optional pgvector) + admin API CRUD for memory + opt-in migration tool. Out of scope: Tasks/Elicitation/Sampling/Roots (no claude.ai client support yet).
+- Phase 8 added: maximal-mcp-claude-connector-surface — editable skills as DB-backed MCP prompts, MCP Apps, structured outputs/output schemas, richer resources/completions/notifications, capability-gated sampling/elicitation/roots/tasks, transport parity, and connector naming hardening for Claude/Cowork clients that ignore `serverInfo.name` or show generic `ToolHub` labels.
 
 ### Pending Todos
 
@@ -91,8 +99,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T18:42:24.557Z
-Stopped at: Completed 07-11-PLAN.md
+Last session: 2026-05-09T01:20:00.000Z
+Stopped at: Phase 08 complete; final verifier passed
 Resume file: None
 
 ## Quick Tasks Completed

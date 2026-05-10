@@ -1,7 +1,7 @@
 /**
  * Dynamic-registration redirect_uri validation (plan 06-05, ROADMAP SC#4).
  *
- * Verifies src/server.ts createRegisterHandler rejects:
+ * Verifies createRegisterHandler rejects:
  *   - javascript: scheme
  *   - data: scheme
  *   - missing host (https://)
@@ -43,7 +43,7 @@ describe('plan 06-05 — dynamic /register redirect_uri validation (SC#4)', () =
     publicUrlHost: string | null;
   }): Promise<void> {
     vi.resetModules();
-    const { createRegisterHandler } = await import('../../../src/server.js');
+    const { createRegisterHandler } = await import('../../../src/lib/oauth/register-handler.js');
     const app = express();
     app.use(express.json());
     app.post('/register', createRegisterHandler(policy));
@@ -87,6 +87,21 @@ describe('plan 06-05 — dynamic /register redirect_uri validation (SC#4)', () =
         expect(body.error).toBe('invalid_redirect_uri');
       });
     }
+
+    it('rejects non-string redirect_uris entries with 400', async () => {
+      const res = await fetch(`${baseUrl}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'test-client',
+          redirect_uris: [123],
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string; reason: string };
+      expect(body.error).toBe('invalid_redirect_uri');
+      expect(body.reason).toBe('redirect_uris must be strings');
+    });
 
     // URL construction semantics: `new URL('https://')` THROWS — the registry
     // handler surfaces this as 'not a valid URL' rather than a missing-host
@@ -134,6 +149,22 @@ describe('plan 06-05 — dynamic /register redirect_uri validation (SC#4)', () =
         }),
       });
       expect([200, 201]).toContain(res.status);
+    });
+
+    it('filters unsupported refresh_token grant from dynamic registration metadata', async () => {
+      const res = await fetch(`${baseUrl}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'test-client',
+          redirect_uris: ['https://mcp.example.com/callback'],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+        }),
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { grant_types: string[] };
+      expect(body.grant_types).toEqual(['authorization_code']);
     });
 
     it('accepts http://localhost:3000/callback in prod mode (loopback always OK)', async () => {

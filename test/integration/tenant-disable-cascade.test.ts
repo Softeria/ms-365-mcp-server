@@ -124,7 +124,7 @@ describe('Plan 03-10 — tenant disable cascade (SC#4)', () => {
 
     const pkceStore = new RedisPkceStore(redis);
 
-    const { createAuthorizeHandler } = await import('../../src/server.js');
+    const { createAuthorizeHandler } = await import('../../src/lib/oauth/tenant-handlers.js');
     const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
 
     const loadTenant = createLoadTenantMiddleware({ pool });

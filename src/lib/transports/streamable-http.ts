@@ -24,6 +24,11 @@ import type { TenantRow } from '../tenant/tenant-row.js';
 import logger from '../../logger.js';
 import { isDiscoverySurface } from '../tenant-surface/surface.js';
 import {
+  buildEffectiveCapabilityProfile,
+  type ClientCapabilityProfile,
+  type ClientInfo,
+} from '../mcp-capabilities/profile.js';
+import {
   mcpSessionRegistry,
   type McpNotificationServer,
   type McpNotificationSurface,
@@ -32,13 +37,14 @@ import {
 import type { RedisResourceSubscriptionStore } from '../mcp-notifications/resource-subscriptions.js';
 
 export interface StreamableHttpDeps {
-  buildMcpServer: (tenant: TenantRow) => McpServer;
+  buildMcpServer: (tenant: TenantRow) => McpServer | Promise<McpServer>;
   sessionRegistry?: McpSessionRegistry;
   resourceSubscriptions?: RedisResourceSubscriptionStore;
   surface?: McpNotificationSurface;
   createTransport?: (
     options: StreamableHTTPServerTransportOptions
   ) => StreamableHTTPServerTransport;
+  phase8Enabled?: (tenant: TenantRow, surface: McpNotificationSurface) => boolean;
 }
 
 /**
@@ -68,8 +74,9 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
     }
 
     const surface = deps.surface ?? (isDiscoverySurface(tenant) ? 'discovery' : 'static');
+    const profile = profileFromInitialize(req, tenant, surface, deps);
     if (surface !== 'discovery') {
-      await handleStatelessRequest(req, res, tenant, deps);
+      await handleStatelessRequest(req, res, tenant, deps, profile);
       return;
     }
 
@@ -97,11 +104,12 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
       return;
     }
 
-    const server = deps.buildMcpServer(tenant);
+    const server = await deps.buildMcpServer(tenant);
     const notificationServer: McpNotificationServer = {
       sendToolListChanged: () => server.sendToolListChanged(),
       sendResourceListChanged: () => server.sendResourceListChanged(),
       sendResourceUpdated: (params) => server.server.sendResourceUpdated(params),
+      sendPromptListChanged: () => server.sendPromptListChanged(),
       sendLoggingMessage: (message, sessionId) => server.sendLoggingMessage(message, sessionId),
       close: () => server.close(),
     };
@@ -120,6 +128,7 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
           server: notificationServer,
           transport,
           surface: 'discovery',
+          capabilityProfile: profile,
         });
       },
       onsessionclosed: cleanupSession,
@@ -146,9 +155,10 @@ async function handleStatelessRequest(
   req: Request,
   res: Response,
   tenant: TenantRow,
-  deps: StreamableHttpDeps
+  deps: StreamableHttpDeps,
+  _profile: ClientCapabilityProfile
 ): Promise<void> {
-  const server = deps.buildMcpServer(tenant);
+  const server = await deps.buildMcpServer(tenant);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
@@ -174,6 +184,39 @@ function getSessionId(req: Request): string | undefined {
   const value = req.get('mcp-session-id') ?? req.get('Mcp-Session-Id');
   if (!value) return undefined;
   return value;
+}
+
+function profileFromInitialize(
+  req: Request,
+  tenant: TenantRow,
+  surface: McpNotificationSurface,
+  deps: StreamableHttpDeps
+): ClientCapabilityProfile {
+  const body = req.body as { method?: unknown; params?: Record<string, unknown> } | undefined;
+  const params = body?.method === 'initialize' ? body.params : undefined;
+  const clientInfo = isClientInfo(params?.clientInfo);
+  const phase8Enabled = deps.phase8Enabled?.(tenant, surface) ?? surface === 'discovery';
+  return buildEffectiveCapabilityProfile({
+    protocolVersion:
+      typeof params?.protocolVersion === 'string' ? params.protocolVersion : undefined,
+    clientInfo,
+    advertisedCapabilities: isRecord(params?.capabilities) ? params.capabilities : {},
+    transport: 'streamable-http',
+    surface,
+    tenantPolicy: { phase8Enabled },
+  });
+}
+
+function isClientInfo(value: unknown): ClientInfo | undefined {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(typeof value.version === 'string' ? { version: value.version } : {}),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function handleTransportError(res: Response, err: unknown, tenantId: string): void {

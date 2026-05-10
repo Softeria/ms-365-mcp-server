@@ -38,6 +38,18 @@ vi.mock('../../../logger.js', () => ({
   enableConsoleLogging: vi.fn(),
 }));
 
+const noopRoute = () => (_req: any, _res: any, next: any) => next();
+
+vi.mock('../api-keys.js', () => ({
+  createApiKeyRoutes: vi.fn(noopRoute),
+  subscribeToApiKeyRevoke: vi.fn(async () => undefined),
+}));
+vi.mock('../tenants.js', () => ({ createTenantsRoutes: vi.fn(noopRoute) }));
+vi.mock('../enabled-tools.js', () => ({ createEnabledToolsRoutes: vi.fn(noopRoute) }));
+vi.mock('../audit.js', () => ({ createAuditRoutes: vi.fn(noopRoute) }));
+vi.mock('../memory.js', () => ({ createMemoryRoutes: vi.fn(noopRoute) }));
+vi.mock('../auth/dual-stack.js', () => ({ createAdminAuthMiddleware: vi.fn(noopRoute) }));
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();

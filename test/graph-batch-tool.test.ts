@@ -18,6 +18,10 @@ vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../src/generated/client.js', () => ({
+  api: { endpoints: [] },
+}));
+
 interface RegisteredTool {
   name: string;
   description: string;

@@ -142,6 +142,8 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
       '20260901000000_tenant_rate_limits.sql',
       // Plan 07-01: tenant memory tables for bookmarks, recipes, and facts.
       '20261001000000_tenant_memory.sql',
+      // Plan 08-05: tenant editable skills.
+      '20261101000000_tenant_skills.sql',
     ]);
   });
 
@@ -184,6 +186,9 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
     );
     expect(byFile.get('20261001000000_tenant_memory.sql')).toMatch(
       /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+tenant_facts/i
+    );
+    expect(byFile.get('20261101000000_tenant_skills.sql')).toMatch(
+      /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+tenant_skills/i
     );
   });
 
@@ -248,20 +253,20 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
     expect(cols).toContain('last_used_at');
   });
 
-  it('round-trips all four migrations (Up then Down in reverse drops everything)', async () => {
+  it('round-trips migrations and preserves additive-only tables on Down', async () => {
     const migrations = listMigrations();
     for (const m of migrations) {
       await pool.query(m.up);
     }
-    // Sanity — all four present before rollback
-    const before = await listTables(pool, ['tenants', 'audit_log', 'delta_tokens', 'api_keys']);
-    expect(before).toHaveLength(4);
+    const trackedTables = ['tenants', 'audit_log', 'delta_tokens', 'api_keys', 'tenant_skills'];
+    const before = await listTables(pool, trackedTables);
+    expect(before).toEqual(['api_keys', 'audit_log', 'delta_tokens', 'tenant_skills', 'tenants']);
 
     for (const m of [...migrations].reverse()) {
       await pool.query(m.down);
     }
-    const after = await listTables(pool, ['tenants', 'audit_log', 'delta_tokens', 'api_keys']);
-    expect(after).toEqual([]);
+    const after = await listTables(pool, trackedTables);
+    expect(after).toEqual(['tenant_skills']);
   });
 
   it('enforces tenant_id FK cascade — deleting a tenant removes audit/delta/apikey rows', async () => {

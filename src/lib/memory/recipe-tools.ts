@@ -8,6 +8,8 @@ import { getRequestTenant } from '../../request-context.js';
 import type { RedisClient } from '../redis.js';
 import { publishResourceUpdated } from '../mcp-notifications/events.js';
 import { emitMcpLogEvent } from '../mcp-logging/register.js';
+import { createMcpErrorEnvelope, createMcpResultEnvelope } from '../mcp-results/envelope.js';
+import { MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA } from '../mcp-results/schemas.js';
 import {
   RecipeAliasZod,
   RecipeNameZod,
@@ -48,16 +50,29 @@ export interface RecipeToolDeps {
   orgMode?: boolean;
 }
 
-function jsonResult(
-  value: unknown,
-  isError = false
-): {
-  content: Array<{ type: 'text'; text: string }>;
-  isError?: boolean;
-} {
+function jsonResult(value: Record<string, unknown>, isError = false, toolName = 'save-recipe') {
+  if (isError) {
+    const code = typeof value.error === 'string' ? value.error : 'recipe_tool_error';
+    return {
+      ...createMcpErrorEnvelope({
+        toolName,
+        summary: `Recipe operation failed: ${code}.`,
+        code,
+        message: code,
+        data: value,
+        nextActions: ['Check the supplied recipe arguments and retry.'],
+      }),
+      content: [{ type: 'text' as const, text: JSON.stringify(value) }],
+    };
+  }
   return {
-    content: [{ type: 'text', text: JSON.stringify(value) }],
-    ...(isError ? { isError: true } : {}),
+    ...createMcpResultEnvelope({
+      toolName,
+      summary: `Recipe operation completed for ${toolName}.`,
+      data: value,
+      nextActions: ['Use run-recipe or execute-tool for the next step.'],
+    }),
+    content: [{ type: 'text' as const, text: JSON.stringify(value) }],
   };
 }
 
@@ -76,7 +91,7 @@ async function publishRecipeChange(redis: RedisClient, tenantId: string): Promis
     await publishResourceUpdated(
       redis,
       tenantId,
-      [`mcp://tenant/${tenantId}/recipes.json`],
+      [`m365://tenant/${tenantId}/recipes.json`, `mcp://tenant/${tenantId}/recipes.json`],
       RECIPE_CHANGE_REASON
     );
   } catch (err) {
@@ -104,7 +119,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
     },
     async (args) => {
       const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+      if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'save-recipe');
 
       const parsed = SaveRecipeInputZod.safeParse(args);
       if (!parsed.success) {
@@ -128,7 +143,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
         },
       });
       await publishRecipeChange(deps.redis, tenant.id);
-      return jsonResult(recipe);
+      return jsonResult({ recipe }, false, 'save-recipe');
     }
   );
 
@@ -145,7 +160,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
     },
     async (args) => {
       const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+      if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'save-recipe');
 
       const parsed = ListRecipesInputZod.safeParse(args);
       if (!parsed.success) {
@@ -159,7 +174,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
       }
 
       const recipes = await listRecipes(tenant.id, parsed.data.filter);
-      return jsonResult({ recipes });
+      return jsonResult({ recipes }, false, 'list-recipes');
     }
   );
 
@@ -178,7 +193,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
     },
     async (args) => {
       const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+      if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'save-recipe');
 
       const parsed = RunRecipeInputZod.safeParse(args);
       if (!parsed.success) {
@@ -206,6 +221,16 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
         orgMode: deps.orgMode ?? false,
       });
 
+      if (!result.isError && result.structuredContent === undefined) {
+        result.structuredContent = {
+          summary: `Recipe ${recipe.name} ran ${recipe.alias}.`,
+          data: { recipe: recipe.name, alias: recipe.alias, result: result.content[0]?.text },
+          resources: [],
+          nextActions: ['Review the recipe result and rerun with overrides if needed.'],
+          warnings: [],
+        };
+      }
+
       if (!result.isError) {
         await markRecipeRun(tenant.id, recipe.name);
         await publishRecipeChange(deps.redis, tenant.id);
@@ -214,4 +239,14 @@ export function registerRecipeTools(server: McpServer, deps: RecipeToolDeps): vo
       return result;
     }
   );
+
+  for (const name of ['list-recipes', 'run-recipe'] as const) {
+    (
+      server as unknown as {
+        _registeredTools: Record<string, { update: (input: { outputSchema: never }) => void }>;
+      }
+    )._registeredTools[name]?.update({
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA.shape as never,
+    });
+  }
 }

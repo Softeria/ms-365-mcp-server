@@ -138,7 +138,7 @@ describe('Plan 03-10 — four flows + audit rows (SC#3)', () => {
     };
 
     const { createAuthorizeHandler, createTenantTokenHandler } =
-      await import('../../src/server.js');
+      await import('../../src/lib/oauth/tenant-handlers.js');
     const { createAuthSelectorMiddleware } = await import('../../src/lib/auth-selector.js');
     const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
     const { writeAuditStandalone } = await import('../../src/lib/audit.js');

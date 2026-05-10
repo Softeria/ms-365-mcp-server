@@ -34,6 +34,7 @@ export interface GraphRequest {
    * Omitted on safe-method requests (GET / HEAD / OPTIONS).
    */
   body?: string | Buffer;
+  signal?: AbortSignal;
   /**
    * Internal marker: when true, RetryHandler (02-02) passes the request through
    * without retry wrapping. Set by UploadSession (02-06) on chunk PUTs.

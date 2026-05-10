@@ -39,7 +39,10 @@ function canActOnTenant(admin: AdminContext, tenantId: string): boolean {
 
 async function publishFactChange(deps: Pick<AdminRouterDeps, 'redis'>, tenantId: string) {
   try {
-    await publishResourceUpdated(deps.redis, tenantId, [`mcp://tenant/${tenantId}/facts.json`]);
+    await publishResourceUpdated(deps.redis, tenantId, [
+      `m365://tenant/${tenantId}/facts.json`,
+      `mcp://tenant/${tenantId}/facts.json`,
+    ]);
   } catch (err) {
     logger.warn(
       { tenantId, err: (err as Error).message },

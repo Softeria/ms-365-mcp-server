@@ -73,7 +73,7 @@ const SECRET_CLIENT_SECRET = 'CLIENT_SECRET_VALUE_SECRET_def456';
  * factory exported from src/server.ts.
  *
  * Strategy used below: the test app delegates to a factory function
- * `createTokenHandler` imported from src/server.ts. That factory is
+ * `createTokenHandler` imported from src/lib/oauth/token-handler.ts. That factory is
  * added in Task 3 (GREEN). Until then, the import throws and every
  * test in this file fails — which is the RED contract.
  */
@@ -81,7 +81,7 @@ async function startTokenServer(): Promise<{
   url: string;
   close: () => Promise<void>;
 }> {
-  const { createTokenHandler } = await import('../src/server.js');
+  const { createTokenHandler } = await import('../src/lib/oauth/token-handler.js');
   const { MemoryPkceStore } = await import('../src/lib/pkce-store/memory-store.js');
 
   const app = express();

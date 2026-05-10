@@ -120,6 +120,20 @@ export function createAuthSelectorMiddleware(
               const sessionStore = new SessionStore(deps.redis, dek);
               const session = await sessionStore.get(tenant.id, token);
               graphAccessToken = session?.graphAccessToken ?? token;
+              const existing = getRequestTokens() ?? {};
+              requestContext.run(
+                {
+                  ...existing,
+                  accessToken: graphAccessToken,
+                  clientAccessToken: token,
+                  flow: 'delegated',
+                  authClientId: tenant.client_id,
+                  tenantRow: tenant,
+                  ownerSubject: session?.ownerSubject ?? session?.accountHomeId,
+                },
+                () => next()
+              );
+              return;
             } catch (err) {
               logger.warn(
                 { err: (err as Error).message, tenantId: tenant.id },

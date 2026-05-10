@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Editor Dashboard</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #ffffff; color: #1f1f1f; }
+      body { margin: 0; padding: 24px; background: #ffffff; }
+      main { max-width: 960px; margin: 0 auto; display: grid; gap: 16px; }
+      .card { background: #f3f2f1; border: 1px solid #d1d1d1; border-radius: 12px; padding: 16px; }
+      h1 { margin: 0; font-size: 28px; line-height: 1.2; font-weight: 600; }
+      h2 { margin: 0 0 8px; font-size: 20px; line-height: 1.2; font-weight: 600; }
+      p, li { font-size: 16px; line-height: 1.5; }
+      .status, .resource { color: #0078d4; font-weight: 600; word-break: break-word; }
+      .danger { border-left: 4px solid #d13438; }
+      @media (min-width: 960px) { .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
+    </style>
+  </head>
+  <body>
+    <main aria-live="polite">
+      <header class="card">
+        <p class="status">App payload privacy</p>
+        <h1>Skill Editor Dashboard</h1>
+        <p>This app view contains only server-generated data for the current tenant/session. Tokens and secrets are never included.</p>
+      </header>
+      <section class="grid" aria-label="Dashboard content">
+        <article class="card">
+          <h2>Editable skill states</h2>
+          <ul>
+            <li>Built-in skill</li>
+            <li>Tenant custom skill</li>
+            <li>User personal skill</li>
+            <li>Forked built-in</li>
+            <li>Draft with invalid references</li>
+            <li>Published invalid save attempt</li>
+            <li>High-risk skill</li>
+          </ul>
+        </article>
+        <article class="card danger">
+          <h2>No custom skills yet</h2>
+          <p>This view has no matching items for the current tenant, account, filters, and enabled tools. Adjust filters or ask for a broader search.</p>
+        </article>
+      </section>
+      <section class="card">
+        <h2>Delete confirmation</h2>
+        <p>Delete skill: This disables the custom skill for this tenant or user. Built-in skills cannot be deleted. Confirm the skill name to continue.</p>
+        <p>Loading skill editor...</p>
+        <p>This view could not load safely. Check the required tenant, scopes, enabled tools, and connector capabilities, then retry.</p>
+        <p class="resource">Open linked m365:// resources for durable follow-up data.</p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -95,7 +95,7 @@ const WORKLOAD_GUIDE_DEFINITIONS: readonly WorkloadGuideDefinition[] = Object.fr
 ]);
 
 export const NAVIGATION_GUIDE_RESOURCE: StaticCatalogResource = Object.freeze({
-  uri: 'mcp://catalog/navigation-guide.md',
+  uri: 'm365://catalog/navigation-guide.md',
   name: 'catalog-navigation-guide',
   title: 'Microsoft 365 MCP Catalog Navigation Guide',
   description: 'Master navigation guide for the static Microsoft 365 MCP resource catalog.',
@@ -106,7 +106,7 @@ export const NAVIGATION_GUIDE_RESOURCE: StaticCatalogResource = Object.freeze({
 function workloadGuideResource(definition: WorkloadGuideDefinition): WorkloadGuideResource {
   return Object.freeze({
     slug: definition.slug,
-    uri: `mcp://catalog/workloads/${definition.slug}.md`,
+    uri: `m365://catalog/workloads/${definition.slug}.md`,
     name: `catalog-workload-${definition.slug}`,
     title: definition.title,
     description: definition.description,

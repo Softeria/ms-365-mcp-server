@@ -26,12 +26,38 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { TenantRow } from '../tenant/tenant-row.js';
 import logger from '../../logger.js';
+import {
+  buildEffectiveCapabilityProfile,
+  type AdvertisedCapabilities,
+  type ClientCapabilityProfile,
+  type ClientInfo,
+} from '../mcp-capabilities/profile.js';
 
 export interface StdioTransportOptions {
   /** Optional tenant row. Absent when running in v1 legacy single-tenant mode. */
   tenant?: TenantRow;
   /** The McpServer the transport should bind to. Built by createMcpServer(tenant). */
   mcpServer: McpServer;
+}
+
+export interface StdioCapabilityProfileInput {
+  protocolVersion?: string;
+  clientInfo?: ClientInfo;
+  advertisedCapabilities?: AdvertisedCapabilities;
+  phase8Enabled?: boolean;
+}
+
+export function buildStdioCapabilityProfile(
+  input: StdioCapabilityProfileInput = {}
+): ClientCapabilityProfile {
+  return buildEffectiveCapabilityProfile({
+    protocolVersion: input.protocolVersion,
+    clientInfo: input.clientInfo,
+    advertisedCapabilities: input.advertisedCapabilities ?? {},
+    transport: 'stdio',
+    surface: 'discovery',
+    tenantPolicy: { phase8Enabled: input.phase8Enabled ?? true },
+  });
 }
 
 /**

@@ -120,7 +120,7 @@ describe('Concurrent flows integration (AUTH-05 / SC#3)', () => {
     capturedTenants.length = 0;
 
     const { createAuthorizeHandler, createTenantTokenHandler } =
-      await import('../../src/server.js');
+      await import('../../src/lib/oauth/tenant-handlers.js');
     const { createAuthSelectorMiddleware } = await import('../../src/lib/auth-selector.js');
 
     const app = express();

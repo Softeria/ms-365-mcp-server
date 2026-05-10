@@ -466,7 +466,10 @@ describe('Phase 7 Plan 07-03 Task 2 — bookmark MCP tools', () => {
     expect(events.agenticEvents).toContainEqual(
       expect.objectContaining({
         type: 'resources/updated',
-        uris: [`mcp://tenant/${TENANT_A}/bookmarks.json`],
+        uris: expect.arrayContaining([
+          `m365://tenant/${TENANT_A}/bookmarks.json`,
+          `mcp://tenant/${TENANT_A}/bookmarks.json`,
+        ]),
       })
     );
   });

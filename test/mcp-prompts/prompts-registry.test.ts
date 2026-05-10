@@ -39,6 +39,14 @@ arguments:
 Use {{account}} to triage mail since {{since}}.
 `;
 
+const TENANT_SKILL_PROMPT: PromptTemplateDefinition = {
+  sourcePath: 'tenant-skills:11111111-1111-4111-8111-111111111111/custom_triage',
+  name: 'custom_triage',
+  description: 'Custom tenant prompt',
+  arguments: [{ name: 'account', required: true }],
+  template: 'Tenant skill for {{account}}',
+};
+
 const LOCKED_PROMPT_SPECS = {
   'inbox-triage': [
     { name: 'account', required: false },
@@ -367,7 +375,7 @@ describe('Phase 7 Plan 07-07 — MCP prompt registration', () => {
     expect(capabilitiesOf(mcp).prompts).toBeUndefined();
   });
 
-  it('discovery tenant prompt capability uses prompts.listChanged false', async () => {
+  it('discovery tenant prompt capability uses prompts.listChanged true for editable skills', async () => {
     const graphServer = createServerFactory({
       loadPrompts: () => [parsePromptMarkdown(VALID_PROMPT, 'fixture.md')],
     });
@@ -376,9 +384,40 @@ describe('Phase 7 Plan 07-07 — MCP prompt registration', () => {
       enabled_tools_set: DISCOVERY_META_TOOL_NAMES,
     } as never);
 
-    expect(capabilitiesOf(mcp).prompts).toEqual({ listChanged: false });
+    expect(capabilitiesOf(mcp).prompts).toEqual({ listChanged: true });
     await expect(invokePromptsList(mcp)).resolves.toMatchObject({
       prompts: [{ name: 'inbox-triage' }],
+    });
+  });
+
+  it('discovery tenant server registers DB-backed skill prompts', async () => {
+    const graphServer = createServerFactory({
+      loadPrompts: () => [parsePromptMarkdown(VALID_PROMPT, 'fixture.md')],
+    });
+    const mcp = graphServer.createMcpServer(
+      {
+        preset_version: DISCOVERY_PRESET_VERSION,
+        enabled_tools_set: DISCOVERY_META_TOOL_NAMES,
+      } as never,
+      [TENANT_SKILL_PROMPT]
+    );
+
+    await expect(invokePromptsList(mcp)).resolves.toMatchObject({
+      prompts: expect.arrayContaining([
+        expect.objectContaining({ name: 'custom_triage' }),
+        expect.objectContaining({ name: 'inbox-triage' }),
+      ]),
+    });
+    await expect(
+      invokePromptGet(mcp, 'custom_triage', { account: '<img>' })
+    ).resolves.toMatchObject({
+      description: 'Custom tenant prompt',
+      messages: [
+        {
+          role: 'user',
+          content: { type: 'text', text: 'Tenant skill for &lt;img&gt;' },
+        },
+      ],
     });
   });
 });

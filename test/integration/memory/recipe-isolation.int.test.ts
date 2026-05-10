@@ -166,7 +166,10 @@ describe('Phase 7 Plan 07-04 Task 3 — recipe tenant isolation', () => {
       expect(events).toContainEqual(
         expect.objectContaining({
           type: 'resources/updated',
-          uris: [`mcp://tenant/${TENANT_A}/recipes.json`],
+          uris: expect.arrayContaining([
+            `m365://tenant/${TENANT_A}/recipes.json`,
+            `mcp://tenant/${TENANT_A}/recipes.json`,
+          ]),
         })
       );
     } finally {

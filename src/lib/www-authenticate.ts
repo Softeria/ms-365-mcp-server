@@ -24,6 +24,7 @@
  *      proxy handling).
  */
 import type { Request } from 'express';
+import { buildWwwAuthenticateMetadata } from './connector-identity/metadata.js';
 
 export interface WwwAuthenticateOptions {
   req: Request;
@@ -35,14 +36,12 @@ export interface WwwAuthenticateOptions {
 export function buildWwwAuthenticate(opts: WwwAuthenticateOptions): string {
   const { req, tenantId, error, errorDescription } = opts;
   const base = resolvePublicBase(req);
-  const tenantSegment = tenantId ? `/t/${encodeURIComponent(tenantId)}` : '';
-  const resourceUrl = `${base}${tenantSegment}/.well-known/oauth-protected-resource`;
-  const realm = `${base}${tenantSegment || ''}`;
+  const metadata = buildWwwAuthenticateMetadata({ publicBaseUrl: base, tenantId });
 
-  const params: string[] = [`realm="${realm}"`];
+  const params: string[] = [`realm="${metadata.realm}"`];
   if (error) params.push(`error="${quoteSafe(error)}"`);
   if (errorDescription) params.push(`error_description="${quoteSafe(errorDescription)}"`);
-  params.push(`resource_metadata="${resourceUrl}"`);
+  params.push(`resource_metadata="${metadata.resourceMetadata}"`);
   return `Bearer ${params.join(', ')}`;
 }
 

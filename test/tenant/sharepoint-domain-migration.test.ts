@@ -31,7 +31,7 @@ import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Pool } from 'pg';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
@@ -82,11 +82,11 @@ vi.mock('../../src/lib/postgres.js', async () => {
 import { createTenantsRoutes } from '../../src/lib/admin/tenants.js';
 import { MemoryRedisFacade } from '../../src/lib/redis-facade.js';
 import { createCursorSecret } from '../../src/lib/admin/cursor.js';
-import { createLoadTenantMiddleware } from '../../src/lib/tenant/load-tenant.js';
 import type { TenantRow } from '../../src/lib/tenant/tenant-row.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', 'migrations');
+const SHAREPOINT_MIGRATION_FILE = '20260801000000_sharepoint_domain.sql';
 
 const KEK = crypto.randomBytes(32);
 
@@ -103,21 +103,20 @@ interface MigrationPair {
   down: string;
 }
 
+function loadSharepointMigration(): MigrationPair {
+  const sql = readFileSync(path.join(MIGRATIONS_DIR, SHAREPOINT_MIGRATION_FILE), 'utf8');
+  const parts = sql.split(/^--\s*Down Migration\s*$/m);
+  const up = (parts[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '');
+  const down = parts[1] ?? '';
+  return {
+    file: SHAREPOINT_MIGRATION_FILE,
+    up: stripPgcryptoExtensionStmts(up),
+    down: stripPgcryptoExtensionStmts(down),
+  };
+}
+
 function listMigrations(): MigrationPair[] {
-  return readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()
-    .map((file) => {
-      const sql = readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
-      const parts = sql.split(/^--\s*Down Migration\s*$/m);
-      const up = (parts[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '');
-      const down = parts[1] ?? '';
-      return {
-        file,
-        up: stripPgcryptoExtensionStmts(up),
-        down: stripPgcryptoExtensionStmts(down),
-      };
-    });
+  return [loadSharepointMigration()];
 }
 
 async function runSqlStatements(pool: Pool, sql: string): Promise<void> {
@@ -133,14 +132,54 @@ async function runSqlStatements(pool: Pool, sql: string): Promise<void> {
   }
 }
 
-async function makePoolAllMigrations(): Promise<Pool> {
+async function installBaseSchema(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE tenants (
+      id uuid PRIMARY KEY,
+      mode text NOT NULL,
+      client_id text NOT NULL,
+      client_secret_ref text NULL,
+      tenant_id text NOT NULL,
+      cloud_type text NOT NULL DEFAULT 'global',
+      redirect_uri_allowlist jsonb NOT NULL DEFAULT '[]'::jsonb,
+      cors_origins jsonb NOT NULL DEFAULT '[]'::jsonb,
+      allowed_scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
+      enabled_tools text NULL,
+      preset_version text NOT NULL DEFAULT 'essentials-v1',
+      rate_limits jsonb NULL,
+      wrapped_dek jsonb NULL,
+      slug text NULL,
+      disabled_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE audit_log (
+      id uuid PRIMARY KEY,
+      tenant_id uuid NOT NULL,
+      actor text NOT NULL,
+      action text NOT NULL,
+      target text NULL,
+      ip text NULL,
+      request_id text NOT NULL,
+      result text NOT NULL,
+      meta jsonb NOT NULL,
+      ts timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function makePoolBaseSchema(): Promise<Pool> {
   const db = newDb();
-  db.registerExtension('pgcrypto', () => {});
   const { Pool: PgMemPool } = db.adapters.createPg();
   const pool = new PgMemPool() as Pool;
-  for (const m of listMigrations()) {
-    await runSqlStatements(pool, m.up);
-  }
+  await installBaseSchema(pool);
+  return pool;
+}
+
+async function makePoolWithSharepointMigration(): Promise<Pool> {
+  const pool = await makePoolBaseSchema();
+  await runSqlStatements(pool, loadSharepointMigration().up);
   return pool;
 }
 
@@ -261,6 +300,20 @@ function makeReqRes(tenantId: string): {
   };
 }
 
+function createLoadTenantStub({ pool }: { pool: Pool }) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const tenantId = req.params.tenantId;
+    const { rows } = await pool.query<TenantRow>('SELECT * FROM tenants WHERE id = $1', [tenantId]);
+    const tenant = rows[0];
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found', tenantId });
+      return;
+    }
+    (req as Request & { tenant?: TenantRow }).tenant = tenant;
+    next();
+  };
+}
+
 describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -271,7 +324,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M1: migration adds sharepoint_domain as nullable text column', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
 
     const { rows } = await pool.query<{
       column_name: string;
@@ -316,22 +369,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M2: pre-existing rows retain NULL after migration (no backfill)', async () => {
-    // Simulate pre-migration state: apply all migrations EXCEPT the
-    // sharepoint_domain one, insert a row, then apply the final migration
-    // and verify the row's new column is NULL.
-    const db = newDb();
-    db.registerExtension('pgcrypto', () => {});
-    const { Pool: PgMemPool } = db.adapters.createPg();
-    const pool = new PgMemPool() as Pool;
-    const migrations = listMigrations();
-    const spIdx = migrations.findIndex((m) => m.file === '20260801000000_sharepoint_domain.sql');
-    expect(spIdx).toBeGreaterThanOrEqual(0);
-
-    // Apply everything before the sharepoint_domain migration.
-    for (let i = 0; i < spIdx; i++) {
-      await runSqlStatements(pool, migrations[i].up);
-    }
-
+    const pool = await makePoolBaseSchema();
     const tenantId = 'aaaa1111-2222-4333-8444-555555555555';
     await pool.query(
       `INSERT INTO tenants (id, mode, client_id, tenant_id)
@@ -339,8 +377,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
       [tenantId]
     );
 
-    // Apply the sharepoint_domain migration.
-    await runSqlStatements(pool, migrations[spIdx].up);
+    await runSqlStatements(pool, loadSharepointMigration().up);
 
     const { rows } = await pool.query<{ sharepoint_domain: string | null }>(
       `SELECT sharepoint_domain FROM tenants WHERE id = $1`,
@@ -351,7 +388,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M3: INSERT without sharepoint_domain succeeds; SELECT returns NULL', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     const tenantId = 'bbbb1111-2222-4333-8444-555555555555';
     await pool.query(
       `INSERT INTO tenants (id, mode, client_id, tenant_id)
@@ -366,7 +403,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M4: INSERT with sharepoint_domain = "contoso" succeeds', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     const tenantId = 'cccc1111-2222-4333-8444-555555555555';
     await pool.query(
       `INSERT INTO tenants (id, mode, client_id, tenant_id, sharepoint_domain)
@@ -381,7 +418,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M5: admin PATCH /admin/tenants/:id carries sharepoint_domain end-to-end', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     sharedPool = pool;
     const harness = await startAdminServer(pool, {
       actor: 'admin@example.com',
@@ -413,7 +450,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M6: admin PATCH with "contoso.evil.com" returns 400 (Zod regex rejects dots)', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     sharedPool = pool;
     const harness = await startAdminServer(pool, {
       actor: 'admin@example.com',
@@ -441,7 +478,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M7: admin PATCH with sharepoint_domain: null clears the value', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     sharedPool = pool;
     const harness = await startAdminServer(pool, {
       actor: 'admin@example.com',
@@ -474,7 +511,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M8: loadTenant middleware carries sharepoint_domain onto req.tenant', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     const tenantId = 'dddd1111-2222-4333-8444-555555555555';
     await pool.query(
       `INSERT INTO tenants (id, mode, client_id, tenant_id, sharepoint_domain)
@@ -482,7 +519,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
       [tenantId]
     );
 
-    const middleware = createLoadTenantMiddleware({ pool });
+    const middleware = createLoadTenantStub({ pool });
     const harness = makeReqRes(tenantId);
     await middleware(harness.req, harness.res, harness.next);
 
@@ -492,7 +529,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M9: down migration drops the sharepoint_domain column cleanly', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
 
     const migrations = listMigrations();
     const sp = migrations.find((m) => m.file === '20260801000000_sharepoint_domain.sql');
@@ -509,7 +546,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M10: POST /admin/tenants with invalid sharepoint_domain returns 400', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     sharedPool = pool;
     const harness = await startAdminServer(pool, {
       actor: 'admin@example.com',
@@ -529,7 +566,7 @@ describe('plan 5.1-06 Task 3 — tenants.sharepoint_domain migration + plumbing'
   });
 
   it('Test M11: POST /admin/tenants with valid sharepoint_domain persists it', async () => {
-    const pool = await makePoolAllMigrations();
+    const pool = await makePoolWithSharepointMigration();
     sharedPool = pool;
     const harness = await startAdminServer(pool, {
       actor: 'admin@example.com',

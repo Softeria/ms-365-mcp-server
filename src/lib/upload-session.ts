@@ -34,7 +34,6 @@
 
 import logger from '../logger.js';
 import { parseODataError } from './graph-errors.js';
-import type GraphClient from '../graph-client.js';
 
 /** Graph-mandated chunk alignment: 320 KiB (327,680 bytes). */
 export const CHUNK_SIZE_ALIGNMENT = 320 * 1024;
@@ -86,6 +85,13 @@ export interface DriveItem {
   webUrl?: string;
   size?: number;
   [key: string]: unknown;
+}
+
+interface UploadSessionGraphClient {
+  graphRequest(
+    endpoint: string,
+    options: { method: 'POST'; body: string }
+  ): Promise<{ content?: Array<{ text?: string }> }>;
 }
 
 /** Shape of the POST /createUploadSession response envelope. */
@@ -156,7 +162,7 @@ function chunkSizeFromEnv(): number {
  * of graphClient, analogous to 02-04's `pageIterator` and 02-05's `batch()`.
  */
 export class UploadSessionHelper {
-  constructor(private readonly graphClient: GraphClient) {}
+  constructor(private readonly graphClient: UploadSessionGraphClient) {}
 
   /**
    * Upload `fileBuffer` as a single resumable session. Resolves with the

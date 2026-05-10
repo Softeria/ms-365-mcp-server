@@ -36,6 +36,7 @@ export default [
       'dist/**',
       'coverage/**',
       'bin/**',
+      '.claude/**',
       'src/generated/**',
       '.venv/**',
     ],

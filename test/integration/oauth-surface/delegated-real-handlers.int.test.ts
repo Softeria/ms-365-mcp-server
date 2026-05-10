@@ -1,8 +1,8 @@
 /**
  * OAuth-surface coverage for the real tenant delegated handlers.
  *
- * The D-10 coverage gate counts src/server.ts createAuthorizeHandler and
- * createTenantTokenHandler lines directly. This file mounts those exported
+ * The D-10 coverage gate counts src/lib/oauth/tenant-handlers.ts
+ * createAuthorizeHandler and createTenantTokenHandler lines directly. This file mounts those
  * handlers with in-memory deps so the gate covers the production branches
  * instead of only the PKCE simulator used by the cross-tenant store test.
  */
@@ -86,7 +86,7 @@ async function startApp(options: {
   };
 
   const { createAuthorizeHandler, createTenantTokenHandler } =
-    await import('../../../src/server.js');
+    await import('../../../src/lib/oauth/tenant-handlers.js');
 
   const app = express();
   app.use(express.json());
@@ -262,7 +262,7 @@ describe('plan 06-05 — real delegated OAuth handlers', () => {
     );
   });
 
-  it('/token rejects missing verifier and PKCE misses before MSAL', async () => {
+  it('/token rejects missing verifier, missing code, and PKCE misses before MSAL', async () => {
     harness = await startApp({});
 
     const missingVerifier = await fetch(`${harness.url}/token`, {
@@ -271,6 +271,23 @@ describe('plan 06-05 — real delegated OAuth handlers', () => {
       body: new URLSearchParams({ grant_type: 'authorization_code', code: 'auth-code-1' }),
     });
     expect(missingVerifier.status).toBe(400);
+
+    const missingCodePkce = newPkce();
+    const missingCode = await fetch(`${harness.url}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code_verifier: missingCodePkce.verifier,
+      }),
+    });
+    expect(missingCode.status).toBe(400);
+    const missingCodeBody = (await missingCode.json()) as {
+      error: string;
+      error_description: string;
+    };
+    expect(missingCodeBody.error).toBe('invalid_request');
+    expect(missingCodeBody.error_description).toBe('code required');
 
     const pkce = newPkce();
     const pkceMiss = await fetch(`${harness.url}/token`, {

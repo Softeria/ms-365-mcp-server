@@ -21,9 +21,9 @@
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
     "build": "tsup",
-    "test": "NODE_OPTIONS=--max-old-space-size=12288 vitest run",
+    "test": "node bin/run-vitest-batched.mjs",
     "test:watch": "NODE_OPTIONS=--max-old-space-size=12288 vitest",
-    "test:int": "MS365_MCP_INTEGRATION=1 NODE_OPTIONS=--max-old-space-size=12288 vitest run",
+    "test:int": "MS365_MCP_INTEGRATION=1 node bin/run-vitest-batched.mjs",
     "test:oauth-coverage": "MS365_MCP_INTEGRATION=1 NODE_OPTIONS=--max-old-space-size=12288 vitest run --coverage && node bin/check-oauth-coverage.mjs",
     "dev": "tsx src/index.ts",
     "dev:http": "tsx --watch src/index.ts --http 127.0.0.1:3000 -v",

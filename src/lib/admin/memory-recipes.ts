@@ -30,7 +30,7 @@ async function publishRecipeChange(deps: Pick<AdminRouterDeps, 'redis'>, tenantI
     await publishResourceUpdated(
       deps.redis,
       tenantId,
-      [`mcp://tenant/${tenantId}/recipes.json`],
+      [`m365://tenant/${tenantId}/recipes.json`, `mcp://tenant/${tenantId}/recipes.json`],
       RECIPE_CHANGE_REASON
     );
   } catch (err) {

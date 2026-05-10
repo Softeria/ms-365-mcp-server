@@ -3,15 +3,18 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-// Node 18 lacks the File global that the generated Zod schemas reference.
-// Must be set before the dynamic import below.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (!globalThis.File) (globalThis as any).File = Blob;
-
-const { api } = await import('../src/generated/client.js');
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function readGeneratedAliases(): Set<string> {
+  const generatedClient = readFileSync(
+    path.join(__dirname, '..', 'src', 'generated', 'client.ts'),
+    'utf8'
+  );
+  return new Set(
+    [...generatedClient.matchAll(/alias:\s*(['"`])([^'"`]+)\1/g)].map((match) => match[2])
+  );
+}
 
 interface Endpoint {
   toolName: string;
@@ -44,7 +47,7 @@ describe('endpoints.json validation', () => {
   });
 
   it('should have a matching generated client endpoint for every entry', () => {
-    const generatedTools = new Set(api.endpoints.map((e) => e.alias));
+    const generatedTools = readGeneratedAliases();
     const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));
 
     // Phase 5 full-coverage switch: the client is now regenerated from the

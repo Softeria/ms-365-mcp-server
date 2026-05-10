@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 5.1: Power Platform & M365 Admin Surface Expansion** (INSERTED) - Extend the generator pipeline beyond Microsoft Graph to cover Power BI REST API, Power Apps, Power Automate, Exchange Admin (PowerShell REST bridge), and SharePoint Tenant Admin. Each product gets a namespace prefix (`__powerbi__`, `__pwrapps__`, `__pwrauto__`, `__exo__`, `__spadmin__`), per-product essentials preset additions, admin-API workload selectors, and coverage harness thresholds.
 - [x] **Phase 6: Operational Observability & Rate Limiting** - OpenTelemetry traces + metrics on every Graph request (tenant/tool/status/duration/retry-count), Prometheus /metrics endpoint, per-tenant rate limiting (request count + Graph token budget), and the integration test pass that closes v1's 0%-coverage OAuth surface (completed 2026-04-22)
 - [x] **Phase 7: Agentic Tool Surface + Per-Tenant Memory** - Make discovery-mode the default for new tenants, expose MCP Resources/Prompts/Notifications/Logging/Completions, add per-tenant bookmarks/recipes/facts memory with admin APIs, and provide an opt-in migration path while preserving existing static-preset tenants unchanged. (completed 2026-04-25; external Claude.ai UX verification pending)
+- [x] **Phase 8: Maximal MCP + Claude/Cowork Connector Surface** - Complete the practical MCP surface for hosted Claude.ai/Cowork connectors and power clients: editable skills as prompts, MCP Apps, structured outputs/output schemas, richer resources/completions/notifications, capability-gated sampling/elicitation/roots/tasks, transport parity, and connector naming/branding hardening for clients that ignore `serverInfo.name` or show generic names like `ToolHub`. (completed 2026-05-09; review fixes validated; full suite resource-inconclusive with exit 137)
 
 ## Phase Details
 
@@ -195,7 +196,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -206,6 +207,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 5. Graph Coverage Expansion & Per-Tenant Tool Selection | 0/8 | Not started | - |
 | 6. Operational Observability & Rate Limiting | 9/9 | Complete    | 2026-04-22 |
 | 7. Agentic Tool Surface + Per-Tenant Memory | 12/12 | Complete    | 2026-04-25 |
+| 8. Maximal MCP + Claude/Cowork Connector Surface | 14/14 | Complete    | 2026-05-09 |
 
 ### Phase 7: agentic-tool-surface: discovery default + MCP Resources/Prompts/Notifications/Logging/Completions + per-tenant bookmarks/recipes/facts memory + admin API + opt-in migration. Skips Tasks/Elicitation/Sampling/Roots (no claude.ai client). Full SPEC.md / PLAN.md to be filled in /gsd-plan-phase.
 
@@ -227,6 +229,29 @@ Plans:
 - [x] 07-10: Discovery migration CLI, opt-in docs, E2E discovery smoke, and static-mode regression checks
 - [x] 07-11: MCP Resources URI parsing, read dispatch, endpoint schema resources, templates, and discovery-only registration
 - [x] 07-12: 10 canned MCP prompt workflow markdown templates and exact prompt-count tests
+
+### Phase 8: maximal-mcp-claude-connector-surface: editable skills as prompts + MCP Apps + structured outputs + richer resources/completions/notifications + sampling/elicitation/roots where client-capable + connector naming hardening for Claude/Cowork `serverInfo.name` ignore / `ToolHub` display. Full SPEC.md to be filled into /gsd-plan-phase.
+
+**Goal:** Make ms-365-mcp-server the most complete practical Microsoft 365 MCP gateway for Claude.ai/Cowork hosted connectors and power clients by closing the remaining MCP surface gaps while preserving discovery mode, tenant isolation, and graceful client-specific degradation.
+**Requirements**: Phase 8 SPEC acceptance criteria 1-30
+**Depends on:** Phase 7
+**Plans:** 14 plans
+
+Plans:
+- [x] 08-01: Capability profile and connector diagnostics — session profile, diagnostic tool/resource, client matrix tests
+- [x] 08-02: Connector identity/naming hardening — env/config, metadata propagation, `.well-known/mcp-connector`, connector-doctor, ToolHub regression tests
+- [x] 08-03: Structured output and output schemas — result envelope, schemas, prioritized meta-tool + Graph-family coverage
+- [x] 08-04: Tool annotations, progress, cancellation, safe-write classifier — annotations, progress notifications, AbortController, confirmation-required fallback
+- [x] 08-05: Editable skill schema and prompt integration — migrations, built-in + DB prompt registry, `prompts.listChanged=true`
+- [x] 08-06: Skill tools and skill resources — list/get/save/delete/fork/render/import/export/validate plus `m365://tenant/.../skills` resources
+- [x] 08-07: Skill packs and memory convergence — recipes/bookmarks/facts integration, pack import/export, built-in packs, isolation tests
+- [x] 08-08: MCP Apps foundation — `ui://` resource serving, CSP/sandbox, app asset pipeline, app fallback contract
+- [x] 08-09: App dashboards — inbox, calendar, Teams, file search, permissions, diagnostics, skill editor views
+- [x] 08-10: Rich resources and resource templates — `m365://` canonical scheme, Graph-backed read-only resources, resource links
+- [x] 08-11: Subscriptions and notifications expansion — prompts/list_changed, Graph webhook/delta resource updates, coalescing
+- [x] 08-12: Rich completions — explicit capability and typeahead providers for aliases/skills/recipes/accounts/M365 objects
+- [x] 08-13: Sampling, elicitation, roots — capability-gated clients, policies, deterministic fallbacks, tests
+- [x] 08-14: Transport parity, docs, migration, and Claude.ai/Cowork smoke — SSE decision, stdio advanced support, admin enablement, docs, connector-doctor, E2E
 
 ---
 

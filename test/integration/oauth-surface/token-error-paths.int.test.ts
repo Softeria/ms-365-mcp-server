@@ -46,7 +46,7 @@ describe('plan 06-05 — /token error paths + log scrub (SECUR-05)', () => {
     loggerMock.error.mockClear();
     loggerMock.debug.mockClear();
 
-    const { createTokenHandler } = await import('../../../src/server.js');
+    const { createTokenHandler } = await import('../../../src/lib/oauth/token-handler.js');
     const { MemoryPkceStore } = await import('../../../src/lib/pkce-store/memory-store.js');
 
     const app = express();
@@ -141,6 +141,38 @@ describe('plan 06-05 — /token error paths + log scrub (SECUR-05)', () => {
       // Critical: the raw verifier value must NOT appear in meta
       expect(JSON.stringify(meta)).not.toContain(pkce.verifier);
     }
+  });
+
+  it('authorization_code without code → 400 invalid_request before token exchange', async () => {
+    const pkce = newPkce();
+    const res = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body:
+        `grant_type=authorization_code&code_verifier=${encodeURIComponent(pkce.verifier)}&` +
+        `redirect_uri=${encodeURIComponent('http://localhost/cb')}`,
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; error_description: string };
+    expect(body.error).toBe('invalid_request');
+    expect(body.error_description).toBe('code parameter is required');
+    assertNoSecretsInLogs();
+  });
+
+  it('authorization_code without redirect_uri → 400 invalid_request before token exchange', async () => {
+    const pkce = newPkce();
+    const res = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body:
+        `grant_type=authorization_code&code=auth-code-1&` +
+        `code_verifier=${encodeURIComponent(pkce.verifier)}`,
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; error_description: string };
+    expect(body.error).toBe('invalid_request');
+    expect(body.error_description).toBe('redirect_uri parameter is required');
+    assertNoSecretsInLogs();
   });
 
   it('unsupported grant_type (password) → 400 + leaked secret never surfaces in logs', async () => {

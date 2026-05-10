@@ -422,7 +422,10 @@ describe('Phase 7 Plan 07-05 Task 2 - fact MCP tools', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         type: 'resources/updated',
-        uris: [`mcp://tenant/${TENANT_A}/facts.json`],
+        uris: expect.arrayContaining([
+          `m365://tenant/${TENANT_A}/facts.json`,
+          `mcp://tenant/${TENANT_A}/facts.json`,
+        ]),
       })
     );
   });
@@ -483,7 +486,10 @@ describe('Phase 7 Plan 07-05 Task 2 - fact MCP tools', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         type: 'resources/updated',
-        uris: [`mcp://tenant/${TENANT_A}/facts.json`],
+        uris: expect.arrayContaining([
+          `m365://tenant/${TENANT_A}/facts.json`,
+          `mcp://tenant/${TENANT_A}/facts.json`,
+        ]),
       })
     );
   });

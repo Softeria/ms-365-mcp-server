@@ -1,3 +1,5 @@
+import { resolveConnectorIdentity } from './lib/connector-identity/metadata.js';
+
 /** Shared context for MCP `initialize.instructions` (hosts that forward it to the model). */
 export type McpInstructionsContext = {
   orgMode: boolean;
@@ -34,9 +36,17 @@ const DISCOVERY_MODE_INSTRUCTIONS_ADDON =
  * Full MCP `initialize.instructions` string: general guidance for every mode, plus a discovery-only suffix when applicable.
  */
 export function buildMcpServerInstructions(
-  opts: McpInstructionsContext & { discovery: boolean }
+  opts: McpInstructionsContext & {
+    discovery: boolean;
+    tenantDisplayName?: string | null;
+    version?: string;
+  }
 ): string {
-  const general = buildGeneralMcpInstructions(opts);
+  const identity = resolveConnectorIdentity({
+    version: opts.version ?? 'runtime',
+    tenantDisplayName: opts.tenantDisplayName,
+  });
+  const general = `${identity.displayName} (${identity.name}). ${buildGeneralMcpInstructions(opts)}`;
   if (!opts.discovery) return general;
   return `${general} ${DISCOVERY_MODE_INSTRUCTIONS_ADDON}`;
 }

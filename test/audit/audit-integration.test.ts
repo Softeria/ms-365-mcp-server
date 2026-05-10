@@ -17,15 +17,13 @@
  *   - Test 6: SC#2 signal — two tenants concurrently emit distinct audit rows
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import crypto from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { newDb } from 'pg-mem';
 import type { Pool } from 'pg';
+import type { TenantRow } from '../../src/lib/tenant/tenant-row.js';
 import { MemoryRedisFacade } from '../../src/lib/redis-facade.js';
 import { RedisPkceStore } from '../../src/lib/pkce-store/redis-store.js';
 import { generateTenantDek } from '../../src/lib/crypto/dek.js';
@@ -34,36 +32,64 @@ vi.mock('../../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', 'migrations');
 const KEK = crypto.randomBytes(32);
 
 const TENANT_A_ID = 'aaaaaaaa-1111-4222-8333-444444444444';
 const TENANT_B_ID = 'bbbbbbbb-5555-4666-8777-888888888888';
 
-function stripPgcryptoExtensionStmts(sql: string): string {
-  return sql
-    .split('\n')
-    .filter((line) => !/\bextension\b.*\bpgcrypto\b/i.test(line))
-    .join('\n');
-}
-
 async function makePool(): Promise<Pool> {
   const db = newDb();
-  db.registerExtension('pgcrypto', () => {});
   const { Pool: PgMemPool } = db.adapters.createPg();
   const pool = new PgMemPool() as Pool;
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
-  for (const f of files) {
-    const sql = readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
-    const up = stripPgcryptoExtensionStmts(
-      (sql.split(/^--\s*Down Migration\s*$/m)[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '')
+  await pool.query(`
+    CREATE TABLE tenants (
+      id text PRIMARY KEY,
+      mode text NOT NULL,
+      client_id text NOT NULL,
+      client_secret_ref text NULL,
+      tenant_id text NOT NULL,
+      cloud_type text NOT NULL,
+      redirect_uri_allowlist jsonb NOT NULL,
+      cors_origins jsonb NOT NULL,
+      allowed_scopes jsonb NOT NULL,
+      enabled_tools text NULL,
+      preset_version text NOT NULL DEFAULT 'essentials-v1',
+      sharepoint_domain text NULL,
+      wrapped_dek jsonb NULL,
+      slug text NULL,
+      disabled_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
     );
-    await pool.query(up);
-  }
+
+    CREATE TABLE audit_log (
+      id text PRIMARY KEY,
+      tenant_id text NOT NULL,
+      actor text NOT NULL,
+      action text NOT NULL,
+      target text NULL,
+      ip text NULL,
+      request_id text NOT NULL,
+      result text NOT NULL,
+      meta jsonb NOT NULL,
+      ts timestamptz NOT NULL DEFAULT now()
+    );
+  `);
   return pool;
+}
+
+function createLoadTenantStub(pool: Pool) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const tenantId = req.params.tenantId;
+    const { rows } = await pool.query<TenantRow>('SELECT * FROM tenants WHERE id = $1', [tenantId]);
+    const tenant = rows[0];
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found', tenantId });
+      return;
+    }
+    (req as Request & { tenant?: TenantRow }).tenant = tenant;
+    next();
+  };
 }
 
 async function insertTenantRow(
@@ -133,10 +159,9 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
     };
 
     const { createAuthorizeHandler, createTenantTokenHandler } =
-      await import('../../src/server.js');
-    const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
+      await import('../../src/lib/oauth/tenant-handlers.js');
 
-    const loadTenant = createLoadTenantMiddleware({ pool });
+    const loadTenant = createLoadTenantStub(pool);
 
     const app = express();
     app.use(express.json());

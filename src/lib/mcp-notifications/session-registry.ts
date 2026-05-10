@@ -1,6 +1,7 @@
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { ResourceUpdatedNotification } from '@modelcontextprotocol/sdk/types.js';
 import logger from '../../logger.js';
+import type { ClientCapabilityProfile } from '../mcp-capabilities/profile.js';
 import { AGENTIC_EVENTS_CHANNEL, type AgenticEvent, type McpLogMessage } from './events.js';
 import {
   defaultResourceNotificationCoalescer,
@@ -14,6 +15,7 @@ export interface McpNotificationServer {
   sendToolListChanged(): void | Promise<void>;
   sendResourceListChanged(): void | Promise<void>;
   sendResourceUpdated(params: ResourceUpdatedNotification['params']): void | Promise<void>;
+  sendPromptListChanged(): void | Promise<void>;
   sendLoggingMessage(message: McpLogMessage, sessionId?: string): void | Promise<void>;
   close?: () => void | Promise<void>;
 }
@@ -24,6 +26,7 @@ export interface RegisteredMcpSession {
   server: McpNotificationServer;
   transport: StreamableHTTPServerTransport;
   surface: McpNotificationSurface;
+  capabilityProfile?: ClientCapabilityProfile;
 }
 
 export type RegisterSessionInput = RegisteredMcpSession;
@@ -99,7 +102,19 @@ export class McpSessionRegistry {
     );
   }
 
-  async deliverResourceUpdated(tenantId: string, uris: readonly string[]): Promise<void> {
+  async deliverPromptsListChanged(tenantId: string): Promise<void> {
+    await Promise.all(
+      this.matchingDiscoverySessions(tenantId).map((session) =>
+        Promise.resolve(session.server.sendPromptListChanged())
+      )
+    );
+  }
+
+  async deliverResourceUpdated(
+    tenantId: string,
+    uris: readonly string[],
+    metadata: { reason?: string; source?: string; changeType?: string } = {}
+  ): Promise<void> {
     const sends: Array<Promise<void>> = [];
     for (const session of this.matchingDiscoverySessions(tenantId)) {
       for (const uri of uris) {
@@ -107,10 +122,11 @@ export class McpSessionRegistry {
           const subscribed = await this.isResourceSubscribed(tenantId, session.sessionId, uri);
           if (!subscribed) continue;
         }
-        if (!this.coalescer.shouldDeliver(tenantId, session.sessionId, uri)) {
+        if (!this.coalescer.shouldDeliver(tenantId, session.sessionId, uri, metadata.changeType)) {
           continue;
         }
-        sends.push(Promise.resolve(session.server.sendResourceUpdated({ uri })));
+        const params = resourceUpdatedParams(uri, metadata);
+        sends.push(Promise.resolve(session.server.sendResourceUpdated(params)));
       }
     }
     await Promise.all(sends);
@@ -199,11 +215,21 @@ async function dispatchAgenticEvent(registry: McpSessionRegistry, message: strin
       case 'resources/list_changed':
         await registry.deliverResourcesListChanged(event.tenantId);
         return;
+      case 'prompts/list_changed':
+        await registry.deliverPromptsListChanged(event.tenantId);
+        return;
       case 'resources/updated':
-        await registry.deliverResourceUpdated(event.tenantId, event.uris);
+        await registry.deliverResourceUpdated(event.tenantId, event.uris, {
+          reason: event.reason,
+          source: event.source,
+          changeType: event.changeType,
+        });
         return;
       case 'logging/message':
         await registry.deliverLoggingMessage(event.tenantId, event.message);
+        return;
+      case 'progress':
+      case 'cancelled':
         return;
     }
   } catch (err) {
@@ -212,6 +238,18 @@ async function dispatchAgenticEvent(registry: McpSessionRegistry, message: strin
       'mcp-notifications: event delivery failed'
     );
   }
+}
+
+function resourceUpdatedParams(
+  uri: string,
+  metadata: { reason?: string; source?: string; changeType?: string }
+): ResourceUpdatedNotification['params'] {
+  const meta = Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined)
+  ) as Record<string, unknown>;
+  return Object.keys(meta).length > 0
+    ? ({ uri, _meta: meta } as ResourceUpdatedNotification['params'])
+    : { uri };
 }
 
 function isRedisSubscriber(value: unknown): value is RedisSubscriberLike {

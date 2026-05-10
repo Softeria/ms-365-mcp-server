@@ -26,6 +26,10 @@ vi.mock('../../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../src/lib/tool-selection/enabled-tools-parser.js', () => ({
+  ensureEnabledToolsSet: vi.fn(() => Object.freeze(new Set<string>())),
+}));
+
 // Valid GUID v4 format: 8-4-4-4-12 hex chars.
 const VALID_GUID_A = '11111111-2222-3333-4444-555555555555';
 const VALID_GUID_B = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';

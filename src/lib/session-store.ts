@@ -44,6 +44,7 @@ export interface SessionRecord {
   graphAccessTokenExpiresOn?: string;
   clientId: string;
   scopes: string[];
+  ownerSubject?: string;
   createdAt: number;
 }
 

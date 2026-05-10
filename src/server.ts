@@ -10,8 +10,14 @@ import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import { registerMemoryTools } from './lib/memory/tools.js';
 import { registerMcpResources } from './lib/mcp-resources/register.js';
 import { registerMcpPrompts, type RegisterMcpPromptsDeps } from './lib/mcp-prompts/register.js';
+import type { PromptTemplateDefinition } from './lib/mcp-prompts/frontmatter.js';
+import { registerSkillTools } from './lib/mcp-skills/tools.js';
+import { listVisibleSkills } from './lib/mcp-skills/store.js';
+import { registerMcpApps } from './lib/mcp-apps/register.js';
 import { registerMcpCompletions } from './lib/mcp-completions/register.js';
 import { registerMcpLogging } from './lib/mcp-logging/register.js';
+import { buildEffectiveCapabilityProfile } from './lib/mcp-capabilities/profile.js';
+import { registerDashboardTools } from './lib/mcp-dashboards/tools.js';
 import {
   mcpSessionRegistry,
   subscribeToAgenticEvents,
@@ -22,28 +28,30 @@ import { buildMcpServerInstructions } from './mcp-instructions.js';
 import GraphClient from './graph-client.js';
 import AuthManager, { buildScopesFromEndpoints } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
-import {
-  exchangeCodeForToken,
-  refreshAccessToken,
-  verifyMicrosoftBearerToken,
-} from './lib/microsoft-auth.js';
+import { verifyMicrosoftBearerToken } from './lib/microsoft-auth.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
-import { requestContext, getRequestTokens } from './request-context.js';
+import { parseHttpOption } from './lib/http-option.js';
+import { requestContext, getRequestTokens, getRequestOwnerSubject } from './request-context.js';
 import { mountHealth, type ReadinessCheck } from './lib/health.js';
 import { registerShutdownHooks } from './lib/shutdown.js';
-import { validateRedirectUri, type RedirectUriPolicy } from './lib/redirect-uri.js';
 import { createCorsMiddleware, type CorsMode } from './lib/cors.js';
 import { getRedis } from './lib/redis.js';
 import { registerAuditResourcePublisher } from './lib/audit.js';
 import { resolveTrustProxySetting } from './lib/trust-proxy.js';
 import { createRateLimitMiddleware } from './lib/rate-limit/middleware.js';
-import {
-  delegatedAccessTokenTtlSeconds,
-  rememberDelegatedAccessToken,
-} from './lib/delegated-access-tokens.js';
-import type { CloudType } from './cloud-config.js';
+import { createRegisterHandler } from './lib/oauth/register-handler.js';
+import { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
+import { createTokenHandler } from './lib/oauth/token-handler.js';
+export { createRegisterHandler } from './lib/oauth/register-handler.js';
+export { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
+export { createTokenHandler } from './lib/oauth/token-handler.js';
+export { parseHttpOption } from './lib/http-option.js';
+export type {
+  AuthorizeHandlerConfig,
+  TenantTokenHandlerConfig,
+} from './lib/oauth/tenant-handlers.js';
 import type { PkceStore } from './lib/pkce-store/pkce-store.js';
 import { MemoryPkceStore } from './lib/pkce-store/memory-store.js';
 import type { TenantRow } from './lib/tenant/tenant-row.js';
@@ -59,24 +67,16 @@ import {
   wrapToolsListHandler,
 } from './lib/tool-selection/tools-list-filter.js';
 import { resolveTenantSurface } from './lib/tenant-surface/surface.js';
+import {
+  buildConnectorWellKnownMetadata,
+  buildOAuthAuthorizationServerMetadata,
+  buildOAuthProtectedResourceMetadata,
+  buildServerInfo,
+} from './lib/connector-identity/metadata.js';
 import crypto from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import { nanoid } from 'nanoid';
 
-/**
- * Sentinel tenantId for the LEGACY single-tenant /authorize + /token mounts
- * that exist alongside the per-tenant /t/:tenantId/* routes (03-08).
- *
- * The legacy mounts predate URL-path routing and read tenant config from
- * `secrets.tenantId` (i.e., MS365_MCP_TENANT_ID env var). Their PKCE keys
- * still need a tenant segment to match the PkceStore contract — using a
- * single well-known sentinel gives them a stable, non-colliding key.
- *
- * This is NOT the per-tenant path — that lives in createAuthorizeHandler +
- * createTenantTokenHandler, which read `req.params.tenantId` from the
- * /t/:tenantId/* router. 03-09 consolidates the two by removing the
- * legacy mount entirely; at that point this sentinel disappears.
- */
 const LEGACY_SINGLE_TENANT_KEY = '_';
 
 function createHttpRouteRateLimit(): RequestHandler {
@@ -93,813 +93,10 @@ function createHttpRouteRateLimit(): RequestHandler {
   }) as unknown as RequestHandler;
 }
 
-/**
- * Parse HTTP option into host and port components.
- * Supports formats: "host:port", ":port", "port"
- * @param httpOption - The HTTP option value (string or boolean)
- * @returns Object with host (undefined if not specified) and port number
- */
-export { parseHttpOption } from './lib/http-option.js';
-import { parseHttpOption } from './lib/http-option.js';
+// Legacy /token handler lives in src/lib/oauth/token-handler.ts so handler tests do not import the full MCP server/tool graph.
 
-/**
- * Build the dynamic-client-registration (POST /register) handler.
- *
- * Plan 01-06 (AUTH-06 + AUTH-07 + T-01-06c) hardens three behaviours at the
- * same code site:
- *
- *   1. Every `redirect_uris` entry is validated against the D-02 allowlist
- *      (see src/lib/redirect-uri.ts). The first failure short-circuits a 400
- *      response that echoes back the rejected URI + validator reason so the
- *      caller can fix configuration.
- *   2. `client_id` is generated via `crypto.randomBytes(8).toString('hex')`
- *      (16 hex chars, 64 bits of entropy). This replaces the v1
- *      `mcp-client-${Date.now()}` pattern which collided under concurrent
- *      registrations and created a cache-pollution vector.
- *   3. The info-level log records ONLY counts and shape (`client_name`,
- *      `grant_types`, `redirect_uri_count`) — never the raw body. This
- *      prevents PII leakage (T-01-06c).
- *
- * Exported so plan 01-06 tests can wire the handler onto a minimal
- * test-harness Express app without bootstrapping MicrosoftGraphServer.
- */
-export function createRegisterHandler(policy: RedirectUriPolicy) {
-  return async (req: import('express').Request, res: import('express').Response): Promise<void> => {
-    const body = (req.body as Record<string, unknown>) ?? {};
-
-    // 1. Scrubbed info log — NO body contents. Pino-native arg order: (meta, message).
-    logger.info(
-      {
-        client_name: body.client_name,
-        grant_types: body.grant_types,
-        redirect_uri_count: Array.isArray(body.redirect_uris) ? body.redirect_uris.length : 0,
-      },
-      'Client registration request'
-    );
-
-    // 2. Validate every redirect_uri in the registration request.
-    const redirectUris: unknown[] = Array.isArray(body.redirect_uris) ? body.redirect_uris : [];
-    for (const uri of redirectUris) {
-      if (typeof uri !== 'string') {
-        res.status(400).json({
-          error: 'invalid_redirect_uri',
-          reason: 'redirect_uris must be strings',
-        });
-        return;
-      }
-      const result = validateRedirectUri(uri, policy);
-      if (!result.ok) {
-        res.status(400).json({
-          error: 'invalid_redirect_uri',
-          redirect_uri: uri,
-          reason: result.reason,
-        });
-        return;
-      }
-    }
-
-    // 3. Crypto-random client ID (replaces Date.now — no concurrent collisions).
-    const clientId = `mcp-client-${crypto.randomBytes(8).toString('hex')}`;
-
-    res.status(201).json({
-      client_id: clientId,
-      client_id_issued_at: Math.floor(Date.now() / 1000),
-      redirect_uris: redirectUris,
-      grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
-      response_types: body.response_types || ['code'],
-      token_endpoint_auth_method: body.token_endpoint_auth_method || 'none',
-      client_name: body.client_name || 'MCP Client',
-    });
-  };
-}
-
-/**
- * Secrets slice the /token handler needs. Decoupled from the full
- * `AppSecrets` interface so tests can inject a minimal stub without
- * bootstrapping the secrets provider.
- */
-export interface TokenHandlerSecrets {
-  clientId: string;
-  clientSecret?: string;
-  tenantId?: string;
-  cloudType: CloudType;
-}
-
-function stripRefreshToken<T extends Record<string, unknown>>(result: T): Omit<T, 'refresh_token'> {
-  const { refresh_token: _refreshToken, ...publicResult } = result;
-  return publicResult;
-}
-
-/**
- * /token handler config (plan 03-03).
- *
- * The `pkceStore` dep is the PkceStore interface from
- * src/lib/pkce-store/pkce-store.ts — RedisPkceStore in HTTP mode, or
- * MemoryPkceStore in stdio / tests. The v1 in-memory lookup map was
- * removed along with its O(N) find scan at /token: we now compute
- * sha256(client_verifier) and issue a single takeByChallenge() call.
- */
-export interface TokenHandlerConfig {
-  secrets: TokenHandlerSecrets;
-  pkceStore: PkceStore;
-}
-
-/**
- * Build the token-exchange (POST /token) handler.
- *
- * Plan 01-07 (SECUR-05 + T-01-07) scrubs three log sites that leaked
- * request body in v1:
- *
- *   Site A — entry info log at "/token called": pino-native meta-first
- *     arg order; only `method`, `url`, `contentType`, `grant_type`
- *     values appear in the record. `body` is never attached.
- *   Site B — grant_type-missing error: meta carries ONLY the non-
- *     sensitive shape (`grant_type`, `has_code`, `has_refresh_token`).
- *     The raw body is never spread. Defense-in-depth: pino's
- *     `redact.paths` (plan 01-02) would catch a regression, but the
- *     invariant is maintained at the call site first.
- *   Site C — catch-block: stringify `error.message` and optional `code`
- *     only. Never spread the raw Error into the log meta — fetch
- *     failure wrappers carry `.response.body` which would leak.
- *
- * Exported so tests can mount the handler on a minimal Express app
- * without bootstrapping MicrosoftGraphServer / MSAL / secrets.
- */
-export function createTokenHandler(config: TokenHandlerConfig) {
-  const { secrets, pkceStore } = config;
-
-  return async (req: Request, res: Response): Promise<void> => {
-    try {
-      // Site A — pino-native order (meta, message). `body` NEVER goes in
-      // the meta object; only the three request-shape fields + the
-      // caller-advertised grant_type land in the log record. If the
-      // request arrives without a body, grant_type is reported as
-      // `undefined` — the grant_type-missing branch below then logs the
-      // authoritative [MISSING] marker.
-      logger.info(
-        {
-          method: req.method,
-          url: req.url,
-          contentType: req.get('Content-Type'),
-          grant_type: (req.body as Record<string, unknown> | undefined)?.grant_type,
-        },
-        'Token endpoint called'
-      );
-
-      const body = req.body as Record<string, unknown> | undefined;
-
-      if (!body) {
-        // No body: log only the empty-body sentinel. Nothing sensitive
-        // exists to log in this branch; kept as a separate site so the
-        // shape stays explicit.
-        logger.error({}, 'Token endpoint: Request body is undefined');
-        res.status(400).json({
-          error: 'invalid_request',
-          error_description: 'Request body is required',
-        });
-        return;
-      }
-
-      if (!body.grant_type) {
-        // Site B — redacted meta. Emits only shape booleans + the
-        // grant_type value (which is the MISSING marker here). The raw
-        // `body` reference is explicitly NEVER attached — tests enforce
-        // this invariant at the logger mock call level.
-        logger.error(
-          {
-            grant_type: '[MISSING]',
-            has_code: Boolean(body.code),
-            has_refresh_token: Boolean(body.refresh_token),
-            has_client_secret: Boolean(body.client_secret),
-          },
-          'Token endpoint: grant_type is missing'
-        );
-        res.status(400).json({
-          error: 'invalid_request',
-          error_description: 'grant_type parameter is required',
-        });
-        return;
-      }
-
-      if (body.grant_type === 'authorization_code') {
-        const tenantId = secrets.tenantId || 'common';
-        const clientId = secrets.clientId;
-        const clientSecret = secrets.clientSecret;
-
-        // Shape-only info log — `has_code` / `has_code_verifier` are
-        // booleans, `redirect_uri` is advertised publicly in OAuth
-        // metadata (no secret), clientId is non-secret, tenantId is
-        // non-secret. We intentionally do NOT log the raw code or
-        // code_verifier values.
-        logger.info(
-          {
-            redirect_uri: body.redirect_uri,
-            has_code: Boolean(body.code),
-            has_code_verifier: Boolean(body.code_verifier),
-            clientId,
-            tenantId,
-            hasClientSecret: Boolean(clientSecret),
-          },
-          'Token endpoint: authorization_code exchange'
-        );
-
-        // Two-leg PKCE (plan 03-03, SECUR-03):
-        // Hash the client's verifier once to obtain the clientCodeChallenge,
-        // then issue a single `takeByChallenge` against the PkceStore. This
-        // is an O(1) lookup + atomic delete through the store's backing
-        // Redis (or an in-memory Map in stdio mode). Replaces the v1 O(N)
-        // scan over the old in-memory store + per-entry SHA-256 comparison.
-        //
-        // The atomic read-and-delete protects against T-03-03-01 (replay):
-        // two concurrent /token calls with the same verifier → exactly one
-        // succeeds, the other gets null.
-        let serverCodeVerifier: string | undefined;
-        if (body.code_verifier) {
-          const clientVerifier = body.code_verifier as string;
-          const clientChallengeComputed = crypto
-            .createHash('sha256')
-            .update(clientVerifier)
-            .digest('base64url');
-
-          const pkceEntry = await pkceStore.takeByChallenge(
-            LEGACY_SINGLE_TENANT_KEY, // legacy /token mount — 03-09 retires this path
-            clientChallengeComputed
-          );
-          if (pkceEntry) {
-            serverCodeVerifier = pkceEntry.serverCodeVerifier;
-            logger.info(
-              { state: pkceEntry.state.substring(0, 8) + '...' },
-              'Two-leg PKCE: matched client verifier, using server verifier'
-            );
-          }
-        }
-
-        const result = await exchangeCodeForToken(
-          body.code as string,
-          body.redirect_uri as string,
-          clientId,
-          clientSecret,
-          tenantId,
-          serverCodeVerifier || (body.code_verifier as string | undefined),
-          secrets.cloudType
-        );
-        res.json(stripRefreshToken(result));
-      } else if (body.grant_type === 'refresh_token') {
-        // WR-01 fix: the legacy /token refresh_token branch accepted a
-        // refresh token from the request body, which violated the SECUR-02
-        // invariant that "refresh tokens NEVER cross the client boundary
-        // in v2" (the Phase 3 SessionStore wraps refresh tokens server-side;
-        // the Graph 401 path consults the store rather than reading any
-        // client-supplied token).
-        //
-        // Plan 03-09 retires the entire legacy mount; in the meantime
-        // operators on a v1-style HTTP deployment that still posts to
-        // /token (not /t/:tenantId/token) need a clear migration error
-        // rather than a working stale-trust path. Opt-in flag preserved
-        // for narrow migration windows.
-        if (process.env.MS365_MCP_LEGACY_OAUTH_REFRESH === '1') {
-          const tenantId = secrets.tenantId || 'common';
-          const clientId = secrets.clientId;
-          const clientSecret = secrets.clientSecret;
-
-          if (clientSecret) {
-            logger.warn(
-              {},
-              'Legacy /token refresh: confidential client with client_secret (MS365_MCP_LEGACY_OAUTH_REFRESH=1 opt-in; refresh-token-from-body crosses trust boundary)'
-            );
-          } else {
-            logger.warn(
-              {},
-              'Legacy /token refresh: public client without client_secret (MS365_MCP_LEGACY_OAUTH_REFRESH=1 opt-in; refresh-token-from-body crosses trust boundary)'
-            );
-          }
-
-          const result = await refreshAccessToken(
-            body.refresh_token as string,
-            clientId,
-            clientSecret,
-            tenantId,
-            secrets.cloudType
-          );
-          res.json(stripRefreshToken(result));
-        } else {
-          res.status(400).json({
-            error: 'unsupported_grant_type',
-            error_description:
-              'refresh_token grant retired on the legacy /token mount in v2. ' +
-              'Use /t/:tenantId/token and rely on the server-side SessionStore ' +
-              '(refresh tokens never cross the client trust boundary in v2). ' +
-              'For narrow migration windows, opt back in with MS365_MCP_LEGACY_OAUTH_REFRESH=1.',
-          });
-        }
-      } else {
-        res.status(400).json({
-          error: 'unsupported_grant_type',
-          error_description: `Grant type '${body.grant_type}' is not supported`,
-        });
-      }
-    } catch (error) {
-      // Site C — stringify the error message only. Never spread the raw
-      // Error (fetch-failure wrappers carry `.response.body` which would
-      // leak refresh tokens / codes into the log record). The optional
-      // `code` field is useful for filtering without being sensitive.
-      logger.error(
-        {
-          err: error instanceof Error ? error.message : String(error),
-          code: (error as { code?: string } | undefined)?.code,
-        },
-        'Token endpoint error'
-      );
-      res.status(500).json({
-        error: 'server_error',
-        error_description: 'Internal server error during token exchange',
-      });
-    }
-  };
-}
-
-// ── Phase 3 plan 03-06 + 03-08: per-tenant /authorize + /token handlers ────
-//
-// These handlers run under the /t/:tenantId/* router (plan 03-08). The
-// `loadTenant` middleware (src/lib/tenant/load-tenant.ts) populates
-// `req.tenant` from the Postgres `tenants` table via a bounded LRU cache.
-// `req.params.tenantId` carries the GUID from the URL path and becomes the
-// PKCE Redis key segment — cross-tenant replay is impossible because every
-// PkceStore lookup is keyed on this tenant id.
-
-/**
- * Config for the Phase 3 /authorize handler. Reads the PKCE store interface
- * from 03-03 and pins tenant state via `req.tenant` (loaded by the real
- * `loadTenant` middleware shipped in 03-08).
- *
- * Plan 03-10 (TENANT-06) addition:
- *   - `pgPool` optional — when present, every /authorize completion (success
- *     OR failure) emits an audit_log row via writeAuditStandalone.
- *     Fire-and-forget so the OAuth response is never delayed.
- */
-export interface AuthorizeHandlerConfig {
-  pkceStore: PkceStore;
-  pgPool?: import('pg').Pool;
-  /**
-   * Hosts allowed in the redirect_uri scheme/host check at the entry of
-   * /authorize, in addition to the tenant's per-tenant DB allowlist.
-   * Sourced from `MS365_MCP_OAUTH_REDIRECT_HOSTS` (CSV) at server start
-   * and shared with the DCR /register handler. Without this, the
-   * scheme-check call at server.ts:512 (which intentionally passes
-   * `publicUrlHost: null`) rejects every prod-mode HTTPS redirect_uri
-   * before reaching the tenant DB allowlist.
-   */
-  extraAllowedHosts?: readonly string[];
-}
-
-/**
- * Config for the Phase 3 /token handler. `tenantPool.acquire(tenant)` returns
- * an MSAL client (ConfidentialClientApplication for delegated+secret or
- * app-only, PublicClientApplication otherwise) — the delegated path uses
- * `acquireTokenByCode` with the server-side PKCE verifier.
- *
- * Plan 03-07 (SECUR-02) additions:
- *   - `tenantPool.getDekForTenant` unwraps the per-tenant DEK (cached after
- *     `acquire`) so the /token handler can instantiate a SessionStore without
- *     re-running the envelope unwrap.
- *   - `redis` injected separately to decouple SessionStore construction from
- *     the TenantPool's internal Redis reference (tests supply their own).
- *
- * Plan 03-10 (TENANT-06) addition:
- *   - `pgPool` optional — /token completion emits audit_log rows for success
- *     and every distinct failure mode (invalid_request, invalid_grant, etc).
- */
-export interface TenantTokenHandlerConfig {
-  pkceStore: PkceStore;
-  tenantPool: Pick<TenantPool, 'acquire' | 'getDekForTenant'>;
-  redis: import('./lib/redis.js').RedisClient;
-  pgPool?: import('pg').Pool;
-}
-
-/**
- * /authorize handler (tenant-aware per plan 03-06).
- *
- * 1. Validates `redirect_uri` against `tenant.redirect_uri_allowlist`. If the
- *    URI is not present, 400 `invalid_redirect_uri`. The allowlist is also
- *    filtered through Phase 1's `validateRedirectUri` (scheme gate — rejects
- *    `javascript:`, `data:`, etc.).
- * 2. Validates the client-supplied `code_challenge` format (base64url,
- *    43-128 chars — matches RFC 7636 + mitigates T-03-03-05 Redis glob
- *    injection).
- * 3. Generates a server-side PKCE verifier and persists
- *    `{state, clientCodeChallenge, serverCodeVerifier, ...}` via
- *    `pkceStore.put(tenantId, entry)`. The server computes its own
- *    `code_challenge` (sha256 of the server verifier) and forwards that to
- *    Microsoft — two-leg PKCE.
- * 4. Redirects to the tenant's authority `/oauth2/v2.0/authorize` endpoint
- *    (selected by `tenant.cloud_type`).
- */
-
-/**
- * WR-06 fix: canonical comparator for redirect URI allowlist membership.
- *
- * Strips trailing slashes, lowercases scheme + host (per RFC 3986 — only
- * those segments are case-insensitive), and normalises the path via the
- * URL constructor. Both sides of the includes() check go through this
- * helper so a tenant row carrying `https://app.example.com/callback`
- * matches a request bearing `https://app.example.com/callback/`,
- * `HTTPS://APP.EXAMPLE.COM/callback`, or
- * `https://APP.example.com:443/callback`.
- *
- * Falls back to the literal string when the input cannot be parsed as a
- * URL — the allowlist still rejects it via the normal includes() miss
- * (a malformed URI cannot match a well-formed allowlist entry).
- */
-function normalizeRedirectUri(u: string): string {
-  try {
-    const parsed = new URL(u);
-    // .href already lowercases scheme + host. Strip a single trailing
-    // slash from the path so /callback and /callback/ collapse.
-    return parsed.href.replace(/\/$/, '');
-  } catch {
-    return u;
-  }
-}
-
-export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
-  const { pkceStore, pgPool, extraAllowedHosts } = config;
-
-  // Plan 03-10 helper: fire-and-forget audit write. Never delays OAuth
-  // response. writeAuditStandalone internally catches DB errors and emits
-  // a pino shadow log (audit_shadow:true) so the trail is never dropped.
-  const emitAudit = (
-    tenantId: string,
-    result: 'success' | 'failure',
-    redirectUri: string,
-    meta: Record<string, unknown>,
-    req: Request
-  ): void => {
-    if (!pgPool) return;
-    void (async () => {
-      const { writeAuditStandalone } = await import('./lib/audit.js');
-      const reqId =
-        (req as Request & { id?: string }).id ?? getRequestTokens()?.requestId ?? 'no-req-id';
-      await writeAuditStandalone(pgPool, {
-        tenantId,
-        actor: 'unauthenticated',
-        action: 'oauth.authorize',
-        target: redirectUri || null,
-        ip: req.ip ?? null,
-        requestId: reqId,
-        result,
-        meta,
-      });
-    })();
-  };
-
-  return async (req: Request, res: Response): Promise<void> => {
-    const tenant = (req as Request & { tenant?: TenantRow }).tenant;
-    if (!tenant) {
-      res.status(500).json({ error: 'loadTenant_missing' });
-      return;
-    }
-
-    const redirectUri = String(req.query.redirect_uri ?? '');
-    // Two-layer allowlist check (AUTH-06 layered defence):
-    //   a) Phase 1 scheme/host validator — rejects javascript:, data:,
-    //      file:, plus any host outside the operator-configured set
-    //      (publicUrlHost via the per-tenant token endpoint, or the
-    //      env-driven extraAllowedHosts shared with DCR for third-party
-    //      MCP connectors).
-    const schemeCheck = validateRedirectUri(redirectUri, {
-      mode: 'prod',
-      publicUrlHost: null,
-      extraAllowedHosts,
-    });
-    if (!schemeCheck.ok) {
-      emitAudit(
-        tenant.id,
-        'failure',
-        redirectUri,
-        { error: 'invalid_redirect_uri', reason: schemeCheck.reason },
-        req
-      );
-      res.status(400).json({ error: 'invalid_redirect_uri', reason: schemeCheck.reason });
-      return;
-    }
-    //   b) Tenant-scoped allowlist membership — normalised exact match.
-    //      WR-06 fix: normalise both sides via URL parsing + trailing-slash
-    //      stripping so a tenant row carrying
-    //      `https://app.example.com/callback` matches a request bearing
-    //      `https://app.example.com/callback/` (or
-    //      `HTTPS://APP.EXAMPLE.COM/callback`). A malformed input that
-    //      cannot be parsed falls back to the literal string so the
-    //      allowlist still rejects it via the includes() miss.
-    const normalizedRedirect = normalizeRedirectUri(redirectUri);
-    const allowlistNormalized = tenant.redirect_uri_allowlist.map(normalizeRedirectUri);
-    if (!allowlistNormalized.includes(normalizedRedirect)) {
-      emitAudit(tenant.id, 'failure', redirectUri, { error: 'invalid_redirect_uri' }, req);
-      res.status(400).json({ error: 'invalid_redirect_uri' });
-      return;
-    }
-
-    const clientCodeChallenge = String(req.query.code_challenge ?? '');
-    if (!/^[A-Za-z0-9_-]{43,128}$/.test(clientCodeChallenge)) {
-      emitAudit(tenant.id, 'failure', redirectUri, { error: 'invalid_code_challenge' }, req);
-      res.status(400).json({ error: 'invalid_code_challenge' });
-      return;
-    }
-    const clientCodeChallengeMethod = String(req.query.code_challenge_method ?? 'S256');
-    const state = String(req.query.state ?? crypto.randomBytes(16).toString('base64url'));
-    const clientId = String(req.query.client_id ?? tenant.client_id);
-
-    // Plan 03-08: PKCE Redis key is keyed on the real tenant id from the URL
-    // path (/t/:tenantId/*). `req.tenant.id` mirrors `req.params.tenantId`
-    // after loadTenant; preferring the tenant row's id keeps the key stable
-    // across re-canonicalizations of the URL segment.
-    const tenantKey = tenant.id;
-
-    const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
-    const serverChallenge = crypto
-      .createHash('sha256')
-      .update(serverCodeVerifier)
-      .digest('base64url');
-
-    const ok = await pkceStore.put(tenantKey, {
-      state,
-      clientCodeChallenge,
-      clientCodeChallengeMethod,
-      serverCodeVerifier,
-      clientId,
-      redirectUri,
-      tenantId: tenantKey,
-      createdAt: Date.now(),
-    });
-    if (!ok) {
-      emitAudit(tenant.id, 'failure', redirectUri, { error: 'pkce_challenge_collision' }, req);
-      res.status(400).json({
-        error: 'pkce_challenge_collision',
-        error_description:
-          'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
-      });
-      return;
-    }
-
-    const cloudEndpoints = getCloudEndpoints(tenant.cloud_type);
-    const azureTenant = tenant.tenant_id || 'common';
-    const authorizeUrl = new URL(
-      `${cloudEndpoints.authority}/${azureTenant}/oauth2/v2.0/authorize`
-    );
-    authorizeUrl.searchParams.set('client_id', tenant.client_id);
-    authorizeUrl.searchParams.set('response_type', 'code');
-    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
-    authorizeUrl.searchParams.set(
-      'scope',
-      tenant.allowed_scopes.length ? tenant.allowed_scopes.join(' ') : 'User.Read'
-    );
-    authorizeUrl.searchParams.set('state', state);
-    authorizeUrl.searchParams.set('code_challenge', serverChallenge);
-    authorizeUrl.searchParams.set('code_challenge_method', 'S256');
-
-    logger.info(
-      {
-        tenantId: tenant.id,
-        state: state.substring(0, 8) + '...',
-        challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
-      },
-      'Two-leg PKCE: stored client challenge, forwarding to Microsoft with server challenge'
-    );
-
-    // Plan 03-10: success audit row — meta carries clientId + scopes (no PII).
-    emitAudit(
-      tenant.id,
-      'success',
-      redirectUri,
-      { clientId: tenant.client_id, scopes: tenant.allowed_scopes },
-      req
-    );
-
-    res.redirect(authorizeUrl.toString());
-  };
-}
-
-/**
- * Interface narrowing for MSAL's `acquireTokenByCode`. We check for it
- * rather than importing the full MSAL types so the handler stays testable
- * with a mock pool.
- */
-interface DelegatedMsalClient {
-  acquireTokenByCode: (config: {
-    code: string;
-    scopes: string[];
-    redirectUri: string;
-    codeVerifier: string;
-  }) => Promise<{
-    accessToken?: string;
-    refreshToken?: string;
-    expiresOn?: Date | null;
-    account?: { homeAccountId?: string } | null;
-  } | null>;
-}
-
-function isDelegatedMsalClient(client: unknown): client is DelegatedMsalClient {
-  return (
-    typeof client === 'object' &&
-    client !== null &&
-    'acquireTokenByCode' in client &&
-    typeof (client as { acquireTokenByCode: unknown }).acquireTokenByCode === 'function'
-  );
-}
-
-function serializeMsalCache(client: unknown): string | undefined {
-  if (
-    typeof client !== 'object' ||
-    client === null ||
-    !('getTokenCache' in client) ||
-    typeof (client as { getTokenCache: unknown }).getTokenCache !== 'function'
-  ) {
-    return undefined;
-  }
-  const cache = (client as { getTokenCache: () => { serialize?: () => string } }).getTokenCache();
-  return typeof cache.serialize === 'function' ? cache.serialize() : undefined;
-}
-
-/**
- * /token handler (tenant-aware per plan 03-06 + plan 03-07 SECUR-02).
- *
- * 1. Receives `grant_type=authorization_code` with `code` + `code_verifier`.
- * 2. Hashes `code_verifier` via SHA-256 to obtain the `clientCodeChallenge`.
- * 3. Calls `pkceStore.takeByChallenge(tenantId, clientChallenge)` — O(1),
- *    atomic read-and-delete. Miss → 400 `invalid_grant`.
- * 4. Calls `tenantPool.acquire(tenant)` to get the tenant's MSAL client.
- * 5. Calls `client.acquireTokenByCode({code, codeVerifier, redirectUri, scopes})`
- *    with the server-side verifier (two-leg PKCE).
- * 6. **Plan 03-07 SECUR-02**: persist a SessionRecord at
- *    `mcp:session:{tenantId}:{sha256(clientAccessToken)}` via SessionStore.
- *    The record contains either the exposed refresh token or the serialized
- *    MSAL cache and the current Graph access token; the Graph 401 handler
- *    consults this store instead of a custom HTTP header.
- * 7. Responds with `{access_token, token_type, expires_in}` — the response
- *    body NEVER contains `refresh_token` (SECUR-02: refresh tokens never
- *    cross the client trust boundary in v2).
- */
-export function createTenantTokenHandler(config: TenantTokenHandlerConfig) {
-  const { pkceStore, tenantPool, redis, pgPool } = config;
-
-  // Plan 03-10 helper: fire-and-forget audit write for oauth.token.exchange.
-  const emitTokenAudit = (
-    tenantId: string,
-    result: 'success' | 'failure',
-    meta: Record<string, unknown>,
-    req: Request
-  ): void => {
-    if (!pgPool) return;
-    void (async () => {
-      const { writeAuditStandalone } = await import('./lib/audit.js');
-      const reqId =
-        (req as Request & { id?: string }).id ?? getRequestTokens()?.requestId ?? 'no-req-id';
-      await writeAuditStandalone(pgPool, {
-        tenantId,
-        actor: 'unauthenticated',
-        action: 'oauth.token.exchange',
-        target: null,
-        ip: req.ip ?? null,
-        requestId: reqId,
-        result,
-        meta,
-      });
-    })();
-  };
-
-  return async (req: Request, res: Response): Promise<void> => {
-    const tenant = (req as Request & { tenant?: TenantRow }).tenant;
-    if (!tenant) {
-      res.status(500).json({ error: 'loadTenant_missing' });
-      return;
-    }
-
-    const body = req.body as Record<string, unknown> | undefined;
-    const clientVerifier = String(body?.code_verifier ?? '');
-    if (!clientVerifier) {
-      emitTokenAudit(
-        tenant.id,
-        'failure',
-        { error: 'invalid_request', reason: 'code_verifier required' },
-        req
-      );
-      res
-        .status(400)
-        .json({ error: 'invalid_request', error_description: 'code_verifier required' });
-      return;
-    }
-    const clientCodeChallenge = crypto
-      .createHash('sha256')
-      .update(clientVerifier)
-      .digest('base64url');
-    // Plan 03-08: key the PKCE lookup on the real tenant id (from the
-    // /t/:tenantId/* path via loadTenant). `req.tenant.id` is populated by
-    // the loadTenant middleware and matches the id under which the
-    // /authorize handler persisted the PKCE entry.
-    const tenantKey = tenant.id;
-
-    const entry = await pkceStore.takeByChallenge(tenantKey, clientCodeChallenge);
-    if (!entry) {
-      emitTokenAudit(
-        tenant.id,
-        'failure',
-        { error: 'invalid_grant', reason: 'PKCE mismatch' },
-        req
-      );
-      res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE mismatch' });
-      return;
-    }
-
-    try {
-      const msal = await tenantPool.acquire(tenant);
-      if (!isDelegatedMsalClient(msal)) {
-        emitTokenAudit(tenant.id, 'failure', { error: 'delegated_requires_client_with_code' }, req);
-        res.status(500).json({ error: 'delegated_requires_client_with_code' });
-        return;
-      }
-
-      const scopes = tenant.allowed_scopes.length ? tenant.allowed_scopes : ['User.Read'];
-      const result = await msal.acquireTokenByCode({
-        code: String(body?.code ?? ''),
-        scopes,
-        redirectUri: entry.redirectUri,
-        codeVerifier: entry.serverCodeVerifier,
-      });
-
-      if (!result?.accessToken) {
-        emitTokenAudit(tenant.id, 'failure', { error: 'token_exchange_failed' }, req);
-        res.status(502).json({ error: 'token_exchange_failed' });
-        return;
-      }
-
-      // Plan 03-07 SECUR-02: persist a server-side delegated session. The
-      // response body below carries ONLY the access token + token_type +
-      // expires_in — never refresh_token. MSAL Node usually keeps refresh
-      // tokens inside its cache and exposes only account metadata, so the
-      // session record supports both raw-refresh-token and silent-refresh
-      // paths.
-      const refreshTokenFromAuthority = (result as { refreshToken?: string }).refreshToken;
-      try {
-        const dek = tenantPool.getDekForTenant(tenant.id);
-        const { SessionStore } = await import('./lib/session-store.js');
-        const sessionStore = new SessionStore(redis, dek);
-        await sessionStore.put(tenant.id, result.accessToken, {
-          tenantId: tenant.id,
-          refreshToken: refreshTokenFromAuthority,
-          accountHomeId: result.account?.homeAccountId,
-          msalCache: serializeMsalCache(msal),
-          graphAccessToken: result.accessToken,
-          graphAccessTokenExpiresOn: result.expiresOn?.toISOString(),
-          clientId: tenant.client_id,
-          scopes,
-          createdAt: Date.now(),
-        });
-      } catch (sessionErr) {
-        logger.error(
-          { tenantId: tenant.id, err: (sessionErr as Error).message },
-          'SessionStore put failed; refusing unusable delegated token'
-        );
-        emitTokenAudit(tenant.id, 'failure', { error: 'delegated_session_store_failed' }, req);
-        res.status(502).json({ error: 'delegated_session_store_failed' });
-        return;
-      }
-
-      // The client-facing MCP bearer is backed by the server-side delegated
-      // session. It must remain usable after the underlying Graph access token
-      // expires so the server can refresh Graph credentials behind the scenes.
-      const expiresIn = delegatedAccessTokenTtlSeconds();
-
-      try {
-        await rememberDelegatedAccessToken({
-          redis,
-          tenantId: tenant.id,
-          accessToken: result.accessToken,
-          expiresOn: result.expiresOn,
-        });
-      } catch (markerErr) {
-        logger.error(
-          { err: (markerErr as Error).message, tenantId: tenant.id },
-          'delegated access marker write failed'
-        );
-        emitTokenAudit(tenant.id, 'failure', { error: 'delegated_access_store_failed' }, req);
-        res.status(502).json({ error: 'delegated_access_store_failed' });
-        return;
-      }
-
-      // Plan 03-10: success audit row — meta carries clientId + scopes (no PII).
-      emitTokenAudit(tenant.id, 'success', { clientId: tenant.client_id, scopes }, req);
-
-      res.json({
-        access_token: result.accessToken,
-        token_type: 'Bearer',
-        expires_in: expiresIn,
-      });
-    } catch (err) {
-      logger.error({ err: (err as Error).message, tenantId: tenant.id }, '/token exchange failed');
-      emitTokenAudit(tenant.id, 'failure', { error: 'token_exchange_failed' }, req);
-      res.status(400).json({ error: 'token_exchange_failed' });
-    }
-  };
-}
+// Per-tenant OAuth handlers live in src/lib/oauth/tenant-handlers.ts so
+// handler tests do not import the full MCP server/tool graph.
 
 /**
  * Resolve the prod-mode CORS allowlist from environment variables.
@@ -999,7 +196,18 @@ class MicrosoftGraphServer {
    * later. Passing `undefined` preserves the legacy single-tenant behaviour
    * (stdio mode + HTTP mode's legacy /mcp path which 03-09 retires).
    */
-  createMcpServer(tenant?: TenantRow): McpServer {
+  private async createMcpServerForRequest(tenant: TenantRow): Promise<McpServer> {
+    const tenantSurface = resolveTenantSurface(tenant);
+    const skillPrompts = tenantSurface.isDiscoverySurface
+      ? await listVisibleSkills(tenant.id, getRequestOwnerSubject())
+      : [];
+    return this.createMcpServer(tenant, skillPrompts);
+  }
+
+  createMcpServer(
+    tenant?: TenantRow,
+    skillPrompts: readonly PromptTemplateDefinition[] = []
+  ): McpServer {
     // Per-tenant allowlist for tool registration. The augmented
     // `req.tenant` shape from loadTenant carries `enabled_tools_set` —
     // a frozen Set of aliases derived from `tenants.enabled_tools` text
@@ -1015,16 +223,15 @@ class MicrosoftGraphServer {
       : Boolean(this.options.discovery);
 
     const server = new McpServer(
-      {
-        name: 'Microsoft365MCP',
-        version: this.version,
-      },
+      buildServerInfo({ version: this.version, tenantDisplayName: tenant?.slug }),
       {
         instructions: buildMcpServerInstructions({
           discovery: useDiscoverySurface,
           orgMode: Boolean(this.options.orgMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
+          tenantDisplayName: tenant?.slug,
+          version: this.version,
         }),
       }
     );
@@ -1050,6 +257,23 @@ class MicrosoftGraphServer {
         readOnly: this.options.readOnly,
         orgMode: this.options.orgMode,
       });
+      registerSkillTools(server, {
+        redis: getRedis(),
+        readOnly: this.options.readOnly,
+        orgMode: this.options.orgMode,
+        loadBuiltInPrompts: this.promptDeps?.loadPrompts,
+      });
+      const capabilityProfile = buildEffectiveCapabilityProfile({
+        transport: this.options.http ? 'streamable-http' : 'stdio',
+        surface: 'discovery',
+        tenantPolicy: { phase8Enabled: true },
+        advertisedCapabilities: { tools: {}, apps: {}, resources: {}, structuredToolResults: {} },
+      });
+      registerMcpApps(server, {
+        tenant: tenant ? { id: tenant.id, preset_version: tenant.preset_version } : undefined,
+        capabilityProfile,
+        registerTools: false,
+      });
       registerMcpResources(server, {
         tenant:
           tenant && enabledToolsSet
@@ -1063,11 +287,46 @@ class MicrosoftGraphServer {
             : undefined,
         readOnly: this.options.readOnly,
         orgMode: this.options.orgMode,
+        graphClient: this.graphClient!,
+        connector: {
+          server: { name: 'Microsoft365MCP', version: this.version },
+          surface: 'discovery',
+          transport: this.options.http ? 'streamable-http' : 'stdio',
+          profile: capabilityProfile,
+          metadataUrls: tenant ? { mcp: `/t/${tenant.id}/mcp` } : {},
+          expectedDisplayName: 'Microsoft 365 MCP Gateway',
+        },
         resourceSubscriptions: this.resourceSubscriptions,
       });
-      registerMcpPrompts(server, { ...(this.promptDeps ?? {}), authManager: this.authManager });
+      registerMcpPrompts(server, {
+        ...(this.promptDeps ?? {}),
+        authManager: this.authManager,
+        ...(tenant
+          ? {
+              enableEditableSkills: true,
+              loadSkillPrompts: () => [...skillPrompts],
+            }
+          : {}),
+      });
       registerMcpCompletions(server);
       registerMcpLogging(server);
+      registerDashboardTools(server, {
+        server: { name: 'Microsoft365MCP', version: this.version },
+        tenant: tenant
+          ? {
+              id: tenant.id,
+              slug: tenant.slug,
+              preset_version: tenant.preset_version,
+              enabled_tools_set: enabledToolsSet,
+              allowed_scopes: tenant.allowed_scopes,
+            }
+          : { id: 'single-tenant' },
+        surface: 'discovery',
+        transport: this.options.http ? 'streamable-http' : 'stdio',
+        expectedDisplayName: 'Microsoft 365 MCP Gateway',
+        metadataUrls: tenant ? { mcp: `/t/${tenant.id}/mcp` } : {},
+        profile: capabilityProfile,
+      });
     } else {
       registerGraphTools(
         server,
@@ -1168,7 +427,10 @@ class MicrosoftGraphServer {
       publishResourceUpdated(
         redis,
         tenantId,
-        [`mcp://tenant/${tenantId}/audit/recent.json`],
+        [
+          `m365://tenant/${tenantId}/audit/recent.json`,
+          `mcp://tenant/${tenantId}/audit/recent.json`,
+        ],
         'audit-write'
       )
     );
@@ -1308,6 +570,8 @@ class MicrosoftGraphServer {
       })
     );
 
+    const tenantOauthRouteRateLimit = createHttpRouteRateLimit();
+
     // Per-tenant OAuth discovery — /.well-known/* URLs scoped to a tenant
     // segment so downstream clients bind the right issuer. publicBase
     // (MS365_MCP_PUBLIC_URL) is the canonical external origin for all OAuth
@@ -1321,93 +585,112 @@ class MicrosoftGraphServer {
     // Different MCP clients try different forms; Claude.ai connectors follow
     // RFC 8414 strictly. Both routes serve the same body via the same
     // builders below.
-    const buildAuthServerMetadata = (tenant: TenantRow, req: Request): Record<string, unknown> => {
+    const externalBaseFor = (req: Request): string => {
       const protocol = req.secure ? 'https' : 'http';
       const requestOrigin = `${protocol}://${req.get('host')}`;
-      const externalBase = publicBase ?? requestOrigin;
-      const tenantBase = `${externalBase}/t/${tenant.id}`;
-      const tokenBase = `${externalBase}/t/${tenant.id}`;
-      const scopes = tenant.allowed_scopes.length
+      return publicBase ?? requestOrigin;
+    };
+
+    const scopesForTenant = (tenant: TenantRow): readonly string[] =>
+      tenant.allowed_scopes.length
         ? tenant.allowed_scopes
         : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
-      const metadata: Record<string, unknown> = {
-        issuer: tenantBase,
-        authorization_endpoint: `${tenantBase}/authorize`,
-        token_endpoint: `${tokenBase}/token`,
-        response_types_supported: ['code'],
-        response_modes_supported: ['query'],
-        grant_types_supported: ['authorization_code', 'refresh_token'],
-        token_endpoint_auth_methods_supported: ['none'],
-        code_challenge_methods_supported: ['S256'],
-        scopes_supported: scopes,
-      };
-      // Advertise DCR (RFC 7591). The /register endpoint is mounted globally
-      // (not per-tenant) so we point at the canonical external /register.
-      if (this.options.enableDynamicRegistration) {
-        metadata.registration_endpoint = `${externalBase}/register`;
-      }
-      return metadata;
-    };
+
+    const buildAuthServerMetadata = (tenant: TenantRow, req: Request): Record<string, unknown> =>
+      buildOAuthAuthorizationServerMetadata({
+        publicBaseUrl: externalBaseFor(req),
+        tenantId: tenant.id,
+        tenantDisplayName: tenant.slug,
+        scopes: scopesForTenant(tenant),
+        version: this.version,
+        dynamicRegistration: this.options.enableDynamicRegistration,
+      });
 
     const buildProtectedResourceMetadata = (
       tenant: TenantRow,
       req: Request
-    ): Record<string, unknown> => {
-      const protocol = req.secure ? 'https' : 'http';
-      const requestOrigin = `${protocol}://${req.get('host')}`;
-      const externalBase = publicBase ?? requestOrigin;
-      const tenantBase = `${externalBase}/t/${tenant.id}`;
-      const scopes = tenant.allowed_scopes.length
-        ? tenant.allowed_scopes
-        : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
-      return {
-        resource: `${externalBase}/t/${tenant.id}/mcp`,
-        authorization_servers: [tenantBase],
-        scopes_supported: scopes,
-        bearer_methods_supported: ['header'],
-        resource_documentation: tenantBase,
-      };
-    };
+    ): Record<string, unknown> =>
+      buildOAuthProtectedResourceMetadata({
+        publicBaseUrl: externalBaseFor(req),
+        tenantId: tenant.id,
+        tenantDisplayName: tenant.slug,
+        scopes: scopesForTenant(tenant),
+        version: this.version,
+      });
 
     // OIDC-discovery shape (well-known after path).
-    app.get('/t/:tenantId/.well-known/oauth-authorization-server', async (req, res) => {
-      const tenant = (req as Request & { tenant?: TenantRow }).tenant;
-      if (!tenant) {
-        res.status(404).json({ error: 'tenant_not_found' });
-        return;
+    app.get(
+      '/t/:tenantId/.well-known/oauth-authorization-server',
+      tenantOauthRouteRateLimit,
+      async (req, res) => {
+        const tenant = (req as Request & { tenant?: TenantRow }).tenant;
+        if (!tenant) {
+          res.status(404).json({ error: 'tenant_not_found' });
+          return;
+        }
+        res.json(buildAuthServerMetadata(tenant, req));
       }
-      res.json(buildAuthServerMetadata(tenant, req));
-    });
+    );
 
-    app.get('/t/:tenantId/.well-known/oauth-protected-resource', async (req, res) => {
-      const tenant = (req as Request & { tenant?: TenantRow }).tenant;
-      if (!tenant) {
-        res.status(404).json({ error: 'tenant_not_found' });
-        return;
+    app.get(
+      '/t/:tenantId/.well-known/oauth-protected-resource',
+      tenantOauthRouteRateLimit,
+      async (req, res) => {
+        const tenant = (req as Request & { tenant?: TenantRow }).tenant;
+        if (!tenant) {
+          res.status(404).json({ error: 'tenant_not_found' });
+          return;
+        }
+        res.json(buildProtectedResourceMetadata(tenant, req));
       }
-      res.json(buildProtectedResourceMetadata(tenant, req));
-    });
+    );
 
     // RFC 8414 shape (well-known between host and path). These routes do NOT
     // go through the `/t/:tenantId/*` prefix where loadTenant is mounted at
     // line 1134, so we apply loadTenant inline. Both routes serve the same
     // body as the OIDC-discovery-shape variants above.
-    app.get('/.well-known/oauth-authorization-server/t/:tenantId', loadTenant, async (req, res) => {
-      const tenant = (req as Request & { tenant?: TenantRow }).tenant;
-      if (!tenant) {
-        res.status(404).json({ error: 'tenant_not_found' });
-        return;
+    app.get(
+      '/.well-known/oauth-authorization-server/t/:tenantId',
+      tenantOauthRouteRateLimit,
+      loadTenant,
+      async (req, res) => {
+        const tenant = (req as Request & { tenant?: TenantRow }).tenant;
+        if (!tenant) {
+          res.status(404).json({ error: 'tenant_not_found' });
+          return;
+        }
+        res.json(buildAuthServerMetadata(tenant, req));
       }
-      res.json(buildAuthServerMetadata(tenant, req));
-    });
+    );
 
-    app.get('/.well-known/oauth-protected-resource/t/:tenantId', loadTenant, async (req, res) => {
+    app.get(
+      '/.well-known/oauth-protected-resource/t/:tenantId',
+      tenantOauthRouteRateLimit,
+      loadTenant,
+      async (req, res) => {
+        const tenant = (req as Request & { tenant?: TenantRow }).tenant;
+        if (!tenant) {
+          res.status(404).json({ error: 'tenant_not_found' });
+          return;
+        }
+        res.json(buildProtectedResourceMetadata(tenant, req));
+      }
+    );
+
+    app.get('/t/:tenantId/.well-known/mcp-connector', async (req, res) => {
       const tenant = (req as Request & { tenant?: TenantRow }).tenant;
       if (!tenant) {
         res.status(404).json({ error: 'tenant_not_found' });
         return;
       }
-      res.json(buildProtectedResourceMetadata(tenant, req));
+      res.json(
+        buildConnectorWellKnownMetadata({
+          publicBaseUrl: externalBaseFor(req),
+          tenantId: tenant.id,
+          tenantDisplayName: tenant.slug,
+          version: this.version,
+        })
+      );
     });
 
     // /t/:tenantId/authorize + /t/:tenantId/token — tenant-scoped OAuth from 03-06.
@@ -1415,6 +698,7 @@ class MicrosoftGraphServer {
     // oauth.token.exchange audit rows via writeAuditStandalone.
     app.get(
       '/t/:tenantId/authorize',
+      tenantOauthRouteRateLimit,
       createAuthorizeHandler({
         pkceStore: this.pkceStore,
         pgPool: pg,
@@ -1423,6 +707,7 @@ class MicrosoftGraphServer {
     );
     app.post(
       '/t/:tenantId/token',
+      tenantOauthRouteRateLimit,
       createTenantTokenHandler({
         pkceStore: this.pkceStore,
         tenantPool,
@@ -1451,7 +736,9 @@ class MicrosoftGraphServer {
     // registerGraphTools now filters by tenant.enabled_tools_set BEFORE
     // building Zod schemas, so each per-request build is ~204 tools
     // (cheap, sub-100ms) instead of the full catalog.
-    const buildMcpServer = (tenant: TenantRow): McpServer => this.createMcpServer(tenant);
+    const buildMcpServer = (tenant: TenantRow): Promise<McpServer> =>
+      this.createMcpServerForRequest(tenant);
+    const buildLegacyMcpServer = (tenant: TenantRow): McpServer => this.createMcpServer(tenant);
     void mcpServerCache;
 
     // Plan 05-04 TENANT-08: seed AsyncLocalStorage with tenantId +
@@ -1468,8 +755,8 @@ class MicrosoftGraphServer {
       sessionRegistry: mcpSessionRegistry,
       resourceSubscriptions,
     });
-    const legacySseGet = createLegacySseGetHandler({ buildMcpServer });
-    const legacySsePost = createLegacySsePostHandler({ buildMcpServer });
+    const legacySseGet = createLegacySseGetHandler({ buildMcpServer: buildLegacyMcpServer });
+    const legacySsePost = createLegacySsePostHandler({ buildMcpServer: buildLegacyMcpServer });
 
     // Plan 05-05 (COVRG-04, TENANT-08): Express-level tools/list filter.
     // Authoritative filtering happens inside createMcpServer via
@@ -1755,55 +1042,48 @@ class MicrosoftGraphServer {
       await this.mountTenantRoutes(app, publicBase, oauthRedirectHosts);
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
+      const oauthMetadataRateLimit = createHttpRouteRateLimit();
 
       // OAuth Authorization Server Discovery
-      app.get('/.well-known/oauth-authorization-server', async (req, res) => {
-        const protocol = req.secure ? 'https' : 'http';
-        const requestOrigin = `${protocol}://${req.get('host')}`;
-        const externalBase = publicBase ?? requestOrigin;
+      app.get(
+        '/.well-known/oauth-authorization-server',
+        oauthMetadataRateLimit,
+        async (req, res) => {
+          const protocol = req.secure ? 'https' : 'http';
+          const requestOrigin = `${protocol}://${req.get('host')}`;
+          const externalBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+          const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
-        const metadata: Record<string, unknown> = {
-          issuer: externalBase,
-          authorization_endpoint: `${externalBase}/authorize`,
-          token_endpoint: `${externalBase}/token`,
-          response_types_supported: ['code'],
-          response_modes_supported: ['query'],
-          grant_types_supported: ['authorization_code', 'refresh_token'],
-          token_endpoint_auth_methods_supported: ['none'],
-          code_challenge_methods_supported: ['S256'],
-          scopes_supported: scopes,
-        };
-
-        if (this.options.enableDynamicRegistration) {
-          metadata.registration_endpoint = `${externalBase}/register`;
+          res.json(
+            buildOAuthAuthorizationServerMetadata({
+              publicBaseUrl: externalBase,
+              scopes,
+              version: this.version,
+              dynamicRegistration: this.options.enableDynamicRegistration,
+            })
+          );
         }
-
-        res.json(metadata);
-      });
+      );
 
       // OAuth Protected Resource Discovery
-      app.get('/.well-known/oauth-protected-resource', async (req, res) => {
+      app.get('/.well-known/oauth-protected-resource', oauthMetadataRateLimit, async (req, res) => {
         const protocol = req.secure ? 'https' : 'http';
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const externalBase = publicBase ?? requestOrigin;
 
         const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
-        res.json({
-          resource: `${externalBase}/mcp`,
-          authorization_servers: [externalBase],
-          scopes_supported: scopes,
-          bearer_methods_supported: ['header'],
-          resource_documentation: externalBase,
-        });
+        res.json(
+          buildOAuthProtectedResourceMetadata({
+            publicBaseUrl: externalBase,
+            scopes,
+            version: this.version,
+          })
+        );
       });
 
       if (this.options.enableDynamicRegistration) {
-        // Plan 01-06: validate redirect_uris against the D-02 allowlist, use
-        // crypto.randomBytes for client IDs, and scrub the info log body.
-        // Factory documentation lives at src/server.ts createRegisterHandler.
         // Plan 06+ DCR: extraAllowedHosts opens the validator to third-party
         // MCP connectors whose redirect_uri lives off-host (Claude.ai etc.).
         app.post(

@@ -88,7 +88,8 @@ async function startApp(tenantOverrides: Partial<TenantRow> = {}): Promise<AppHa
     getDekForTenant: vi.fn(() => Buffer.alloc(32, 7)),
   };
 
-  const { createAuthorizeHandler, createTenantTokenHandler } = await import('../../src/server.js');
+  const { createAuthorizeHandler, createTenantTokenHandler } =
+    await import('../../src/lib/oauth/tenant-handlers.js');
 
   const app = express();
   app.use(express.json());

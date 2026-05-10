@@ -55,6 +55,8 @@ import { writeAuditStandalone } from '../audit.js';
 import { decryptWithKey, type Envelope } from '../crypto/envelope.js';
 import { unwrapTenantDek } from '../crypto/dek.js';
 import logger from '../../logger.js';
+import { publishResourceUpdated } from '../mcp-notifications/events.js';
+import { mapGraphNotificationToResourceUpdates } from '../delta/resource-updates.js';
 
 // Module constants per D-16.
 export const DEDUP_TTL_SECONDS = 24 * 60 * 60;
@@ -520,9 +522,16 @@ export function createWebhookHandler(deps: WebhookDeps): RequestHandler {
         result: 'success',
         meta: { subscription_id: n.subscriptionId, change_type: n.changeType },
       });
-      // TODO(04-08): synchronous enqueue to in-process queue for worker
-      // processing — plan 04-08 ships the subscription-lifecycle tools that
-      // populate the subscriptions row this receiver reads.
+      for (const update of mapGraphNotificationToResourceUpdates(tenant.id, n)) {
+        void publishResourceUpdated(
+          deps.redis,
+          tenant.id,
+          [update.uri],
+          update.reason,
+          update.source,
+          update.changeType
+        );
+      }
     }
 
     if (duplicateCount > 0) {

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { ClientCapabilityProfile } from './lib/mcp-capabilities/profile.js';
 import type { TenantRow } from './lib/tenant/tenant-row.js';
 
 /**
@@ -72,12 +73,34 @@ export interface RequestContext {
    * attribute keeps the full alias for high-fidelity trace queries.
    */
   toolAlias?: string;
+  /**
+   * Phase 8 session/request capability profile. Ephemeral only: seeded from
+   * Streamable HTTP initialize/session data or stdio defaults and never
+   * persisted to Postgres.
+   */
+  capabilityProfile?: ClientCapabilityProfile;
+  /** Authenticated user/session owner for user-scoped editable skills. */
+  ownerSubject?: string;
 }
 
-export const requestContext = new AsyncLocalStorage<RequestContext>();
+const REQUEST_CONTEXT_KEY = Symbol.for('ms-365-mcp-server.requestContext');
+
+type RequestContextGlobal = typeof globalThis & {
+  [REQUEST_CONTEXT_KEY]?: AsyncLocalStorage<RequestContext>;
+};
+
+const requestContextGlobal = globalThis as RequestContextGlobal;
+export const requestContext =
+  requestContextGlobal[REQUEST_CONTEXT_KEY] ?? new AsyncLocalStorage<RequestContext>();
+requestContextGlobal[REQUEST_CONTEXT_KEY] = requestContext;
 
 export function getRequestTokens(): RequestContext | undefined {
   return requestContext.getStore();
+}
+
+export function getRequestOwnerSubject(): string | undefined {
+  const value = requestContext.getStore()?.ownerSubject;
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }
 
 export function getRequestId(): string | undefined {

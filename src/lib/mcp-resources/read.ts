@@ -3,23 +3,35 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ErrorCode, McpError, type ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { buildToolsRegistry } from '../../graph-tools.js';
-import { getRequestTenant } from '../../request-context.js';
+import { getRequestOwnerSubject, getRequestTenant } from '../../request-context.js';
+import { buildConnectorDiagnostics } from '../mcp-capabilities/diagnostics.js';
+import {
+  buildEffectiveCapabilityProfile,
+  DEFAULT_SERVER_CAPABILITIES,
+  type ClientCapabilityProfile,
+  type McpSurfaceMode,
+  type McpTransportKind,
+} from '../mcp-capabilities/profile.js';
 import { resolveDiscoveryCatalog } from '../discovery-catalog/catalog.js';
 import { listBookmarks } from '../memory/bookmarks.js';
 import { recallFacts } from '../memory/facts.js';
 import { listRecipes } from '../memory/recipes.js';
 import { getPool } from '../postgres.js';
+import { readSkillResource } from '../mcp-skills/resources.js';
 import { describeToolSchema } from '../tool-schema-describer.js';
 import {
   MARKDOWN_MIME_TYPE,
   STATIC_CATALOG_RESOURCES,
   type StaticCatalogResource,
 } from './catalog.js';
+import { readGraphBackedResource, type GraphBackedGraphClient } from './graph-backed.js';
 import {
   assertTenantResourceOwner,
   parseMcpResourceUri,
+  type ConnectorMcpResourceUri,
   type InvalidMcpResourceUri,
   type ParsedMcpResourceUri,
+  type SkillMcpResourceUri,
   type TenantMcpResourceUri,
 } from './uri.js';
 
@@ -33,10 +45,21 @@ export interface ReadMcpResourceTenant {
   preset_version?: string;
 }
 
+export interface ReadMcpResourceConnectorDeps {
+  server?: { name: string; version: string };
+  surface?: McpSurfaceMode;
+  transport?: McpTransportKind;
+  profile?: ClientCapabilityProfile;
+  metadataUrls?: Record<string, string | undefined>;
+  expectedDisplayName?: string;
+}
+
 export interface ReadMcpResourceDeps {
   tenant?: ReadMcpResourceTenant;
   readOnly?: boolean;
   orgMode?: boolean;
+  graphClient?: GraphBackedGraphClient;
+  connector?: ReadMcpResourceConnectorDeps;
 }
 
 interface EndpointConfigJson {
@@ -60,6 +83,9 @@ interface AuditRecentRow {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const MCP_ALIAS_COMPATIBILITY_NOTE =
+  'Compatibility note: mcp:// is accepted as a legacy alias. The canonical resource URI uses m365://.';
+
 let scopeMapCache: Readonly<Record<string, readonly string[]>> | null = null;
 
 function throwResourceError(error: InvalidMcpResourceUri): never {
@@ -72,6 +98,19 @@ function assertParsed(
   if (!parsed.ok) {
     throwResourceError(parsed);
   }
+}
+
+function isMcpAlias(uri: string): boolean {
+  return uri.startsWith('mcp://');
+}
+
+function canonicalM365Uri(uri: string): string {
+  return uri.replace(/^mcp:/, 'm365:');
+}
+
+function textWithCompatibilityNote(uri: string, mimeType: string, text: string): string {
+  if (!isMcpAlias(uri) || mimeType !== MARKDOWN_MIME_TYPE) return text;
+  return `${text.trimEnd()}\n\n${MCP_ALIAS_COMPATIBILITY_NOTE}\n`;
 }
 
 function textResult(uri: string, mimeType: string, text: string): ReadResourceResult {
@@ -126,12 +165,13 @@ function buildScopeMap(): Readonly<Record<string, readonly string[]>> {
 
 function staticResourceFor(parsed: ParsedMcpResourceUri): StaticCatalogResource | undefined {
   if (!parsed.ok || parsed.kind !== 'catalog') return undefined;
-  return STATIC_CATALOG_RESOURCES.find((resource) => {
-    if (parsed.path === 'navigation-guide.md') {
-      return resource.uri === 'mcp://catalog/navigation-guide.md';
-    }
-    return resource.uri === `mcp://catalog/${parsed.path}`;
-  });
+  if (parsed.path === 'scope-map.json') return undefined;
+  if (parsed.path === 'navigation-guide.md') {
+    return STATIC_CATALOG_RESOURCES.find(
+      (resource) => resource.name === 'catalog-navigation-guide'
+    );
+  }
+  return STATIC_CATALOG_RESOURCES.find((resource) => resource.uri.endsWith(`/${parsed.path}`));
 }
 
 function readCatalogResource(uri: string, parsed: ParsedMcpResourceUri): ReadResourceResult {
@@ -142,8 +182,9 @@ function readCatalogResource(uri: string, parsed: ParsedMcpResourceUri): ReadRes
     });
   }
 
+  const canonical = canonicalM365Uri(uri);
   if (parsed.path === 'scope-map.json') {
-    return jsonResult(uri, buildScopeMap());
+    return jsonResult(canonical, buildScopeMap());
   }
 
   const resource = staticResourceFor(parsed);
@@ -153,7 +194,11 @@ function readCatalogResource(uri: string, parsed: ParsedMcpResourceUri): ReadRes
     });
   }
 
-  return textResult(uri, MARKDOWN_MIME_TYPE, readProjectFile(resource.resourcePath));
+  return textResult(
+    canonical,
+    MARKDOWN_MIME_TYPE,
+    textWithCompatibilityNote(uri, MARKDOWN_MIME_TYPE, readProjectFile(resource.resourcePath))
+  );
 }
 
 function tenantContextFromDeps(deps: ReadMcpResourceDeps): {
@@ -206,7 +251,7 @@ function readEndpointSchemaResource(
     });
   }
 
-  return jsonResult(uri, describeToolSchema(entry.tool, entry.config?.llmTip));
+  return jsonResult(canonicalM365Uri(uri), describeToolSchema(entry.tool, entry.config?.llmTip));
 }
 
 function enabledToolsPayload(deps: ReadMcpResourceDeps): {
@@ -255,6 +300,76 @@ async function readAuditRecent(tenantId: string): Promise<Record<string, unknown
   return result.rows.map(toAuditJson);
 }
 
+async function readSkillTenantResource(
+  parsed: SkillMcpResourceUri,
+  deps: ReadMcpResourceDeps
+): Promise<ReadResourceResult> {
+  const owned = assertTenantResourceOwner(parsed, getRequestTenant().id ?? deps.tenant?.id);
+  assertParsed(owned);
+  if (owned.kind !== 'skill') {
+    throw new McpError(ErrorCode.InvalidParams, 'Resource is not a skill URI.', {
+      code: 'invalid_resource_uri',
+    });
+  }
+
+  return readSkillResource(owned.tenantId, owned.descriptor, getRequestOwnerSubject());
+}
+
+function connectorProfile(deps: ReadMcpResourceDeps): ClientCapabilityProfile {
+  if (deps.connector?.profile) return deps.connector.profile;
+  const surface = deps.connector?.surface ?? 'discovery';
+  return buildEffectiveCapabilityProfile({
+    protocolVersion: undefined,
+    clientInfo: undefined,
+    advertisedCapabilities: { tools: {}, resources: {}, structuredToolResults: {} },
+    transport: deps.connector?.transport ?? 'streamable-http',
+    surface,
+    tenantPolicy: { phase8Enabled: surface === 'discovery' },
+    serverCapabilities: DEFAULT_SERVER_CAPABILITIES,
+  });
+}
+
+async function readConnectorTenantResource(
+  uri: string,
+  parsed: ConnectorMcpResourceUri,
+  deps: ReadMcpResourceDeps
+): Promise<ReadResourceResult> {
+  const owned = assertTenantResourceOwner(parsed, getRequestTenant().id ?? deps.tenant?.id);
+  assertParsed(owned);
+  if (owned.kind !== 'connector') {
+    throw new McpError(ErrorCode.InvalidParams, 'Resource is not a connector URI.', {
+      code: 'invalid_resource_uri',
+    });
+  }
+
+  const canonical = canonicalM365Uri(uri);
+  const profile = connectorProfile(deps);
+  if (owned.view === 'connector/capabilities') {
+    return jsonResult(canonical, {
+      uri: canonical,
+      tenantId: owned.tenantId,
+      transport: profile.transport,
+      capabilities: profile.capabilities,
+      enabledFeatures: profile.enabledFeatures,
+      disabledFeatures: profile.disabledFeatures,
+      fallbacks: profile.fallbacks,
+    });
+  }
+
+  const diagnostics = buildConnectorDiagnostics({
+    server: deps.connector?.server ?? { name: 'Microsoft365MCP', version: '0.0.0' },
+    tenant: { id: owned.tenantId, label: deps.tenant?.id },
+    surface: deps.connector?.surface ?? 'discovery',
+    profile,
+    metadataUrls: deps.connector?.metadataUrls,
+    expectedDisplayName: deps.connector?.expectedDisplayName,
+  });
+  return jsonResult(canonical, {
+    uri: canonical,
+    ...diagnostics.structured,
+  });
+}
+
 async function readTenantResource(
   uri: string,
   parsed: TenantMcpResourceUri,
@@ -268,19 +383,20 @@ async function readTenantResource(
     });
   }
 
+  const canonical = canonicalM365Uri(uri);
   switch (owned.view) {
     case 'enabled-tools':
-      return jsonResult(uri, enabledToolsPayload(deps));
+      return jsonResult(canonical, enabledToolsPayload(deps));
     case 'scopes':
-      return jsonResult(uri, scopesPayload(deps));
+      return jsonResult(canonical, scopesPayload(deps));
     case 'audit/recent':
-      return jsonResult(uri, await readAuditRecent(owned.tenantId));
+      return jsonResult(canonical, await readAuditRecent(owned.tenantId));
     case 'bookmarks':
-      return jsonResult(uri, await listBookmarks(owned.tenantId));
+      return jsonResult(canonical, await listBookmarks(owned.tenantId));
     case 'recipes':
-      return jsonResult(uri, await listRecipes(owned.tenantId));
+      return jsonResult(canonical, await listRecipes(owned.tenantId));
     case 'facts':
-      return jsonResult(uri, await recallFacts(owned.tenantId, { limit: 100 }));
+      return jsonResult(canonical, await recallFacts(owned.tenantId, { limit: 100 }));
   }
 }
 
@@ -298,5 +414,19 @@ export async function readMcpResource(
       return readEndpointSchemaResource(uri, parsed.alias, deps);
     case 'tenant':
       return readTenantResource(uri, parsed, deps);
+    case 'connector':
+      return readConnectorTenantResource(uri, parsed, deps);
+    case 'skill':
+      return readSkillTenantResource(parsed, deps);
+    case 'graph': {
+      const owned = assertTenantResourceOwner(parsed, getRequestTenant().id ?? deps.tenant?.id);
+      assertParsed(owned);
+      if (owned.kind !== 'graph') {
+        throw new McpError(ErrorCode.InvalidParams, 'Resource is not a Graph-backed URI.', {
+          code: 'invalid_resource_uri',
+        });
+      }
+      return readGraphBackedResource(uri, owned, deps);
+    }
   }
 }

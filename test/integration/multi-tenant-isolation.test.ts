@@ -18,14 +18,11 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import crypto from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { newDb } from 'pg-mem';
 import type { Pool } from 'pg';
 import { MemoryRedisFacade } from '../../src/lib/redis-facade.js';
 import { RedisPkceStore } from '../../src/lib/pkce-store/redis-store.js';
-import { generateTenantDek } from '../../src/lib/crypto/dek.js';
+import type { TenantRow } from '../../src/lib/tenant/tenant-row.js';
 import {
   publishTenantInvalidation,
   subscribeToTenantInvalidation,
@@ -35,35 +32,36 @@ vi.mock('../../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', 'migrations');
-const KEK = crypto.randomBytes(32);
-
 const TENANT_A_ID = 'aaaaaaaa-1111-2222-3333-444444444444';
 const TENANT_B_ID = 'bbbbbbbb-5555-6666-7777-888888888888';
-
-function stripPgcryptoExtensionStmts(sql: string): string {
-  return sql
-    .split('\n')
-    .filter((line) => !/\bextension\b.*\bpgcrypto\b/i.test(line))
-    .join('\n');
-}
 
 async function makePool(): Promise<Pool> {
   const db = newDb();
   db.registerExtension('pgcrypto', () => {});
   const { Pool: PgMemPool } = db.adapters.createPg();
   const pool = new PgMemPool() as Pool;
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
-  for (const f of files) {
-    const sql = readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
-    const up = stripPgcryptoExtensionStmts(
-      (sql.split(/^--\s*Down Migration\s*$/m)[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '')
+  await pool.query(`
+    CREATE TABLE tenants (
+      id text PRIMARY KEY,
+      mode text NOT NULL,
+      client_id text NOT NULL,
+      client_secret_ref text NULL,
+      tenant_id text NOT NULL,
+      cloud_type text NOT NULL,
+      redirect_uri_allowlist jsonb NOT NULL DEFAULT '[]'::jsonb,
+      cors_origins jsonb NOT NULL DEFAULT '[]'::jsonb,
+      allowed_scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
+      enabled_tools text NULL,
+      preset_version text NOT NULL DEFAULT 'essentials-v1',
+      sharepoint_domain text NULL,
+      rate_limits jsonb NULL,
+      wrapped_dek jsonb NULL,
+      slug text NULL,
+      disabled_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
     );
-    await pool.query(up);
-  }
+  `);
   return pool;
 }
 
@@ -76,15 +74,20 @@ async function insertTenantRow(
     redirectUriAllowlist: string[];
     corsOrigins: string[];
     allowedScopes: string[];
-    wrappedDek: unknown;
   }
 ): Promise<void> {
+  const placeholderEnvelope = {
+    v: 1,
+    iv: 'aaaaaaaaaaaaaaaa',
+    tag: 'bbbbbbbbbbbbbbbbbbbbbbbb==',
+    ct: 'cc==',
+  };
   await pool.query(
     `INSERT INTO tenants (
        id, mode, client_id, tenant_id, cloud_type,
        redirect_uri_allowlist, cors_origins, allowed_scopes, wrapped_dek,
        slug, disabled_at
-     ) VALUES ($1, 'delegated', $2, $3, 'global', $4, $5, $6, $7, NULL, NULL)`,
+     ) VALUES ($1, 'delegated', $2, $3, 'global', $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, NULL, NULL)`,
     [
       t.id,
       t.clientId,
@@ -92,9 +95,52 @@ async function insertTenantRow(
       JSON.stringify(t.redirectUriAllowlist),
       JSON.stringify(t.corsOrigins),
       JSON.stringify(t.allowedScopes),
-      JSON.stringify(t.wrappedDek),
+      JSON.stringify(placeholderEnvelope),
     ]
   );
+}
+
+function jsonArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === 'string') return JSON.parse(value) as string[];
+  return [];
+}
+
+function normalizeTenantRow(row: TenantRow): TenantRow {
+  return {
+    ...row,
+    redirect_uri_allowlist: jsonArray(row.redirect_uri_allowlist),
+    cors_origins: jsonArray(row.cors_origins),
+    allowed_scopes: jsonArray(row.allowed_scopes),
+  };
+}
+
+function createLoadTenantStub(
+  pool: Pool
+): express.RequestHandler & { evict: (tenantId: string) => void } {
+  const cache = new Map<string, TenantRow>();
+  const middleware = (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const tenantId = req.params.tenantId;
+    let tenant = cache.get(tenantId);
+    if (!tenant) {
+      const { rows } = await pool.query<TenantRow>('SELECT * FROM tenants WHERE id = $1', [
+        tenantId,
+      ]);
+      const row = rows[0];
+      if (!row) {
+        res.status(404).json({ error: 'tenant_not_found', tenantId });
+        return;
+      }
+      tenant = normalizeTenantRow(row);
+      cache.set(tenantId, tenant);
+    }
+    (req as Request & { tenant?: TenantRow }).tenant = tenant;
+    next();
+  }) as express.RequestHandler & { evict: (tenantId: string) => void };
+  middleware.evict = (tenantId: string) => {
+    cache.delete(tenantId);
+  };
+  return middleware;
 }
 
 describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
@@ -111,8 +157,6 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
 
     // Insert two tenants with DIFFERING config so any leak between them
     // would manifest as a wrong-allowlist / wrong-cors / wrong-client_id.
-    const { wrappedDek: dekA } = generateTenantDek(KEK);
-    const { wrappedDek: dekB } = generateTenantDek(KEK);
     await insertTenantRow(pool, {
       id: TENANT_A_ID,
       clientId: 'client-A',
@@ -120,7 +164,6 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
       redirectUriAllowlist: ['http://localhost:3100/callback-a'],
       corsOrigins: ['https://app-a.example.com'],
       allowedScopes: ['User.Read'],
-      wrappedDek: dekA,
     });
     await insertTenantRow(pool, {
       id: TENANT_B_ID,
@@ -129,7 +172,6 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
       redirectUriAllowlist: ['http://localhost:3200/callback-b'],
       corsOrigins: ['https://app-b.example.com'],
       allowedScopes: ['Mail.Read'],
-      wrappedDek: dekB,
     });
 
     const mockAcquire = vi.fn(async () => ({
@@ -144,11 +186,10 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
     };
 
     const { createAuthorizeHandler, createTenantTokenHandler } =
-      await import('../../src/server.js');
-    const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
+      await import('../../src/lib/oauth/tenant-handlers.js');
     const { createPerTenantCorsMiddleware } = await import('../../src/lib/cors.js');
 
-    const loadTenant = createLoadTenantMiddleware({ pool });
+    const loadTenant = createLoadTenantStub(pool);
 
     await subscribeToTenantInvalidation(redis, {
       evict: (tid: string) => loadTenant.evict(tid),

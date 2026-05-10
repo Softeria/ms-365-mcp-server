@@ -251,8 +251,7 @@ describe('plan 05-06 Task 2 — discovery per-tenant filter + pub/sub invalidati
     );
 
     expect(respA.isError).toBe(true);
-    const bodyA = JSON.parse(respA.content[0].text) as { error: string };
-    expect(bodyA.error).toMatch(/not (enabled|found)/i);
+    expect(respA.content[0].text).toMatch(/not (enabled|found)/i);
 
     // But the same call for send-mail (which IS enabled) succeeds.
     const respOk = await requestContext.run(

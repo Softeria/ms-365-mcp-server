@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildToolsRegistry,
-  buildDiscoverySearchIndex,
-  scoreDiscoveryQuery,
-} from '../src/graph-tools.js';
+import { buildDiscoverySearchIndex, scoreDiscoveryQuery } from '../src/lib/graph-tools-pure.js';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Golden-query eval for discovery search. Each case asserts that the expected tool
@@ -11,7 +10,29 @@ import {
  * to phrase. The live tool registry is used (no mocks) so regressions in endpoint
  * descriptions, llmTips, or the ranking weights surface here.
  */
-const registry = buildToolsRegistry(false, true);
+interface EndpointConfig {
+  toolName: string;
+  pathPattern: string;
+  llmTip?: string;
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const endpoints = JSON.parse(
+  readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')
+) as EndpointConfig[];
+const registry = new Map(
+  endpoints.map((endpoint) => [
+    endpoint.toolName,
+    {
+      tool: {
+        path: endpoint.pathPattern,
+        description: endpoint.llmTip,
+      },
+      config: { llmTip: endpoint.llmTip },
+    },
+  ])
+);
 const index = buildDiscoverySearchIndex(registry);
 
 function topN(query: string, n: number): string[] {

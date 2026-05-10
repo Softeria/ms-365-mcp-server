@@ -58,6 +58,14 @@ function acceptedAudiences(clientId: string | undefined, cloudType: CloudType): 
   return [...audiences];
 }
 
+function ownerSubjectFromPayload(payload: JWTPayload): string | undefined {
+  for (const key of ['oid', 'sub', 'preferred_username', 'upn']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value;
+  }
+  return undefined;
+}
+
 export async function verifyMicrosoftBearerToken({
   token,
   tenantId,
@@ -186,6 +194,7 @@ export function createBearerMiddleware(
         flow: 'bearer',
         authClientId: undefined,
         tenantRow: tenant,
+        ownerSubject: ownerSubjectFromPayload(payload),
       },
       () => next()
     );

@@ -19,7 +19,7 @@
  *     anchored to `alias:\s*["'][a-z]`; Set-size + post-prefix dedup
  *     prove no two identical aliases reach the registry.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -76,152 +76,99 @@ function extractAliases(clientCode) {
 
 describe('plan 05-02 task 1 — runBetaPipeline', () => {
   let tmpDir;
+  let openapiDir;
+  let generatedDir;
+  let snapshotPath;
+  let result;
+  let mergedClient;
+  let snapshot;
+  let v1BaselineClient;
 
-  beforeEach(() => {
+  beforeAll(async () => {
     tmpDir = makeTmpDir();
+    stageV1Baseline(tmpDir);
+    openapiDir = path.join(tmpDir, 'openapi');
+    generatedDir = path.join(tmpDir, 'src', 'generated');
+    v1BaselineClient = fs.readFileSync(path.join(generatedDir, 'client.ts'), 'utf-8');
+    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
+    snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
+
+    result = await runBetaPipeline(openapiDir, generatedDir, {
+      snapshotPath,
+      useSnapshot: true,
+    });
+    mergedClient = fs.readFileSync(path.join(generatedDir, 'client.ts'), 'utf-8');
+    snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf-8'));
   });
 
-  afterEach(() => {
+  afterAll(() => {
     rmTmp(tmpDir);
   });
 
-  it('Test 1: every beta-sourced alias in merged client.ts starts with __beta__', async () => {
-    stageV1Baseline(tmpDir);
-
-    const openapiDir = path.join(tmpDir, 'openapi');
-    const generatedDir = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
-
-    const snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
-    const result = await runBetaPipeline(openapiDir, generatedDir, {
-      snapshotPath,
-      useSnapshot: true, // reuse already-staged openapi-beta.yaml
-    });
-
-    // runBetaPipeline returns metadata about the beta run.
+  it('Test 1: every beta-sourced alias in merged client.ts starts with __beta__', () => {
     expect(result).toBeDefined();
     expect(result.betaCount).toBeGreaterThanOrEqual(8);
     expect(result.aliases).toBeInstanceOf(Array);
     expect(result.aliases.every((a) => a.startsWith('__beta__'))).toBe(true);
 
-    // Verify merged client.ts contains beta aliases AND they all carry __beta__.
-    const mergedClient = fs.readFileSync(path.join(generatedDir, 'client.ts'), 'utf-8');
     const betaMatches = [...mergedClient.matchAll(/alias:\s*["']__beta__[^"']+/g)];
     expect(betaMatches.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('Test 2: all prefixed aliases are <= 64 chars (MCP SEP-986)', async () => {
-    stageV1Baseline(tmpDir);
-    const openapiDir = path.join(tmpDir, 'openapi');
-    const generatedDir = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
-    const snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
-
-    const result = await runBetaPipeline(openapiDir, generatedDir, {
-      snapshotPath,
-      useSnapshot: true,
-    });
-
+  it('Test 2: all prefixed aliases are <= 64 chars (MCP SEP-986)', () => {
     for (const alias of result.aliases) {
       expect(alias.length).toBeLessThanOrEqual(64);
     }
-    // Sanity: the fixture's devicemanagement.configurations.getassignedrolescopetags
-    // op (base 56 chars) + __beta__ (8) should be exactly 64 — right at the boundary.
     const boundary = result.aliases.find((a) => a.includes('getassignedrolescopetags'));
     expect(boundary).toBeDefined();
     expect(boundary.length).toBeLessThanOrEqual(64);
   });
 
-  it('Test 3: no duplicate aliases across v1 + beta in merged client.ts', async () => {
-    stageV1Baseline(tmpDir);
-    const openapiDir = path.join(tmpDir, 'openapi');
-    const generatedDir = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
-    const snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
-
-    await runBetaPipeline(openapiDir, generatedDir, {
-      snapshotPath,
-      useSnapshot: true,
-    });
-
-    const mergedClient = fs.readFileSync(path.join(generatedDir, 'client.ts'), 'utf-8');
+  it('Test 3: no duplicate aliases across v1 + beta in merged client.ts', () => {
     const allAliases = extractAliases(mergedClient);
     expect(new Set(allAliases).size).toBe(allAliases.length);
   });
 
-  it('Test 4: stripping __beta__ reveals expected v1/beta overlap (prefix resolves collision)', async () => {
-    stageV1Baseline(tmpDir);
-    const openapiDir = path.join(tmpDir, 'openapi');
-    const generatedDir = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
-    const snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
-
-    await runBetaPipeline(openapiDir, generatedDir, {
-      snapshotPath,
-      useSnapshot: true,
-    });
-
-    const mergedClient = fs.readFileSync(path.join(generatedDir, 'client.ts'), 'utf-8');
+  it('Test 4: stripping __beta__ reveals expected v1/beta overlap (prefix resolves collision)', () => {
     const allAliases = extractAliases(mergedClient);
     const v1Aliases = allAliases.filter((a) => !a.startsWith('__beta__'));
     const betaAliases = allAliases.filter((a) => a.startsWith('__beta__'));
     expect(v1Aliases.length).toBeGreaterThanOrEqual(10);
     expect(betaAliases.length).toBeGreaterThanOrEqual(8);
 
-    // Both fixtures declare /me/messages get -> me.messages.list. Stripping
-    // __beta__ should reveal exactly that collision — that's the whole point
-    // of the prefix. Confirm the overlap exists in raw form (this IS expected).
     const betaStripped = betaAliases.map((a) => a.slice('__beta__'.length));
     const v1Set = new Set(v1Aliases);
     const overlap = betaStripped.filter((a) => v1Set.has(a));
     expect(overlap).toContain('me.messages.list');
-
-    // The prefix itself must resolve the collision — no identical alias appears
-    // twice in the final file (this is the Test 3 invariant restated; Test 4
-    // additionally proves the overlap was non-trivial).
     expect(new Set(allAliases).size).toBe(allAliases.length);
   });
 
   it('Test 5: first invocation without snapshot writes sorted snapshot; re-run is idempotent', async () => {
-    stageV1Baseline(tmpDir);
-    const openapiDir = path.join(tmpDir, 'openapi');
-    const generatedDir = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir, 'openapi-beta.yaml'));
-    const snapshotPath = path.join(tmpDir, '.last-beta-snapshot.json');
-    expect(fs.existsSync(snapshotPath)).toBe(false);
-
-    const first = await runBetaPipeline(openapiDir, generatedDir, {
-      snapshotPath,
-      useSnapshot: true,
-    });
-
     expect(fs.existsSync(snapshotPath)).toBe(true);
-    const snap1 = JSON.parse(fs.readFileSync(snapshotPath, 'utf-8'));
-    expect(snap1.beta_count).toBe(first.aliases.length);
-    expect(snap1.beta_ops).toEqual([...first.aliases].sort());
-    // Sorted ascending.
-    const sortedCheck = [...snap1.beta_ops].sort();
-    expect(snap1.beta_ops).toEqual(sortedCheck);
+    expect(snapshot.beta_count).toBe(result.aliases.length);
+    expect(snapshot.beta_ops).toEqual([...result.aliases].sort());
+    expect(snapshot.beta_ops).toEqual([...snapshot.beta_ops].sort());
 
-    // Re-run — needs a fresh baseline because the merge is destructive
-    // (previous run appended beta entries into client.ts).
-    rmTmp(tmpDir);
-    tmpDir = makeTmpDir();
-    stageV1Baseline(tmpDir);
-    const openapiDir2 = path.join(tmpDir, 'openapi');
-    const generatedDir2 = path.join(tmpDir, 'src', 'generated');
-    fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir2, 'openapi-beta.yaml'));
-    // Reuse the written snapshot to prove idempotency.
-    const snapshotPath2 = path.join(tmpDir, '.last-beta-snapshot.json');
-    fs.writeFileSync(snapshotPath2, JSON.stringify(snap1, null, 2) + '\n');
+    const idempotencyDir = makeTmpDir();
+    try {
+      const openapiDir2 = path.join(idempotencyDir, 'openapi');
+      const generatedDir2 = path.join(idempotencyDir, 'src', 'generated');
+      fs.writeFileSync(path.join(generatedDir2, 'client.ts'), v1BaselineClient);
+      fs.writeFileSync(path.join(generatedDir2, 'hack.ts'), '// stub');
+      fs.copyFileSync(BETA_FIXTURE, path.join(openapiDir2, 'openapi-beta.yaml'));
+      const snapshotPath2 = path.join(idempotencyDir, '.last-beta-snapshot.json');
+      fs.writeFileSync(snapshotPath2, JSON.stringify(snapshot, null, 2) + '\n');
 
-    const second = await runBetaPipeline(openapiDir2, generatedDir2, {
-      snapshotPath: snapshotPath2,
-      useSnapshot: true,
-    });
+      const second = await runBetaPipeline(openapiDir2, generatedDir2, {
+        snapshotPath: snapshotPath2,
+        useSnapshot: true,
+      });
 
-    const snap2 = JSON.parse(fs.readFileSync(snapshotPath2, 'utf-8'));
-    expect(snap2.beta_ops).toEqual(snap1.beta_ops);
-    expect(second.aliases.sort()).toEqual(first.aliases.sort());
+      const snap2 = JSON.parse(fs.readFileSync(snapshotPath2, 'utf-8'));
+      expect(snap2.beta_ops).toEqual(snapshot.beta_ops);
+      expect(second.aliases.sort()).toEqual(result.aliases.sort());
+    } finally {
+      rmTmp(idempotencyDir);
+    }
   });
 });

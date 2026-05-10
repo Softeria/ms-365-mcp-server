@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Microsoft 365 MCP Dashboard</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #ffffff;
+        color: #1f1f1f;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #ffffff;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        display: grid;
+        gap: 16px;
+      }
+      .card {
+        background: #f3f2f1;
+        border: 1px solid #d1d1d1;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 600;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 1.2;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .status {
+        color: #0078d4;
+        font-weight: 600;
+      }
+      .resource {
+        color: #0078d4;
+        word-break: break-word;
+      }
+      @media (min-width: 960px) {
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main aria-live="polite">
+      <header class="card">
+        <p class="status">App payload privacy: server-generated data only</p>
+        <h1>Microsoft 365 MCP Dashboard</h1>
+        <p>This app view renders tenant-scoped dashboard data supplied by the MCP tool result.</p>
+      </header>
+      <section class="grid" aria-label="Dashboard content">
+        <article class="card">
+          <h2>Fallback data</h2>
+          <p>Text, structured JSON, and m365:// resource links remain available when Apps are unsupported.</p>
+        </article>
+        <article class="card">
+          <h2>Resources</h2>
+          <p class="resource">Open linked m365:// resources for durable follow-up data.</p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

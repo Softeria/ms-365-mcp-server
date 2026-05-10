@@ -170,6 +170,8 @@ CLAUDE.md
 # GSD planning workspace (commit_docs: false — local only)
 .planning/
 
+graphify-out/
+
 # MCP configuration (contains sensitive keys)
 .mcp.json
 

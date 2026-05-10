@@ -1,0 +1,6 @@
+*
+!src/
+!src/**
+!test/
+!test/**
+src/generated/

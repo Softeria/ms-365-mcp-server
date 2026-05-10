@@ -183,6 +183,8 @@ describe('graph-tools', () => {
           },
         },
       },
+      confirmation: true,
+      confirmationId: 'confirm:send-mail:high',
     });
 
     const joined = loggerMock.info.mock.calls

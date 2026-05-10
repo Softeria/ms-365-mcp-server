@@ -33,6 +33,9 @@
 
 import logger from '../../logger.js';
 import type GraphClient from '../../graph-client.js';
+import { emitProgress, type ProgressNotificationSender } from '../mcp-progress/progress.js';
+import { isOperationCancelled, type OperationKey } from '../mcp-progress/cancellation.js';
+import type { ClientCapabilityProfile } from '../mcp-capabilities/profile.js';
 
 const DEFAULT_MAX_PAGES = 20;
 const HARD_CEILING_PAGES = 1000;
@@ -64,6 +67,11 @@ export interface PageIteratorOptions {
    * network round-trip when `params.fetchAllPages === true`.
    */
   seedFirstPage?: Record<string, unknown>;
+  progressToken?: string | number;
+  sendNotification?: ProgressNotificationSender;
+  capabilityProfile?: ClientCapabilityProfile;
+  operationKey?: OperationKey;
+  signal?: AbortSignal;
 }
 
 export interface PageResult {
@@ -77,6 +85,8 @@ export interface FetchAllPagesResult {
   value: unknown[];
   _truncated?: true;
   _nextLink?: string;
+  _cancelled?: true;
+  _partialResourceUri?: string;
 
   [key: string]: unknown;
 }
@@ -138,6 +148,7 @@ export async function* pageIterator(
 ): AsyncGenerator<PageResult, void, void> {
   const maxPages = resolveMaxPages(opts);
   const seed = opts.seedFirstPage;
+  const signal = opts.signal;
   let currentPath: string | undefined = initialPath;
   let currentOptions: GraphRequestOptionsLike = options;
   let pageIndex = 0;
@@ -145,6 +156,7 @@ export async function* pageIterator(
   // If a seed was provided, yield it as page 0 and jump to its nextLink
   // without issuing a duplicate request.
   if (seed !== undefined) {
+    if (signal?.aborted) return;
     yield { json: seed, pageIndex: 0 };
     pageIndex = 1;
     const seedNextLink = seed['@odata.nextLink'];
@@ -163,8 +175,9 @@ export async function* pageIterator(
     // Stop at maxPages + 1 iterations — one extra so fetchAllPages can detect
     // truncation without itself issuing another request.
     if (pageIndex > maxPages) return;
+    if (signal?.aborted) return;
 
-    const response = await client.graphRequest(currentPath, currentOptions);
+    const response = await client.graphRequest(currentPath, { ...currentOptions, signal });
     const text = response?.content?.[0]?.text;
     if (typeof text !== 'string' || text.length === 0) return;
 
@@ -213,12 +226,18 @@ export async function fetchAllPages(
   const allItems: unknown[] = [];
   let lastNextLink: string | undefined;
   let truncated = false;
+  let cancelled = false;
   let firstPageExtras: Record<string, unknown> = {};
 
   for await (const { json, pageIndex } of pageIterator(initialPath, options, client, {
     maxPages,
     seedFirstPage: opts.seedFirstPage,
+    signal: opts.signal,
   })) {
+    if (opts.signal?.aborted || (opts.operationKey && isOperationCancelled(opts.operationKey))) {
+      cancelled = true;
+      break;
+    }
     if (pageIndex === 0) {
       // Capture non-value fields from the first page (e.g., @odata.count,
       // @odata.context) so the envelope returned to callers preserves them.
@@ -243,6 +262,14 @@ export async function fetchAllPages(
     }
     const nextLink = json['@odata.nextLink'];
     lastNextLink = typeof nextLink === 'string' ? nextLink : undefined;
+
+    if (opts.progressToken !== undefined) {
+      await emitProgress(opts.sendNotification, opts.capabilityProfile, {
+        progressToken: opts.progressToken,
+        progress: pageIndex + 1,
+        message: `Fetched ${pageIndex + 1} page${pageIndex === 0 ? '' : 's'}`,
+      });
+    }
   }
 
   const result: FetchAllPagesResult = {
@@ -254,6 +281,20 @@ export async function fetchAllPages(
     result._truncated = true;
     if (lastNextLink !== undefined) {
       result._nextLink = lastNextLink;
+    }
+  }
+
+  if (cancelled) {
+    result._cancelled = true;
+    if (
+      opts.operationKey?.tenantId &&
+      opts.operationKey.requestId &&
+      opts.operationKey.progressToken
+    ) {
+      const tenantId = encodeURIComponent(opts.operationKey.tenantId);
+      const requestId = encodeURIComponent(opts.operationKey.requestId);
+      const progressToken = encodeURIComponent(opts.operationKey.progressToken);
+      result._partialResourceUri = `m365://tenant/${tenantId}/partial/${requestId}/${progressToken}.json`;
     }
   }
 

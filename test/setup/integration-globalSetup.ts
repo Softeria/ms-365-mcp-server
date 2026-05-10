@@ -30,19 +30,25 @@ declare module 'vitest' {
 let pg: StartedPostgreSqlContainer | undefined;
 let redis: StartedRedisContainer | undefined;
 
-function isHermeticNotificationRun(): boolean {
-  const filters = process.argv
-    .slice(2)
-    .filter((arg) => arg.includes('test/') || arg.includes('.test.'));
-  return (
-    filters.length > 0 && filters.every((arg) => arg.includes('test/integration/notifications/'))
-  );
+const PROVIDED_SERVICE_TESTS = new Set([
+  'test/integration/multi-tenant/bearer-tid-mismatch.int.test.ts',
+  'test/integration/multi-tenant/disable-cascade.int.test.ts',
+  'test/integration/multi-tenant/token-isolation.int.test.ts',
+]);
+
+function selectedTestFiles(): string[] {
+  return process.argv.slice(2).filter((arg) => arg.includes('test/') || arg.includes('.test.'));
+}
+
+function needsProvidedServices(): boolean {
+  const filters = selectedTestFiles();
+  return filters.length === 0 || filters.some((arg) => PROVIDED_SERVICE_TESTS.has(arg));
 }
 
 export async function setup(project: TestProject): Promise<void> {
   if (process.env.MS365_MCP_INTEGRATION !== '1') return;
 
-  if (isHermeticNotificationRun()) {
+  if (!needsProvidedServices()) {
     project.provide('pgUrl', process.env.MS365_MCP_DATABASE_URL ?? '');
     project.provide('redisUrl', process.env.MS365_MCP_REDIS_URL ?? '');
     return;

@@ -13,7 +13,7 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: mcp
       # CR-04 fix: no default — Compose fails fast (Postgres image refuses to
@@ -64,6 +64,7 @@ services:
       # to the URL: postgres://mcp:PASSWORD@host:5432/mcp?sslmode=require
       MS365_MCP_DATABASE_URL: 'postgres://mcp:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/mcp'
       MS365_MCP_MIGRATE_ON_STARTUP: ${MS365_MCP_MIGRATE_ON_STARTUP:-1}
+      MS365_MCP_PGVECTOR_ENABLED: ${MS365_MCP_PGVECTOR_ENABLED:-0}
       MS365_MCP_REDIS_URL: redis://redis:6379
       # Phase 6: enable Prometheus /metrics on port 9464 (D-02 Bearer auth
       # is optional — unset env var = open endpoint, suitable for localhost).

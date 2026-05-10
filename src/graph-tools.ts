@@ -26,6 +26,20 @@ import { resolveDiscoveryCatalog } from './lib/discovery-catalog/catalog.js';
 import { safeBookmarkBoost } from './lib/memory/bookmark-boost.js';
 import { getBookmarkCountsByAlias } from './lib/memory/bookmarks.js';
 import { emitMcpLogEvent } from './lib/mcp-logging/register.js';
+import { createMcpErrorEnvelope, createMcpResultEnvelope } from './lib/mcp-results/envelope.js';
+import { MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA } from './lib/mcp-results/schemas.js';
+import {
+  graphResourceLinksForToolResult,
+  shouldUseResourceLinkedText,
+} from './lib/mcp-resources/graph-backed.js';
+import {
+  classifyToolRisk,
+  confirmationIdFor,
+  isConfirmationValid,
+  type ToolRiskClassification,
+} from './lib/safe-writes/classifier.js';
+import { registerOperation, unregisterOperation } from './lib/mcp-progress/cancellation.js';
+import type { ProgressNotificationSender } from './lib/mcp-progress/progress.js';
 // Re-export pure helpers so existing callers (tests, downstream modules)
 // keep working. New callers should import directly from
 // `./lib/graph-tools-pure.js` to avoid transitively pulling the 45 MB
@@ -231,6 +245,24 @@ function resultPayloadBytes(result: CallToolResult): number {
   return Buffer.byteLength(JSON.stringify(result.content ?? []), 'utf8');
 }
 
+function graphResultData(result: CallToolResult): unknown {
+  if (result.structuredContent !== undefined) return result.structuredContent;
+  const firstText = result.content.find((item): item is TextContent => item.type === 'text')?.text;
+  if (!firstText) return { content: result.content };
+  try {
+    return JSON.parse(firstText) as unknown;
+  } catch {
+    return { text: firstText };
+  }
+}
+
+function withJsonText(result: CallToolResult, value: unknown): CallToolResult {
+  return {
+    ...result,
+    content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+  };
+}
+
 function errorCodeFromResult(result: CallToolResult): string {
   const code = result._meta?.errorCode;
   return typeof code === 'string' && code.length > 0 ? code : 'tool_error';
@@ -346,12 +378,86 @@ function checkSyntheticGraphToolDispatch(toolAlias: string): CallToolResult | nu
   return rejection as CallToolResult;
 }
 
+function riskForTool(
+  tool: (typeof api.endpoints)[0],
+  config: EndpointConfig | undefined
+): ToolRiskClassification {
+  return classifyToolRisk({
+    alias: tool.alias,
+    method: tool.method,
+    path: tool.path,
+    readOnly: config?.readOnly,
+  });
+}
+
+function annotationsForRisk(
+  toolAlias: string,
+  risk: ToolRiskClassification
+): Record<string, unknown> {
+  return {
+    title: toolAlias,
+    readOnlyHint: risk.readOnly,
+    destructiveHint: risk.destructive || risk.riskLevel === 'high',
+    idempotentHint: risk.idempotent,
+    openWorldHint: risk.openWorld,
+    riskLevel: risk.riskLevel,
+  };
+}
+
 function isReadSafeDiscoveryTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined
 ): boolean {
-  const method = tool.method.toUpperCase();
-  return method === 'GET' || (method === 'POST' && config?.readOnly === true);
+  return riskForTool(tool, config).readOnly;
+}
+
+function confirmationRequiredResult(
+  toolAlias: string,
+  risk: ToolRiskClassification,
+  params: Record<string, unknown>
+): CallToolResult {
+  const confirmationId = confirmationIdFor(toolAlias, risk.riskLevel);
+  const nextParameters = {
+    ...params,
+    confirmation: true,
+    confirmationId,
+  };
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          error: 'confirmation_required',
+          toolName: toolAlias,
+          riskLevel: risk.riskLevel,
+          confirmationId,
+          message: `Confirmation required before ${toolAlias}. Call ${toolAlias} again with confirmation=true and confirmationId=${confirmationId}.`,
+          nextCall: {
+            toolName: toolAlias,
+            parameters: nextParameters,
+          },
+        }),
+      },
+    ],
+    structuredContent: {
+      summary: `Confirmation required before ${toolAlias}.`,
+      data: {
+        error: 'confirmation_required',
+        toolName: toolAlias,
+        riskLevel: risk.riskLevel,
+        confirmationId,
+        nextCall: {
+          toolName: toolAlias,
+          parameters: nextParameters,
+        },
+      },
+      resources: [],
+      nextActions: [`Retry with confirmation=true and confirmationId=${confirmationId}.`],
+      warnings: ['high_risk_write_confirmation_required'],
+    },
+    _meta: { errorCode: 'confirmation_required', toolAlias, riskLevel: risk.riskLevel },
+    isError: true,
+  };
 }
 
 async function executeGraphToolInner(
@@ -381,6 +487,15 @@ async function executeGraphToolInner(
       'dispatch-guard: tool not enabled for tenant'
     );
     return rejection as CallToolResult;
+  }
+
+  const risk = riskForTool(tool, config);
+  if (
+    risk.riskLevel === 'high' &&
+    !isConfirmationValid(tool.alias, risk.riskLevel, params.confirmation, params.confirmationId)
+  ) {
+    logger.info({ tool: tool.alias, tenantId: tenantInfo.id }, 'safe-write: confirmation required');
+    return confirmationRequiredResult(tool.alias, risk, params);
   }
 
   const bodyValidationError = validateBodyParameters(tool, params);
@@ -496,6 +611,11 @@ async function executeGraphToolInner(
           'excludeResponse',
           'timezone',
           'expandExtendedProperties',
+          'confirmation',
+          'confirmationId',
+          '_meta',
+          '_sendNotification',
+          '_signal',
         ].includes(paramName)
       ) {
         continue;
@@ -668,10 +788,16 @@ async function executeGraphToolInner(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      signal?: AbortSignal;
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    const requestSignal = params._signal instanceof AbortSignal ? params._signal : undefined;
+    if (requestSignal) {
+      options.signal = requestSignal;
+    }
 
     if (options.method !== 'GET' && body) {
       if (config?.contentType === 'text/html') {
@@ -742,21 +868,62 @@ async function executeGraphToolInner(
       // a duplicate graphRequest call (preserves v1's "1 initial + N nextLinks"
       // call-count contract that existing fetchAllPages tests rely on).
       const firstPage = JSON.parse(response.content[0].text);
+      const ctx = requestContext.getStore();
+      const meta =
+        typeof params._meta === 'object' && params._meta !== null
+          ? (params._meta as { progressToken?: unknown })
+          : undefined;
+      const progressToken = meta?.progressToken;
+      const token =
+        typeof progressToken === 'string' || typeof progressToken === 'number'
+          ? progressToken
+          : undefined;
+      const operationKey = {
+        tenantId: ctx?.tenantId ?? tenantInfo.id,
+        requestId: ctx?.requestId,
+        progressToken: token !== undefined ? String(token) : undefined,
+      };
+      const sendNotification =
+        typeof params._sendNotification === 'function'
+          ? (params._sendNotification as ProgressNotificationSender)
+          : undefined;
+      if (token !== undefined) registerOperation(operationKey);
       const combined = await fetchAllPages(path, options, graphClient, {
         seedFirstPage: firstPage,
+        progressToken: token,
+        sendNotification,
+        capabilityProfile: ctx?.capabilityProfile,
+        operationKey,
+        signal: requestSignal,
       });
+      unregisterOperation(operationKey);
       firstPage.value = combined.value;
-      if (combined._truncated) {
+      if (combined._cancelled) {
+        const payload = {
+          status: 'cancelled',
+          operation: tool.alias,
+          resourceUri: combined._partialResourceUri,
+          partial: { value: combined.value },
+        };
+        response.content[0].text = JSON.stringify(payload);
+        response._meta = {
+          ...response._meta,
+          cancelled: true,
+          partialResourceUri: combined._partialResourceUri,
+        };
+      } else if (combined._truncated) {
         firstPage._truncated = true;
         if (combined._nextLink !== undefined) {
           firstPage._nextLink = combined._nextLink;
         }
       }
-      if (firstPage['@odata.count'] !== undefined) {
+      if (!combined._cancelled && firstPage['@odata.count'] !== undefined) {
         firstPage['@odata.count'] = combined.value.length;
       }
-      delete firstPage['@odata.nextLink'];
-      response.content[0].text = JSON.stringify(firstPage);
+      if (!combined._cancelled) {
+        delete firstPage['@odata.nextLink'];
+        response.content[0].text = JSON.stringify(firstPage);
+      }
       logger.info(
         `Pagination via page-iterator: items=${combined.value.length} truncated=${Boolean(combined._truncated)}`
       );
@@ -992,6 +1159,20 @@ export function registerGraphTools(
         .optional();
     }
 
+    const risk = riskForTool(tool, endpointConfig);
+    if (risk.riskLevel === 'high') {
+      paramSchema['confirmation'] = z
+        .boolean()
+        .describe('Set true to confirm this high-risk Microsoft 365 write.')
+        .optional();
+      paramSchema['confirmationId'] = z
+        .string()
+        .describe(
+          `Confirmation id required for this high-risk write. Use ${confirmationIdFor(tool.alias, risk.riskLevel)} after reviewing the confirmation_required response.`
+        )
+        .optional();
+    }
+
     // Add includeHeaders parameter for all tools to capture ETags and other headers
     paramSchema['includeHeaders'] = z
       .boolean()
@@ -1036,13 +1217,21 @@ export function registerGraphTools(
         safeMcpName(tool.alias),
         toolDescription,
         paramSchema,
-        {
-          title: tool.alias,
-          readOnlyHint: tool.method.toUpperCase() === 'GET',
-          destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
-          openWorldHint: true, // All tools call Microsoft Graph API
-        },
-        async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
+        annotationsForRisk(tool.alias, risk),
+        async (params, extra) =>
+          executeGraphTool(
+            tool,
+            endpointConfig,
+            graphClient,
+            {
+              ...params,
+              _meta: (extra as { _meta?: unknown } | undefined)?._meta,
+              _sendNotification: (extra as { sendNotification?: unknown } | undefined)
+                ?.sendNotification,
+              _signal: (extra as { signal?: unknown } | undefined)?.signal,
+            },
+            authManager
+          )
       );
       registeredCount++;
     } catch (error) {
@@ -1674,23 +1863,29 @@ export function registerDiscoveryTools(
     };
   };
 
-  server.tool(
+  server.registerTool(
     'search-tools',
-    `Search through Microsoft Graph API tools enabled for this tenant. Ranks results by BM25 over tool name, llmTip, description, and path (tokenized on hyphens, camelCase, and whitespace). After picking a tool, call get-tool-schema to see its parameters, then execute-tool to invoke it.`,
-    {
-      query: z
-        .string()
-        .describe(
-          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "create calendar event", "list unread messages".'
-        )
-        .optional(),
-      category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
-      limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
-    },
     {
       title: 'search-tools',
-      readOnlyHint: true,
-      openWorldHint: true,
+      description: `Search through Microsoft Graph API tools enabled for this tenant. Ranks results by BM25 over tool name, llmTip, description, and path (tokenized on hyphens, camelCase, and whitespace). After picking a tool, call get-tool-schema to see its parameters, then execute-tool to invoke it.`,
+      inputSchema: {
+        query: z
+          .string()
+          .describe(
+            'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "create calendar event", "list unread messages".'
+          )
+          .optional(),
+        category: z
+          .string()
+          .describe(`Optional pre-filter by category: ${categoryNames}`)
+          .optional(),
+        limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
+      },
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ query, category, limit = 10 }) => {
       const maxLimit = Math.min(Math.max(limit, 1), 50);
@@ -1707,23 +1902,19 @@ export function registerDiscoveryTools(
           {},
           'search-tools: no tenant context (ALS or stdio fallback); returning empty result set'
         );
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(
-                {
-                  found: 0,
-                  total: 0,
-                  tools: [],
-                  tip: 'Tenant context unavailable — discovery is fail-closed. Contact operator.',
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        return createMcpResultEnvelope({
+          toolName: 'search-tools',
+          summary: 'Found 0 tools because tenant context is unavailable.',
+          data: {
+            found: 0,
+            total: 0,
+            tools: [],
+            tip: 'Tenant context unavailable — discovery is fail-closed. Contact operator.',
+          },
+          nextActions: ['Contact the operator to seed tenant context before using discovery.'],
+          warnings: ['tenant_context_unavailable'],
+          meta: { tenantRef: 'unavailable' },
+        });
       }
 
       const catalog = resolveDiscoveryCatalog({
@@ -1773,39 +1964,42 @@ export function registerDiscoveryTools(
 
       const tools = orderedNames.slice(0, maxLimit).map(toResultEntry).filter(Boolean);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                found: tools.length,
-                // Report the tenant's enabled-set size, not the full
-                // registry size — advertising the global total leaks
-                // cross-tenant shape (T-05-12).
-                total: catalogSet.size,
-                tools,
-                tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
-              },
-              null,
-              2
-            ),
-          },
-        ],
+      const payload = {
+        found: tools.length,
+        // Report the tenant's enabled-set size, not the full
+        // registry size — advertising the global total leaks
+        // cross-tenant shape (T-05-12).
+        total: catalogSet.size,
+        tools,
+        tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
       };
+      return withJsonText(
+        createMcpResultEnvelope({
+          toolName: 'search-tools',
+          summary: `Found ${tools.length} matching tool${tools.length === 1 ? '' : 's'}.`,
+          data: payload,
+          nextActions: ['Call get-tool-schema for a selected tool before invoking execute-tool.'],
+          meta: { tenantRef: tenant.id },
+        }),
+        payload
+      );
     }
   );
 
-  server.tool(
+  server.registerTool(
     'get-tool-schema',
-    'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
-    {
-      tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
-    },
     {
       title: 'get-tool-schema',
-      readOnlyHint: true,
-      openWorldHint: false,
+      description:
+        'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
+      inputSchema: {
+        tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
+      },
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ tool_name }) => {
       // Plan 05-06 T-05-12: enforce tenant scope before exposing schema.
@@ -1814,18 +2008,14 @@ export function registerDiscoveryTools(
       const tenant = resolveTenantForDiscovery();
       if (!tenant) {
         logger.warn({}, 'get-tool-schema: no tenant context; refusing schema dump');
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'tenant context unavailable',
-                tip: 'Tenant context not seeded — contact operator.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return createMcpErrorEnvelope({
+          toolName: 'get-tool-schema',
+          summary: 'Cannot return a schema without tenant context.',
+          code: 'tenant_context_unavailable',
+          message: 'Tenant context not seeded.',
+          nextActions: ['Contact the operator to seed tenant context before using discovery.'],
+          meta: { tenantRef: 'unavailable' },
+        });
       }
 
       const catalog = resolveDiscoveryCatalog({
@@ -1840,63 +2030,67 @@ export function registerDiscoveryTools(
           { tool: tool_name, tenantId: tenant.id },
           'get-tool-schema: tool not enabled for tenant'
         );
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not enabled for tenant: ${tool_name}`,
-                tenantId: tenant.id,
-                tip: 'Use search-tools to discover tools available to this tenant.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return createMcpErrorEnvelope({
+          toolName: 'get-tool-schema',
+          summary: `Tool not enabled for tenant: ${tool_name}.`,
+          code: 'tool_not_enabled_for_tenant',
+          message: `Tool not enabled for tenant: ${tool_name}`,
+          data: { toolName: tool_name },
+          nextActions: ['Use search-tools to discover tools available to this tenant.'],
+          meta: { tenantRef: tenant.id },
+        });
       }
 
       const entry = toolsRegistry.get(tool_name);
       if (!entry) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return createMcpErrorEnvelope({
+          toolName: 'get-tool-schema',
+          summary: `Tool not found: ${tool_name}.`,
+          code: 'tool_not_found',
+          message: `Tool not found: ${tool_name}`,
+          data: { toolName: tool_name },
+          nextActions: ['Use search-tools to find available tools.'],
+          meta: { tenantRef: tenant.id },
+        });
       }
       const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
-      };
+      return withJsonText(
+        createMcpResultEnvelope({
+          toolName: 'get-tool-schema',
+          summary: `Schema for ${schema.name}.`,
+          data: schema,
+          nextActions: ['Call execute-tool with parameters shaped per this schema.'],
+          meta: { tenantRef: tenant.id, toolAlias: schema.name },
+        }),
+        schema
+      );
     }
   );
 
-  server.tool(
+  server.registerTool(
     'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
-    {
-      tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
-      parameters: z
-        .record(z.any())
-        .describe(
-          'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
-        )
-        .optional(),
-    },
     {
       title: 'execute-tool',
-      readOnlyHint: false,
-      destructiveHint: true,
-      openWorldHint: true,
+      description:
+        'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
+      inputSchema: {
+        tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
+        parameters: z
+          .record(z.any())
+          .describe(
+            'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
+          )
+          .optional(),
+      },
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ tool_name, parameters = {} }) => {
-      return executeToolAlias({
+      const result = await executeToolAlias({
         toolName: tool_name,
         parameters,
         graphClient,
@@ -1904,6 +2098,31 @@ export function registerDiscoveryTools(
         readOnly,
         orgMode,
       });
+      if (result.isError) return result;
+      const data = graphResultData(result);
+      const resources = graphResourceLinksForToolResult({
+        toolName: tool_name,
+        tenantId: getRequestTenant().id,
+        data,
+        parameters,
+      });
+      const envelope = createMcpResultEnvelope({
+        toolName: 'execute-tool',
+        summary: `Executed ${tool_name}.`,
+        data,
+        resources,
+        nextActions:
+          resources.length > 0
+            ? ['Review the returned data or open linked resources for durable, bounded reads.']
+            : ['Review the returned data and call another tool if more detail is needed.'],
+        meta: { ...result._meta, toolAlias: tool_name },
+      });
+      return {
+        ...envelope,
+        content: shouldUseResourceLinkedText(resultPayloadBytes(result), resources)
+          ? envelope.content
+          : result.content,
+      };
     }
   );
 

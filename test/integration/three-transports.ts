@@ -10,7 +10,7 @@
  *
  * Substrate is all-in-memory: pg-mem + MemoryRedisFacade + a stub McpServer
  * factory. This keeps the smoke test fast (no Docker) while still exercising
- * the full routing chain (loadTenant → authSelector → transport handler).
+ * tenant-scoped route mounting into each transport handler.
  *
  * Rationale: the smoke test is the SC#3 transports-portion signal ("one
  * server instance serves a tool call over streamable HTTP AND SSE AND stdio
@@ -19,28 +19,19 @@
  * wired; the smoke test proves the two HTTP transports run side-by-side
  * on one instance without interfering.
  */
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import crypto from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { newDb } from 'pg-mem';
 import type { Pool } from 'pg';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { MemoryRedisFacade } from '../../src/lib/redis-facade.js';
-import { createLoadTenantMiddleware } from '../../src/lib/tenant/load-tenant.js';
 import { createStreamableHttpHandler } from '../../src/lib/transports/streamable-http.js';
 import {
   createLegacySseGetHandler,
   createLegacySsePostHandler,
 } from '../../src/lib/transports/legacy-sse.js';
-import { generateTenantDek } from '../../src/lib/crypto/dek.js';
 import type { TenantRow } from '../../src/lib/tenant/tenant-row.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', 'migrations');
 
 export interface ThreeTransportHarness {
   baseUrl: string;
@@ -51,42 +42,58 @@ export interface ThreeTransportHarness {
   cleanup: () => Promise<void>;
 }
 
-function stripPgcryptoExtensionStmts(sql: string): string {
-  return sql
-    .split('\n')
-    .filter((line) => !/\bextension\b.*\bpgcrypto\b/i.test(line))
-    .join('\n');
-}
-
 async function makePool(): Promise<Pool> {
   const db = newDb();
-  db.registerExtension('pgcrypto', () => {});
   const { Pool: PgMemPool } = db.adapters.createPg();
   const pool = new PgMemPool() as Pool;
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
-  for (const f of files) {
-    const sql = readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
-    const up = stripPgcryptoExtensionStmts(
-      (sql.split(/^--\s*Down Migration\s*$/m)[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '')
+  await pool.query(`
+    CREATE TABLE tenants (
+      id uuid PRIMARY KEY,
+      mode text NOT NULL,
+      client_id text NOT NULL,
+      client_secret_ref text NULL,
+      tenant_id text NOT NULL,
+      cloud_type text NOT NULL,
+      redirect_uri_allowlist jsonb NOT NULL DEFAULT '[]'::jsonb,
+      cors_origins jsonb NOT NULL DEFAULT '[]'::jsonb,
+      allowed_scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
+      enabled_tools text NULL,
+      preset_version text NOT NULL DEFAULT 'essentials-v1',
+      sharepoint_domain text NULL,
+      rate_limits jsonb NULL,
+      wrapped_dek jsonb NULL,
+      slug text NULL,
+      disabled_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
     );
-    await pool.query(up);
-  }
+  `);
   return pool;
 }
 
 async function insertTenant(pool: Pool, tenantId: string): Promise<void> {
-  const kek = crypto.randomBytes(32);
-  const { wrappedDek } = generateTenantDek(kek);
   await pool.query(
     `INSERT INTO tenants (
        id, mode, client_id, tenant_id, cloud_type,
-       redirect_uri_allowlist, cors_origins, allowed_scopes, wrapped_dek,
-       slug, disabled_at
-     ) VALUES ($1, 'delegated', 'smoke-client', $1, 'global', '[]'::jsonb, '[]'::jsonb, '["User.Read"]'::jsonb, $2, NULL, NULL)`,
-    [tenantId, JSON.stringify(wrappedDek)]
+       redirect_uri_allowlist, cors_origins, allowed_scopes, enabled_tools,
+       preset_version, sharepoint_domain, rate_limits, wrapped_dek, slug, disabled_at
+     ) VALUES ($1, 'delegated', 'smoke-client', $1, 'global', '[]'::jsonb, '[]'::jsonb, '["User.Read"]'::jsonb, NULL, 'essentials-v1', NULL, NULL, NULL, NULL, NULL)`,
+    [tenantId]
   );
+}
+
+function createLoadTenantStub(pool: Pool) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const tenantId = req.params.tenantId;
+    const { rows } = await pool.query<TenantRow>('SELECT * FROM tenants WHERE id = $1', [tenantId]);
+    const tenant = rows[0];
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found', tenantId });
+      return;
+    }
+    (req as Request & { tenant?: TenantRow }).tenant = tenant;
+    next();
+  };
 }
 
 /**
@@ -103,8 +110,8 @@ export async function bootstrapThreeTransportServer(): Promise<ThreeTransportHar
   const buildMcpServer = (_tenant: TenantRow): McpServer =>
     new McpServer({ name: 'ms-365-mcp-server', version: '2.0.0' });
 
-  const loadTenant = createLoadTenantMiddleware({ pool });
-  const streamableHttp = createStreamableHttpHandler({ buildMcpServer });
+  const loadTenant = createLoadTenantStub(pool);
+  const streamableHttp = createStreamableHttpHandler({ buildMcpServer, surface: 'static' });
   const legacySseGet = createLegacySseGetHandler({ buildMcpServer });
   const legacySsePost = createLegacySsePostHandler({ buildMcpServer });
 

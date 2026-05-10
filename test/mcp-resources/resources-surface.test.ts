@@ -126,8 +126,9 @@ function discoveryTenant() {
   return {
     id: TENANT_A,
     preset_version: DISCOVERY_PRESET_VERSION,
+    enabled_tools: null,
     enabled_tools_set: DISCOVERY_META_TOOL_NAMES,
-    allowed_scopes: ['Mail.Read', 'Mail.Send'],
+    allowed_scopes: ['Mail.Read', 'Mail.Send', 'User.Read.All'],
   };
 }
 
@@ -139,19 +140,21 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
     memoryMocks.recallFacts.mockResolvedValue([{ scope: 'mailbox', content: 'prefer concise' }]);
   });
 
-  it('reads static catalog markdown resources with text/markdown MIME type', async () => {
+  it('reads static catalog markdown resources with text/markdown MIME type and canonical response URIs', async () => {
     const result = await readMcpResource('mcp://catalog/navigation-guide.md', {});
 
     expect(result.contents).toHaveLength(1);
-    expect(result.contents[0].uri).toBe('mcp://catalog/navigation-guide.md');
+    expect(result.contents[0].uri).toBe('m365://catalog/navigation-guide.md');
     expect(result.contents[0].mimeType).toBe('text/markdown');
     expect(readText(result)).toContain('search-tools');
+    expect(readText(result)).toContain('mcp:// is accepted as a legacy alias');
   });
 
   it('builds catalog scope-map.json from endpoints.json as alias-to-scopes JSON', async () => {
     const result = await readMcpResource('mcp://catalog/scope-map.json', {});
     const body = JSON.parse(readText(result)) as Record<string, string[]>;
 
+    expect(result.contents[0].uri).toBe('m365://catalog/scope-map.json');
     expect(result.contents[0].mimeType).toBe('application/json');
     expect(body['list-mail-messages']).toContain('Mail.Read');
     expect(body['send-mail']).toContain('Mail.Send');
@@ -168,6 +171,7 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
       parameters: unknown[];
     };
 
+    expect(result.contents[0].uri).toBe('m365://endpoint/list-mail-messages.schema.json');
     expect(result.contents[0].mimeType).toBe('application/json');
     expect(body).toMatchObject({
       name: 'list-mail-messages',
@@ -222,6 +226,63 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
 
     expect(memoryMocks.listBookmarks).not.toHaveBeenCalled();
   });
+
+  it('reads Graph-backed resources through bounded same-tenant Graph GETs', async () => {
+    const graphClient = {
+      graphRequest: vi.fn(async () => ({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              id: 'message-1',
+              subject: 'Hello',
+              accessToken: 'secret',
+            }),
+          },
+        ],
+      })),
+    };
+
+    const result = await requestContext.run(discoveryContext(), () =>
+      readMcpResource(`m365://tenant/${TENANT_A}/mail/messages/message-1.json`, {
+        tenant: discoveryTenant(),
+        graphClient,
+      })
+    );
+    const body = JSON.parse(readText(result)) as {
+      uri: string;
+      kind: string;
+      readOnly: boolean;
+      bounded: boolean;
+      data: Record<string, unknown>;
+    };
+
+    expect(graphClient.graphRequest).toHaveBeenCalledWith('/me/messages/message-1', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    expect(body).toMatchObject({
+      uri: `m365://tenant/${TENANT_A}/mail/messages/message-1.json`,
+      kind: 'mail-message',
+      readOnly: true,
+      bounded: true,
+      data: { id: 'message-1', subject: 'Hello' },
+    });
+    expect(body.data).not.toHaveProperty('accessToken');
+  });
+
+  it('rejects Graph-backed resources when required scopes are absent', async () => {
+    await expect(
+      requestContext.run(discoveryContext(), () =>
+        readMcpResource(`m365://tenant/${TENANT_A}/users/user-1.json`, {
+          tenant: { ...discoveryTenant(), allowed_scopes: ['Mail.Read'] },
+          graphClient: { graphRequest: vi.fn() },
+        })
+      )
+    ).rejects.toMatchObject({
+      data: { code: 'scope_not_allowed_for_tenant' },
+    });
+  });
 });
 
 describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
@@ -235,21 +296,27 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
     const list = await requestContext.run(discoveryContext(), () => invokeResourcesList(server));
     const uris = list.resources.map((resource) => resource.uri).sort();
 
+    expect(uris).toContain('m365://catalog/navigation-guide.md');
     expect(uris).toContain('mcp://catalog/navigation-guide.md');
+    expect(uris).toContain('m365://catalog/scope-map.json');
     expect(uris).toContain('mcp://catalog/scope-map.json');
+    expect(uris).toContain('m365://catalog/workloads/mail.md');
     expect(uris).toContain('mcp://catalog/workloads/mail.md');
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/enabled-tools.json`);
     expect(uris).toContain(`mcp://tenant/${TENANT_A}/enabled-tools.json`);
-    expect(uris).toContain(`mcp://tenant/${TENANT_A}/scopes.json`);
-    expect(uris).toContain(`mcp://tenant/${TENANT_A}/audit/recent.json`);
-    expect(uris).toContain(`mcp://tenant/${TENANT_A}/bookmarks.json`);
-    expect(uris).toContain(`mcp://tenant/${TENANT_A}/recipes.json`);
-    expect(uris).toContain(`mcp://tenant/${TENANT_A}/facts.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/scopes.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/audit/recent.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/bookmarks.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/recipes.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/facts.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/connector/capabilities.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/connector/diagnostics.json`);
     expect(list.resources.find((resource) => resource.uri.endsWith('/scopes.json'))?.mimeType).toBe(
       'application/json'
     );
   });
 
-  it('registers only workload and endpoint schema resource templates', async () => {
+  it('registers workload, endpoint schema, and editable skill resource templates', async () => {
     const server = new McpServer({ name: 'resources-test', version: '0.0.0' });
     registerMcpResources(server, {
       tenant: discoveryTenant(),
@@ -259,10 +326,21 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
     const list = await invokeResourceTemplatesList(server);
     const templates = list.resourceTemplates.map((template) => template.uriTemplate).sort();
 
-    expect(templates).toEqual([
-      'mcp://catalog/workloads/{slug}.md',
-      'mcp://endpoint/{alias}.schema.json',
-    ]);
+    expect(templates).toEqual(
+      expect.arrayContaining([
+        'm365://catalog/workloads/{slug}.md',
+        'mcp://catalog/workloads/{slug}.md',
+        'm365://endpoint/{alias}.schema.json',
+        'mcp://endpoint/{alias}.schema.json',
+        'm365://tenant/{tenantId}/skill-packs/{packName}.json',
+        'm365://tenant/{tenantId}/skills/{name}.md',
+        'm365://tenant/{tenantId}/skills/{name}.schema.json',
+        'm365://tenant/{tenantId}/enabled-tools.json',
+        'm365://tenant/{tenantId}/connector/capabilities.json',
+        'm365://tenant/{tenantId}/users/{userId}.json',
+        'm365://tenant/{tenantId}/mail/messages/{messageId}.json',
+      ])
+    );
     expect(
       list.resourceTemplates.find((template) => template.uriTemplate.includes('workloads'))
     ).toMatchObject({
@@ -273,7 +351,23 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
     ).toMatchObject({
       mimeType: 'application/json',
     });
-    expect(templates.some((template) => template.includes('/tenant/'))).toBe(false);
+    expect(
+      list.resourceTemplates.find((template) => template.uriTemplate.includes('/skill-packs/'))
+    ).toMatchObject({
+      mimeType: 'application/json',
+    });
+    expect(
+      list.resourceTemplates.find((template) => template.uriTemplate.endsWith('/skills/{name}.md'))
+    ).toMatchObject({
+      mimeType: 'text/markdown',
+    });
+    expect(
+      list.resourceTemplates.find((template) =>
+        template.uriTemplate.endsWith('/skills/{name}.schema.json')
+      )
+    ).toMatchObject({
+      mimeType: 'application/json',
+    });
   });
 
   it('wires discovery tenant createMcpServer with resource handlers and concrete tenant resources', async () => {

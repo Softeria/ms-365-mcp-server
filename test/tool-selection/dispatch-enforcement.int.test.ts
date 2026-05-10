@@ -139,7 +139,11 @@ describe('plan 05-04 Task 2 — dispatch enforcement (integration)', () => {
         enabledToolsSet: presetFor('essentials-v1'),
         presetVersion: 'essentials-v1',
       },
-      async () => sendMail!({})
+      async () =>
+        sendMail!({
+          confirmation: true,
+          confirmationId: 'confirm:mail-send:high',
+        })
     );
 
     expect(result.isError).toBeFalsy();

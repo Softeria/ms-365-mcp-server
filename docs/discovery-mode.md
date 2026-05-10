@@ -62,10 +62,10 @@ Resources include tenant navigation guides, endpoint schema resources, bookmark/
 
 ## Pgvector Gate
 
-`MS365_MCP_PGVECTOR_ENABLED` controls optional pgvector-backed fact embeddings during migration. Leave it disabled unless Postgres has the `vector` extension installed:
+`MS365_MCP_PGVECTOR_ENABLED` controls optional pgvector-backed fact embeddings during migration. Reference Compose deployments use a pgvector-capable Postgres 16 image, but the runtime gate stays opt-in:
 
 ```env
 MS365_MCP_PGVECTOR_ENABLED=0
 ```
 
-When disabled, text and BM25 recall remain available. Enabling pgvector is an operator choice and is not required for discovery-mode opt-in.
+Set it to `1` only when the target database advertises the `vector` extension. Startup migrations then create the extension, `tenant_facts.embedding`, and the vector index. When disabled, text and BM25 recall remain available. Enabling pgvector is an operator choice and is not required for discovery-mode opt-in.

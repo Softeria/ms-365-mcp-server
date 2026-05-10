@@ -5,6 +5,8 @@ import { getRequestTenant } from '../../request-context.js';
 import type { RedisClient } from '../redis.js';
 import { publishResourceUpdated } from '../mcp-notifications/events.js';
 import { emitMcpLogEvent } from '../mcp-logging/register.js';
+import { createMcpErrorEnvelope, createMcpResultEnvelope } from '../mcp-results/envelope.js';
+import { MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA } from '../mcp-results/schemas.js';
 import { publishToolSelectionInvalidation } from '../tool-selection/tool-selection-invalidation.js';
 import {
   BookmarkAliasZod,
@@ -40,16 +42,31 @@ export interface BookmarkToolDeps {
   redis: RedisClient;
 }
 
-function jsonResult(
-  value: unknown,
-  isError = false
-): {
-  content: Array<{ type: 'text'; text: string }>;
-  isError?: boolean;
-} {
+function jsonResult(value: unknown, isError = false, toolName = 'bookmark-tool') {
+  if (isError) {
+    const errorValue =
+      typeof value === 'object' && value !== null ? (value as { error?: unknown }) : {};
+    const code = typeof errorValue.error === 'string' ? errorValue.error : 'bookmark_tool_error';
+    return {
+      ...createMcpErrorEnvelope({
+        toolName,
+        summary: `Bookmark operation failed: ${code}.`,
+        code,
+        message: code,
+        data: value,
+        nextActions: ['Check the supplied bookmark arguments and retry.'],
+      }),
+      content: [{ type: 'text' as const, text: JSON.stringify(value) }],
+    };
+  }
   return {
-    content: [{ type: 'text', text: JSON.stringify(value) }],
-    ...(isError ? { isError: true } : {}),
+    ...createMcpResultEnvelope({
+      toolName,
+      summary: `Bookmark operation completed for ${toolName}.`,
+      data: value,
+      nextActions: ['Use search-tools or execute-tool with the saved alias as needed.'],
+    }),
+    content: [{ type: 'text' as const, text: JSON.stringify(value) }],
   };
 }
 
@@ -69,7 +86,7 @@ async function publishBookmarkChange(redis: RedisClient, tenantId: string): Prom
     await publishResourceUpdated(
       redis,
       tenantId,
-      [`mcp://tenant/${tenantId}/bookmarks.json`],
+      [`m365://tenant/${tenantId}/bookmarks.json`, `mcp://tenant/${tenantId}/bookmarks.json`],
       BOOKMARK_CHANGE_REASON
     );
   } catch (err) {
@@ -81,79 +98,84 @@ async function publishBookmarkChange(redis: RedisClient, tenantId: string): Prom
 }
 
 export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps): void {
-  server.tool(
-    'bookmark-tool',
-    'Save a working Microsoft Graph tool alias for this tenant so future discovery searches rank it higher.',
-    {
-      alias: BookmarkToolInputZod.shape.alias,
-      label: BookmarkToolInputZod.shape.label,
-      note: BookmarkToolInputZod.shape.note,
-    },
-    {
-      title: 'bookmark-tool',
-      readOnlyHint: false,
-      openWorldHint: false,
-    },
-    async (args) => {
-      const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+  server
+    .tool(
+      'bookmark-tool',
+      'Save a working Microsoft Graph tool alias for this tenant so future discovery searches rank it higher.',
+      {
+        alias: BookmarkToolInputZod.shape.alias,
+        label: BookmarkToolInputZod.shape.label,
+        note: BookmarkToolInputZod.shape.note,
+      },
+      {
+        title: 'bookmark-tool',
+        readOnlyHint: false,
+        openWorldHint: false,
+      },
+      async (args) => {
+        const tenant = requireTenant();
+        if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'bookmark-tool');
 
-      const parsed = BookmarkToolInputZod.safeParse(args);
-      if (!parsed.success) {
-        return jsonResult(
-          {
-            error: 'invalid_bookmark',
-            details: parsed.error.issues.map((issue) => issue.message),
+        const parsed = BookmarkToolInputZod.safeParse(args);
+        if (!parsed.success) {
+          return jsonResult(
+            {
+              error: 'invalid_bookmark',
+              details: parsed.error.issues.map((issue) => issue.message),
+            },
+            true
+          );
+        }
+
+        const bookmark = await upsertBookmark(tenant.id, parsed.data);
+        await emitMcpLogEvent({
+          tenantId: tenant.id,
+          event: 'bookmark.created',
+          level: 'info',
+          data: {
+            alias: parsed.data.alias,
+            hasLabel: Boolean(parsed.data.label),
           },
-          true
-        );
+        });
+        await publishBookmarkChange(deps.redis, tenant.id);
+        return jsonResult(bookmark, false, 'bookmark-tool');
       }
+    )
+    .update({ outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA.shape as never });
 
-      const bookmark = await upsertBookmark(tenant.id, parsed.data);
-      await emitMcpLogEvent({
-        tenantId: tenant.id,
-        event: 'bookmark.created',
-        level: 'info',
-        data: {
-          alias: parsed.data.alias,
-          hasLabel: Boolean(parsed.data.label),
-        },
-      });
-      await publishBookmarkChange(deps.redis, tenant.id);
-      return jsonResult(bookmark);
-    }
-  );
+  server
+    .tool(
+      'list-bookmarks',
+      'List saved tool aliases for this tenant.',
+      {
+        filter: ListBookmarksInputZod.shape.filter,
+      },
+      {
+        title: 'list-bookmarks',
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+      async (args) => {
+        const tenant = requireTenant();
+        if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'list-bookmarks');
 
-  server.tool(
-    'list-bookmarks',
-    'List saved tool aliases for this tenant.',
-    {
-      filter: ListBookmarksInputZod.shape.filter,
-    },
-    {
-      title: 'list-bookmarks',
-      readOnlyHint: true,
-      openWorldHint: false,
-    },
-    async (args) => {
-      const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+        const parsed = ListBookmarksInputZod.safeParse(args);
+        if (!parsed.success) {
+          return jsonResult(
+            {
+              error: 'invalid_bookmark_filter',
+              details: parsed.error.issues.map((issue) => issue.message),
+            },
+            true,
+            'list-bookmarks'
+          );
+        }
 
-      const parsed = ListBookmarksInputZod.safeParse(args);
-      if (!parsed.success) {
-        return jsonResult(
-          {
-            error: 'invalid_bookmark_filter',
-            details: parsed.error.issues.map((issue) => issue.message),
-          },
-          true
-        );
+        const bookmarks = await listBookmarks(tenant.id, parsed.data.filter);
+        return jsonResult({ bookmarks }, false, 'list-bookmarks');
       }
-
-      const bookmarks = await listBookmarks(tenant.id, parsed.data.filter);
-      return jsonResult({ bookmarks });
-    }
-  );
+    )
+    .update({ outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA.shape as never });
 
   server.tool(
     'unbookmark-tool',
@@ -169,7 +191,7 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
     },
     async (args) => {
       const tenant = requireTenant();
-      if (!tenant) return jsonResult({ error: 'tenant_required' }, true);
+      if (!tenant) return jsonResult({ error: 'tenant_required' }, true, 'bookmark-tool');
 
       const parsed = UnbookmarkToolInputZod.safeParse(args);
       if (!parsed.success) {
@@ -194,7 +216,17 @@ export function registerBookmarkTools(server: McpServer, deps: BookmarkToolDeps)
         );
       }
       if (result.deleted) await publishBookmarkChange(deps.redis, tenant.id);
-      return jsonResult(result);
+      return jsonResult(result, false, 'unbookmark-tool');
     }
   );
+
+  for (const name of ['bookmark-tool', 'list-bookmarks'] as const) {
+    (
+      server as unknown as {
+        _registeredTools: Record<string, { update: (input: { outputSchema: never }) => void }>;
+      }
+    )._registeredTools[name]?.update({
+      outputSchema: MCP_STRUCTURED_CONTENT_OUTPUT_SCHEMA.shape as never,
+    });
+  }
 }

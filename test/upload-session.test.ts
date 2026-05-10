@@ -19,7 +19,6 @@
  * Logger is mocked so the test suite does not depend on pino bootstrap.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type GraphClient from '../src/graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -61,7 +60,11 @@ describe('UploadSessionHelper.uploadLargeFile', () => {
    * createUploadSession envelope (uploadUrl + expirationDateTime). The chunk
    * PUTs go directly through the stubbed global fetch.
    */
-  function mockGraphClient(sessionUrl: string): GraphClient {
+  interface MockGraphClient {
+    graphRequest: ReturnType<typeof vi.fn>;
+  }
+
+  function mockGraphClient(sessionUrl: string): MockGraphClient {
     return {
       graphRequest: vi.fn().mockResolvedValue({
         content: [
@@ -74,7 +77,7 @@ describe('UploadSessionHelper.uploadLargeFile', () => {
           },
         ],
       }),
-    } as unknown as GraphClient;
+    };
   }
 
   it('chunk PUTs do NOT include Authorization header (pre-authenticated uploadUrl — T-02-06d)', async () => {

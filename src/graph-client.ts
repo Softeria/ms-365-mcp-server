@@ -126,6 +126,7 @@ interface GraphRequestOptions {
   accessToken?: string;
   refreshToken?: string;
   baseUrl?: string;
+  signal?: AbortSignal;
 
   [key: string]: unknown;
 }
@@ -194,6 +195,7 @@ class GraphClient {
           method: req.method,
           headers: req.headers,
           body: req.body as unknown,
+          signal: req.signal,
         } as Parameters<typeof fetch>[1];
         return fetch(req.url, init);
       }
@@ -372,6 +374,7 @@ class GraphClient {
       method: options.method || 'GET',
       headers,
       body: options.body,
+      signal: options.signal,
     };
     return this.pipeline(req);
   }

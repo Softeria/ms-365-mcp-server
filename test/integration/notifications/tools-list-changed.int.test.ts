@@ -71,6 +71,9 @@ function makeServer(sent: SentNotification[]) {
     sendResourceUpdated: vi.fn((params: unknown) => {
       sent.push({ method: 'notifications/resources/updated', params });
     }),
+    sendPromptListChanged: vi.fn(() => {
+      sent.push({ method: 'notifications/prompts/list_changed' });
+    }),
     sendLoggingMessage: vi.fn((params: unknown) => {
       sent.push({ method: 'notifications/message', params });
     }),
@@ -382,7 +385,10 @@ describe('Phase 7 Plan 07-08 Task 1 — agentic event session registry', () => {
     await publishResourceUpdated(redis, TENANT_A, [AUDIT_URI], 'audit-write');
 
     expect(tenantADiscovery).toEqual([
-      { method: 'notifications/resources/updated', params: { uri: AUDIT_URI } },
+      {
+        method: 'notifications/resources/updated',
+        params: { uri: AUDIT_URI, _meta: { reason: 'audit-write' } },
+      },
     ]);
   });
 });

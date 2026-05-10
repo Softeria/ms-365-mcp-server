@@ -133,7 +133,7 @@ export function createLegacySsePostHandler(_deps: LegacySseDeps): RequestHandler
           id: body.id ?? null,
           result: {
             protocolVersion: SUPPORTED_PROTOCOL_VERSION,
-            capabilities: { tools: {}, resources: {}, prompts: {} },
+            capabilities: { tools: {} },
             serverInfo: { name: 'ms-365-mcp-server', version: PACKAGE_VERSION },
           },
         });
@@ -148,7 +148,7 @@ export function createLegacySsePostHandler(_deps: LegacySseDeps): RequestHandler
       // correlation.
       res.status(501).json({
         error: 'legacy_sse_limited_support',
-        hint: 'Upgrade to Streamable HTTP at /t/{tenantId}/mcp for full tool support',
+        hint: 'Legacy SSE has limited Phase 08 support. Use /t/{tenantId}/mcp for the full Streamable HTTP connector surface.',
         jsonrpc: '2.0',
         id: body?.id ?? null,
       });

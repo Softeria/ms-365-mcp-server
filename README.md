@@ -82,6 +82,18 @@ npx @modelcontextprotocol/inspector \
   --transport streamable-http
 ```
 
+Check server-owned connector metadata and hosted-name drift with:
+
+```bash
+ms-365-mcp-server \
+  --connector-doctor https://mcp.example.com \
+  --tenant-id <tenant-route-id> \
+  --tenant-display-name Aspire \
+  --observed-name "Microsoft 365 MCP Gateway - Aspire"
+```
+
+See [docs/phase-08-connector.md](docs/phase-08-connector.md) for Claude.ai, Claude Work/Cowork, Claude Code, and API tool-only connector guidance.
+
 ## Tenant Onboarding
 
 Tenants are runtime data, not build-time config. The tenant row controls which Entra app to use, which Azure tenant to authenticate against, which scopes are allowed, and which optional product routing settings are present.
@@ -214,6 +226,8 @@ Normal agent flow:
 3. Use `execute-tool` with the validated parameters. Default discovery tenants can execute read-only catalog aliases; write-capable aliases require explicit tenant enablement.
 4. Save useful aliases with bookmarks, recipes, or facts when the workflow should be repeatable.
 
+Claude API and other tool-only MCP clients use the same fallback loop: `search-tools` -> `get-tool-schema` -> `execute-tool`, with portable text plus structured JSON results when supported.
+
 Existing tenant rows should be moved to the discovery surface explicitly:
 
 ```bash
@@ -225,20 +239,21 @@ See [docs/discovery-mode.md](docs/discovery-mode.md) for discovery behavior, MCP
 
 ## Endpoint Reference
 
-| Endpoint                                              | Purpose                                            |
-| ----------------------------------------------------- | -------------------------------------------------- |
-| `/t/:tenantId/mcp`                                    | Primary multi-tenant Streamable HTTP MCP endpoint. |
-| `/.well-known/oauth-authorization-server/t/:tenantId` | Tenant OAuth server metadata.                      |
-| `/.well-known/oauth-protected-resource/t/:tenantId`   | Tenant protected-resource metadata.                |
-| `/t/:tenantId/authorize`                              | Tenant OAuth authorize endpoint.                   |
-| `/t/:tenantId/token`                                  | Tenant OAuth token endpoint.                       |
-| `/admin/tenants`                                      | Tenant CRUD.                                       |
-| `/admin/api-keys`                                     | Admin API key lifecycle.                           |
-| `/admin/audit`                                        | Admin audit query surface.                         |
-| `/t/:tenantId/notifications`                          | Microsoft Graph change notification receiver.      |
-| `/healthz`                                            | Liveness.                                          |
-| `/readyz`                                             | Readiness.                                         |
-| `/metrics`                                            | Prometheus metrics when enabled.                   |
+| Endpoint                                              | Purpose                                                                             |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `/t/:tenantId/mcp`                                    | Primary multi-tenant Streamable HTTP MCP endpoint and full Phase 08 connector path. |
+| `/t/:tenantId/sse` + `/t/:tenantId/messages`          | Legacy SSE compatibility shim with limited/deprecated Phase 08 support.             |
+| `/.well-known/oauth-authorization-server/t/:tenantId` | Tenant OAuth server metadata.                                                       |
+| `/.well-known/oauth-protected-resource/t/:tenantId`   | Tenant protected-resource metadata.                                                 |
+| `/t/:tenantId/authorize`                              | Tenant OAuth authorize endpoint.                                                    |
+| `/t/:tenantId/token`                                  | Tenant OAuth token endpoint.                                                        |
+| `/admin/tenants`                                      | Tenant CRUD.                                                                        |
+| `/admin/api-keys`                                     | Admin API key lifecycle.                                                            |
+| `/admin/audit`                                        | Admin audit query surface.                                                          |
+| `/t/:tenantId/notifications`                          | Microsoft Graph change notification receiver.                                       |
+| `/healthz`                                            | Liveness.                                                                           |
+| `/readyz`                                             | Readiness.                                                                          |
+| `/metrics`                                            | Prometheus metrics when enabled.                                                    |
 
 ## Observability And Limits
 
@@ -352,6 +367,8 @@ Set `MS365_MCP_CLOUD_TYPE=china`, pass `--cloud china`, or set `cloud_type` on t
 ## More Documentation
 
 - [docs/discovery-mode.md](docs/discovery-mode.md)
+- [docs/phase-08-connector.md](docs/phase-08-connector.md)
+- [docs/phase-08-skills-apps.md](docs/phase-08-skills-apps.md)
 - [docs/deployment.md](docs/deployment.md)
 - [docs/observability/runbook.md](docs/observability/runbook.md)
 - [docs/observability/rate-limit-tuning.md](docs/observability/rate-limit-tuning.md)

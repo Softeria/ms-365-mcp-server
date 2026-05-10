@@ -39,8 +39,8 @@ describe('Phase 7 Plan 07-06 static resource catalog manifest', () => {
 
   it('STATIC_CATALOG_RESOURCES contains navigation plus one URI per workload guide', () => {
     const expectedUris = [
-      'mcp://catalog/navigation-guide.md',
-      ...LOCKED_WORKLOAD_SLUGS.map((slug) => `mcp://catalog/workloads/${slug}.md`),
+      'm365://catalog/navigation-guide.md',
+      ...LOCKED_WORKLOAD_SLUGS.map((slug) => `m365://catalog/workloads/${slug}.md`),
     ];
 
     expect(STATIC_CATALOG_RESOURCES.map((resource) => resource.uri)).toEqual(expectedUris);
@@ -51,7 +51,7 @@ describe('Phase 7 Plan 07-06 static resource catalog manifest', () => {
     for (const resource of STATIC_CATALOG_RESOURCES) {
       expect(resource.name).toMatch(/^catalog-[a-z0-9-]+$/);
       expect(resource.description.length).toBeGreaterThan(24);
-      expect(resource.uri).toMatch(/^mcp:\/\/catalog\/.+\.md$/);
+      expect(resource.uri).toMatch(/^m365:\/\/catalog\/.+\.md$/);
       expect(resource.mimeType).toBe('text/markdown');
       expect(resource.resourcePath).toMatch(/^resources\/.+\.md$/);
     }
@@ -84,14 +84,14 @@ describe('Phase 7 Plan 07-06 static markdown resource content', () => {
 
   it('navigation guide links all workload slugs and preserves the scope-map contract', () => {
     const navigationGuide = STATIC_CATALOG_RESOURCES.find(
-      (resource) => resource.uri === 'mcp://catalog/navigation-guide.md'
+      (resource) => resource.uri === 'm365://catalog/navigation-guide.md'
     );
     expect(navigationGuide).toBeDefined();
 
     const markdown = readResource(navigationGuide!);
     for (const slug of LOCKED_WORKLOAD_SLUGS) {
-      expect(markdown).toContain(`mcp://catalog/workloads/${slug}.md`);
+      expect(markdown).toContain(`m365://catalog/workloads/${slug}.md`);
     }
-    expect(markdown).toContain('mcp://catalog/scope-map.json');
+    expect(markdown).toContain('m365://catalog/scope-map.json');
   });
 });

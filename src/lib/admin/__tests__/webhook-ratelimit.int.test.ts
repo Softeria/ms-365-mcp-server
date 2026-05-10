@@ -19,9 +19,6 @@ import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Pool } from 'pg';
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 
 const { loggerMock } = vi.hoisted(() => ({
@@ -40,37 +37,65 @@ vi.mock('../../../logger.js', () => ({
 }));
 
 import { createWebhookHandler, MAX_401_PER_MINUTE_PER_IP } from '../webhooks.js';
-import { createLoadTenantMiddleware } from '../../tenant/load-tenant.js';
 import { MemoryRedisFacade } from '../../redis-facade.js';
 import { encryptWithKey, generateDek } from '../../crypto/envelope.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = path.resolve(__dirname, '..', '..', '..', '..', 'migrations');
+import type { TenantRow } from '../../tenant/tenant-row.js';
 
 const KEK = crypto.randomBytes(32);
-
-function stripPgcryptoExtensionStmts(sql: string): string {
-  return sql
-    .split('\n')
-    .filter((line) => !/\bextension\b.*\bpgcrypto\b/i.test(line))
-    .join('\n');
-}
 
 async function makePool(): Promise<Pool> {
   const db = newDb();
   db.registerExtension('pgcrypto', () => {});
   const { Pool: PgMemPool } = db.adapters.createPg();
   const pool = new PgMemPool() as Pool;
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
-  for (const f of files) {
-    const sql = readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8');
-    const up = stripPgcryptoExtensionStmts(
-      (sql.split(/^--\s*Down Migration\s*$/m)[0] ?? '').replace(/^--\s*Up Migration\s*$/m, '')
+  await pool.query(`
+    CREATE TABLE tenants (
+      id text PRIMARY KEY,
+      mode text NOT NULL,
+      client_id text NOT NULL,
+      client_secret_ref text NULL,
+      tenant_id text NOT NULL,
+      cloud_type text NOT NULL,
+      redirect_uri_allowlist jsonb NOT NULL DEFAULT '[]'::jsonb,
+      cors_origins jsonb NOT NULL DEFAULT '[]'::jsonb,
+      allowed_scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
+      enabled_tools text NULL,
+      preset_version text NOT NULL DEFAULT 'essentials-v1',
+      sharepoint_domain text NULL,
+      rate_limits jsonb NULL,
+      wrapped_dek jsonb NULL,
+      slug text NULL,
+      disabled_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
     );
-    await pool.query(up);
-  }
+
+    CREATE TABLE subscriptions (
+      id text PRIMARY KEY,
+      tenant_id text NOT NULL,
+      graph_subscription_id text NOT NULL,
+      resource text NOT NULL,
+      change_type text NOT NULL,
+      notification_url text NOT NULL,
+      client_state jsonb NOT NULL,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE audit_log (
+      id text PRIMARY KEY,
+      tenant_id text NOT NULL,
+      actor text NOT NULL,
+      action text NOT NULL,
+      target text NULL,
+      ip text NULL,
+      request_id text NOT NULL,
+      result text NOT NULL,
+      meta jsonb NOT NULL,
+      ts timestamptz NOT NULL DEFAULT now()
+    );
+  `);
   return pool;
 }
 
@@ -88,6 +113,20 @@ async function seedTenant(pool: Pool, id = TENANT_A): Promise<void> {
        VALUES ($1, 'delegated', 'cid', 'tid', 'global', $2::jsonb)`,
     [id, JSON.stringify(placeholderEnvelope)]
   );
+}
+
+function createLoadTenantStub(pool: Pool): express.RequestHandler {
+  return async (req, res, next): Promise<void> => {
+    const tenantId = req.params.tenantId;
+    const { rows } = await pool.query<TenantRow>('SELECT * FROM tenants WHERE id = $1', [tenantId]);
+    const tenant = rows[0];
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found', tenantId });
+      return;
+    }
+    (req as express.Request & { tenant?: TenantRow }).tenant = tenant;
+    next();
+  };
 }
 
 interface SubscriptionFixture {
@@ -153,7 +192,7 @@ async function startServer(
     Object.defineProperty(req, 'ip', { value: ipGetter(req), configurable: true });
     next();
   });
-  const loadTenant = createLoadTenantMiddleware({ pool });
+  const loadTenant = createLoadTenantStub(pool);
   const handler = createWebhookHandler({
     pgPool: pool,
     redis: redis as unknown as import('../../redis.js').RedisClient,

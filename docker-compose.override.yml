@@ -8,9 +8,8 @@
 
 services:
   postgres:
-    # Pin by digest to bypass local image-tag cache corruption that was
-    # mapping postgres:16-alpine to a stale postgres:18rc1-trixie layer.
-    image: postgres@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
+    # Keep local override pgvector-capable; root compose already selects pgvector.
+    image: pgvector/pgvector:pg16
     security_opt:
       - no-new-privileges=false
 

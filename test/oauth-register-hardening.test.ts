@@ -6,11 +6,8 @@
  *
  * Requirements: AUTH-06, AUTH-07
  *
- * These tests MUST FAIL on first run (RED) because:
- *   1. src/lib/redirect-uri.ts does not yet exist (imported via
- *      ../src/server.ts once Task 3 lands).
- *   2. createRegisterHandler is not yet exported from ../src/server.ts.
- *   3. src/server.ts still uses Date.now() + leaks body in info log.
+ * These tests cover the lightweight /register handler without importing the
+ * full MCP server/tool graph.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
@@ -58,7 +55,7 @@ async function startMiniServer(opts: {
   publicUrlHost: string | null;
 }): Promise<{ url: string; close: () => Promise<void> }> {
   // Dynamic import so module loading is lazy and picks up mocks correctly.
-  const { createRegisterHandler } = await import('../src/server.js');
+  const { createRegisterHandler } = await import('../src/lib/oauth/register-handler.js');
   const app = express();
   app.use(express.json());
   app.post(

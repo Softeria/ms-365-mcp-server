@@ -17,6 +17,10 @@ vi.mock('../../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../src/lib/tool-selection/enabled-tools-parser.js', () => ({
+  ensureEnabledToolsSet: vi.fn(() => Object.freeze(new Set<string>())),
+}));
+
 import type { TenantRow } from '../../src/lib/tenant/tenant-row.js';
 import { createLoadTenantMiddleware } from '../../src/lib/tenant/load-tenant.js';
 

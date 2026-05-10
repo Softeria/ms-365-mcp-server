@@ -28,6 +28,10 @@ vi.mock('../../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../src/lib/tool-selection/enabled-tools-parser.js', () => ({
+  ensureEnabledToolsSet: vi.fn(() => Object.freeze(new Set<string>())),
+}));
+
 const KEK = crypto.randomBytes(32);
 const TENANT_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const TENANT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -82,7 +86,8 @@ async function buildHarness(): Promise<{
   };
 
   // Dynamic imports keep vi.mock('../../src/logger.js') effective.
-  const { createAuthorizeHandler, createTenantTokenHandler } = await import('../../src/server.js');
+  const { createAuthorizeHandler, createTenantTokenHandler } =
+    await import('../../src/lib/oauth/tenant-handlers.js');
   const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
   const { createPerTenantCorsMiddleware } = await import('../../src/lib/cors.js');
 
@@ -297,7 +302,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
       const tenants = new Map<string, TenantRow>([
         [TENANT_A, makeTenant(TENANT_A, { cors_origins: [] })],
       ]);
-      const { createAuthorizeHandler } = await import('../../src/server.js');
+      const { createAuthorizeHandler } = await import('../../src/lib/oauth/tenant-handlers.js');
       const { createLoadTenantMiddleware } = await import('../../src/lib/tenant/load-tenant.js');
       const { createPerTenantCorsMiddleware } = await import('../../src/lib/cors.js');
       const pool = {
