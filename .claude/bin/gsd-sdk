@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+PROJ="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+GSD_TOOLS="$PROJ/.claude/get-shit-done/bin/gsd-tools.cjs"
+
+if [[ "${1:-}" == "query" ]]; then
+  shift
+  FIRST="${1:-}"
+  shift || true
+  IFS='.' read -ra SPLIT <<< "$FIRST"
+  exec node "$GSD_TOOLS" "${SPLIT[@]}" "$@"
+fi
+
+REAL_SDK="$(command -v gsd-sdk-real || true)"
+if [[ -n "$REAL_SDK" ]]; then
+  exec "$REAL_SDK" "$@"
+fi
+
+echo "gsd-sdk: '${1:-<empty>}' requires @gsd-build/sdk (not pre-installed in cloud); skipping" >&2
+exit 0

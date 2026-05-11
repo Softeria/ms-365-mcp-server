@@ -158,13 +158,23 @@ openapi/*
 !openapi/openapi-spadmin.yaml
 
 src/generated/client.ts
+
+# Claude Code cloud bootstrap files
+.claude/*
+!.claude/settings.json
+!.claude/setup.sh
+!.claude/bin/
+!.claude/bin/**
+!.claude/get-shit-done/
+!.claude/get-shit-done/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/agents/
+!.claude/agents/**
+!CLAUDE.md
+
+# Local-only Claude settings and Serena working directory
 **/.claude/settings.local.json
-
-# Claude Code instructions file
-CLAUDE.md
-
-# Claude and Serena working directories
-.claude/
 .serena/
 
 # GSD planning workspace (commit_docs: false — local only)
