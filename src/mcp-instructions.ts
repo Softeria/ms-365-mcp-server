@@ -13,6 +13,7 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     'When you need an organizational user or recipient address, resolve it with list-users (or another directory tool); do not invent SMTP addresses.',
     'Directory $search on collections such as /users or /groups requires ConsistencyLevel: eventual when the tool exposes that header.',
     'Teams chat and channel messages: prefer HTML contentType in the body; plain text is often mangled by Graph.',
+    'Files / binary content: use download-bytes for any binary read (drive file content, mail attachments, profile photos, Teams hosted content, meeting recordings); pass it a Graph path or an absolute @microsoft.graph.downloadUrl from a metadata response. For uploads, upload-file-content takes a base64 string body up to 4MB; use create-upload-session above that.',
   ];
   if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
   if (opts.multiAccount)

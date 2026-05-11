@@ -15,11 +15,13 @@ import {
   microsoftBearerTokenAuthMiddleware,
   refreshAccessToken,
 } from './lib/microsoft-auth.js';
+import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
 import crypto from 'node:crypto';
+import OboClient from './obo-client.js';
 
 /**
  * Parse HTTP option into host and port components.
@@ -53,6 +55,7 @@ class MicrosoftGraphServer {
   private graphClient: GraphClient | null;
   private server: McpServer | null;
   private secrets: AppSecrets | null;
+  private oboClient: OboClient | null;
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
@@ -74,6 +77,7 @@ class MicrosoftGraphServer {
     this.graphClient = null; // Initialized in start() after secrets are loaded
     this.server = null;
     this.secrets = null;
+    this.oboClient = null;
   }
 
   private createMcpServer(): McpServer {
@@ -104,7 +108,9 @@ class MicrosoftGraphServer {
         this.options.readOnly,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        this.accountNames,
+        this.options.enabledTools
       );
     } else {
       registerGraphTools(
@@ -138,6 +144,19 @@ class MicrosoftGraphServer {
       }
     } catch (err) {
       logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
+    }
+
+    if (this.options.obo) {
+      if (!this.options.http) {
+        throw new Error('--obo requires --http (On-Behalf-Of flow only works in HTTP mode).');
+      }
+      if (!this.secrets.clientSecret) {
+        throw new Error(
+          '--obo requires MS365_MCP_CLIENT_SECRET to be set (confidential client required for On-Behalf-Of flow).'
+        );
+      }
+      this.oboClient = new OboClient(this.secrets);
+      logger.info('On-Behalf-Of (OBO) flow enabled');
     }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
@@ -261,7 +280,9 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = this.options.obo
+          ? [`api://${this.secrets!.clientId}/access_as_user`]
+          : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
 
         res.json({
           resource: `${requestOrigin}/mcp`,
@@ -306,6 +327,30 @@ class MicrosoftGraphServer {
         const clientCodeChallenge = url.searchParams.get('code_challenge');
         const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
         const state = url.searchParams.get('state');
+
+        // Validate redirect_uri before forwarding to Microsoft to mitigate
+        // CWE-601 (open redirect). Microsoft Entra performs its own redirect
+        // URI validation, but a permissively configured app registration
+        // (e.g. wildcard reply URLs) would let an attacker craft an
+        // /authorize link whose authorization code is delivered to an
+        // attacker-controlled origin. We defensively reject obviously
+        // dangerous schemes (javascript:, data:, file:) and arbitrary
+        // non-loopback http URIs here, and honour an explicit allowlist
+        // configured via MS365_MCP_ALLOWED_REDIRECT_URIS.
+        const redirectUriParam = url.searchParams.get('redirect_uri');
+        if (redirectUriParam) {
+          const allowlist = parseAllowlist(process.env.MS365_MCP_ALLOWED_REDIRECT_URIS);
+          if (!isAllowedRedirectUri(redirectUriParam, allowlist)) {
+            logger.warn('Rejected /authorize request with disallowed redirect_uri', {
+              redirect_uri: redirectUriParam,
+            });
+            res.status(400).json({
+              error: 'invalid_request',
+              error_description: 'redirect_uri is not allowed',
+            });
+            return;
+          }
+        }
 
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
@@ -560,7 +605,11 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
+              let accessToken = req.microsoftAuth.accessToken;
+              if (this.oboClient) {
+                accessToken = await this.oboClient.exchangeToken(accessToken);
+              }
+              await requestContext.run({ accessToken }, handler);
             } else {
               await handler();
             }
@@ -601,7 +650,11 @@ class MicrosoftGraphServer {
 
           try {
             if (req.microsoftAuth) {
-              await requestContext.run({ accessToken: req.microsoftAuth.accessToken }, handler);
+              let accessToken = req.microsoftAuth.accessToken;
+              if (this.oboClient) {
+                accessToken = await this.oboClient.exchangeToken(accessToken);
+              }
+              await requestContext.run({ accessToken }, handler);
             } else {
               await handler();
             }

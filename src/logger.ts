@@ -10,7 +10,37 @@ const logsDir =
 
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true, mode: 0o700 });
+} else {
+  // Tighten permissions on a pre-existing log directory in case it was created
+  // with a more permissive umask.
+  try {
+    fs.chmodSync(logsDir, 0o700);
+  } catch {
+    // Best-effort — on platforms that don't support chmod (e.g. Windows) this
+    // is a no-op.
+  }
 }
+
+// Restrict log file mode to owner-only (0o600). Log files may contain error
+// messages from upstream libraries (MSAL, fetch, etc.) which can incidentally
+// include token fragments or other sensitive material; on shared/multi-user
+// systems the default umask may otherwise leave them world-readable.
+const FILE_MODE = 0o600;
+
+function ensureFileMode(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.chmodSync(filePath, FILE_MODE);
+    }
+  } catch {
+    // Best-effort — chmod is unsupported on some platforms (e.g. Windows).
+  }
+}
+
+const errorLogPath = path.join(logsDir, 'error.log');
+const serverLogPath = path.join(logsDir, 'mcp-server.log');
+ensureFileMode(errorLogPath);
+ensureFileMode(serverLogPath);
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -24,11 +54,13 @@ const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.File({
-      filename: path.join(logsDir, 'error.log'),
+      filename: errorLogPath,
       level: 'error',
+      options: { flags: 'a', mode: FILE_MODE },
     }),
     new winston.transports.File({
-      filename: path.join(logsDir, 'mcp-server.log'),
+      filename: serverLogPath,
+      options: { flags: 'a', mode: FILE_MODE },
     }),
   ],
 });

@@ -66,6 +66,10 @@ program
     '--public-url <url>',
     'Public base URL (e.g. https://mcp.example.com) used in browser-facing OAuth redirects when running behind a reverse proxy. Server-to-server endpoints (token, register) stay on the request host.'
   )
+  .option(
+    '--obo',
+    'Enable On-Behalf-Of token exchange in HTTP mode. Exchanges the incoming bearer token for a Graph API token using the OBO flow. Requires MS365_MCP_CLIENT_SECRET.'
+  )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
     // MS365_MCP_BASE_URL do not crash at startup. Use --public-url /
@@ -97,6 +101,7 @@ export interface CommandOptions {
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
   authBrowser?: boolean;
+  obo?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
@@ -180,6 +185,10 @@ export function parseArgs(): CommandOptions {
     } else {
       options.enableDynamicRegistration = true;
     }
+  }
+
+  if (process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1') {
+    options.obo = true;
   }
 
   // Handle cloud type - CLI option takes precedence over environment variable
