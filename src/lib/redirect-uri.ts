@@ -39,13 +39,20 @@ const FORBIDDEN_SCHEMES = new Set(['javascript:', 'data:', 'file:', 'about:', 'v
 // both literal forms so the validator works regardless of upstream host parsing.
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+function hasExplicitPort(raw: string): boolean {
+  const withoutScheme = raw.includes('://') ? raw.slice(raw.indexOf('://') + 3) : raw;
+  const authority = withoutScheme.split(/[/?#]/, 1)[0] ?? '';
+  const host = authority.includes('@') ? authority.slice(authority.lastIndexOf('@') + 1) : authority;
+  return host.startsWith('[') ? host.includes(']:') : /:\d+$/.test(host);
+}
+
 export function normalizeRedirectHostEntry(raw: string): string | null {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return null;
 
   try {
     const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
-    if (url.username || url.password) return null;
+    if (url.username || url.password || hasExplicitPort(trimmed)) return null;
     return url.hostname || null;
   } catch {
     return null;

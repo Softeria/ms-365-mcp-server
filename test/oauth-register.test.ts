@@ -185,6 +185,16 @@ describe('validateRedirectUri — extraAllowedHosts (DCR)', () => {
     ).toBe(false);
   });
 
+  it('rejects port-qualified extraAllowedHosts entries', () => {
+    expect(
+      validateRedirectUri('https://trusted.example/cb', {
+        mode: 'prod',
+        publicUrlHost: null,
+        extraAllowedHosts: ['https://trusted.example:8443', 'trusted.example:443'],
+      }).ok
+    ).toBe(false);
+  });
+
   it('rejects http://claude.ai/cb (only https is allowed via extraAllowedHosts)', () => {
     const result = validateRedirectUri('http://claude.ai/cb', policy_prod_with_claude);
     expect(result.ok).toBe(false);
