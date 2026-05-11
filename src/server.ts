@@ -1069,6 +1069,7 @@ class MicrosoftGraphServer {
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
       const oauthMetadataRateLimit = createHttpRouteRateLimit();
+      const legacyOauthRouteRateLimit = createHttpRouteRateLimit();
 
       // OAuth Authorization Server Discovery
       app.get(
@@ -1124,7 +1125,7 @@ class MicrosoftGraphServer {
 
       // Authorization endpoint - redirects to Microsoft
       // Implements two-leg PKCE: client↔server and server↔Microsoft are independent
-      app.get('/authorize', async (req, res) => {
+      app.get('/authorize', legacyOauthRouteRateLimit, async (req, res) => {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
         const tenantId = this.secrets?.tenantId || 'common';
         const clientId = this.secrets!.clientId;
@@ -1137,6 +1138,14 @@ class MicrosoftGraphServer {
         const clientCodeChallenge = url.searchParams.get('code_challenge');
         const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
         const state = url.searchParams.get('state');
+
+        if (!clientCodeChallenge || !state) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'code_challenge and state are required for two-leg PKCE.',
+          });
+          return;
+        }
 
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
@@ -1165,94 +1174,57 @@ class MicrosoftGraphServer {
         // Redis auto-evicts stale entries) and rejects duplicate challenges
         // rather than silently overwriting. /token later computes
         // sha256(client_verifier) and does a single O(1) takeByChallenge.
-        if (clientCodeChallenge && state) {
-          const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
-          let serverCodeChallenge = pkceChallengeForVerifier(serverCodeVerifier);
+        const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
+        let serverCodeChallenge = pkceChallengeForVerifier(serverCodeVerifier);
 
-          const redirectUri = url.searchParams.get('redirect_uri') ?? '';
-          const pkceEntry: PkceEntry = {
-            state,
-            clientCodeChallenge,
-            clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
-            serverCodeVerifier,
-            clientId,
-            redirectUri,
-            tenantId: LEGACY_SINGLE_TENANT_KEY,
-            createdAt: Date.now(),
-          };
-          const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, pkceEntry);
+        const redirectUri = url.searchParams.get('redirect_uri') ?? '';
+        const pkceEntry: PkceEntry = {
+          state,
+          clientCodeChallenge,
+          clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
+          serverCodeVerifier,
+          clientId,
+          redirectUri,
+          tenantId: LEGACY_SINGLE_TENANT_KEY,
+          createdAt: Date.now(),
+        };
+        const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, pkceEntry);
 
-          if (!ok) {
-            const existing = await this.pkceStore.getByChallenge(
-              LEGACY_SINGLE_TENANT_KEY,
-              clientCodeChallenge
+        if (!ok) {
+          const existing = await this.pkceStore.getByChallenge(
+            LEGACY_SINGLE_TENANT_KEY,
+            clientCodeChallenge
+          );
+          if (existing && isSameAuthorizeRequest(existing, pkceEntry)) {
+            serverCodeChallenge = pkceChallengeForVerifier(existing.serverCodeVerifier);
+            logger.info(
+              {
+                state: state.substring(0, 8) + '...',
+                challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
+              },
+              'Legacy /authorize: reused existing challenge for duplicate authorize retry'
             );
-            if (existing && isSameAuthorizeRequest(existing, pkceEntry)) {
-              serverCodeChallenge = pkceChallengeForVerifier(existing.serverCodeVerifier);
-              logger.info(
-                {
-                  state: state.substring(0, 8) + '...',
-                  challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
-                },
-                'Legacy /authorize: reused existing challenge for duplicate authorize retry'
-              );
-            } else {
-              logger.warn(
-                { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
-                'PKCE challenge collision on put'
-              );
-              res.status(400).json({
-                error: 'pkce_challenge_collision',
-                error_description:
-                  'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
-              });
-              return;
-            }
-          }
-
-          // Send our server-generated code_challenge to Microsoft
-          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
-          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
-
-          logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
-            state: state.substring(0, 8) + '...',
-          });
-        } else if (clientCodeChallenge) {
-          // CR-02 fix: refuse the legacy single-tenant /authorize when state
-          // is missing. The old behaviour silently forwarded the client's
-          // code_challenge directly to Microsoft, disabling server-side
-          // two-leg PKCE persistence (no PkceStore entry was written, so
-          // /token had nothing to look up via takeByChallenge — it fell
-          // through to using the client verifier).
-          //
-          // Two-leg PKCE is a defence-in-depth invariant: even when
-          // Microsoft validates PKCE end-to-end, the server-rotated verifier
-          // ensures a leaked client verifier alone cannot complete the
-          // exchange. Requiring `state` makes the contract explicit.
-          //
-          // Plan 03-09 retires this entire mount; until then, opt back in
-          // via MS365_MCP_LEGACY_OAUTH_NO_STATE=1 only for narrow v1
-          // migration windows where the upstream client cannot supply state.
-          if (process.env.MS365_MCP_LEGACY_OAUTH_NO_STATE === '1') {
+          } else {
             logger.warn(
               { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
-              'Legacy /authorize: state missing, forwarding client code_challenge directly (MS365_MCP_LEGACY_OAUTH_NO_STATE=1 opt-in; two-leg PKCE disabled)'
+              'PKCE challenge collision on put'
             );
-            microsoftAuthUrl.searchParams.set('code_challenge', clientCodeChallenge);
-            if (clientCodeChallengeMethod) {
-              microsoftAuthUrl.searchParams.set('code_challenge_method', clientCodeChallengeMethod);
-            }
-          } else {
             res.status(400).json({
-              error: 'invalid_request',
+              error: 'pkce_challenge_collision',
               error_description:
-                'state is required for two-leg PKCE on the legacy /authorize mount. ' +
-                'Use /t/:tenantId/authorize (Phase 3) or set MS365_MCP_LEGACY_OAUTH_NO_STATE=1 ' +
-                'to opt back into v1 stateless forwarding during migration.',
+                'An outstanding authorization request already uses this code_challenge; regenerate and retry.',
             });
             return;
           }
         }
+
+        // Send our server-generated code_challenge to Microsoft
+        microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+        microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+
+        logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
+          state: state.substring(0, 8) + '...',
+        });
 
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);
