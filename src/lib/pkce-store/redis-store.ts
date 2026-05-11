@@ -52,6 +52,13 @@ export class RedisPkceStore implements PkceStore {
     return result === 'OK';
   }
 
+  async getByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null> {
+    const k = this.key(tenantId, clientCodeChallenge);
+    const raw = await this.redis.get(k);
+    if (!raw) return null;
+    return JSON.parse(raw) as PkceEntry;
+  }
+
   async takeByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null> {
     const k = this.key(tenantId, clientCodeChallenge);
     const raw = await this.redis.getdel(k);

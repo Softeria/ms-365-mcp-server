@@ -34,6 +34,7 @@ export interface PkceEntry {
   redirectUri: string;
   tenantId: string;
   createdAt: number;
+  forwardedAuthorizeParams?: Record<string, string>;
 }
 
 export interface PkceStore {
@@ -43,6 +44,12 @@ export interface PkceStore {
    * same key (NX semantics — silent overwrite would be a bug).
    */
   put(tenantId: string, entry: PkceEntry): Promise<boolean>;
+
+  /**
+   * Read the entry at (tenantId, clientCodeChallenge) without consuming it.
+   * Used only to make exact duplicate /authorize retries idempotent.
+   */
+  getByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null>;
 
   /**
    * Atomically read AND delete the entry at (tenantId, clientCodeChallenge).

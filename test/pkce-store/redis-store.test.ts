@@ -78,6 +78,17 @@ describe('plan 03-03 — RedisPkceStore', () => {
     expect(parsed.state).toBe('first-state');
   });
 
+  it('getByChallenge() returns an entry without consuming it', async () => {
+    const entry = makeEntry({ clientCodeChallenge: 'peek-ch' });
+    await store.put('_', entry);
+
+    const peeked = await store.getByChallenge('_', 'peek-ch');
+    expect(peeked?.state).toBe('state-abc');
+
+    const taken = await store.takeByChallenge('_', 'peek-ch');
+    expect(taken?.state).toBe('state-abc');
+  });
+
   // ── 3. takeByChallenge reads + deletes atomically via GETDEL ──────────────
   it('takeByChallenge() returns entry and removes the key; second call returns null', async () => {
     const entry = makeEntry({ clientCodeChallenge: 'take-me' });

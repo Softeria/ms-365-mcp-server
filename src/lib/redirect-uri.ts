@@ -39,6 +39,19 @@ const FORBIDDEN_SCHEMES = new Set(['javascript:', 'data:', 'file:', 'about:', 'v
 // both literal forms so the validator works regardless of upstream host parsing.
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+export function normalizeRedirectHostEntry(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    if (url.username || url.password) return null;
+    return url.hostname || null;
+  } catch {
+    return null;
+  }
+}
+
 export function validateRedirectUri(
   raw: string,
   policy: RedirectUriPolicy
@@ -76,7 +89,7 @@ export function validateRedirectUri(
   if (
     url.protocol === 'https:' &&
     policy.extraAllowedHosts &&
-    policy.extraAllowedHosts.some((h) => h.toLowerCase() === url.hostname)
+    policy.extraAllowedHosts.some((h) => normalizeRedirectHostEntry(h) === url.hostname)
   ) {
     return { ok: true };
   }

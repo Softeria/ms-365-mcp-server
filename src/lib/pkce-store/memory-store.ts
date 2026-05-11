@@ -38,6 +38,17 @@ export class MemoryPkceStore implements PkceStore {
     return true;
   }
 
+  async getByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null> {
+    const k = this.key(tenantId, clientCodeChallenge);
+    const e = this.store.get(k);
+    if (!e) return null;
+    if (e.expiresAt <= Date.now()) {
+      this.store.delete(k);
+      return null;
+    }
+    return e.entry;
+  }
+
   async takeByChallenge(tenantId: string, clientCodeChallenge: string): Promise<PkceEntry | null> {
     const k = this.key(tenantId, clientCodeChallenge);
     const e = this.store.get(k);

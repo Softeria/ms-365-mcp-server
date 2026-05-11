@@ -41,6 +41,11 @@ import { getRedis } from './lib/redis.js';
 import { registerAuditResourcePublisher } from './lib/audit.js';
 import { resolveTrustProxySetting } from './lib/trust-proxy.js';
 import { createRateLimitMiddleware } from './lib/rate-limit/middleware.js';
+import {
+  collectForwardedAuthorizeParams,
+  isSameAuthorizeRequest,
+  LEGACY_FORWARDED_AUTHORIZE_PARAMS,
+} from './lib/oauth/authorize-request-identity.js';
 import { createRegisterHandler } from './lib/oauth/register-handler.js';
 import { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
 import { createTokenHandler } from './lib/oauth/token-handler.js';
@@ -52,7 +57,7 @@ export type {
   AuthorizeHandlerConfig,
   TenantTokenHandlerConfig,
 } from './lib/oauth/tenant-handlers.js';
-import type { PkceStore } from './lib/pkce-store/pkce-store.js';
+import type { PkceEntry, PkceStore } from './lib/pkce-store/pkce-store.js';
 import { MemoryPkceStore } from './lib/pkce-store/memory-store.js';
 import type { TenantRow } from './lib/tenant/tenant-row.js';
 import type { TenantPool } from './lib/tenant/tenant-pool.js';
@@ -78,6 +83,10 @@ import { pinoHttp } from 'pino-http';
 import { nanoid } from 'nanoid';
 
 const LEGACY_SINGLE_TENANT_KEY = '_';
+
+function pkceChallengeForVerifier(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
 
 function createHttpRouteRateLimit(): RequestHandler {
   const rawLimit = process.env.MS365_MCP_HTTP_ROUTE_RATE_LIMIT_PER_MIN;
@@ -1043,6 +1052,7 @@ class MicrosoftGraphServer {
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
       const oauthMetadataRateLimit = createHttpRouteRateLimit();
+      const legacyOauthRouteRateLimit = createHttpRouteRateLimit();
 
       // OAuth Authorization Server Discovery
       app.get(
@@ -1098,7 +1108,7 @@ class MicrosoftGraphServer {
 
       // Authorization endpoint - redirects to Microsoft
       // Implements two-leg PKCE: client↔server and server↔Microsoft are independent
-      app.get('/authorize', async (req, res) => {
+      app.get('/authorize', legacyOauthRouteRateLimit, async (req, res) => {
         const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
         const tenantId = this.secrets?.tenantId || 'common';
         const clientId = this.secrets!.clientId;
@@ -1112,20 +1122,17 @@ class MicrosoftGraphServer {
         const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
         const state = url.searchParams.get('state');
 
+        if (!clientCodeChallenge || !state) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'code_challenge and state are required for two-leg PKCE.',
+          });
+          return;
+        }
+
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
-        const allowedParams = [
-          'response_type',
-          'redirect_uri',
-          'scope',
-          'state',
-          'response_mode',
-          'prompt',
-          'login_hint',
-          'domain_hint',
-        ];
-
-        allowedParams.forEach((param) => {
+        LEGACY_FORWARDED_AUTHORIZE_PARAMS.forEach((param) => {
           const value = url.searchParams.get(param);
           if (value) {
             microsoftAuthUrl.searchParams.set(param, value);
@@ -1139,29 +1146,38 @@ class MicrosoftGraphServer {
         // Redis auto-evicts stale entries) and rejects duplicate challenges
         // rather than silently overwriting. /token later computes
         // sha256(client_verifier) and does a single O(1) takeByChallenge.
-        if (clientCodeChallenge && state) {
-          const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
-          const serverCodeChallenge = crypto
-            .createHash('sha256')
-            .update(serverCodeVerifier)
-            .digest('base64url');
+        const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
+        let serverCodeChallenge = pkceChallengeForVerifier(serverCodeVerifier);
 
-          const redirectUri = url.searchParams.get('redirect_uri') ?? '';
-          const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, {
-            state,
-            clientCodeChallenge,
-            clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
-            serverCodeVerifier,
-            clientId,
-            redirectUri,
-            tenantId: LEGACY_SINGLE_TENANT_KEY,
-            createdAt: Date.now(),
-          });
+        const redirectUri = url.searchParams.get('redirect_uri') ?? '';
+        const pkceEntry: PkceEntry = {
+          state,
+          clientCodeChallenge,
+          clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
+          serverCodeVerifier,
+          clientId,
+          redirectUri,
+          tenantId: LEGACY_SINGLE_TENANT_KEY,
+          createdAt: Date.now(),
+          forwardedAuthorizeParams: collectForwardedAuthorizeParams(url),
+        };
+        const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, pkceEntry);
 
-          if (!ok) {
-            // NX rejected the write — another /authorize already staked
-            // this exact challenge. Rare but possible; surface 400 so the
-            // client regenerates its verifier/challenge and retries.
+        if (!ok) {
+          const existing = await this.pkceStore.getByChallenge(
+            LEGACY_SINGLE_TENANT_KEY,
+            clientCodeChallenge
+          );
+          if (existing && isSameAuthorizeRequest(existing, pkceEntry)) {
+            serverCodeChallenge = pkceChallengeForVerifier(existing.serverCodeVerifier);
+            logger.info(
+              {
+                state: state.substring(0, 8) + '...',
+                challengePrefix: clientCodeChallenge.substring(0, 8) + '...',
+              },
+              'Legacy /authorize: reused existing challenge for duplicate authorize retry'
+            );
+          } else {
             logger.warn(
               { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
               'PKCE challenge collision on put'
@@ -1173,50 +1189,15 @@ class MicrosoftGraphServer {
             });
             return;
           }
-
-          // Send our server-generated code_challenge to Microsoft
-          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
-          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
-
-          logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
-            state: state.substring(0, 8) + '...',
-          });
-        } else if (clientCodeChallenge) {
-          // CR-02 fix: refuse the legacy single-tenant /authorize when state
-          // is missing. The old behaviour silently forwarded the client's
-          // code_challenge directly to Microsoft, disabling server-side
-          // two-leg PKCE persistence (no PkceStore entry was written, so
-          // /token had nothing to look up via takeByChallenge — it fell
-          // through to using the client verifier).
-          //
-          // Two-leg PKCE is a defence-in-depth invariant: even when
-          // Microsoft validates PKCE end-to-end, the server-rotated verifier
-          // ensures a leaked client verifier alone cannot complete the
-          // exchange. Requiring `state` makes the contract explicit.
-          //
-          // Plan 03-09 retires this entire mount; until then, opt back in
-          // via MS365_MCP_LEGACY_OAUTH_NO_STATE=1 only for narrow v1
-          // migration windows where the upstream client cannot supply state.
-          if (process.env.MS365_MCP_LEGACY_OAUTH_NO_STATE === '1') {
-            logger.warn(
-              { challengePrefix: clientCodeChallenge.substring(0, 8) + '...' },
-              'Legacy /authorize: state missing, forwarding client code_challenge directly (MS365_MCP_LEGACY_OAUTH_NO_STATE=1 opt-in; two-leg PKCE disabled)'
-            );
-            microsoftAuthUrl.searchParams.set('code_challenge', clientCodeChallenge);
-            if (clientCodeChallengeMethod) {
-              microsoftAuthUrl.searchParams.set('code_challenge_method', clientCodeChallengeMethod);
-            }
-          } else {
-            res.status(400).json({
-              error: 'invalid_request',
-              error_description:
-                'state is required for two-leg PKCE on the legacy /authorize mount. ' +
-                'Use /t/:tenantId/authorize (Phase 3) or set MS365_MCP_LEGACY_OAUTH_NO_STATE=1 ' +
-                'to opt back into v1 stateless forwarding during migration.',
-            });
-            return;
-          }
         }
+
+        // Send our server-generated code_challenge to Microsoft
+        microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+        microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+
+        logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
+          state: state.substring(0, 8) + '...',
+        });
 
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);

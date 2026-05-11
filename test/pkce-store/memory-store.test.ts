@@ -47,6 +47,17 @@ describe('plan 03-03 — MemoryPkceStore', () => {
     vi.useRealTimers();
   });
 
+  it('getByChallenge() returns an entry without consuming it', async () => {
+    const entry = makeEntry({ clientCodeChallenge: 'peek-ch' });
+    expect(await store.put('_', entry)).toBe(true);
+
+    const peeked = await store.getByChallenge('_', 'peek-ch');
+    expect(peeked?.state).toBe('state-abc');
+
+    const taken = await store.takeByChallenge('_', 'peek-ch');
+    expect(taken?.state).toBe('state-abc');
+  });
+
   // ── 7. put/take round-trip ────────────────────────────────────────────────
   it('put() then takeByChallenge() returns the entry; second take returns null', async () => {
     const entry = makeEntry({ clientCodeChallenge: 'mem-ch' });
