@@ -42,7 +42,9 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 function hasExplicitPort(raw: string): boolean {
   const withoutScheme = raw.includes('://') ? raw.slice(raw.indexOf('://') + 3) : raw;
   const authority = withoutScheme.split(/[/?#]/, 1)[0] ?? '';
-  const host = authority.includes('@') ? authority.slice(authority.lastIndexOf('@') + 1) : authority;
+  const host = authority.includes('@')
+    ? authority.slice(authority.lastIndexOf('@') + 1)
+    : authority;
   return host.startsWith('[') ? host.includes(']:') : /:\d+$/.test(host);
 }
 
