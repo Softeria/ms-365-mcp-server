@@ -45,6 +45,7 @@ export function normalizeRedirectHostEntry(raw: string): string | null {
 
   try {
     const url = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    if (url.username || url.password) return null;
     return url.hostname || null;
   } catch {
     return null;

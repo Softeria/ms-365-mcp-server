@@ -34,6 +34,7 @@ export interface PkceEntry {
   redirectUri: string;
   tenantId: string;
   createdAt: number;
+  forwardedAuthorizeParams?: Record<string, string>;
 }
 
 export interface PkceStore {

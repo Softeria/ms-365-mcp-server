@@ -41,6 +41,11 @@ import { getRedis } from './lib/redis.js';
 import { registerAuditResourcePublisher } from './lib/audit.js';
 import { resolveTrustProxySetting } from './lib/trust-proxy.js';
 import { createRateLimitMiddleware } from './lib/rate-limit/middleware.js';
+import {
+  collectForwardedAuthorizeParams,
+  isSameAuthorizeRequest,
+  LEGACY_FORWARDED_AUTHORIZE_PARAMS,
+} from './lib/oauth/authorize-request-identity.js';
 import { createRegisterHandler } from './lib/oauth/register-handler.js';
 import { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
 import { createTokenHandler } from './lib/oauth/token-handler.js';
@@ -81,28 +86,6 @@ const LEGACY_SINGLE_TENANT_KEY = '_';
 
 function pkceChallengeForVerifier(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
-}
-
-function isSameAuthorizeRequest(
-  entry: PkceEntry,
-  expected: Pick<
-    PkceEntry,
-    | 'state'
-    | 'clientCodeChallenge'
-    | 'clientCodeChallengeMethod'
-    | 'clientId'
-    | 'redirectUri'
-    | 'tenantId'
-  >
-): boolean {
-  return (
-    entry.state === expected.state &&
-    entry.clientCodeChallenge === expected.clientCodeChallenge &&
-    entry.clientCodeChallengeMethod === expected.clientCodeChallengeMethod &&
-    entry.clientId === expected.clientId &&
-    entry.redirectUri === expected.redirectUri &&
-    entry.tenantId === expected.tenantId
-  );
 }
 
 function createHttpRouteRateLimit(): RequestHandler {
@@ -1149,18 +1132,7 @@ class MicrosoftGraphServer {
 
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
-        const allowedParams = [
-          'response_type',
-          'redirect_uri',
-          'scope',
-          'state',
-          'response_mode',
-          'prompt',
-          'login_hint',
-          'domain_hint',
-        ];
-
-        allowedParams.forEach((param) => {
+        LEGACY_FORWARDED_AUTHORIZE_PARAMS.forEach((param) => {
           const value = url.searchParams.get(param);
           if (value) {
             microsoftAuthUrl.searchParams.set(param, value);
@@ -1187,6 +1159,7 @@ class MicrosoftGraphServer {
           redirectUri,
           tenantId: LEGACY_SINGLE_TENANT_KEY,
           createdAt: Date.now(),
+          forwardedAuthorizeParams: collectForwardedAuthorizeParams(url),
         };
         const ok = await this.pkceStore.put(LEGACY_SINGLE_TENANT_KEY, pkceEntry);
 

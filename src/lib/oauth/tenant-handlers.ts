@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import logger from '../../logger.js';
 import { getCloudEndpoints } from '../../cloud-config.js';
 import { getRequestTokens } from '../../request-context.js';
+import { isSameAuthorizeRequest } from './authorize-request-identity.js';
 import { normalizeRedirectHostEntry, validateRedirectUri } from '../redirect-uri.js';
 import {
   delegatedAccessTokenTtlSeconds,
@@ -57,28 +58,6 @@ function isTrustedHostedConnectorRedirect(
 
 function pkceChallengeForVerifier(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
-}
-
-function isSameAuthorizeRequest(
-  entry: PkceEntry,
-  expected: Pick<
-    PkceEntry,
-    | 'state'
-    | 'clientCodeChallenge'
-    | 'clientCodeChallengeMethod'
-    | 'clientId'
-    | 'redirectUri'
-    | 'tenantId'
-  >
-): boolean {
-  return (
-    entry.state === expected.state &&
-    entry.clientCodeChallenge === expected.clientCodeChallenge &&
-    entry.clientCodeChallengeMethod === expected.clientCodeChallengeMethod &&
-    entry.clientId === expected.clientId &&
-    entry.redirectUri === expected.redirectUri &&
-    entry.tenantId === expected.tenantId
-  );
 }
 
 export function createAuthorizeHandler(config: AuthorizeHandlerConfig) {
