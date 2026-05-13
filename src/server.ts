@@ -436,34 +436,29 @@ class MicrosoftGraphServer {
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);
 
-        if (!microsoftAuthUrl.searchParams.get('scope')) {
-          const computedScopes = buildScopesFromEndpoints(
-            this.options.orgMode,
-            this.options.enabledTools,
-            this.options.readOnly
-          );
-          microsoftAuthUrl.searchParams.set(
-            'scope',
-            [...computedScopes, 'offline_access'].join(' ')
-          );
-        } else {
-          // Inject offline_access silently here (not advertised in scopes_supported)
-          // so Entra ID issues a refresh token, enabling silent token refresh after
-          // the access token expires. We deliberately do NOT add offline_access to
-          // buildScopesFromEndpoints(): advertising the scope in OAuth metadata made
-          // MCP clients request it explicitly, which triggers a "Maintain access to
-          // data" consent line that fails in tenants where user consent for
-          // applications is restricted by policy (even when admin has pre-consented
-          // every scope). Injecting silently in the forwarding path gives Entra
-          // what it needs to issue a refresh token without surfacing the scope to
-          // the client.
-          const scopeValue = microsoftAuthUrl.searchParams.get('scope')!;
-          const scopeList = scopeValue.split(/\s+/).filter(Boolean);
-          if (!scopeList.includes('offline_access')) {
-            scopeList.push('offline_access');
-            microsoftAuthUrl.searchParams.set('scope', scopeList.join(' '));
-          }
-        }
+        // Determine base scopes from the client request or from the user's
+        // configuration flags, then silently inject User.Read and offline_access.
+        // Neither is advertised in scopes_supported:
+        //   - User.Read: needed by Microsoft Graph /me access, which the
+        //     token-verification and login-test code paths rely on. Without
+        //     it, narrow presets (e.g. search-only) would produce tokens that
+        //     can't validate against /me.
+        //   - offline_access: needed so Entra ID issues a refresh token for
+        //     silent renewal. Advertising it in OAuth metadata made MCP
+        //     clients request it explicitly, which triggers a "Maintain
+        //     access to data" consent line that fails in tenants where user
+        //     consent for applications is restricted by policy (even when
+        //     admin has pre-consented every scope).
+        const clientScope = microsoftAuthUrl.searchParams.get('scope');
+        const baseScopes = clientScope
+          ? clientScope.split(/\s+/).filter(Boolean)
+          : buildScopesFromEndpoints(
+              this.options.orgMode,
+              this.options.enabledTools,
+              this.options.readOnly
+            );
+        const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
+        microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 
         // Redirect to Microsoft's authorization page
         res.redirect(microsoftAuthUrl.toString());
