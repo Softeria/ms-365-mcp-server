@@ -14,6 +14,13 @@
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
   },
   {
+    "pathPattern": "/me/messages/delta()",
+    "method": "get",
+    "toolName": "list-mail-messages-delta",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Incremental sync of messages in the default mailbox. First call returns all messages plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals since the prior sync. Use $select to limit fields and reduce payload. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a specific folder, use list-mail-folder-messages-delta instead (when added)."
+  },
+  {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
@@ -166,6 +173,13 @@
     "toolName": "add-mail-attachment",
     "scopes": ["Mail.ReadWrite"],
     "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments",
+    "method": "post",
+    "toolName": "add-mail-reference-attachment",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Attaches a OneDrive/SharePoint file by reference (link), not by upload. Body requires @odata.type: { \"@odata.type\": \"#microsoft.graph.referenceAttachment\", \"name\": \"file.pdf\", \"sourceUrl\": \"https://.../file.pdf\", \"providerType\": \"oneDriveBusiness\", \"permission\": \"view\", \"isFolder\": false }. providerType: 'oneDriveBusiness' | 'oneDriveConsumer' | 'dropbox' | 'other'. permission: 'view' | 'edit' | 'anonymousView' | 'anonymousEdit' | 'organizationView' | 'organizationEdit'. Recipients see a clickable link to the source file rather than an attached copy."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/createUploadSession",
@@ -1171,6 +1185,13 @@
     "method": "get",
     "toolName": "list-chat-messages",
     "workScopes": ["ChatMessage.Read"]
+  },
+  {
+    "pathPattern": "/chats/{chat-id}/messages/delta()",
+    "method": "get",
+    "toolName": "list-chat-messages-delta",
+    "scopes": ["Chat.Read"],
+    "llmTip": "Incremental sync of messages in a single chat. First call returns all messages plus @odata.deltaLink. Subsequent calls with that link return only additions/updates since the prior sync. Use $top to page through the initial fetch on busy chats. Deltas expire — if 410 Gone is returned, perform a fresh full sync."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
