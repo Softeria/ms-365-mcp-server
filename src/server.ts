@@ -253,7 +253,11 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = buildScopesFromEndpoints(
+          this.options.orgMode,
+          this.options.enabledTools,
+          this.options.readOnly
+        );
 
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
@@ -282,7 +286,11 @@ class MicrosoftGraphServer {
 
         const scopes = this.options.obo
           ? [`api://${this.secrets!.clientId}/access_as_user`]
-          : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+          : buildScopesFromEndpoints(
+              this.options.orgMode,
+              this.options.enabledTools,
+              this.options.readOnly
+            );
 
         res.json({
           resource: `${requestOrigin}/mcp`,
@@ -428,11 +436,15 @@ class MicrosoftGraphServer {
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);
 
-        // Ensure we have the minimal required scopes if none provided
         if (!microsoftAuthUrl.searchParams.get('scope')) {
+          const computedScopes = buildScopesFromEndpoints(
+            this.options.orgMode,
+            this.options.enabledTools,
+            this.options.readOnly
+          );
           microsoftAuthUrl.searchParams.set(
             'scope',
-            'User.Read Files.Read Mail.Read offline_access'
+            [...computedScopes, 'offline_access'].join(' ')
           );
         } else {
           // Inject offline_access silently here (not advertised in scopes_supported)
