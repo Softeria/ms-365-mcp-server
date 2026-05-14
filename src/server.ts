@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
@@ -194,7 +196,65 @@ class MicrosoftGraphServer {
       const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
-      app.set('trust proxy', true);
+      // Trust exactly one upstream hop by default. Most reverse proxies
+      // fronting this server (Container Apps, App Service, NGINX, etc.) are
+      // single-hop, and `trust proxy: true` is too permissive — it lets a
+      // client spoof the leftmost X-Forwarded-For entry, which becomes a
+      // rate-limit bypass (see express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY).
+      // Override with `MS365_MCP_TRUST_PROXY_HOPS=<n>` when there are more hops
+      // (e.g. Front Door → Container Apps = 2), `0` to disable proxy trust
+      // entirely (raw socket peer IP), or a comma-separated subnet list
+      // (e.g. "loopback,linklocal") in dev.
+      const trustProxyEnv = process.env.MS365_MCP_TRUST_PROXY_HOPS;
+      if (trustProxyEnv !== undefined && trustProxyEnv !== '') {
+        const asNum = Number(trustProxyEnv);
+        app.set('trust proxy', Number.isFinite(asNum) ? asNum : trustProxyEnv);
+      } else {
+        app.set('trust proxy', 1);
+      }
+
+      // Security headers. HSTS is enforced (we only serve HTTPS via the
+      // reverse proxy ingress); CSP is disabled because this server returns
+      // JSON / OAuth metadata, not HTML.
+      app.use(
+        helmet({
+          contentSecurityPolicy: false,
+          crossOriginEmbedderPolicy: false,
+          hsts: {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+          },
+        })
+      );
+
+      // Basic per-IP rate limiting. Defense-in-depth against flood attacks
+      // on the OAuth surface (/authorize, /token, /register) and the MCP
+      // protocol endpoint (/mcp). Limits are intentionally generous for
+      // normal usage and only fire on abuse patterns. Opt out for trusted
+      // internal automation via MS365_MCP_RATE_LIMIT_DISABLED=true.
+      if (
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED !== 'true' &&
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED !== '1'
+      ) {
+        const authLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 30,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        const mcpLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 120,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        app.use('/authorize', authLimiter);
+        app.use('/token', authLimiter);
+        app.use('/register', authLimiter);
+        app.use('/mcp', mcpLimiter);
+      }
+
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
