@@ -63,6 +63,32 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
+/**
+ * A Graph operation is destructive when the HTTP method mutates server state.
+ * POST endpoints flagged `readOnly` in endpoints.json (e.g. get-schedule,
+ * find-meeting-times) are treated as non-destructive because they are queries
+ * dressed as POST for body-based parameters.
+ */
+export function isDestructiveOperation(
+  method: string,
+  config: EndpointConfig | undefined
+): boolean {
+  const upper = method.toUpperCase();
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(upper)) return false;
+  if (upper === 'POST' && config?.readOnly) return false;
+  return true;
+}
+
+/**
+ * Defense-in-depth: destructive tools require an explicit `confirm: true` from
+ * the caller before they reach Microsoft Graph. Mitigates accidental
+ * sendMail / deleteEvent / etc. when an LLM misroutes a request or follows an
+ * injected instruction. Opt out per-deployment via MS365_MCP_REQUIRE_CONFIRM=false.
+ */
+function isConfirmGateEnabled(): boolean {
+  return process.env.MS365_MCP_REQUIRE_CONFIRM !== 'false';
+}
+
 type TextContent = {
   type: 'text';
   text: string;
@@ -270,6 +296,33 @@ async function executeGraphTool(
   authManager?: AuthManager
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+
+  if (
+    isConfirmGateEnabled() &&
+    isDestructiveOperation(tool.method, config) &&
+    params.confirm !== true
+  ) {
+    logger.warn(
+      `Refusing destructive tool ${tool.alias} (${tool.method.toUpperCase()}): missing confirm: true`
+    );
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'confirmation_required',
+            tool: tool.alias,
+            method: tool.method.toUpperCase(),
+            destructive: true,
+            message:
+              'This tool modifies user data. Re-call with parameter "confirm": true after the user has explicitly approved the operation.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
@@ -304,6 +357,7 @@ async function executeGraphTool(
       if (
         [
           'account',
+          'confirm',
           'fetchAllPages',
           'includeHeaders',
           'excludeResponse',
@@ -807,6 +861,22 @@ export function registerGraphTools(
       .describe('Exclude the full response body and only return success or failure indication')
       .optional();
 
+    // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
+    // explicit `confirm: true` server-side gate. See isDestructiveOperation +
+    // executeGraphTool for the enforcement; surface the param in the schema so
+    // the LLM/agent sees it upfront.
+    const destructive = isDestructiveOperation(tool.method, endpointConfig);
+    if (destructive) {
+      paramSchema['confirm'] = z
+        .boolean()
+        .describe(
+          'Required for destructive operations. Set to true only after the user has explicitly approved this action. ' +
+            'Calls without confirm: true return { error: "confirmation_required" } without touching user data. ' +
+            'Server-wide opt-out: MS365_MCP_REQUIRE_CONFIRM=false.'
+        )
+        .optional();
+    }
+
     // Add timezone parameter for calendar endpoints that support it
     if (endpointConfig?.supportsTimezone) {
       paramSchema['timezone'] = z
@@ -842,7 +912,7 @@ export function registerGraphTools(
         {
           title: tool.alias,
           readOnlyHint: tool.method.toUpperCase() === 'GET',
-          destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
+          destructiveHint: destructive,
           openWorldHint: true, // All tools call Microsoft Graph API
         },
         async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)

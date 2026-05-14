@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 /**
@@ -575,6 +575,7 @@ describe('graph-tools', () => {
       await server.tools.get('create-reply-draft')!.handler({
         messageId: 'AAMk123',
         body: { Message: { body: { contentType: 'html', content: '<p>hi</p>' } } },
+        confirm: true, // destructive POST — required by isDestructiveOperation gate
       });
 
       const [, options] = graphClient.graphRequest.mock.calls[0];
@@ -623,6 +624,7 @@ describe('graph-tools', () => {
         driveId: 'drive123',
         driveItemId: 'item456',
         body: base64,
+        confirm: true, // destructive PUT — required by isDestructiveOperation gate
       });
 
       const [path, options] = graphClient.graphRequest.mock.calls[0];
@@ -664,6 +666,7 @@ describe('graph-tools', () => {
         driveId: 'd',
         driveItemId: 'i',
         body: Buffer.from('%PDF-1.4').toString('base64'),
+        confirm: true, // destructive PUT — required by isDestructiveOperation gate
       });
 
       const [, options] = graphClient.graphRequest.mock.calls[0];
@@ -924,6 +927,262 @@ describe('graph-tools', () => {
       // readOnlyHint: true so they should be present.
       expect(server.tools.has('download-bytes')).toBe(true);
       expect(server.tools.has('parse-teams-url')).toBe(true);
+    });
+  });
+
+  // ---- destructive-operation confirm: true gate (CT-03) ----
+  describe('destructive operations require confirm: true', () => {
+    const prevRequireConfirm = process.env.MS365_MCP_REQUIRE_CONFIRM;
+
+    afterEach(() => {
+      if (prevRequireConfirm === undefined) delete process.env.MS365_MCP_REQUIRE_CONFIRM;
+      else process.env.MS365_MCP_REQUIRE_CONFIRM = prevRequireConfirm;
+    });
+
+    it('rejects DELETE without confirm: true and does NOT call Graph', async () => {
+      const endpoint = makeEndpoint({
+        method: 'delete',
+        path: '/me/messages/:message-id',
+        alias: 'delete-mail-message',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages/{message-id}',
+        method: 'delete',
+        toolName: 'delete-mail-message',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('delete-mail-message');
+      const result: any = await tool!.handler({ messageId: 'abc' });
+
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toBe('confirmation_required');
+      expect(payload.tool).toBe('delete-mail-message');
+      expect(payload.destructive).toBe(true);
+    });
+
+    it('allows DELETE when confirm: true is passed', async () => {
+      const endpoint = makeEndpoint({
+        method: 'delete',
+        path: '/me/messages/:message-id',
+        alias: 'delete-mail-message',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages/{message-id}',
+        method: 'delete',
+        toolName: 'delete-mail-message',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ status: 204 }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('delete-mail-message');
+      await tool!.handler({ messageId: 'abc', confirm: true });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT send `confirm` to Graph as a query/body parameter', async () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/me/sendMail',
+        alias: 'send-mail',
+        parameters: [{ name: 'message', type: 'Body', schema: z.any() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/me/sendMail',
+        method: 'post',
+        toolName: 'send-mail',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ status: 202 }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('send-mail');
+      await tool!.handler({ message: { subject: 'hi' }, confirm: true });
+
+      const [url, opts] = graphClient.graphRequest.mock.calls[0];
+      expect(url).not.toContain('confirm');
+      // Body should be the message object, no `confirm` leaked
+      const body = JSON.parse(opts.body);
+      expect(body).not.toHaveProperty('confirm');
+    });
+
+    it('allows GET (read-only) regardless of confirm', async () => {
+      const endpoint = makeEndpoint(); // default is GET
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('test-tool');
+      await tool!.handler({}); // No confirm
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows POST endpoints flagged readOnly without confirm (e.g. find-meeting-times)', async () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/me/findMeetingTimes',
+        alias: 'find-meeting-times',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/findMeetingTimes',
+        method: 'post',
+        toolName: 'find-meeting-times',
+        readOnly: true,
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ meetingTimeSuggestions: [] }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('find-meeting-times');
+      await tool!.handler({});
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('opt-out via MS365_MCP_REQUIRE_CONFIRM=false skips the gate', async () => {
+      process.env.MS365_MCP_REQUIRE_CONFIRM = 'false';
+      const endpoint = makeEndpoint({
+        method: 'delete',
+        path: '/me/messages/:message-id',
+        alias: 'delete-mail-message',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages/{message-id}',
+        method: 'delete',
+        toolName: 'delete-mail-message',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ status: 204 }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('delete-mail-message');
+      await tool!.handler({ messageId: 'abc' }); // No confirm
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects `confirm: false` as not equal to true', async () => {
+      const endpoint = makeEndpoint({
+        method: 'patch',
+        path: '/me/messages/:message-id',
+        alias: 'update-mail-message',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages/{message-id}',
+        method: 'patch',
+        toolName: 'update-mail-message',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('update-mail-message');
+      const result: any = await tool!.handler({ messageId: 'abc', confirm: false });
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      expect(result.isError).toBe(true);
+    });
+
+    it('exposes confirm in the schema only for destructive tools', async () => {
+      // GET tool — no confirm
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+
+      // DELETE tool — confirm required
+      mockEndpoints.push(
+        makeEndpoint({ method: 'delete', alias: 'destructive-tool', path: '/me/items/:item-id' })
+      );
+      mockEndpointsJson.push(
+        makeConfig({
+          method: 'delete',
+          toolName: 'destructive-tool',
+          pathPattern: '/me/items/{item-id}',
+        })
+      );
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      expect(server.tools.get('test-tool')!.schema).not.toHaveProperty('confirm');
+      expect(server.tools.get('destructive-tool')!.schema).toHaveProperty('confirm');
+    });
+  });
+
+  // ---- isDestructiveOperation helper ----
+  describe('isDestructiveOperation', () => {
+    it('returns true for POST, PATCH, PUT, DELETE', async () => {
+      const { isDestructiveOperation } = await loadModule();
+      expect(isDestructiveOperation('POST', undefined)).toBe(true);
+      expect(isDestructiveOperation('PATCH', undefined)).toBe(true);
+      expect(isDestructiveOperation('PUT', undefined)).toBe(true);
+      expect(isDestructiveOperation('DELETE', undefined)).toBe(true);
+    });
+
+    it('is case-insensitive', async () => {
+      const { isDestructiveOperation } = await loadModule();
+      expect(isDestructiveOperation('delete', undefined)).toBe(true);
+      expect(isDestructiveOperation('Patch', undefined)).toBe(true);
+    });
+
+    it('returns false for GET / HEAD / OPTIONS', async () => {
+      const { isDestructiveOperation } = await loadModule();
+      expect(isDestructiveOperation('GET', undefined)).toBe(false);
+      expect(isDestructiveOperation('HEAD', undefined)).toBe(false);
+      expect(isDestructiveOperation('OPTIONS', undefined)).toBe(false);
+    });
+
+    it('returns false for POST endpoints flagged readOnly', async () => {
+      const { isDestructiveOperation } = await loadModule();
+      expect(isDestructiveOperation('POST', { readOnly: true } as any)).toBe(false);
+    });
+
+    it('still returns true for PATCH/DELETE even if config.readOnly is set (should not happen but defensive)', async () => {
+      const { isDestructiveOperation } = await loadModule();
+      expect(isDestructiveOperation('PATCH', { readOnly: true } as any)).toBe(true);
+      expect(isDestructiveOperation('DELETE', { readOnly: true } as any)).toBe(true);
     });
   });
 });
