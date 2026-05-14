@@ -254,8 +254,7 @@ export function parseArgs(): CommandOptions {
   // process args).
   if (options.http) {
     const dcrDisabledByEnv =
-      process.env.MS365_MCP_DISABLE_DCR === 'true' ||
-      process.env.MS365_MCP_DISABLE_DCR === '1';
+      process.env.MS365_MCP_DISABLE_DCR === 'true' || process.env.MS365_MCP_DISABLE_DCR === '1';
     if (options.dynamicRegistration === false || dcrDisabledByEnv) {
       options.enableDynamicRegistration = false;
     } else {
