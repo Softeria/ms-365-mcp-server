@@ -208,6 +208,10 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 - **Read-only mode**: use `--read-only` to disable all write operations (send, delete, update, create)
 - **Tool filtering**: use `--enabled-tools <regex>` or `--preset <names>` to restrict available tools
 - **CORS**: configure `MS365_MCP_CORS_ORIGIN` to restrict allowed origins (defaults to `http://localhost:3000`); set explicitly when clients run on a different origin
+- **Security headers (helmet)**: enabled by default. HSTS is enforced (HTTPS-only via reverse proxy); CSP is disabled because the server returns JSON / OAuth metadata, not HTML
+- **Disable Dynamic Client Registration**: when only a known client talks to the server, set `MS365_MCP_DISABLE_DCR=true` (or pass `--no-dynamic-registration`) to close the anonymous `/register` endpoint
+- **Per-IP rate limiting**: enabled by default in HTTP mode. The OAuth surface (`/authorize`, `/token`, `/register`) shares a 30 req/min/IP budget; `/mcp` allows 120 req/min/IP. Excess returns HTTP 429 with IETF draft-7 `RateLimit` / `RateLimit-Policy` headers. Opt out for trusted internal automation: `MS365_MCP_RATE_LIMIT_DISABLED=true`
+- **Trust proxy hops**: defaults to `1` (single reverse-proxy hop in front of the app). Critical for the rate limiter — `trust proxy: true` would let a client spoof `X-Forwarded-For` and bypass per-IP limits. Override with `MS365_MCP_TRUST_PROXY_HOPS=<n>` when more hops are in play (e.g. Front Door → Container Apps → app = 2), `0` to disable proxy trust entirely, or a comma-separated subnet list (e.g. `loopback,linklocal`) in dev
 
 ## Exposed Endpoints
 
