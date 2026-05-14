@@ -1,5 +1,12 @@
 [
   {
+    "pathPattern": "/$batch",
+    "method": "post",
+    "toolName": "graph-batch",
+    "scopes": [],
+    "llmTip": "Combine up to 20 Graph requests into a single HTTP call. Body: { requests: [{ id: '1', method: 'GET'|'POST'|'PATCH'|'DELETE', url: '/me/messages?$top=5', headers?: {...}, body?: {...}, dependsOn?: ['1'] }, ...] }. Returns { responses: [{ id, status, body, headers }] } in arbitrary order — match by id. Use cases: (1) parallelize many small reads (e.g. fetch 15 mail messages by id in one round-trip); (2) sequence dependent writes via dependsOn; (3) batch many Excel range writes into one call to dramatically reduce latency on large workbook builds. Note: each sub-request URL is relative to the Graph version root (/me/..., /drives/..., NOT https://graph.microsoft.com/v1.0/...)."
+  },
+  {
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
@@ -94,6 +101,33 @@
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
+    "pathPattern": "/users/{user-id}/messages",
+    "method": "post",
+    "toolName": "create-shared-mailbox-draft",
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Reply to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). The 'comment' field is your reply text. Do NOT reconstruct the email manually. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Reply-all to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address. The 'comment' field is your reply text. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-shared-mailbox-mail",
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Forward a message from a shared mailbox preserving full HTML formatting and attachments. The 'user-id' is the shared mailbox email address. 'toRecipients' is required. The 'comment' field adds text above the forwarded content. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
@@ -144,13 +178,8 @@
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
-    "scopes": ["Mail.Read"]
-  },
-  {
-    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
-    "method": "get",
-    "toolName": "get-mail-attachment",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
@@ -190,13 +219,15 @@
     "pathPattern": "/me/messages/{message-id}/createReply",
     "method": "post",
     "toolName": "create-reply-draft",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
     "method": "post",
     "toolName": "create-reply-all-draft",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
@@ -232,6 +263,34 @@
     "toolName": "delete-mail-rule",
     "scopes": ["MailboxSettings.ReadWrite"],
     "llmTip": "Deletes a message rule permanently. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides",
+    "method": "get",
+    "toolName": "list-focused-inbox-overrides",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Lists Focused Inbox classification overrides — explicit rules that force messages from a given sender (by SMTP address) into either the Focused or Other tab, regardless of what the Outlook ML classifier would predict. Each override has id, classifyAs ('focused' or 'other'), and senderEmailAddress {name, address}. Returns an empty collection if the user has never set an override."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides",
+    "method": "post",
+    "toolName": "create-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Creates a Focused Inbox override for a sender. Body: { classifyAs: 'focused', senderEmailAddress: { name: 'Display Name', address: 'sender@example.com' } }. classifyAs must be 'focused' or 'other'. If an override already exists for that SMTP address, POST updates the existing override's name and classifyAs (use this to rename a sender). Resolve the sender's address with list-users or by reading a recent mail header — do not invent SMTP addresses."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
+    "method": "patch",
+    "toolName": "update-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Updates the classifyAs field of an existing override. Body: { classifyAs: 'focused' } or { classifyAs: 'other' }. Per Graph API, PATCH cannot change senderEmailAddress — to change the SMTP address, delete and recreate the override. To rename the display name only, POST a new override with the same SMTP address (it will overwrite the name)."
+  },
+  {
+    "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
+    "method": "delete",
+    "toolName": "delete-focused-inbox-override",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Deletes a Focused Inbox override. Future messages from that sender revert to the Outlook ML classifier's default behavior. Use list-focused-inbox-overrides to find the ID first."
   },
   {
     "pathPattern": "/me/events",
@@ -443,14 +502,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
-    "method": "get",
-    "toolName": "download-onedrive-file-content",
-    "scopes": ["Files.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a temporary download URL, NOT the file content directly."
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
@@ -461,7 +512,7 @@
     "method": "put",
     "toolName": "upload-file-content",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Max 4MB. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
@@ -475,7 +526,7 @@
     "method": "get",
     "toolName": "get-drive-item",
     "scopes": ["Files.Read"],
-    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference. Does not return content — use download-onedrive-file-content for that."
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl)."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -497,6 +548,34 @@
     "toolName": "share-drive-item",
     "scopes": ["Files.ReadWrite"],
     "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
+    "method": "post",
+    "toolName": "create-drive-item-share-link",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
+    "method": "post",
+    "toolName": "copy-drive-item",
+    "scopes": ["Files.ReadWrite"],
+    "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
+    "method": "post",
+    "toolName": "create-drive-item-preview",
+    "scopes": ["Files.Read"],
+    "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/thumbnails",
+    "method": "get",
+    "toolName": "list-drive-item-thumbnails",
+    "scopes": ["Files.Read"],
+    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
@@ -557,6 +636,14 @@
     "isExcelOp": true,
     "scopes": ["Files.Read"],
     "skipEncoding": ["address"]
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/$value",
+    "method": "get",
+    "toolName": "get-mail-message-mime",
+    "scopes": ["Mail.Read"],
+    "acceptType": "text/plain",
+    "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
@@ -1005,22 +1092,6 @@
     "llmTip": "Lists users who report directly to a specific user. Use with get-user-manager to traverse the org hierarchy."
   },
   {
-    "pathPattern": "/me/photo/$value",
-    "method": "get",
-    "toolName": "get-my-profile-photo",
-    "scopes": ["User.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns the current user's profile photo as binary image data. The photo is typically in JPEG format."
-  },
-  {
-    "pathPattern": "/users/{user-id}/photo/$value",
-    "method": "get",
-    "toolName": "get-user-profile-photo",
-    "workScopes": ["User.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a specific user's profile photo as binary image data. Use the user ID or UPN (email)."
-  },
-  {
     "pathPattern": "/me/people",
     "method": "get",
     "toolName": "list-relevant-people",
@@ -1112,15 +1183,7 @@
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
     "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns an array of { id, contentType }. Use get-chat-message-hosted-content with the id to download the bytes. Hosted content IDs can also be parsed from the <img src> URL in the message body between /hostedContents/ and /$value."
-  },
-  {
-    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-chat-message-hosted-content",
-    "workScopes": ["ChatMessage.Read"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item (typically image/png or image/jpeg) attached to a Teams 1:1 or group chat message. Use list-chat-message-hosted-contents to discover IDs, or extract the ID from the <img src> URL in the message body."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
@@ -1188,15 +1251,7 @@
     "method": "get",
     "toolName": "list-channel-message-hosted-contents",
     "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns an array of { id, contentType }. Use get-channel-message-hosted-content with the id to download bytes."
-  },
-  {
-    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value",
-    "method": "get",
-    "toolName": "get-channel-message-hosted-content",
-    "workScopes": ["ChannelMessage.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns raw bytes of a hosted content item attached to a Teams channel message. Use list-channel-message-hosted-contents to discover IDs."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
@@ -1388,6 +1443,48 @@
     "llmTip": "Deletes a list item permanently. This cannot be undone — the item is moved to the site recycle bin."
   },
   {
+    "pathPattern": "/sites/{site-id}/lists",
+    "method": "post",
+    "toolName": "create-sharepoint-list",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Creates a new SharePoint list in a site. Body: { displayName: 'My List', description: 'Optional', list: { template: 'genericList' }, columns: [ { name: 'Status', text: {} }, { name: 'Due', dateTime: {} } ] }. Templates include genericList, documentLibrary, tasks, calendar, contacts, links, announcements, survey. Columns can be defined inline at creation; otherwise add them later via create-sharepoint-list-column. Use search-sharepoint-sites or get-sharepoint-site-by-path to find the site ID first."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns",
+    "method": "get",
+    "toolName": "list-sharepoint-list-columns",
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Lists column definitions for a SharePoint list. Returns each column's id, name, displayName, description, type indicator (text, number, choice, dateTime, person, lookup, boolean, calculated, hyperlinkOrPicture, etc.), required, indexed, hidden, readOnly. Use this to discover the schema before creating or updating list items."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns",
+    "method": "post",
+    "toolName": "create-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Creates a new column on a SharePoint list. Body must include name and exactly one column type property: { name: 'Priority', text: {} } or { name: 'DueDate', dateTime: { format: 'dateOnly' } } or { name: 'Status', choice: { choices: ['Open','In Progress','Done'] } }. Other types: number, boolean, currency, hyperlinkOrPicture, personOrGroup, lookup, calculated. Optional: displayName, description, required, indexed, enforceUniqueValues."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-list-column",
+    "workScopes": ["Sites.Read.All"],
+    "llmTip": "Gets a specific column definition by ID, including its full type configuration (choices for choice columns, format for dateTime, etc.). Use list-sharepoint-list-columns first to find the column ID."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "patch",
+    "toolName": "update-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Updates a column definition. Body: { displayName: 'New name', description: 'New description', required: true, ... }. The column type itself (text, choice, etc.) cannot be changed — only its metadata and per-type options (e.g. choices array for a choice column). Send only the fields you want to change."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/columns/{columnDefinition-id}",
+    "method": "delete",
+    "toolName": "delete-sharepoint-list-column",
+    "workScopes": ["Sites.Manage.All"],
+    "llmTip": "Deletes a column from a SharePoint list. This is irreversible — all data stored in this column across every list item is lost. Confirm with the user before calling. Cannot delete built-in columns (Title, Created, Modified, etc.)."
+  },
+  {
     "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
@@ -1549,10 +1646,11 @@
     "llmTip": "Gets presence status for a specific user by their user ID or UPN (email). Returns availability and activity. Use list-users to find the user ID first."
   },
   {
-    "pathPattern": "/communications/presences",
+    "pathPattern": "/communications/getPresencesByUserId",
     "method": "post",
     "toolName": "get-presences-by-user-id",
     "workScopes": ["Presence.Read.All"],
+    "contentType": "application/json",
     "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
   },
   {
@@ -1750,5 +1848,273 @@
     "toolName": "reauthorize-subscription",
     "scopes": [],
     "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/extractSensitivityLabels",
+    "method": "post",
+    "toolName": "extract-drive-item-sensitivity-labels",
+    "workScopes": ["Files.Read.All"],
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
+    "method": "get",
+    "toolName": "list-sensitivity-labels",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Lists Microsoft Information Protection (MIP) sensitivity labels available to the signed-in user. Use to map label IDs (returned by extract-drive-item-sensitivity-labels) to human-readable names. Not supported for personal Microsoft accounts."
+  },
+  {
+    "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels/{sensitivityLabel-id}",
+    "method": "get",
+    "toolName": "get-sensitivity-label",
+    "workScopes": ["SensitivityLabel.Read"],
+    "llmTip": "Gets a single MIP sensitivity label by id. Use list-sensitivity-labels to find ids. Not supported for personal Microsoft accounts."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/copy",
+    "method": "post",
+    "toolName": "copy-mail-message",
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Copies a message to another mail folder. Body: { DestinationId: '<mailFolder-id or well-known name like inbox, archive, junkemail>' }. Returns the newly created message (with a new id) in the destination folder. For moving instead of copying, use move-mail-message."
+  },
+  {
+    "pathPattern": "/me/mailFolders/{mailFolder-id}/messages/delta()",
+    "method": "get",
+    "toolName": "list-mail-folder-messages-delta",
+    "scopes": ["Mail.Read"],
+    "llmTip": "Incremental sync of messages within a mail folder. Graph only supports delta scoped to a folder — use mailFolder-id = 'inbox' for the well-known inbox, or another folder id from list-mail-folders. First call returns all messages plus @odata.deltaLink; subsequent calls with that link return only changes (created/updated/deleted). @odata.nextLink paginates within a single delta window. Deltas expire after ~30 days of inactivity — start over if the server returns 410. Prefer this over full re-list for polling."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "get",
+    "toolName": "list-outlook-categories",
+    "scopes": ["MailboxSettings.Read"],
+    "llmTip": "Lists the user's Outlook categories (colored labels) used to tag messages, events, contacts, and tasks. Each category has displayName and color (preset0 through preset24, or 'none'). Use this to show available tags before applying via update-mail-message or update-calendar-event with body { categories: ['Category Name'] }."
+  },
+  {
+    "pathPattern": "/me/outlook/masterCategories",
+    "method": "post",
+    "toolName": "create-outlook-category",
+    "scopes": ["MailboxSettings.ReadWrite"],
+    "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
+  },
+  {
+    "pathPattern": "/me/getMailTips",
+    "method": "post",
+    "toolName": "get-mail-tips",
+    "scopes": ["Mail.Read"],
+    "contentType": "application/json",
+    "llmTip": "Looks up MailTips for one or more recipients before sending an email — answers 'is this person on auto-reply / OOF?', 'will my email exceed their mailbox quota?', 'are they an external recipient?', 'is this a mailbox or distribution list?'. Body: { EmailAddresses: ['user@contoso.com', ...], MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, totalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, recipientSuggestions' (comma-separated subset) }. Returns mailTips per recipient with the requested fields populated. Use this to short-circuit urgent emails when a recipient is OOF, or to warn before fanning out to a large DL."
+  },
+  {
+    "pathPattern": "/me/outlook/supportedTimeZones(TimeZoneStandard='{TimeZoneStandard}')",
+    "method": "get",
+    "toolName": "list-supported-time-zones",
+    "scopes": ["User.Read"],
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+  },
+  {
+    "pathPattern": "/me/outlook/supportedLanguages()",
+    "method": "get",
+    "toolName": "list-supported-languages",
+    "scopes": ["User.Read"],
+    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US') and displayName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "get",
+    "toolName": "list-my-calendar-permissions",
+    "scopes": ["Calendars.Read"],
+    "llmTip": "Lists share recipients and delegates on the user's primary calendar. Returns calendarPermission objects with id, role ('none' | 'freeBusyRead' | 'limitedRead' | 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' | 'custom'), emailAddress { name, address }, isInsideOrganization, isRemovable, allowedRoles. Returns an empty collection when called by a delegate or share recipient (only the calendar owner sees the full list). For a non-primary calendar, use /me/calendars/{calendar-id}/calendarPermissions — not currently exposed."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions",
+    "method": "post",
+    "toolName": "create-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Shares the user's primary calendar with another user (or sets up a delegate). Body: { emailAddress: { name: 'Adele Vance', address: 'adele@contoso.com' }, role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess', isInsideOrganization: true, isRemovable: true }. Use list-users to resolve the recipient SMTP. Returns the created calendarPermission with its id (used by update-my-calendar-permission and delete-my-calendar-permission)."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "patch",
+    "toolName": "update-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Changes the role (permission level) granted to an existing share recipient or delegate. Body: { role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' }. Only the role property is writable — to change the recipient's email or other properties, delete and recreate via delete-my-calendar-permission + create-my-calendar-permission. Get the permission id via list-my-calendar-permissions."
+  },
+  {
+    "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
+    "method": "delete",
+    "toolName": "delete-my-calendar-permission",
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Revokes a calendar share or delegate access. Get the permission id via list-my-calendar-permissions. Permissions where isRemovable=false (e.g. the implicit 'My Organization' default) cannot be deleted — Graph returns an error."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-contact-folder-child-folders",
+    "scopes": ["Contacts.Read"],
+    "llmTip": "Lists immediate sub-folders under a given contact folder. Returns id, displayName, parentFolderId. Use list-contact-folders to discover top-level folders, then this tool to traverse one level deeper. Supports $filter, $top, $orderby. Note: contact folders are typically a flat list in Outlook clients, but Graph allows nesting via this endpoint."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
+    "method": "post",
+    "toolName": "create-contact-child-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth."
+  },
+  {
+    "pathPattern": "/me/contactFolders",
+    "method": "get",
+    "toolName": "list-contact-folders",
+    "scopes": ["Contacts.Read"],
+    "llmTip": "Lists the user's Outlook contact folders (the named buckets that organize contacts). Always includes the built-in 'Contacts' folder; user-created folders also appear. Returns id, displayName, and parentFolderId. To identify the default folder, match displayName === 'Contacts'. Use this before list-contact-folder-contacts or create-contact-in-folder to discover folder ids. Supports OData query parameters."
+  },
+  {
+    "pathPattern": "/me/contactFolders",
+    "method": "post",
+    "toolName": "create-contact-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Creates a new contact folder under the user's mailbox root. Body: { displayName: 'Family' }. Returns the created contactFolder with its id. To create a sub-folder under an existing folder, use create-contact-child-folder."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}",
+    "method": "patch",
+    "toolName": "update-contact-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Updates a contact folder. Body: { displayName?: 'New name', parentFolderId?: '<id>' } — both displayName (rename) and parentFolderId (move) are writable. The default 'Contacts' folder may not be renameable. Get the folder id via list-contact-folders."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}",
+    "method": "delete",
+    "toolName": "delete-contact-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Deletes a contact folder. The default 'Contacts' folder cannot be deleted — Graph returns an error. The folder (and its contents) typically lands in Deleted Items rather than being permanently removed. Get the folder id via list-contact-folders."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/contacts",
+    "method": "get",
+    "toolName": "list-contact-folder-contacts",
+    "scopes": ["Contacts.Read"],
+    "llmTip": "Lists contacts inside a specific folder. Pair with list-contact-folders to discover the folder id. Note: the existing list-outlook-contacts (GET /me/contacts) only returns contacts from the default folder — use this tool to read contacts from any folder. Supports $filter, $search='query', $orderby, $top, $select."
+  },
+  {
+    "pathPattern": "/me/contactFolders/{contactFolder-id}/contacts",
+    "method": "post",
+    "toolName": "create-contact-in-folder",
+    "scopes": ["Contacts.ReadWrite"],
+    "llmTip": "Creates a contact inside a specific folder (instead of the default Contacts folder). Body is a contact resource: { givenName, surname, displayName, emailAddresses: [{ address, name }], businessPhones: [], mobilePhone, jobTitle, companyName, ... }. The existing create-outlook-contact (POST /me/contacts) writes to the default folder only; use this when organizing contacts into named folders. Get the folder id via list-contact-folders."
+  },
+  {
+    "pathPattern": "/me/photo/$value",
+    "method": "put",
+    "toolName": "upload-my-profile-photo",
+    "scopes": ["User.ReadWrite"],
+    "contentType": "image/jpeg",
+    "llmTip": "Uploads a new profile photo for the signed-in user. Body is a base64-encoded string of the image bytes (the server decodes before PUT). Photo must be JPEG, max 4 MB. Microsoft 365 generates HD downsized variants automatically (48x48, 64x64, 96x96, 120x120, 240x240, 360x360, 432x432, 504x504, 648x648). For work or school accounts, ProfilePhoto.ReadWrite.All is the more granular alternative permission. Use download-bytes with target=/me/photo/$value to retrieve the current photo."
+  },
+  {
+    "pathPattern": "/me/todo/lists",
+    "method": "post",
+    "toolName": "create-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Creates a new Microsoft To Do task list (the named buckets shown in the To Do app sidebar). Body: { displayName: 'My new list' }. Returns the created todoTaskList with its id, displayName, isOwner, isShared, and wellknownListName ('none' for user-created lists). The built-in lists ('Tasks', 'Flagged emails') already exist and cannot be re-created. Pair with create-todo-task to populate it."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}",
+    "method": "patch",
+    "toolName": "update-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Renames a Microsoft To Do task list. Body: { displayName: 'New name' }. Only displayName is writable. Built-in lists (Flagged emails, the default Tasks list) cannot be renamed — the API returns an error. Get list ids via list-todo-task-lists."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}",
+    "method": "delete",
+    "toolName": "delete-todo-task-list",
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a Microsoft To Do task list. Built-in lists (Flagged emails, the default Tasks list) cannot be deleted — the API returns an error for those. Get list ids via list-todo-task-lists."
+  },
+  {
+    "pathPattern": "/me/onenote/pages",
+    "method": "get",
+    "toolName": "list-onenote-pages",
+    "scopes": ["Notes.Read"],
+    "llmTip": "Lists all OneNote pages across every notebook and section the user has access to — transverse alternative to walking notebooks → sections → pages. Default returns top 20 ordered by lastModifiedTime desc. Supports $filter (e.g. lastModifiedTime gt 2026-01-01, or contains(tolower(title), 'topic') for title search), $top (max 100), $select, and $expand=parentNotebook,parentSection. Use this instead of bouncing through list-onenote-notebooks / list-all-onenote-sections / list-onenote-section-pages when you have a topic in mind."
+  },
+  {
+    "pathPattern": "/me/onenote/sectionGroups",
+    "method": "get",
+    "toolName": "list-onenote-section-groups",
+    "scopes": ["Notes.Read"],
+    "llmTip": "Lists all OneNote section groups (subfolders inside notebooks that contain their own sections and nested section groups) for the user. A section group is a folder-like container — many notebooks use them to organize sections by theme. Default sort is name asc. Supports $expand=sections,sectionGroups,parentNotebook,parentSectionGroup to traverse the full hierarchy. Pair with list-onenote-notebooks for a complete picture of the user's notebook structure."
+  },
+  {
+    "pathPattern": "/me/onenote/notebooks/getNotebookFromWebUrl",
+    "method": "post",
+    "toolName": "get-onenote-notebook-from-web-url",
+    "workScopes": ["Notes.Read"],
+    "contentType": "application/json",
+    "llmTip": "Resolves a OneNote notebook from its web URL (the link a user copies from OneNote / SharePoint / Teams). Body: { webUrl: 'https://...' }. Returns a notebook object with id, displayName, sectionsUrl, sectionGroupsUrl, and isShared — you can then list its sections via list-onenote-notebook-sections. Accepts user notebooks, group notebooks, and SharePoint-hosted team notebooks. Personal Microsoft accounts are not supported."
+  },
+  {
+    "pathPattern": "/me/presence/setPresence",
+    "method": "post",
+    "toolName": "set-my-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability + activity (must be one of these documented combos: Available/Available, Busy/InACall, Busy/InAConferenceCall, Away/Away, DoNotDisturb/Presenting), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, valid range PT5M–PT4H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session."
+  },
+  {
+    "pathPattern": "/me/presence/clearPresence",
+    "method": "post",
+    "toolName": "clear-my-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Ends the application's presence session for the current user. Body: { sessionId } — must match the sessionId used in set-my-presence. If this was the user's only presence session, their status returns to Offline."
+  },
+  {
+    "pathPattern": "/me/presence/setUserPreferredPresence",
+    "method": "post",
+    "toolName": "set-my-user-preferred-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability + activity (must be one of these documented combos: Available/Available, Busy/Busy, DoNotDisturb/DoNotDisturb, BeRightBack/BeRightBack, Away/Away, Offline/OffWork), expirationDuration (ISO 8601 duration like 'PT2H' — if omitted, defaults to 1 day for DoNotDisturb/Busy and 7 days for other availability values; not 'indefinite'). Requires at least one active presence session (Teams client signed in or set-my-presence call) — otherwise the user appears Offline. Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence."
+  },
+  {
+    "pathPattern": "/me/presence/clearUserPreferredPresence",
+    "method": "post",
+    "toolName": "clear-my-user-preferred-presence",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity. Body: {} (an empty JSON object — required, not 'no body')."
+  },
+  {
+    "pathPattern": "/me/presence/setStatusMessage",
+    "method": "post",
+    "toolName": "set-my-status-message",
+    "workScopes": ["Presence.ReadWrite"],
+    "contentType": "application/json",
+    "llmTip": "Sets the user's Teams status message (the free-text note shown next to their name, e.g. 'Heads-down on Q3 plan'). Body: { statusMessage: { message: { content: 'text or HTML', contentType: 'text' | 'html' }, expiryDateTime: { dateTime: '2026-05-06T17:00:00', timeZone: 'UTC' } (optional) } }. Pass an empty object {} or message.content='' to clear. expiryDateTime is optional — omit for no expiration."
+  },
+  {
+    "pathPattern": "/me/teamwork/associatedTeams",
+    "method": "get",
+    "toolName": "list-my-associated-teams",
+    "workScopes": ["Team.ReadBasic.All"],
+    "llmTip": "Lists Teams the current user is associated with — both joined teams and host teams of shared channels the user is a direct member of. Returns associatedTeamInfo objects with id, displayName, and tenantId. Broader than list-joined-teams because it includes shared-channel host teams."
+  },
+  {
+    "pathPattern": "/me/teamwork/installedApps",
+    "method": "get",
+    "toolName": "list-my-installed-teams-apps",
+    "workScopes": ["TeamsAppInstallation.ReadForUser"],
+    "llmTip": "Lists Teams apps installed in the current user's personal scope (the apps pinned to the user's Teams sidebar / accessible without joining a team or chat). Use $expand=teamsApp,teamsAppDefinition for full app metadata (displayName, version, distributionMethod). Useful before send-my-activity-notification to discover the user's own teamsAppId."
+  },
+  {
+    "pathPattern": "/me/teamwork/sendActivityNotification",
+    "method": "post",
+    "toolName": "send-my-activity-notification",
+    "workScopes": ["TeamsActivity.Send"],
+    "contentType": "application/json",
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
   }
 ]
