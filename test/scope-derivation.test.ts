@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildScopesFromEndpoints } from '../src/auth.js';
+import {
+  buildScopesFromEndpoints,
+  collapseScopeHierarchy,
+  parseExplicitAuthScopes,
+  resolveAuthScopes,
+} from '../src/auth.js';
 
 describe('buildScopesFromEndpoints', () => {
   it('returns a non-empty scope set with default arguments', () => {
@@ -56,6 +61,62 @@ describe('buildScopesFromEndpoints', () => {
     it('includes Files.Read and Sites.Read.All for read-only search tools', () => {
       expect(scopes).toContain('Files.Read');
       expect(scopes).toContain('Sites.Read.All');
+    });
+  });
+});
+
+describe('explicit auth scope helpers', () => {
+  describe('parseExplicitAuthScopes', () => {
+    it('returns undefined when no value is provided', () => {
+      expect(parseExplicitAuthScopes()).toBeUndefined();
+    });
+
+    it('splits on whitespace, trims, and deduplicates scopes', () => {
+      expect(parseExplicitAuthScopes('  Mail.Read   Files.Read\nMail.Read\tUser.Read  ')).toEqual([
+        'Mail.Read',
+        'Files.Read',
+        'User.Read',
+      ]);
+    });
+
+    it('returns an empty array for supplied empty input', () => {
+      expect(parseExplicitAuthScopes('   ')).toEqual([]);
+    });
+  });
+
+  describe('resolveAuthScopes', () => {
+    it('uses explicit auth scopes when supplied', () => {
+      expect(resolveAuthScopes({ authScopes: 'Mail.Read Files.Read' })).toEqual([
+        'Mail.Read',
+        'Files.Read',
+      ]);
+    });
+
+    it('falls back to tool-derived scopes when no explicit auth scopes are supplied', () => {
+      expect(
+        resolveAuthScopes({ orgMode: true, enabledTools: 'search|query', readOnly: true })
+      ).toEqual(buildScopesFromEndpoints(true, 'search|query', true));
+    });
+  });
+
+  describe('collapseScopeHierarchy', () => {
+    it('expands existing ReadWrite hierarchy for diagnostics', () => {
+      expect(collapseScopeHierarchy(['Mail.ReadWrite'])).toEqual(
+        expect.arrayContaining(['Mail.ReadWrite', 'Mail.Read'])
+      );
+    });
+
+    it('treats broad .All Graph scopes as covering narrower read scopes', () => {
+      expect(collapseScopeHierarchy(['Files.ReadWrite.All', 'Sites.ReadWrite.All'])).toEqual(
+        expect.arrayContaining([
+          'Files.ReadWrite.All',
+          'Files.Read.All',
+          'Files.ReadWrite',
+          'Files.Read',
+          'Sites.ReadWrite.All',
+          'Sites.Read.All',
+        ])
+      );
     });
   });
 });

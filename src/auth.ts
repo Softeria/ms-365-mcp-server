@@ -145,6 +145,21 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
+interface AuthScopeOptions {
+  orgMode?: boolean;
+  enabledTools?: string;
+  readOnly?: boolean;
+  authScopes?: string;
+}
+
+interface ScopeDiagnostics {
+  permissions: string[];
+  toolPermissions: string[];
+  authScopes: string[];
+  missingAuthScopesForEnabledTools: string[];
+  extraAuthScopesNotImpliedByTools: string[];
+}
+
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
   enabledToolsPattern?: string,
@@ -210,6 +225,80 @@ function buildScopesFromEndpoints(
   return scopes;
 }
 
+function parseExplicitAuthScopes(value?: string): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return Array.from(new Set(value.trim().split(/\s+/).filter(Boolean)));
+}
+
+function resolveAuthScopes(options: AuthScopeOptions = {}): string[] {
+  const explicitAuthScopes = parseExplicitAuthScopes(options.authScopes);
+  if (explicitAuthScopes !== undefined) {
+    return explicitAuthScopes;
+  }
+
+  return buildScopesFromEndpoints(options.orgMode, options.enabledTools, options.readOnly);
+}
+
+function lowerScopesFor(scope: string): string[] {
+  const lowerScopes = new Set(SCOPE_HIERARCHY[scope] ?? []);
+
+  if (scope.endsWith('.ReadWrite.All')) {
+    const readAllScope = scope.replace(/\.ReadWrite\.All$/, '.Read.All');
+    const readWriteScope = scope.replace(/\.ReadWrite\.All$/, '.ReadWrite');
+    const readScope = scope.replace(/\.ReadWrite\.All$/, '.Read');
+    lowerScopes.add(readAllScope);
+    lowerScopes.add(readWriteScope);
+    lowerScopes.add(readScope);
+  } else if (scope.endsWith('.ReadWrite.Shared')) {
+    lowerScopes.add(scope.replace(/\.ReadWrite\.Shared$/, '.Read.Shared'));
+  } else if (scope.endsWith('.ReadWrite')) {
+    lowerScopes.add(scope.replace(/\.ReadWrite$/, '.Read'));
+  } else if (scope.endsWith('.Read.All')) {
+    lowerScopes.add(scope.replace(/\.Read\.All$/, '.Read'));
+  }
+
+  return Array.from(lowerScopes);
+}
+
+function addImpliedScopes(scope: string, scopesSet: Set<string>): void {
+  for (const lowerScope of lowerScopesFor(scope)) {
+    if (!scopesSet.has(lowerScope)) {
+      scopesSet.add(lowerScope);
+      addImpliedScopes(lowerScope, scopesSet);
+    }
+  }
+}
+
+function collapseScopeHierarchy(scopes: string[]): string[] {
+  const scopesSet = new Set(scopes);
+  for (const scope of scopes) {
+    addImpliedScopes(scope, scopesSet);
+  }
+  return Array.from(scopesSet);
+}
+
+function buildScopeDiagnostics(toolScopes: string[], authScopes: string[]): ScopeDiagnostics {
+  const toolPermissions = [...toolScopes].sort((a, b) => a.localeCompare(b));
+  const sortedAuthScopes = [...authScopes].sort((a, b) => a.localeCompare(b));
+  const coveredAuthScopes = new Set(collapseScopeHierarchy(authScopes));
+  const coveredToolScopes = new Set(collapseScopeHierarchy(toolScopes));
+
+  return {
+    permissions: toolPermissions,
+    toolPermissions,
+    authScopes: sortedAuthScopes,
+    missingAuthScopesForEnabledTools: toolPermissions.filter(
+      (scope) => !coveredAuthScopes.has(scope)
+    ),
+    extraAuthScopesNotImpliedByTools: sortedAuthScopes.filter(
+      (scope) => !coveredToolScopes.has(scope)
+    ),
+  };
+}
+
 interface LoginTestResult {
   success: boolean;
   message: string;
@@ -230,7 +319,7 @@ class AuthManager {
   private selectedAccountId: string | null;
   private useInteractiveAuth: boolean;
 
-  constructor(config: Configuration, scopes: string[] = buildScopesFromEndpoints()) {
+  constructor(config: Configuration, scopes: string[] = []) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
     this.scopes = scopes;
@@ -249,7 +338,7 @@ class AuthManager {
    * Creates an AuthManager instance with secrets loaded from the configured provider.
    * Uses Key Vault if MS365_MCP_KEYVAULT_URL is set, otherwise environment variables.
    */
-  static async create(scopes: string[] = buildScopesFromEndpoints()): Promise<AuthManager> {
+  static async create(scopes: string[] = []): Promise<AuthManager> {
     const secrets = await getSecrets();
     const config = createMsalConfig(secrets);
     return new AuthManager(config, scopes);
@@ -783,8 +872,12 @@ class AuthManager {
 export default AuthManager;
 export {
   buildScopesFromEndpoints,
+  buildScopeDiagnostics,
+  collapseScopeHierarchy,
   getTokenCachePath,
   getSelectedAccountPath,
+  parseExplicitAuthScopes,
+  resolveAuthScopes,
   wrapCache,
   unwrapCache,
   pickNewest,

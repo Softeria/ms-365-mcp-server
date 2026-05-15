@@ -121,6 +121,31 @@ npx @softeria/ms-365-mcp-server --preset mail --list-permissions
 
 This is useful for enterprise environments where Graph API permissions must be pre-approved and admin-consented before deploying a new version.
 
+The `--list-permissions` JSON includes:
+
+- `permissions`: legacy alias for `toolPermissions`, kept for compatibility with existing scripts
+- `toolPermissions`: permissions implied by the currently enabled tool surface
+- `authScopes`: scopes the server will request during MSAL authentication
+- `missingAuthScopesForEnabledTools`: enabled tool permissions not covered by configured auth scopes
+- `extraAuthScopesNotImpliedByTools`: configured auth scopes that are not implied by the enabled tools
+
+### Explicit Auth Scopes
+
+By default, MSAL requests the same scopes implied by the enabled tools. Enterprise and headless deployments can override that authentication surface with `--auth-scopes` or `MS365_MCP_AUTH_SCOPES`:
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --enabled-tools '^(list-mail-messages|get-mail-message|list-drives|get-drive-item|download-bytes)$' \
+  --auth-scopes 'User.Read Mail.Read Files.Read'
+```
+
+CLI value takes precedence over `MS365_MCP_AUTH_SCOPES`; if neither is set, the default tool-derived scope behavior is unchanged. Supplying an empty value fails at startup so deployments do not accidentally fall back to a wider scope set.
+
+`--auth-scopes` only changes the scopes requested from Microsoft. It does not hide tools. Use `--enabled-tools`, `--preset`, and `--read-only` to control which tools are exposed.
+
+In HTTP mode, OAuth discovery advertises the configured `authScopes` when `--auth-scopes` is set so clients request the same narrower consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--auth-scopes` does not override OBO.
+
 ## Organization/Work Mode
 
 To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:
@@ -474,6 +499,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
+--auth-scopes <scopes> Override auth scopes requested from Microsoft (whitespace-separated)
 ```
 
 ### Server Options

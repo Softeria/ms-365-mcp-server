@@ -36,6 +36,10 @@ program
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
   .option(
+    '--auth-scopes <scopes>',
+    'Override auth scopes requested from Microsoft (whitespace-separated). Does not change exposed tools.'
+  )
+  .option(
     '--preset <names>',
     'Use preset tool categories (comma-separated). Available: mail, calendar, files, personal, work, excel, contacts, tasks, onenote, search, users, all'
   )
@@ -89,6 +93,7 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
+  authScopes?: string;
   preset?: string;
   listPresets?: boolean;
   listPermissions?: boolean;
@@ -142,6 +147,18 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.ENABLED_TOOLS) {
     options.enabledTools = process.env.ENABLED_TOOLS;
+  }
+
+  if (options.authScopes === undefined && process.env.MS365_MCP_AUTH_SCOPES !== undefined) {
+    options.authScopes = process.env.MS365_MCP_AUTH_SCOPES;
+  }
+
+  if (options.authScopes !== undefined && options.authScopes.trim() === '') {
+    console.error(
+      'Error: --auth-scopes / MS365_MCP_AUTH_SCOPES was provided but is empty. ' +
+        'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
+    );
+    process.exit(1);
   }
 
   // Validate tool filter regex early — fail at startup instead of silently
