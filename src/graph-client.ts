@@ -4,6 +4,11 @@ import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
+import {
+  fetchWithResilience,
+  getSharedBreaker,
+  loadResilienceConfig,
+} from './lib/graph-resilience.js';
 
 /**
  * Returns true if the given HTTP Content-Type header indicates a binary
@@ -181,12 +186,17 @@ class GraphClient {
       ...options.headers,
     };
 
-    return fetch(url, {
-      method: options.method || 'GET',
-      headers,
-      // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
-      body: options.body as unknown as string,
-    });
+    return fetchWithResilience(
+      url,
+      {
+        method: options.method || 'GET',
+        headers,
+        // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
+        body: options.body as unknown as string,
+      },
+      loadResilienceConfig(),
+      getSharedBreaker()
+    );
   }
 
   private serializeData(data: unknown, outputFormat: 'json' | 'toon', pretty = false): string {
