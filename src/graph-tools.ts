@@ -421,6 +421,15 @@ async function executeGraphTool(
       }
     }
 
+    // Defense-in-depth: Graph rejects $top on /delta endpoints with HTTP 400.
+    // The user-facing schema for -delta tools strips top/$top, so freshly-
+    // connected clients can't send it. Cached/stale clients (and ad-hoc callers)
+    // might still try — drop it server-side before clamping or sending,
+    // regardless of where it came from.
+    if (tool.alias.endsWith('-delta')) {
+      delete queryParams['$top'];
+    }
+
     clampTopQueryParam(queryParams);
 
     const preferValues: string[] = [];
@@ -546,6 +555,11 @@ async function executeGraphTool(
         let pageCount = 1;
         const maxPages = 100;
         const maxItems = 10_000;
+        // Graph only emits @odata.deltaLink on the final page of a /delta query.
+        // Track it across the pagination loop so we can stamp it on the combined
+        // response — otherwise fetchAllPages on a /delta endpoint silently drops
+        // the resume token and forces callers to re-list from scratch.
+        let deltaLink: string | undefined = combinedResponse['@odata.deltaLink'];
 
         while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
@@ -566,6 +580,9 @@ async function executeGraphTool(
               allItems = allItems.concat(nextJsonResponse.value);
             }
             nextLink = nextJsonResponse['@odata.nextLink'];
+            if (nextJsonResponse['@odata.deltaLink']) {
+              deltaLink = nextJsonResponse['@odata.deltaLink'];
+            }
             pageCount++;
           } else {
             break;
@@ -586,6 +603,9 @@ async function executeGraphTool(
           combinedResponse['@odata.count'] = allItems.length;
         }
         delete combinedResponse['@odata.nextLink'];
+        if (deltaLink) {
+          combinedResponse['@odata.deltaLink'] = deltaLink;
+        }
 
         response.content[0].text = JSON.stringify(combinedResponse);
 
@@ -750,7 +770,16 @@ export function registerGraphTools(
         .describe('Sort expression, e.g. receivedDateTime desc')
         .optional();
     }
-    if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
+    // Graph rejects $top on /delta endpoints with HTTP 400 — page size is
+    // controlled internally (or via Prefer: odata.maxpagesize). Strip top/$top
+    // from delta tool schemas so callers can't reach for a parameter that will
+    // always fail. Server-side defense-in-depth in executeGraphTool handles
+    // stale clients that still send it.
+    const isDeltaTool = tool.alias.endsWith('-delta');
+    if (isDeltaTool) {
+      delete paramSchema['top'];
+      delete paramSchema['$top'];
+    } else if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
       const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
       paramSchema[key] = z
         .number()
