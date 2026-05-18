@@ -743,6 +743,111 @@ describe('graph-tools', () => {
   });
 
   // ---- 10. Utility tools surface in --discovery mode ----
+  describe('allowed scopes filtering', () => {
+    it('registerGraphTools hides Graph tools outside the allowed scopes', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'list-mail-messages',
+          method: 'get',
+          pathPattern: '/me/messages',
+          scopes: ['Mail.Read'],
+        },
+        {
+          toolName: 'list-calendar-events',
+          method: 'get',
+          pathPattern: '/me/events',
+          scopes: ['Calendars.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        createMockGraphClient() as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        'Mail.Read'
+      );
+
+      expect(server.tools.has('list-mail-messages')).toBe(true);
+      expect(server.tools.has('list-calendar-events')).toBe(false);
+    });
+
+    it('discovery hides Graph tools outside the allowed scopes', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'list-mail-messages',
+          method: 'get',
+          pathPattern: '/me/messages',
+          scopes: ['Mail.Read'],
+        },
+        {
+          toolName: 'list-calendar-events',
+          method: 'get',
+          pathPattern: '/me/events',
+          scopes: ['Calendars.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('list-mail-messages');
+      expect(found).not.toContain('list-calendar-events');
+    });
+  });
+
+  // ---- 11. Utility tools surface in --discovery mode ----
   describe('discovery mode: utility tools', () => {
     it('search-tools surfaces download-bytes for "download" queries', async () => {
       mockEndpoints.length = 0;

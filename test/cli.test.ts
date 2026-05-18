@@ -48,11 +48,11 @@ describe('CLI Module', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     commanderMocks.mockCommand.opts.mockReturnValue({ file: 'test.xlsx' });
-    delete process.env.MS365_MCP_AUTH_SCOPES;
+    delete process.env.MS365_MCP_ALLOWED_SCOPES;
   });
 
   afterEach(() => {
-    delete process.env.MS365_MCP_AUTH_SCOPES;
+    delete process.env.MS365_MCP_ALLOWED_SCOPES;
   });
 
   describe('parseArgs', () => {
@@ -61,38 +61,50 @@ describe('CLI Module', () => {
       expect(result).toEqual({ file: 'test.xlsx' });
     });
 
-    it('should parse --auth-scopes from CLI options', () => {
-      commanderMocks.mockCommand.opts.mockReturnValue({ authScopes: 'Mail.Read Files.Read' });
+    it('should parse --allowed-scopes from CLI options', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ allowedScopes: 'Mail.Read Files.Read' });
 
       const result = parseArgs();
 
-      expect(result.authScopes).toBe('Mail.Read Files.Read');
+      expect(result.allowedScopes).toBe('Mail.Read Files.Read');
     });
 
-    it('should use MS365_MCP_AUTH_SCOPES as a fallback', () => {
-      process.env.MS365_MCP_AUTH_SCOPES = 'Mail.Read Files.Read';
+    it('should use MS365_MCP_ALLOWED_SCOPES as a fallback', () => {
+      process.env.MS365_MCP_ALLOWED_SCOPES = 'Mail.Read Files.Read';
       commanderMocks.mockCommand.opts.mockReturnValue({});
 
       const result = parseArgs();
 
-      expect(result.authScopes).toBe('Mail.Read Files.Read');
+      expect(result.allowedScopes).toBe('Mail.Read Files.Read');
     });
 
-    it('should prefer CLI auth scopes over environment auth scopes', () => {
-      process.env.MS365_MCP_AUTH_SCOPES = 'Files.Read';
-      commanderMocks.mockCommand.opts.mockReturnValue({ authScopes: 'Mail.Read' });
+    it('should prefer CLI allowed scopes over environment allowed scopes', () => {
+      process.env.MS365_MCP_ALLOWED_SCOPES = 'Files.Read';
+      commanderMocks.mockCommand.opts.mockReturnValue({ allowedScopes: 'Mail.Read' });
 
       const result = parseArgs();
 
-      expect(result.authScopes).toBe('Mail.Read');
+      expect(result.allowedScopes).toBe('Mail.Read');
     });
 
-    it('should fail closed when auth scopes are supplied empty', () => {
-      commanderMocks.mockCommand.opts.mockReturnValue({ authScopes: '   ' });
+    it('should fail closed when allowed scopes are supplied empty', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ allowedScopes: '   ' });
 
       parseArgs();
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--auth-scopes'));
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--allowed-scopes'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should fail closed when allowed scopes env var is supplied empty', () => {
+      process.env.MS365_MCP_ALLOWED_SCOPES = '   ';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('MS365_MCP_ALLOWED_SCOPES')
+      );
       expect(process.exit).toHaveBeenCalledWith(1);
     });
   });

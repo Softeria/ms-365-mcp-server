@@ -94,7 +94,7 @@ async function startHttpServer(options: Record<string, unknown>) {
   return server;
 }
 
-describe('auth scope HTTP behavior', () => {
+describe('allowed scope HTTP behavior', () => {
   beforeEach(() => {
     expressMocks.routes.clear();
     graphToolMocks.registerDiscoveryTools.mockClear();
@@ -114,19 +114,19 @@ describe('auth scope HTTP behavior', () => {
     clearSecretsCache();
   });
 
-  it('advertises explicit auth scopes in OAuth metadata', async () => {
-    await startHttpServer({ authScopes: 'Mail.Read Files.Read' });
+  it('advertises effective scopes in OAuth metadata', async () => {
+    await startHttpServer({ allowedScopes: 'Mail.Read Files.Read' });
     const handler = expressMocks.routes.get('/.well-known/oauth-authorization-server')!;
     const res = mockResponse();
 
     await handler(mockRequest('/.well-known/oauth-authorization-server'), res);
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes_supported: ['Mail.Read', 'Files.Read'] })
+      expect.objectContaining({ scopes_supported: ['Files.Read', 'Mail.Read'] })
     );
   });
 
-  it('preserves client-requested authorize scopes without explicit auth scopes', async () => {
+  it('preserves client-requested authorize scopes when no allowed scopes are set', async () => {
     await startHttpServer({ enabledTools: 'mail' });
     const handler = expressMocks.routes.get('/authorize')!;
     const res = mockResponse();
@@ -146,8 +146,8 @@ describe('auth scope HTTP behavior', () => {
     expect(scopes).not.toContain('Mail.Read');
   });
 
-  it('forces explicit auth scopes in authorize redirects', async () => {
-    await startHttpServer({ authScopes: 'Mail.Read Files.Read' });
+  it('uses allowed-scope-filtered permissions in authorize redirects', async () => {
+    await startHttpServer({ allowedScopes: 'Mail.Read' });
     const handler = expressMocks.routes.get('/authorize')!;
     const res = mockResponse();
 
@@ -160,16 +160,14 @@ describe('auth scope HTTP behavior', () => {
 
     const redirectUrl = new URL(res.redirect.mock.calls[0][0]);
     const scopes = redirectUrl.searchParams.get('scope')!.split(' ');
-    expect(scopes).toEqual(
-      expect.arrayContaining(['Mail.Read', 'Files.Read', 'User.Read', 'offline_access'])
-    );
+    expect(scopes).toEqual(expect.arrayContaining(['Mail.Read', 'User.Read', 'offline_access']));
     expect(scopes).not.toContain('Calendars.Read');
   });
 
-  it('keeps OBO protected-resource metadata ahead of explicit auth scopes', async () => {
+  it('keeps OBO protected-resource metadata ahead of allowed scopes', async () => {
     process.env.MS365_MCP_CLIENT_SECRET = 'secret';
     clearSecretsCache();
-    await startHttpServer({ authScopes: 'Mail.Read', obo: true });
+    await startHttpServer({ allowedScopes: 'Mail.Read', obo: true });
     const handler = expressMocks.routes.get('/.well-known/oauth-protected-resource')!;
     const res = mockResponse();
 
@@ -180,9 +178,9 @@ describe('auth scope HTTP behavior', () => {
     );
   });
 
-  it('registers tools independently from explicit auth scopes', () => {
+  it('passes allowed scopes to tool registration', () => {
     const server = new MicrosoftGraphServer(mockAuthManager(), {
-      authScopes: 'Mail.Read',
+      allowedScopes: 'Mail.Read',
       enabledTools: 'mail',
       http: true,
     });
@@ -198,7 +196,8 @@ describe('auth scope HTTP behavior', () => {
       undefined,
       expect.anything(),
       false,
-      []
+      [],
+      'Mail.Read'
     );
   });
 });

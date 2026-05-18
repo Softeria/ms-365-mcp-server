@@ -123,28 +123,34 @@ This is useful for enterprise environments where Graph API permissions must be p
 
 The `--list-permissions` JSON includes:
 
-- `permissions`: legacy alias for `toolPermissions`, kept for compatibility with existing scripts
-- `toolPermissions`: permissions implied by the currently enabled tool surface
-- `authScopes`: scopes the server will request during MSAL authentication
-- `missingAuthScopesForEnabledTools`: enabled tool permissions not covered by configured auth scopes
-- `extraAuthScopesNotImpliedByTools`: configured auth scopes that are not implied by the enabled tools
+- `toolPermissions`: permissions implied by the tool surface before `--allowed-scopes` filtering
+- `effectivePermissions`: permissions implied by the tools that remain enabled after `--allowed-scopes`
+- `permissions`: legacy alias for `effectivePermissions`, kept for compatibility with existing scripts
+- `allowedScopes`: the configured scope allowlist, when provided
+- `disabledTools`: tools hidden because their required Graph scopes are not covered by `allowedScopes`
+- `missingAllowedScopesForTools`: unique missing scopes across disabled tools
+- `extraAllowedScopesNotUsedByTools`: allowed scopes that are not used by the current tool surface
 
-### Explicit Auth Scopes
+### Allowed Scopes
 
-By default, MSAL requests the same scopes implied by the enabled tools. Enterprise and headless deployments can override that authentication surface with `--auth-scopes` or `MS365_MCP_AUTH_SCOPES`:
+By default, MSAL requests the scopes implied by the enabled tools, and the tool surface is controlled by `--enabled-tools`, `--preset`, `--org-mode`, and `--read-only`.
+
+Enterprise and headless deployments can add a scope boundary with `--allowed-scopes` or `MS365_MCP_ALLOWED_SCOPES`. When configured, the server first computes the normal tool surface, then hides Graph tools whose required scopes are not covered by the allowlist. OAuth metadata and login flows request only the effective permissions for the tools that remain enabled.
 
 ```bash
 npx @softeria/ms-365-mcp-server \
   --org-mode \
   --enabled-tools '^(list-mail-messages|get-mail-message|list-drives|get-drive-item|download-bytes)$' \
-  --auth-scopes 'User.Read Mail.Read Files.Read'
+  --allowed-scopes 'User.Read Mail.Read Files.Read'
 ```
 
-CLI value takes precedence over `MS365_MCP_AUTH_SCOPES`; if neither is set, the default tool-derived scope behavior is unchanged. Supplying an empty value fails at startup so deployments do not accidentally fall back to a wider scope set.
+CLI value takes precedence over `MS365_MCP_ALLOWED_SCOPES`; if neither is set, the default tool-derived scope behavior is unchanged. Supplying an empty value fails at startup so deployments do not accidentally fall back to a wider tool surface.
 
-`--auth-scopes` only changes the scopes requested from Microsoft. It does not hide tools. Use `--enabled-tools`, `--preset`, and `--read-only` to control which tools are exposed.
+Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools that require `Mail.Read`, and `Files.ReadWrite.All` covers tools that require `Files.Read`.
 
-In HTTP mode, OAuth discovery advertises the configured `authScopes` when `--auth-scopes` is set so clients request the same narrower consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--auth-scopes` does not override OBO.
+In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
+
+Durable headless token-cache storage and account pinning are separate concerns from tool-surface scope filtering and can be addressed independently.
 
 ## Organization/Work Mode
 
@@ -494,12 +500,12 @@ The following options can be used when running ms-365-mcp-server directly from t
 --login           Login using device code flow
 --logout          Log out and clear saved credentials
 --verify-login    Verify login without starting the server
---list-permissions List all required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools)
+--list-permissions List required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools, --allowed-scopes)
 --org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
---auth-scopes <scopes> Override auth scopes requested from Microsoft (whitespace-separated)
+--allowed-scopes <scopes> Limit exposed tools to Graph scopes covered by this allowlist
 ```
 
 ### Server Options

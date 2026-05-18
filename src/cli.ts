@@ -36,8 +36,8 @@ program
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
   .option(
-    '--auth-scopes <scopes>',
-    'Override auth scopes requested from Microsoft (whitespace-separated). Does not change exposed tools.'
+    '--allowed-scopes <scopes>',
+    'Limit exposed tools to Graph scopes covered by this whitespace-separated allowlist'
   )
   .option(
     '--preset <names>',
@@ -93,7 +93,7 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
-  authScopes?: string;
+  allowedScopes?: string;
   preset?: string;
   listPresets?: boolean;
   listPermissions?: boolean;
@@ -149,13 +149,13 @@ export function parseArgs(): CommandOptions {
     options.enabledTools = process.env.ENABLED_TOOLS;
   }
 
-  if (options.authScopes === undefined && process.env.MS365_MCP_AUTH_SCOPES !== undefined) {
-    options.authScopes = process.env.MS365_MCP_AUTH_SCOPES;
+  if (options.allowedScopes === undefined && process.env.MS365_MCP_ALLOWED_SCOPES !== undefined) {
+    options.allowedScopes = process.env.MS365_MCP_ALLOWED_SCOPES;
   }
 
-  if (options.authScopes !== undefined && options.authScopes.trim() === '') {
+  if (options.allowedScopes !== undefined && options.allowedScopes.trim() === '') {
     console.error(
-      'Error: --auth-scopes / MS365_MCP_AUTH_SCOPES was provided but is empty. ' +
+      'Error: --allowed-scopes / MS365_MCP_ALLOWED_SCOPES was provided but is empty. ' +
         'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
     );
     process.exit(1);

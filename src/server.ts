@@ -10,7 +10,7 @@ import { buildMcpServerInstructions } from './mcp-instructions.js';
 import GraphClient from './graph-client.js';
 import AuthManager, {
   buildScopesFromEndpoints,
-  parseExplicitAuthScopes,
+  parseAllowedScopes,
   resolveAuthScopes,
 } from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -114,7 +114,8 @@ class MicrosoftGraphServer {
         this.authManager,
         this.multiAccount,
         this.accountNames,
-        this.options.enabledTools
+        this.options.enabledTools,
+        this.options.allowedScopes
       );
     } else {
       registerGraphTools(
@@ -125,7 +126,8 @@ class MicrosoftGraphServer {
         this.options.orgMode,
         this.authManager,
         this.multiAccount,
-        this.accountNames
+        this.accountNames,
+        this.options.allowedScopes
       );
     }
 
@@ -445,17 +447,18 @@ class MicrosoftGraphServer {
         //     access to data" consent line that fails in tenants where user
         //     consent for applications is restricted by policy (even when
         //     admin has pre-consented every scope).
-        const explicitAuthScopes = parseExplicitAuthScopes(this.options.authScopes);
+        const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
         const baseScopes =
-          explicitAuthScopes ??
-          (clientScope
-            ? clientScope.split(/\s+/).filter(Boolean)
-            : buildScopesFromEndpoints(
-                this.options.orgMode,
-                this.options.enabledTools,
-                this.options.readOnly
-              ));
+          explicitAllowedScopes !== undefined
+            ? resolveAuthScopes(this.options)
+            : clientScope
+              ? clientScope.split(/\s+/).filter(Boolean)
+              : buildScopesFromEndpoints(
+                  this.options.orgMode,
+                  this.options.enabledTools,
+                  this.options.readOnly
+                );
         const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
         microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 

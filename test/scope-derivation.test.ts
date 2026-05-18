@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildScopesFromEndpoints,
   collapseScopeHierarchy,
-  parseExplicitAuthScopes,
+  parseAllowedScopes,
   resolveAuthScopes,
 } from '../src/auth.js';
 
@@ -65,14 +65,14 @@ describe('buildScopesFromEndpoints', () => {
   });
 });
 
-describe('explicit auth scope helpers', () => {
-  describe('parseExplicitAuthScopes', () => {
+describe('allowed scope helpers', () => {
+  describe('parseAllowedScopes', () => {
     it('returns undefined when no value is provided', () => {
-      expect(parseExplicitAuthScopes()).toBeUndefined();
+      expect(parseAllowedScopes()).toBeUndefined();
     });
 
     it('splits on whitespace, trims, and deduplicates scopes', () => {
-      expect(parseExplicitAuthScopes('  Mail.Read   Files.Read\nMail.Read\tUser.Read  ')).toEqual([
+      expect(parseAllowedScopes('  Mail.Read   Files.Read\nMail.Read\tUser.Read  ')).toEqual([
         'Mail.Read',
         'Files.Read',
         'User.Read',
@@ -80,22 +80,35 @@ describe('explicit auth scope helpers', () => {
     });
 
     it('returns an empty array for supplied empty input', () => {
-      expect(parseExplicitAuthScopes('   ')).toEqual([]);
+      expect(parseAllowedScopes('   ')).toEqual([]);
     });
   });
 
   describe('resolveAuthScopes', () => {
-    it('uses explicit auth scopes when supplied', () => {
-      expect(resolveAuthScopes({ authScopes: 'Mail.Read Files.Read' })).toEqual([
-        'Mail.Read',
-        'Files.Read',
-      ]);
-    });
-
-    it('falls back to tool-derived scopes when no explicit auth scopes are supplied', () => {
+    it('uses tool-derived scopes when allowed scopes are not supplied', () => {
       expect(
         resolveAuthScopes({ orgMode: true, enabledTools: 'search|query', readOnly: true })
       ).toEqual(buildScopesFromEndpoints(true, 'search|query', true));
+    });
+
+    it('filters tool-derived scopes when allowed scopes are supplied', () => {
+      expect(
+        resolveAuthScopes({
+          orgMode: true,
+          enabledTools: 'mail|drive',
+          allowedScopes: 'Mail.Read Files.Read',
+        })
+      ).toEqual(expect.arrayContaining(['Files.Read', 'Mail.Read']));
+    });
+
+    it('treats broader allowed scopes as covering narrower tool scopes', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        allowedScopes: 'Mail.ReadWrite',
+        readOnly: true,
+      });
+
+      expect(scopes).toEqual(['Mail.Read']);
     });
   });
 
