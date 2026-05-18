@@ -8,7 +8,11 @@ import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
 import GraphClient from './graph-client.js';
-import AuthManager, { buildScopesFromEndpoints } from './auth.js';
+import AuthManager, {
+  buildScopesFromEndpoints,
+  parseAllowedScopes,
+  resolveAuthScopes,
+} from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import {
   exchangeCodeForToken,
@@ -110,7 +114,8 @@ class MicrosoftGraphServer {
         this.authManager,
         this.multiAccount,
         this.accountNames,
-        this.options.enabledTools
+        this.options.enabledTools,
+        this.options.allowedScopes
       );
     } else {
       registerGraphTools(
@@ -121,7 +126,8 @@ class MicrosoftGraphServer {
         this.options.orgMode,
         this.authManager,
         this.multiAccount,
-        this.accountNames
+        this.accountNames,
+        this.options.allowedScopes
       );
     }
 
@@ -253,11 +259,7 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(
-          this.options.orgMode,
-          this.options.enabledTools,
-          this.options.readOnly
-        );
+        const scopes = resolveAuthScopes(this.options);
 
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
@@ -286,11 +288,7 @@ class MicrosoftGraphServer {
 
         const scopes = this.options.obo
           ? [`api://${this.secrets!.clientId}/access_as_user`]
-          : buildScopesFromEndpoints(
-              this.options.orgMode,
-              this.options.enabledTools,
-              this.options.readOnly
-            );
+          : resolveAuthScopes(this.options);
 
         res.json({
           resource: `${requestOrigin}/mcp`,
@@ -449,14 +447,18 @@ class MicrosoftGraphServer {
         //     access to data" consent line that fails in tenants where user
         //     consent for applications is restricted by policy (even when
         //     admin has pre-consented every scope).
+        const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
-        const baseScopes = clientScope
-          ? clientScope.split(/\s+/).filter(Boolean)
-          : buildScopesFromEndpoints(
-              this.options.orgMode,
-              this.options.enabledTools,
-              this.options.readOnly
-            );
+        const baseScopes =
+          explicitAllowedScopes !== undefined
+            ? resolveAuthScopes(this.options)
+            : clientScope
+              ? clientScope.split(/\s+/).filter(Boolean)
+              : buildScopesFromEndpoints(
+                  this.options.orgMode,
+                  this.options.enabledTools,
+                  this.options.readOnly
+                );
         const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
         microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 

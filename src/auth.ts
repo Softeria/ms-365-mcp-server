@@ -41,6 +41,7 @@ interface EndpointConfig {
   scopes?: string[];
   workScopes?: string[];
   llmTip?: string;
+  readOnly?: boolean;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -145,6 +146,70 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Contacts.ReadWrite': ['Contacts.Read'],
 };
 
+interface AllowedScopeOptions {
+  orgMode?: boolean;
+  enabledTools?: string;
+  readOnly?: boolean;
+  allowedScopes?: string;
+}
+
+interface DisabledToolScope {
+  toolName: string;
+  requiredScopes: string[];
+  missingScopes: string[];
+}
+
+interface ScopeDiagnostics {
+  permissions: string[];
+  toolPermissions: string[];
+  effectivePermissions: string[];
+  allowedScopes?: string[];
+  disabledTools: DisabledToolScope[];
+  missingAllowedScopesForTools: string[];
+  extraAllowedScopesNotUsedByTools: string[];
+}
+
+function parseAllowedScopes(value?: string): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return Array.from(new Set(value.trim().split(/\s+/).filter(Boolean)));
+}
+
+function getEndpointRequiredScopes(
+  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
+  includeWorkAccountScopes: boolean = false
+): string[] {
+  if (!endpoint) {
+    return [];
+  }
+
+  const scopes = new Set<string>();
+  if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
+    endpoint.scopes.forEach((scope) => scopes.add(scope));
+  }
+  if (includeWorkAccountScopes && endpoint.workScopes && Array.isArray(endpoint.workScopes)) {
+    endpoint.workScopes.forEach((scope) => scopes.add(scope));
+  }
+  return Array.from(scopes);
+}
+
+function collapseRedundantScopes(scopes: string[]): string[] {
+  const scopesSet = new Set(scopes);
+
+  // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
+  // keep only the higher scope since it includes the permissions of the lower scopes.
+  // Do NOT upgrade Read to ReadWrite if we only have Read scopes.
+  Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
+    if (scopesSet.has(higherScope) && lowerScopes.every((scope) => scopesSet.has(scope))) {
+      lowerScopes.forEach((scope) => scopesSet.delete(scope));
+    }
+  });
+
+  return Array.from(scopesSet);
+}
+
 function buildScopesFromEndpoints(
   includeWorkAccountScopes: boolean = false,
   enabledToolsPattern?: string,
@@ -168,7 +233,9 @@ function buildScopesFromEndpoints(
   endpoints.default.forEach((endpoint) => {
     // Skip write operations in read-only mode
     if (readOnly && endpoint.method.toUpperCase() !== 'GET') {
-      return;
+      if (!(endpoint.method.toUpperCase() === 'POST' && endpoint.readOnly)) {
+        return;
+      }
     }
 
     // Skip endpoints that don't match the tool filter
@@ -181,33 +248,190 @@ function buildScopesFromEndpoints(
       return;
     }
 
-    // Add regular scopes
-    if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
-      endpoint.scopes.forEach((scope) => scopesSet.add(scope));
-    }
-
-    // Add workScopes if in work mode
-    if (includeWorkAccountScopes && endpoint.workScopes && Array.isArray(endpoint.workScopes)) {
-      endpoint.workScopes.forEach((scope) => scopesSet.add(scope));
-    }
+    getEndpointRequiredScopes(endpoint, includeWorkAccountScopes).forEach((scope) =>
+      scopesSet.add(scope)
+    );
   });
 
-  // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
-  // keep only the higher scope since it includes the permissions of the lower scopes.
-  // Do NOT upgrade Read to ReadWrite if we only have Read scopes.
-  Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
-    if (scopesSet.has(higherScope) && lowerScopes.every((scope) => scopesSet.has(scope))) {
-      // We have both ReadWrite and Read, so remove the redundant Read scope
-      lowerScopes.forEach((scope) => scopesSet.delete(scope));
-    }
-  });
-
-  const scopes = Array.from(scopesSet);
+  const scopes = collapseRedundantScopes(Array.from(scopesSet));
   if (enabledToolsPattern) {
     logger.info(`Built ${scopes.length} scopes for filtered tools: ${scopes.join(', ')}`);
   }
 
   return scopes;
+}
+
+function lowerScopesFor(scope: string): string[] {
+  const lowerScopes = new Set(SCOPE_HIERARCHY[scope] ?? []);
+
+  if (scope.endsWith('.ReadWrite.All')) {
+    const readAllScope = scope.replace(/\.ReadWrite\.All$/, '.Read.All');
+    const readWriteScope = scope.replace(/\.ReadWrite\.All$/, '.ReadWrite');
+    const readScope = scope.replace(/\.ReadWrite\.All$/, '.Read');
+    lowerScopes.add(readAllScope);
+    lowerScopes.add(readWriteScope);
+    lowerScopes.add(readScope);
+  } else if (scope.endsWith('.ReadWrite.Shared')) {
+    lowerScopes.add(scope.replace(/\.ReadWrite\.Shared$/, '.Read.Shared'));
+  } else if (scope.endsWith('.ReadWrite')) {
+    lowerScopes.add(scope.replace(/\.ReadWrite$/, '.Read'));
+  } else if (scope.endsWith('.Read.All')) {
+    lowerScopes.add(scope.replace(/\.Read\.All$/, '.Read'));
+  }
+
+  return Array.from(lowerScopes);
+}
+
+function addImpliedScopes(scope: string, scopesSet: Set<string>): void {
+  for (const lowerScope of lowerScopesFor(scope)) {
+    if (!scopesSet.has(lowerScope)) {
+      scopesSet.add(lowerScope);
+      addImpliedScopes(lowerScope, scopesSet);
+    }
+  }
+}
+
+function collapseScopeHierarchy(scopes: string[]): string[] {
+  const scopesSet = new Set(scopes);
+  for (const scope of scopes) {
+    addImpliedScopes(scope, scopesSet);
+  }
+  return Array.from(scopesSet);
+}
+
+function getMissingAllowedScopes(requiredScopes: string[], allowedScopes?: string[]): string[] {
+  if (allowedScopes === undefined) {
+    return [];
+  }
+
+  const coveredAllowedScopes = new Set(collapseScopeHierarchy(allowedScopes));
+  return requiredScopes.filter((scope) => !coveredAllowedScopes.has(scope));
+}
+
+function isScopeUsedByTools(allowedScope: string, toolScopes: string[]): boolean {
+  const coveredByAllowedScope = new Set(collapseScopeHierarchy([allowedScope]));
+  return toolScopes.some((scope) => coveredByAllowedScope.has(scope));
+}
+
+function endpointMatchesNormalToolSurface(
+  endpoint: EndpointConfig,
+  includeWorkAccountScopes: boolean,
+  enabledToolsRegex?: RegExp,
+  readOnly: boolean = false
+): boolean {
+  if (readOnly && endpoint.method.toUpperCase() !== 'GET') {
+    if (!(endpoint.method.toUpperCase() === 'POST' && endpoint.readOnly)) {
+      return false;
+    }
+  }
+
+  if (enabledToolsRegex && !enabledToolsRegex.test(endpoint.toolName)) {
+    return false;
+  }
+
+  if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeDiagnostics {
+  const allowedScopes = parseAllowedScopes(options.allowedScopes);
+  let enabledToolsRegex: RegExp | undefined;
+  if (options.enabledTools) {
+    try {
+      enabledToolsRegex = new RegExp(options.enabledTools, 'i');
+    } catch {
+      logger.error(
+        `Invalid tool filter regex pattern: ${options.enabledTools}. Building diagnostics without filter.`
+      );
+    }
+  }
+
+  const normalToolScopes = new Set<string>();
+  const effectiveToolScopes = new Set<string>();
+  const disabledTools: DisabledToolScope[] = [];
+
+  for (const endpoint of endpoints.default) {
+    if (
+      !endpointMatchesNormalToolSurface(
+        endpoint,
+        Boolean(options.orgMode),
+        enabledToolsRegex,
+        Boolean(options.readOnly)
+      )
+    ) {
+      continue;
+    }
+
+    const requiredScopes = getEndpointRequiredScopes(endpoint, Boolean(options.orgMode));
+    requiredScopes.forEach((scope) => normalToolScopes.add(scope));
+
+    const missingScopes = getMissingAllowedScopes(requiredScopes, allowedScopes);
+    if (missingScopes.length > 0) {
+      disabledTools.push({
+        toolName: endpoint.toolName,
+        requiredScopes: requiredScopes.sort((a, b) => a.localeCompare(b)),
+        missingScopes: missingScopes.sort((a, b) => a.localeCompare(b)),
+      });
+      continue;
+    }
+
+    requiredScopes.forEach((scope) => effectiveToolScopes.add(scope));
+  }
+
+  const toolPermissions = collapseRedundantScopes(Array.from(normalToolScopes)).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const effectivePermissions = collapseRedundantScopes(Array.from(effectiveToolScopes)).sort(
+    (a, b) => a.localeCompare(b)
+  );
+  const sortedAllowedScopes = allowedScopes
+    ? [...allowedScopes].sort((a, b) => a.localeCompare(b))
+    : undefined;
+  const missingAllowedScopesForTools = Array.from(
+    new Set(disabledTools.flatMap((tool) => tool.missingScopes))
+  ).sort((a, b) => a.localeCompare(b));
+  const extraAllowedScopesNotUsedByTools =
+    sortedAllowedScopes?.filter((scope) => !isScopeUsedByTools(scope, effectivePermissions)) ?? [];
+
+  return {
+    permissions: effectivePermissions,
+    toolPermissions,
+    effectivePermissions,
+    ...(sortedAllowedScopes ? { allowedScopes: sortedAllowedScopes } : {}),
+    disabledTools,
+    missingAllowedScopesForTools,
+    extraAllowedScopesNotUsedByTools,
+  };
+}
+
+function resolveAuthScopes(options: AllowedScopeOptions = {}): string[] {
+  return buildAllowedScopeDiagnostics(options).effectivePermissions;
+}
+
+function buildScopeDiagnostics(
+  toolScopes: string[],
+  allowedScopesInput: string[]
+): ScopeDiagnostics {
+  const toolPermissions = [...toolScopes].sort((a, b) => a.localeCompare(b));
+  const coveredAllowedScopes = new Set(collapseScopeHierarchy(allowedScopesInput));
+  const missingAllowedScopesForTools = toolPermissions.filter(
+    (scope) => !coveredAllowedScopes.has(scope)
+  );
+
+  return {
+    permissions: toolPermissions.filter((scope) => coveredAllowedScopes.has(scope)),
+    toolPermissions,
+    effectivePermissions: toolPermissions.filter((scope) => coveredAllowedScopes.has(scope)),
+    allowedScopes: [...allowedScopesInput].sort((a, b) => a.localeCompare(b)),
+    disabledTools: [],
+    missingAllowedScopesForTools,
+    extraAllowedScopesNotUsedByTools: [...allowedScopesInput]
+      .sort((a, b) => a.localeCompare(b))
+      .filter((scope) => !isScopeUsedByTools(scope, toolPermissions)),
+  };
 }
 
 interface LoginTestResult {
@@ -230,7 +454,7 @@ class AuthManager {
   private selectedAccountId: string | null;
   private useInteractiveAuth: boolean;
 
-  constructor(config: Configuration, scopes: string[] = buildScopesFromEndpoints()) {
+  constructor(config: Configuration, scopes: string[] = []) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
     this.scopes = scopes;
@@ -249,7 +473,7 @@ class AuthManager {
    * Creates an AuthManager instance with secrets loaded from the configured provider.
    * Uses Key Vault if MS365_MCP_KEYVAULT_URL is set, otherwise environment variables.
    */
-  static async create(scopes: string[] = buildScopesFromEndpoints()): Promise<AuthManager> {
+  static async create(scopes: string[] = []): Promise<AuthManager> {
     const secrets = await getSecrets();
     const config = createMsalConfig(secrets);
     return new AuthManager(config, scopes);
@@ -782,9 +1006,16 @@ class AuthManager {
 
 export default AuthManager;
 export {
+  buildAllowedScopeDiagnostics,
   buildScopesFromEndpoints,
+  buildScopeDiagnostics,
+  collapseScopeHierarchy,
+  getEndpointRequiredScopes,
+  getMissingAllowedScopes,
   getTokenCachePath,
   getSelectedAccountPath,
+  parseAllowedScopes,
+  resolveAuthScopes,
   wrapCache,
   unwrapCache,
   pickNewest,

@@ -3,7 +3,7 @@
 import 'dotenv/config';
 import { parseArgs } from './cli.js';
 import logger from './logger.js';
-import AuthManager, { buildScopesFromEndpoints } from './auth.js';
+import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
 import MicrosoftGraphServer from './server.js';
 import { version } from './version.js';
 
@@ -17,17 +17,33 @@ async function main(): Promise<void> {
     }
 
     const readOnly = args.readOnly || false;
-    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools, readOnly);
+    const effectiveScopes = resolveAuthScopes(args);
 
     if (args.listPermissions) {
-      const sorted = [...scopes].sort((a, b) => a.localeCompare(b));
+      const diagnostics = buildAllowedScopeDiagnostics(args);
       const mode = includeWorkScopes ? 'org' : 'personal';
       const filter = args.enabledTools ? args.enabledTools : undefined;
-      console.log(JSON.stringify({ mode, readOnly, filter, permissions: sorted }, null, 2));
+      if (diagnostics.disabledTools.length > 0) {
+        console.error(
+          `Warning: allowed scopes disabled ${diagnostics.disabledTools.length} tools. Missing scopes: ${diagnostics.missingAllowedScopesForTools.join(', ')}`
+        );
+      }
+      console.log(
+        JSON.stringify(
+          {
+            mode,
+            readOnly,
+            filter,
+            ...diagnostics,
+          },
+          null,
+          2
+        )
+      );
       process.exit(0);
     }
 
-    const authManager = await AuthManager.create(scopes);
+    const authManager = await AuthManager.create(effectiveScopes);
     await authManager.loadTokenCache();
 
     if (args.authBrowser) {

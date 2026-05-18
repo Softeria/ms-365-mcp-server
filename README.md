@@ -121,6 +121,35 @@ npx @softeria/ms-365-mcp-server --preset mail --list-permissions
 
 This is useful for enterprise environments where Graph API permissions must be pre-approved and admin-consented before deploying a new version.
 
+The `--list-permissions` JSON includes:
+
+- `toolPermissions`: permissions implied by the tool surface before `--allowed-scopes` filtering
+- `effectivePermissions`: permissions implied by the tools that remain enabled after `--allowed-scopes`
+- `permissions`: legacy alias for `effectivePermissions`, kept for compatibility with existing scripts
+- `allowedScopes`: the configured scope allowlist, when provided
+- `disabledTools`: tools hidden because their required Graph scopes are not covered by `allowedScopes`
+- `missingAllowedScopesForTools`: unique missing scopes across disabled tools
+- `extraAllowedScopesNotUsedByTools`: allowed scopes that are not used by the current tool surface
+
+### Allowed Scopes
+
+By default, MSAL requests the scopes implied by the enabled tools, and the tool surface is controlled by `--enabled-tools`, `--preset`, `--org-mode`, and `--read-only`.
+
+Enterprise and headless deployments can add a scope boundary with `--allowed-scopes` or `MS365_MCP_ALLOWED_SCOPES`. When configured, the server first computes the normal tool surface, then hides Graph tools whose required scopes are not covered by the allowlist. OAuth metadata and login flows request only the effective permissions for the tools that remain enabled.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --enabled-tools '^(list-mail-messages|get-mail-message|list-drives|get-drive-item|download-bytes)$' \
+  --allowed-scopes 'User.Read Mail.Read Files.Read'
+```
+
+CLI value takes precedence over `MS365_MCP_ALLOWED_SCOPES`; if neither is set, the default tool-derived scope behavior is unchanged. Supplying an empty value fails at startup so deployments do not accidentally fall back to a wider tool surface.
+
+Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools that require `Mail.Read`, and `Files.ReadWrite.All` covers tools that require `Files.Read`.
+
+In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
+
 ## Organization/Work Mode
 
 To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:
@@ -469,11 +498,12 @@ The following options can be used when running ms-365-mcp-server directly from t
 --login           Login using device code flow
 --logout          Log out and clear saved credentials
 --verify-login    Verify login without starting the server
---list-permissions List all required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools)
+--list-permissions List required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools, --allowed-scopes)
 --org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
+--allowed-scopes <scopes> Limit exposed tools to Graph scopes covered by this allowlist
 ```
 
 ### Server Options
