@@ -150,8 +150,6 @@ Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools th
 
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
-Durable headless token-cache storage and account pinning are separate concerns from tool-surface scope filtering and can be addressed independently.
-
 ## Organization/Work Mode
 
 To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:

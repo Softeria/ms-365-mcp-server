@@ -308,19 +308,6 @@ function getMissingAllowedScopes(requiredScopes: string[], allowedScopes?: strin
   return requiredScopes.filter((scope) => !coveredAllowedScopes.has(scope));
 }
 
-function isEndpointCoveredByAllowedScopes(
-  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
-  includeWorkAccountScopes: boolean,
-  allowedScopes?: string[]
-): boolean {
-  return (
-    getMissingAllowedScopes(
-      getEndpointRequiredScopes(endpoint, includeWorkAccountScopes),
-      allowedScopes
-    ).length === 0
-  );
-}
-
 function isScopeUsedByTools(allowedScope: string, toolScopes: string[]): boolean {
   const coveredByAllowedScope = new Set(collapseScopeHierarchy([allowedScope]));
   return toolScopes.some((scope) => coveredByAllowedScope.has(scope));
@@ -1027,7 +1014,6 @@ export {
   getMissingAllowedScopes,
   getTokenCachePath,
   getSelectedAccountPath,
-  isEndpointCoveredByAllowedScopes,
   parseAllowedScopes,
   resolveAuthScopes,
   wrapCache,

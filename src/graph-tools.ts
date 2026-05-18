@@ -927,7 +927,8 @@ export function buildToolsRegistry(
   readOnly: boolean,
   orgMode: boolean,
   enabledToolsRegex?: RegExp,
-  allowedScopesValue?: string
+  allowedScopesValue?: string,
+  disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
   const toolsMap = new Map<
     string,
@@ -953,14 +954,15 @@ export function buildToolsRegistry(
       continue;
     }
 
-    if (allowedScopes !== undefined && !endpointConfig) {
-      continue;
-    }
-
-    if (
-      getMissingAllowedScopes(getEndpointRequiredScopes(endpointConfig, orgMode), allowedScopes)
-        .length > 0
-    ) {
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopes(
+            getEndpointRequiredScopes(endpointConfig, orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
       continue;
     }
 
@@ -1076,29 +1078,19 @@ export function registerDiscoveryTools(
     }
   }
 
-  const allowedScopes = parseAllowedScopes(allowedScopesValue);
-  const toolsBeforeAllowedScopeFilter = buildToolsRegistry(readOnly, orgMode, enabledToolsRegex);
-  const disabledByAllowedScopes = [...toolsBeforeAllowedScopeFilter.entries()]
-    .map(([toolName, { config }]) => ({
-      toolName,
-      missingScopes:
-        allowedScopes !== undefined && !config
-          ? ['endpoint scope metadata']
-          : getMissingAllowedScopes(getEndpointRequiredScopes(config, orgMode), allowedScopes),
-    }))
-    .filter((tool) => tool.missingScopes.length > 0);
+  const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const toolsRegistry = buildToolsRegistry(
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    disabledByAllowedScopes
+  );
   if (disabledByAllowedScopes.length > 0) {
     logger.info(
       `Discovery mode: allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
     );
   }
-
-  const toolsRegistry = buildToolsRegistry(
-    readOnly,
-    orgMode,
-    enabledToolsRegex,
-    allowedScopesValue
-  );
   const utilityTools = UTILITY_TOOLS.filter((u) => {
     if (readOnly && !u.readOnlyHint) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
