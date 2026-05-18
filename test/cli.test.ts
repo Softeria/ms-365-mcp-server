@@ -49,10 +49,14 @@ describe('CLI Module', () => {
     vi.clearAllMocks();
     commanderMocks.mockCommand.opts.mockReturnValue({ file: 'test.xlsx' });
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_EXPECTED_USERNAME;
+    delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
   });
 
   afterEach(() => {
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_EXPECTED_USERNAME;
+    delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
   });
 
   describe('parseArgs', () => {
@@ -104,6 +108,64 @@ describe('CLI Module', () => {
 
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('MS365_MCP_ALLOWED_SCOPES')
+      );
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should parse expected username and home account ID from CLI options', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        expectedUsername: ' User@Example.com ',
+        expectedHomeAccountId: ' home.id ',
+      });
+
+      const result = parseArgs();
+
+      expect(result.expectedUsername).toBe('User@Example.com');
+      expect(result.expectedHomeAccountId).toBe('home.id');
+    });
+
+    it('should use expected account env vars as fallbacks', () => {
+      process.env.MS365_MCP_EXPECTED_USERNAME = 'env@example.com';
+      process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID = 'env.home';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      const result = parseArgs();
+
+      expect(result.expectedUsername).toBe('env@example.com');
+      expect(result.expectedHomeAccountId).toBe('env.home');
+    });
+
+    it('should prefer CLI expected account values over env vars', () => {
+      process.env.MS365_MCP_EXPECTED_USERNAME = 'env@example.com';
+      process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID = 'env.home';
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        expectedUsername: 'cli@example.com',
+        expectedHomeAccountId: 'cli.home',
+      });
+
+      const result = parseArgs();
+
+      expect(result.expectedUsername).toBe('cli@example.com');
+      expect(result.expectedHomeAccountId).toBe('cli.home');
+    });
+
+    it('should fail closed when expected username is supplied empty', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ expectedUsername: '   ' });
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--expected-username'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should fail closed when expected home account ID env var is supplied empty', () => {
+      process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID = '   ';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('MS365_MCP_EXPECTED_HOME_ACCOUNT_ID')
       );
       expect(process.exit).toHaveBeenCalledWith(1);
     });

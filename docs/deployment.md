@@ -194,6 +194,7 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 ## Security Considerations
 
 - **Stateless**: the server does not store tokens — each request carries the user's Bearer token
+- **Account pinning**: `MS365_MCP_EXPECTED_USERNAME` and `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID` protect local MSAL cache flows for headless stdio deployments. In `--http`, `--obo`, or `MS365_MCP_OAUTH_TOKEN` deployments they are warning-only because Graph calls use request-provided tokens.
 - **Admin consent**: grant tenant-wide consent to avoid per-user consent prompts
 - **Managed identity**: use managed identity for Key Vault access (no secrets in environment variables)
 - **Read-only mode**: use `--read-only` to disable all write operations (send, delete, update, create)

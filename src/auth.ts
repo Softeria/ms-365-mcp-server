@@ -443,6 +443,11 @@ interface LoginTestResult {
   };
 }
 
+interface ExpectedAccountOptions {
+  expectedUsername?: string;
+  expectedHomeAccountId?: string;
+}
+
 class AuthManager {
   private config: Configuration;
   private scopes: string[];
@@ -453,8 +458,14 @@ class AuthManager {
   private isOAuthMode: boolean;
   private selectedAccountId: string | null;
   private useInteractiveAuth: boolean;
+  private expectedUsername: string | null;
+  private expectedHomeAccountId: string | null;
 
-  constructor(config: Configuration, scopes: string[] = []) {
+  constructor(
+    config: Configuration,
+    scopes: string[] = [],
+    expectedAccount?: ExpectedAccountOptions
+  ) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
     this.scopes = scopes;
@@ -463,6 +474,10 @@ class AuthManager {
     this.tokenExpiry = null;
     this.selectedAccountId = null;
     this.useInteractiveAuth = false;
+    this.expectedUsername = this.normalizeExpectedUsername(expectedAccount?.expectedUsername);
+    this.expectedHomeAccountId = this.normalizeExpectedHomeAccountId(
+      expectedAccount?.expectedHomeAccountId
+    );
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
@@ -473,10 +488,13 @@ class AuthManager {
    * Creates an AuthManager instance with secrets loaded from the configured provider.
    * Uses Key Vault if MS365_MCP_KEYVAULT_URL is set, otherwise environment variables.
    */
-  static async create(scopes: string[] = []): Promise<AuthManager> {
+  static async create(
+    scopes: string[] = [],
+    expectedAccount?: ExpectedAccountOptions
+  ): Promise<AuthManager> {
     const secrets = await getSecrets();
     const config = createMsalConfig(secrets);
-    return new AuthManager(config, scopes);
+    return new AuthManager(config, scopes, expectedAccount);
   }
 
   async loadTokenCache(): Promise<void> {
@@ -594,6 +612,146 @@ class AuthManager {
     }
   }
 
+  private normalizeExpectedUsername(value?: string): string | null {
+    if (value === undefined) {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      throw new Error('Expected Microsoft account username was provided but is empty.');
+    }
+    return trimmed.toLowerCase();
+  }
+
+  private normalizeExpectedHomeAccountId(value?: string): string | null {
+    if (value === undefined) {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      throw new Error('Expected Microsoft account homeAccountId was provided but is empty.');
+    }
+    return trimmed;
+  }
+
+  hasExpectedAccount(): boolean {
+    return this.expectedUsername !== null || this.expectedHomeAccountId !== null;
+  }
+
+  private expectedAccountLabel(): string {
+    const parts: string[] = [];
+    if (this.expectedUsername) {
+      parts.push(`username ${this.expectedUsername}`);
+    }
+    if (this.expectedHomeAccountId) {
+      parts.push(`homeAccountId ${this.expectedHomeAccountId}`);
+    }
+    return parts.join(' and ');
+  }
+
+  private describeAccount(account: AccountInfo | null | undefined): string {
+    return account?.username || account?.name || 'unknown';
+  }
+
+  private describeCachedAccounts(accounts: AccountInfo[]): string {
+    if (accounts.length === 0) {
+      return 'none';
+    }
+    return accounts.map((account) => this.describeAccount(account)).join(', ');
+  }
+
+  private accountMatchesExpected(account: AccountInfo | null | undefined): boolean {
+    if (!this.hasExpectedAccount() || !account) {
+      return !this.hasExpectedAccount();
+    }
+    if (this.expectedUsername && account.username?.toLowerCase() !== this.expectedUsername) {
+      return false;
+    }
+    if (this.expectedHomeAccountId && account.homeAccountId !== this.expectedHomeAccountId) {
+      return false;
+    }
+    return true;
+  }
+
+  private buildExpectedAccountMissingError(accounts: AccountInfo[]): Error {
+    return new Error(
+      `Expected Microsoft account '${this.expectedAccountLabel()}' not found in token cache. ` +
+        `Cached accounts: ${this.describeCachedAccounts(accounts)}. ` +
+        'Run --login after configuring the expected account, or use --select-account to recover.'
+    );
+  }
+
+  private resolveExpectedAccountFromAccounts(accounts: AccountInfo[]): AccountInfo {
+    if (!this.hasExpectedAccount()) {
+      throw new Error('No expected Microsoft account is configured.');
+    }
+
+    const usernameMatch = this.expectedUsername
+      ? accounts.find((account) => account.username?.toLowerCase() === this.expectedUsername)
+      : undefined;
+    const homeAccountIdMatch = this.expectedHomeAccountId
+      ? accounts.find((account) => account.homeAccountId === this.expectedHomeAccountId)
+      : undefined;
+
+    if (this.expectedUsername && this.expectedHomeAccountId) {
+      if (!usernameMatch || !homeAccountIdMatch) {
+        throw this.buildExpectedAccountMissingError(accounts);
+      }
+      if (usernameMatch.homeAccountId !== homeAccountIdMatch.homeAccountId) {
+        throw new Error(
+          `Expected Microsoft account pins conflict: username ${this.expectedUsername} matched ` +
+            `${this.describeAccount(usernameMatch)}, but homeAccountId ${this.expectedHomeAccountId} matched ` +
+            `${this.describeAccount(homeAccountIdMatch)}.`
+        );
+      }
+      return usernameMatch;
+    }
+
+    const expectedAccount = usernameMatch ?? homeAccountIdMatch;
+    if (!expectedAccount) {
+      throw this.buildExpectedAccountMissingError(accounts);
+    }
+    return expectedAccount;
+  }
+
+  async assertExpectedAccountAvailable(): Promise<void> {
+    if (!this.hasExpectedAccount()) {
+      return;
+    }
+    const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+    this.resolveExpectedAccountFromAccounts(accounts);
+  }
+
+  private async rejectUnexpectedLoginAccount(
+    account: AccountInfo | null | undefined
+  ): Promise<void> {
+    if (!this.hasExpectedAccount()) {
+      return;
+    }
+
+    if (this.accountMatchesExpected(account)) {
+      return;
+    }
+
+    this.accessToken = null;
+    this.tokenExpiry = null;
+
+    if (account) {
+      try {
+        await this.msalApp.getTokenCache().removeAccount(account);
+      } catch (error) {
+        logger.warn(`Failed to remove unexpected account from cache: ${(error as Error).message}`);
+      }
+      throw new Error(
+        `Authenticated Microsoft account '${this.describeAccount(account)}' does not match expected Microsoft account '${this.expectedAccountLabel()}'. Login was not persisted.`
+      );
+    }
+
+    throw new Error(
+      `Microsoft login did not return an account. Expected Microsoft account '${this.expectedAccountLabel()}'. Login was not persisted.`
+    );
+  }
+
   async setOAuthToken(token: string): Promise<void> {
     this.oauthToken = token;
     this.isOAuthMode = true;
@@ -633,6 +791,10 @@ class AuthManager {
 
   async getCurrentAccount(): Promise<AccountInfo | null> {
     const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+
+    if (this.hasExpectedAccount()) {
+      return this.resolveExpectedAccountFromAccounts(accounts);
+    }
 
     if (accounts.length === 0) {
       return null;
@@ -677,6 +839,7 @@ class AuthManager {
       logger.info('Device code login successful');
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
+      await this.rejectUnexpectedLoginAccount(response?.account);
 
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
@@ -727,6 +890,7 @@ class AuthManager {
       logger.info('Interactive browser login successful');
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
+      await this.rejectUnexpectedLoginAccount(response?.account);
 
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
@@ -846,6 +1010,11 @@ class AuthManager {
 
   async selectAccount(identifier: string): Promise<boolean> {
     const account = await this.resolveAccount(identifier);
+    if (this.hasExpectedAccount() && !this.accountMatchesExpected(account)) {
+      throw new Error(
+        `Account '${identifier}' does not match expected Microsoft account '${this.expectedAccountLabel()}'.`
+      );
+    }
 
     this.selectedAccountId = account.homeAccountId;
     await this.saveSelectedAccount();
@@ -931,6 +1100,9 @@ class AuthManager {
    * Used to decide whether to inject the `account` parameter into tool schemas.
    */
   async isMultiAccount(): Promise<boolean> {
+    if (this.hasExpectedAccount()) {
+      return false;
+    }
     const accounts = await this.msalApp.getTokenCache().getAllAccounts();
     return accounts.length > 1;
   }
@@ -954,7 +1126,18 @@ class AuthManager {
 
     let targetAccount: AccountInfo | null = null;
 
-    if (identifier) {
+    if (this.hasExpectedAccount()) {
+      const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+      targetAccount = this.resolveExpectedAccountFromAccounts(accounts);
+      if (identifier) {
+        const requestedAccount = await this.resolveAccount(identifier);
+        if (requestedAccount.homeAccountId !== targetAccount.homeAccountId) {
+          throw new Error(
+            `Account '${identifier}' does not match expected Microsoft account '${this.expectedAccountLabel()}'.`
+          );
+        }
+      }
+    } else if (identifier) {
       // resolveAccount handles empty-cache check internally
       targetAccount = await this.resolveAccount(identifier);
     } else {
@@ -1006,6 +1189,7 @@ class AuthManager {
 
 export default AuthManager;
 export {
+  type ExpectedAccountOptions,
   buildAllowedScopeDiagnostics,
   buildScopesFromEndpoints,
   buildScopeDiagnostics,
