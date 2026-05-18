@@ -22,6 +22,14 @@ program
   .option('--list-accounts', 'List all cached accounts')
   .option('--select-account <accountId>', 'Select a specific account by ID')
   .option('--remove-account <accountId>', 'Remove a specific account by ID')
+  .option(
+    '--expected-username <username>',
+    'Require local MSAL authentication to use this Microsoft account username'
+  )
+  .option(
+    '--expected-home-account-id <id>',
+    'Require local MSAL authentication to use this exact MSAL homeAccountId'
+  )
   .option('--read-only', 'Start server in read-only mode, disabling write operations')
   .option(
     '--http [address]',
@@ -89,6 +97,8 @@ export interface CommandOptions {
   listAccounts?: boolean;
   selectAccount?: string;
   removeAccount?: string;
+  expectedUsername?: string;
+  expectedHomeAccountId?: string;
   readOnly?: boolean;
   http?: string | boolean;
   enableAuthTools?: boolean;
@@ -159,6 +169,44 @@ export function parseArgs(): CommandOptions {
         'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
     );
     process.exit(1);
+  }
+
+  if (
+    options.expectedUsername === undefined &&
+    process.env.MS365_MCP_EXPECTED_USERNAME !== undefined
+  ) {
+    options.expectedUsername = process.env.MS365_MCP_EXPECTED_USERNAME;
+  }
+
+  if (
+    options.expectedHomeAccountId === undefined &&
+    process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID !== undefined
+  ) {
+    options.expectedHomeAccountId = process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
+  }
+
+  if (options.expectedUsername !== undefined) {
+    const expectedUsername = String(options.expectedUsername).trim();
+    if (expectedUsername === '') {
+      console.error(
+        'Error: --expected-username / MS365_MCP_EXPECTED_USERNAME was provided but is empty. ' +
+          'Provide a Microsoft account username, or omit it to allow any cached account.'
+      );
+      process.exit(1);
+    }
+    options.expectedUsername = expectedUsername;
+  }
+
+  if (options.expectedHomeAccountId !== undefined) {
+    const expectedHomeAccountId = String(options.expectedHomeAccountId).trim();
+    if (expectedHomeAccountId === '') {
+      console.error(
+        'Error: --expected-home-account-id / MS365_MCP_EXPECTED_HOME_ACCOUNT_ID was provided but is empty. ' +
+          'Provide an MSAL homeAccountId, or omit it to allow any cached account.'
+      );
+      process.exit(1);
+    }
+    options.expectedHomeAccountId = expectedHomeAccountId;
   }
 
   // Validate tool filter regex early — fail at startup instead of silently

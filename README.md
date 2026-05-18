@@ -467,6 +467,32 @@ npx @softeria/ms-365-mcp-server --list-accounts
 - **100% backward compatible**: existing single-account setups work unchanged.
 - The `account` parameter accepts email address (e.g. `user@outlook.com`) or MSAL `homeAccountId`.
 
+### Strict Account Pinning
+
+Headless stdio deployments can pin the local MSAL cache to one expected Microsoft account:
+
+```bash
+# Username matching is case-insensitive
+MS365_MCP_EXPECTED_USERNAME=work@company.com npx @softeria/ms-365-mcp-server --login
+
+# Or pin the exact MSAL homeAccountId shown by --list-accounts
+npx @softeria/ms-365-mcp-server --expected-home-account-id <homeAccountId> --login
+```
+
+Use `--list-accounts` to discover `homeAccountId` values. The MCP `list-accounts` tool intentionally hides account IDs, so use the CLI for exact ID pinning.
+
+Pinning is opt-in and local-MSAL only:
+
+- CLI values (`--expected-username`, `--expected-home-account-id`) take precedence over `MS365_MCP_EXPECTED_USERNAME` and `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`.
+- Supplying an empty pin value fails at startup instead of being ignored.
+- Username pins are compared case-insensitively; `homeAccountId` pins are exact.
+- If both pins are set, they must resolve to the same cached account.
+- Local stdio startup fails fast when the expected account is not in the token cache. Bootstrap by setting the pin, running `--login`, then starting the headless server.
+- Device-code and browser logins reject a missing or mismatched account before persisting the selected account or token cache.
+- Pinning collapses the effective MCP mode to single-account: the server does not advertise an `account` parameter and MCP instructions do not suggest account switching.
+- `--http`, `--obo`, and `MS365_MCP_OAUTH_TOKEN` use request-provided tokens for Graph calls, so account pins are warning-only in those modes. If HTTP auth tools are enabled, the pin still applies to those local MSAL helper flows.
+- `--logout` clears all cached accounts, including the pinned account. For surgical cleanup, prefer `--remove-account <id>`.
+
 > **For MCP multiplexers (Legate, Governor):** Multi-account mode replaces the N-process pattern. Instead of spawning one server per account, a single instance handles all accounts via the `account` parameter, reducing tool duplication from N×110 to 110.
 
 ## Tool Presets
@@ -504,6 +530,8 @@ The following options can be used when running ms-365-mcp-server directly from t
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
 --allowed-scopes <scopes> Limit exposed tools to Graph scopes covered by this allowlist
+--expected-username <username> Require local MSAL auth to use this account username
+--expected-home-account-id <id> Require local MSAL auth to use this exact homeAccountId
 ```
 
 ### Server Options
@@ -543,6 +571,8 @@ Environment variables:
 - `MS365_MCP_KEYVAULT_URL`: Azure Key Vault URL for secrets management (see Azure Key Vault section)
 - `MS365_MCP_TOKEN_CACHE_PATH`: Custom file path for MSAL token cache (see Token Storage below)
 - `MS365_MCP_SELECTED_ACCOUNT_PATH`: Custom file path for selected account metadata (see Token Storage below)
+- `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
+- `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
 
 ## Token Storage
 

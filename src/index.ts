@@ -5,6 +5,10 @@ import { parseArgs } from './cli.js';
 import logger from './logger.js';
 import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
 import MicrosoftGraphServer from './server.js';
+import {
+  getExpectedAccountInertWarning,
+  shouldAssertExpectedAccountAtStartup,
+} from './startup-pinning.js';
 import { version } from './version.js';
 
 async function main(): Promise<void> {
@@ -43,12 +47,21 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    const authManager = await AuthManager.create(effectiveScopes);
+    const authManager = await AuthManager.create(effectiveScopes, {
+      expectedUsername: args.expectedUsername,
+      expectedHomeAccountId: args.expectedHomeAccountId,
+    });
     await authManager.loadTokenCache();
 
     if (args.authBrowser) {
       authManager.setUseInteractiveAuth(true);
       logger.info('Browser-based interactive auth enabled');
+    }
+
+    const expectedAccountWarning = getExpectedAccountInertWarning(args, authManager);
+    if (expectedAccountWarning) {
+      logger.warn(expectedAccountWarning);
+      console.error(expectedAccountWarning);
     }
 
     if (args.login) {
@@ -109,6 +122,10 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       process.exit(0);
+    }
+
+    if (shouldAssertExpectedAccountAtStartup(args, authManager)) {
+      await authManager.assertExpectedAccountAvailable();
     }
 
     const server = new MicrosoftGraphServer(authManager, args);
