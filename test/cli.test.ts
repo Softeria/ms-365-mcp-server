@@ -51,12 +51,14 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
+    delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
   });
 
   afterEach(() => {
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
+    delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
   });
 
   describe('parseArgs', () => {
@@ -168,6 +170,18 @@ describe('CLI Module', () => {
         expect.stringContaining('MS365_MCP_EXPECTED_HOME_ACCOUNT_ID')
       );
       expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('does not add auth-cache command CLI or args env parsing', () => {
+      process.env.MS365_MCP_AUTH_CACHE_COMMAND = '/tmp/wrapper';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      const result = parseArgs();
+      const optionFlags = commanderMocks.mockCommand.option.mock.calls.map(([flags]) => flags);
+
+      expect(optionFlags).not.toContain('--auth-cache-command <command>');
+      expect(result).not.toHaveProperty('authCacheCommand');
+      expect(result).not.toHaveProperty('authCacheCommandArgs');
     });
   });
 });
