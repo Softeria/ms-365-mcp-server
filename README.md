@@ -571,6 +571,8 @@ Environment variables:
 - `MS365_MCP_KEYVAULT_URL`: Azure Key Vault URL for secrets management (see Azure Key Vault section)
 - `MS365_MCP_TOKEN_CACHE_PATH`: Custom file path for MSAL token cache (see Token Storage below)
 - `MS365_MCP_SELECTED_ACCOUNT_PATH`: Custom file path for selected account metadata (see Token Storage below)
+- `MS365_MCP_AUTH_CACHE_COMMAND`: External executable wrapper for provider-neutral auth-cache storage (see Token Storage below)
+- `MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS`: Per-invocation timeout for `MS365_MCP_AUTH_CACHE_COMMAND` (default: `10000`)
 - `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
 - `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
 
@@ -592,6 +594,42 @@ Parent directories are created automatically. Files are written with `0600` perm
 > **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls. The OS credential store (keytar) is preferred when available.
 
 > **Hosted/sandboxed environments** (e.g. Anthropic Cowork): Set `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` to a persistent mount so tokens survive between sessions.
+
+### External auth-cache command
+
+Headless local-MSAL deployments can replace the built-in keytar/file storage with a provider-neutral external command:
+
+```bash
+export MS365_MCP_AUTH_CACHE_COMMAND="/path/to/ms365-auth-cache-store"
+export MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS=10000
+```
+
+When `MS365_MCP_AUTH_CACHE_COMMAND` is set for a local auth flow, the server uses only that command for the MSAL token cache and selected-account metadata. It does not fall back to keytar or local files. If the command path is missing, not executable on POSIX, exits non-zero, times out, or returns malformed data, auth-cache operations fail closed with a sanitized error message.
+
+The value must be a real executable wrapper path. It is not a shell command string, and there is no companion args environment variable. Put any interpreter, region, profile, or provider-specific settings inside the wrapper. Windows users should point the variable at a wrapper executable or script that can be launched directly by Node without shell parsing.
+
+The server invokes the wrapper with:
+
+```text
+$MS365_MCP_AUTH_CACHE_COMMAND load token-cache
+$MS365_MCP_AUTH_CACHE_COMMAND save token-cache
+$MS365_MCP_AUTH_CACHE_COMMAND delete token-cache
+$MS365_MCP_AUTH_CACHE_COMMAND load selected-account
+$MS365_MCP_AUTH_CACHE_COMMAND save selected-account
+$MS365_MCP_AUTH_CACHE_COMMAND delete selected-account
+```
+
+Protocol v1:
+
+- `load <key>` reads no stdin. Exit `0` with `{"found":true,"value":"<stored envelope string>"}` when present. A miss is exit `0` with `{"found":false}` or empty stdout.
+- `save <key>` receives `{"value":"<stamped envelope string>"}` on stdin and must exit `0` only after the value is durably committed. There are no fire-and-forget or coalesced saves in v1.
+- `delete <key>` reads no stdin and exits `0` whether the key existed or not.
+- `<key>` is `token-cache` or `selected-account`.
+- Any non-zero exit is a storage error. Do not use exit code `2` for cache misses.
+- Stderr is captured and truncated in sanitized errors. Stdin and stdout payloads are never logged by the server.
+- Token-cache payloads can be large; wrappers should handle at least 256 KB values.
+
+Normal stateless HTTP Graph requests do not use local auth-cache storage. In HTTP mode, command storage is skipped at startup and per request unless local auth tools are explicitly enabled or a local account command such as `--login`, `--verify-login`, `--list-accounts`, `--select-account`, or `--logout` is used.
 
 ## Azure Key Vault Integration
 

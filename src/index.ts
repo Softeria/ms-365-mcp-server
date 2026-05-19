@@ -8,7 +8,9 @@ import MicrosoftGraphServer from './server.js';
 import {
   getExpectedAccountInertWarning,
   shouldAssertExpectedAccountAtStartup,
+  shouldUseLocalAuthStorage,
 } from './startup-pinning.js';
+import { createTokenCacheStorage } from './token-cache-storage.js';
 import { version } from './version.js';
 
 async function main(): Promise<void> {
@@ -47,11 +49,22 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    const authManager = await AuthManager.create(effectiveScopes, {
-      expectedUsername: args.expectedUsername,
-      expectedHomeAccountId: args.expectedHomeAccountId,
+    const useLocalAuthStorage = shouldUseLocalAuthStorage(args);
+    const storage = await createTokenCacheStorage({
+      allowCommandStorage: useLocalAuthStorage,
+      logProvider: useLocalAuthStorage,
     });
-    await authManager.loadTokenCache();
+    const authManager = await AuthManager.create(
+      effectiveScopes,
+      {
+        expectedUsername: args.expectedUsername,
+        expectedHomeAccountId: args.expectedHomeAccountId,
+      },
+      { storage }
+    );
+    if (useLocalAuthStorage) {
+      await authManager.loadTokenCache();
+    }
 
     if (args.authBrowser) {
       authManager.setUseInteractiveAuth(true);

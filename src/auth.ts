@@ -1,38 +1,21 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
-import fs, { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
-
-// Ok so this is a hack to lazily import keytar only when needed
-// since --http mode may not need it at all, and keytar can be a pain to install (looking at you alpine)
-let keytar: typeof import('keytar') | null = null;
-async function getKeytar() {
-  if (keytar === undefined) {
-    return null;
-  }
-  if (keytar === null) {
-    try {
-      // Normalize ESM/CJS interop: under Node 24+ `await import('keytar')` returns a
-      // namespace object whose top-level `setPassword` is undefined (functions live on
-      // `.default`). On older Node and pure CJS, methods live on the namespace itself.
-      // Falling back to the namespace keeps backward compatibility. See issue #418.
-      const mod = (await import('keytar')) as typeof import('keytar') & {
-        default?: typeof import('keytar');
-      };
-      keytar = mod.default ?? mod;
-      return keytar;
-    } catch (error) {
-      logger.info('keytar not available, using file-based credential storage');
-      keytar = undefined as any;
-      return null;
-    }
-  }
-  return keytar;
-}
+import {
+  createTokenCacheStorage,
+  DefaultTokenCacheStorage,
+  getSelectedAccountPath,
+  getTokenCachePath,
+  pickNewest,
+  type TokenCacheStorage,
+  unwrapCache,
+  wrapCache,
+} from './token-cache-storage.js';
 
 interface EndpointConfig {
   pathPattern: string;
@@ -53,72 +36,6 @@ const endpointsData = JSON.parse(
 const endpoints = {
   default: endpointsData,
 };
-
-const SERVICE_NAME = 'ms-365-mcp-server';
-const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
-const SELECTED_ACCOUNT_KEY = 'selected-account';
-const FALLBACK_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
-const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
-
-/**
- * Returns the token cache file path.
- * Uses MS365_MCP_TOKEN_CACHE_PATH env var if set, otherwise the default fallback.
- */
-function getTokenCachePath(): string {
-  const envPath = process.env.MS365_MCP_TOKEN_CACHE_PATH?.trim();
-  return envPath || DEFAULT_TOKEN_CACHE_PATH;
-}
-
-/**
- * Returns the selected-account file path.
- * Uses MS365_MCP_SELECTED_ACCOUNT_PATH env var if set, otherwise the default fallback.
- */
-function getSelectedAccountPath(): string {
-  const envPath = process.env.MS365_MCP_SELECTED_ACCOUNT_PATH?.trim();
-  return envPath || DEFAULT_SELECTED_ACCOUNT_PATH;
-}
-
-/**
- * Ensures the parent directory of a file path exists, creating it recursively if needed.
- */
-function ensureParentDir(filePath: string): void {
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-}
-
-function wrapCache(data: string): string {
-  return JSON.stringify({ _cacheEnvelope: true, data, savedAt: Date.now() });
-}
-
-function unwrapCache(raw: string): { data: string; savedAt?: number } {
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed._cacheEnvelope && typeof parsed.data === 'string') {
-      return { data: parsed.data, savedAt: parsed.savedAt };
-    }
-  } catch {
-    // not our envelope format
-  }
-  return { data: raw };
-}
-
-function pickNewest(
-  keytarRaw: string | undefined,
-  fileRaw: string | undefined
-): string | undefined {
-  if (!keytarRaw && !fileRaw) return undefined;
-  if (keytarRaw && !fileRaw) return unwrapCache(keytarRaw).data;
-  if (!keytarRaw && fileRaw) return unwrapCache(fileRaw).data;
-
-  const kt = unwrapCache(keytarRaw!);
-  const file = unwrapCache(fileRaw!);
-
-  if (kt.savedAt === undefined && file.savedAt === undefined) return kt.data;
-  if (kt.savedAt !== undefined && file.savedAt === undefined) return kt.data;
-  if (kt.savedAt === undefined && file.savedAt !== undefined) return file.data;
-  return kt.savedAt! >= file.savedAt! ? kt.data : file.data;
-}
 
 /**
  * Creates MSAL configuration from secrets.
@@ -223,7 +140,7 @@ function buildScopesFromEndpoints(
     try {
       enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
       logger.info(`Building scopes with tool filter pattern: ${enabledToolsPattern}`);
-    } catch (error) {
+    } catch {
       logger.error(
         `Invalid tool filter regex pattern: ${enabledToolsPattern}. Building scopes without filter.`
       );
@@ -448,6 +365,10 @@ interface ExpectedAccountOptions {
   expectedHomeAccountId?: string;
 }
 
+interface AuthManagerCreateOptions {
+  storage?: TokenCacheStorage;
+}
+
 class AuthManager {
   private config: Configuration;
   private scopes: string[];
@@ -460,11 +381,13 @@ class AuthManager {
   private useInteractiveAuth: boolean;
   private expectedUsername: string | null;
   private expectedHomeAccountId: string | null;
+  private storage: TokenCacheStorage;
 
   constructor(
     config: Configuration,
     scopes: string[] = [],
-    expectedAccount?: ExpectedAccountOptions
+    expectedAccount?: ExpectedAccountOptions,
+    storage?: TokenCacheStorage
   ) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
     this.config = config;
@@ -478,6 +401,7 @@ class AuthManager {
     this.expectedHomeAccountId = this.normalizeExpectedHomeAccountId(
       expectedAccount?.expectedHomeAccountId
     );
+    this.storage = storage ?? new DefaultTokenCacheStorage();
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
@@ -490,125 +414,71 @@ class AuthManager {
    */
   static async create(
     scopes: string[] = [],
-    expectedAccount?: ExpectedAccountOptions
+    expectedAccount?: ExpectedAccountOptions,
+    options: AuthManagerCreateOptions = {}
   ): Promise<AuthManager> {
     const secrets = await getSecrets();
     const config = createMsalConfig(secrets);
-    return new AuthManager(config, scopes, expectedAccount);
+    const storage =
+      options.storage ??
+      (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
+    return new AuthManager(config, scopes, expectedAccount, storage);
   }
 
   async loadTokenCache(): Promise<void> {
     try {
-      let keytarRaw: string | undefined;
-      try {
-        const kt = await getKeytar();
-        if (kt) {
-          keytarRaw = (await kt.getPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT)) ?? undefined;
-        }
-      } catch (keytarError) {
-        logger.warn(`Keychain access failed: ${(keytarError as Error).message}`);
-      }
-
-      let fileRaw: string | undefined;
-      const cachePath = getTokenCachePath();
-      if (existsSync(cachePath)) {
-        fileRaw = readFileSync(cachePath, 'utf8');
-      }
-
-      const cacheData = pickNewest(keytarRaw, fileRaw);
-      if (cacheData) {
-        this.msalApp.getTokenCache().deserialize(cacheData);
+      const cacheRaw = await this.storage.load('token-cache');
+      if (cacheRaw) {
+        this.msalApp.getTokenCache().deserialize(unwrapCache(cacheRaw).data);
       }
 
       // Load selected account
       await this.loadSelectedAccount();
     } catch (error) {
       logger.error(`Error loading token cache: ${(error as Error).message}`);
+      if (this.storage.failClosed) {
+        throw error;
+      }
     }
   }
 
   private async loadSelectedAccount(): Promise<void> {
     try {
-      let keytarRaw: string | undefined;
-      try {
-        const kt = await getKeytar();
-        if (kt) {
-          keytarRaw = (await kt.getPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY)) ?? undefined;
-        }
-      } catch (keytarError) {
-        logger.warn(
-          `Keychain access failed for selected account: ${(keytarError as Error).message}`
-        );
-      }
-
-      let fileRaw: string | undefined;
-      const accountPath = getSelectedAccountPath();
-      if (existsSync(accountPath)) {
-        fileRaw = readFileSync(accountPath, 'utf8');
-      }
-
-      const selectedAccountData = pickNewest(keytarRaw, fileRaw);
-      if (selectedAccountData) {
-        const parsed = JSON.parse(selectedAccountData);
+      const selectedAccountRaw = await this.storage.load('selected-account');
+      if (selectedAccountRaw) {
+        const parsed = JSON.parse(unwrapCache(selectedAccountRaw).data);
         this.selectedAccountId = parsed.accountId;
         logger.info(`Loaded selected account: ${this.selectedAccountId}`);
       }
     } catch (error) {
       logger.error(`Error loading selected account: ${(error as Error).message}`);
+      if (this.storage.failClosed) {
+        throw error;
+      }
     }
   }
 
   async saveTokenCache(): Promise<void> {
     try {
       const stamped = wrapCache(this.msalApp.getTokenCache().serialize());
-
-      try {
-        const kt = await getKeytar();
-        if (kt) {
-          await kt.setPassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT, stamped);
-        } else {
-          const cachePath = getTokenCachePath();
-          ensureParentDir(cachePath);
-          fs.writeFileSync(cachePath, stamped, { mode: 0o600 });
-        }
-      } catch (keytarError) {
-        logger.warn(
-          `Keychain save failed, falling back to file storage: ${(keytarError as Error).message}`
-        );
-
-        const cachePath = getTokenCachePath();
-        ensureParentDir(cachePath);
-        fs.writeFileSync(cachePath, stamped, { mode: 0o600 });
-      }
+      await this.storage.save('token-cache', stamped);
     } catch (error) {
       logger.error(`Error saving token cache: ${(error as Error).message}`);
+      if (this.storage.failClosed) {
+        throw error;
+      }
     }
   }
 
   private async saveSelectedAccount(): Promise<void> {
     try {
       const stamped = wrapCache(JSON.stringify({ accountId: this.selectedAccountId }));
-
-      try {
-        const kt = await getKeytar();
-        if (kt) {
-          await kt.setPassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY, stamped);
-        } else {
-          const accountPath = getSelectedAccountPath();
-          ensureParentDir(accountPath);
-          fs.writeFileSync(accountPath, stamped, { mode: 0o600 });
-        }
-      } catch (keytarError) {
-        logger.warn(
-          `Keychain save failed for selected account, falling back to file storage: ${(keytarError as Error).message}`
-        );
-
-        const accountPath = getSelectedAccountPath();
-        ensureParentDir(accountPath);
-        fs.writeFileSync(accountPath, stamped, { mode: 0o600 });
-      }
+      await this.storage.save('selected-account', stamped);
     } catch (error) {
       logger.error(`Error saving selected account: ${(error as Error).message}`);
+      if (this.storage.failClosed) {
+        throw error;
+      }
     }
   }
 
@@ -976,25 +846,8 @@ class AuthManager {
       this.tokenExpiry = null;
       this.selectedAccountId = null;
 
-      try {
-        const kt = await getKeytar();
-        if (kt) {
-          await kt.deletePassword(SERVICE_NAME, TOKEN_CACHE_ACCOUNT);
-          await kt.deletePassword(SERVICE_NAME, SELECTED_ACCOUNT_KEY);
-        }
-      } catch (keytarError) {
-        logger.warn(`Keychain deletion failed: ${(keytarError as Error).message}`);
-      }
-
-      const cachePath = getTokenCachePath();
-      if (fs.existsSync(cachePath)) {
-        fs.unlinkSync(cachePath);
-      }
-
-      const accountPath = getSelectedAccountPath();
-      if (fs.existsSync(accountPath)) {
-        fs.unlinkSync(accountPath);
-      }
+      await this.storage.delete('token-cache');
+      await this.storage.delete('selected-account');
 
       return true;
     } catch (error) {
@@ -1189,6 +1042,7 @@ class AuthManager {
 
 export default AuthManager;
 export {
+  type AuthManagerCreateOptions,
   type ExpectedAccountOptions,
   buildAllowedScopeDiagnostics,
   buildScopesFromEndpoints,
