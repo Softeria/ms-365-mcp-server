@@ -82,6 +82,10 @@ program
     '--obo',
     'Enable On-Behalf-Of token exchange in HTTP mode. Exchanges the incoming bearer token for a Graph API token using the OBO flow. Requires MS365_MCP_CLIENT_SECRET.'
   )
+  .option(
+    '--trust-proxy-auth',
+    'In HTTP mode, skip the built-in Bearer-token check on /mcp and let an upstream reverse proxy (which is presumed to have already authenticated the caller) pass requests through unauthenticated. Microsoft Graph access still flows through the locally cached MSAL refresh token via AuthManager. Use only when the server is not reachable except via a trusted proxy.'
+  )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
     // MS365_MCP_BASE_URL do not crash at startup. Use --public-url /
@@ -117,6 +121,7 @@ export interface CommandOptions {
   dynamicRegistration?: boolean;
   authBrowser?: boolean;
   obo?: boolean;
+  trustProxyAuth?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
