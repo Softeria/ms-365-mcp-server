@@ -355,6 +355,10 @@ function runCommand(
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
     });
+    child.stdin.on('error', () => {
+      // Early-exiting wrappers may close stdin before consuming the payload; command
+      // exit status/stdout/stderr remain the protocol signal.
+    });
     child.once('error', (error) => {
       clearTimeout(timeout);
       if (killTimer) clearTimeout(killTimer);

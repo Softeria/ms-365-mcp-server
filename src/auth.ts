@@ -419,7 +419,9 @@ class AuthManager {
   ): Promise<AuthManager> {
     const secrets = await getSecrets();
     const config = createMsalConfig(secrets);
-    const storage = options.storage ?? (await createTokenCacheStorage({ logProvider: true }));
+    const storage =
+      options.storage ??
+      (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
     return new AuthManager(config, scopes, expectedAccount, storage);
   }
 

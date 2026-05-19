@@ -1,6 +1,7 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AuthManager from '../src/auth.js';
+import { clearSecretsCache } from '../src/secrets.js';
 import { shouldUseLocalAuthStorage } from '../src/startup-pinning.js';
 import type { TokenCacheStorage } from '../src/token-cache-storage.js';
 import { unwrapCache, wrapCache } from '../src/token-cache-storage.js';
@@ -63,6 +64,13 @@ function createAuth(storage: TokenCacheStorage, accounts: AccountInfo[] = [accou
 describe('AuthManager token cache storage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    clearSecretsCache();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    clearSecretsCache();
   });
 
   it('loads token cache and selected-account metadata through storage', async () => {
@@ -131,6 +139,15 @@ describe('AuthManager token cache storage', () => {
     const { auth } = createAuth(storage);
 
     await expect(auth.loadTokenCache()).resolves.toBeUndefined();
+  });
+
+  it('disables command storage when create() builds fallback storage', async () => {
+    vi.stubEnv('MS365_MCP_AUTH_CACHE_COMMAND', '   ');
+
+    const auth = await AuthManager.create(['User.Read']);
+
+    const storage = (auth as unknown as { storage: TokenCacheStorage }).storage;
+    expect(storage.description).toBe('default (keytar+file)');
   });
 });
 

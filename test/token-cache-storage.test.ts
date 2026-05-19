@@ -196,6 +196,16 @@ describe('token cache storage', () => {
       expect(resolved).toBe(true);
     });
 
+    it('ignores stdin stream errors and uses command exit status as the signal', async () => {
+      const { spawnCommand } = createFakeSpawn(({ child }) => {
+        child.stdin.emit('error', new Error('EPIPE'));
+        closeChild(child);
+      });
+      const storage = new CommandTokenCacheStorage('/cache-wrapper', 1000, spawnCommand);
+
+      await expect(storage.save('token-cache', 'cached-value')).resolves.toBeUndefined();
+    });
+
     it('deletes by operation and key without stdin payload', async () => {
       const { spawnCommand, calls } = createFakeSpawn(({ child }) => closeChild(child));
       const storage = new CommandTokenCacheStorage('/cache-wrapper', 1000, spawnCommand);
