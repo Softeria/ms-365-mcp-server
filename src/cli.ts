@@ -84,7 +84,7 @@ program
   )
   .option(
     '--trust-proxy-auth',
-    'In HTTP mode, skip the built-in Bearer-token check on /mcp and let an upstream reverse proxy (which is presumed to have already authenticated the caller) pass requests through unauthenticated. Microsoft Graph access still flows through the locally cached MSAL refresh token via AuthManager. Use only when the server is not reachable except via a trusted proxy.'
+    'In HTTP mode, skip the built-in Bearer-token check on /mcp. Use only when an upstream reverse proxy has already authenticated the caller.'
   )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
