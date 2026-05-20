@@ -591,14 +591,12 @@ class MicrosoftGraphServer {
         })
       );
 
-      // Microsoft Graph MCP endpoints with bearer token auth
-      // Handle both GET and POST methods as required by MCP Streamable HTTP specification.
-      // --trust-proxy-auth removes the bearer check so an upstream reverse proxy can
-      // authenticate the caller; in that case the local AuthManager (MSAL refresh token
-      // cache) supplies Graph API tokens, matching stdio-mode behaviour.
-      const mcpAuth = this.options.trustProxyAuth
-        ? (_req: Request, _res: Response, next: express.NextFunction) => next()
-        : microsoftBearerTokenAuthMiddleware;
+      // Microsoft Graph MCP endpoints with bearer token auth (or pass-through
+      // when --trust-proxy-auth is set; see microsoftBearerTokenAuthMiddleware
+      // for the AuthManager fallback that makes that mode work).
+      const mcpAuth = microsoftBearerTokenAuthMiddleware({
+        trustProxyAuth: this.options.trustProxyAuth,
+      });
       app.get(
         '/mcp',
         mcpAuth,

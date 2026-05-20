@@ -28,12 +28,24 @@ function isJwtExpired(token: string): boolean {
  * Microsoft Bearer Token Auth Middleware validates that the request has a valid Microsoft access token.
  * Returns HTTP 401 + WWW-Authenticate on missing or expired tokens so spec-compliant MCP clients
  * refresh via the /token endpoint. Opaque tokens fall through and are validated by Graph.
+ *
+ * When `trustProxyAuth` is true the bearer check is skipped — an upstream
+ * reverse proxy is presumed to have authenticated the caller, and Microsoft
+ * Graph access falls back to the locally cached MSAL refresh token via
+ * AuthManager (the same path stdio mode uses).
  */
 export const microsoftBearerTokenAuthMiddleware = (
+  opts: { trustProxyAuth?: boolean } = {}
+) => (
   req: Request & { microsoftAuth?: { accessToken: string } },
   res: Response,
   next: NextFunction
 ): void => {
+  if (opts.trustProxyAuth) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
