@@ -597,7 +597,7 @@ class MicrosoftGraphServer {
       // authenticate the caller; in that case the local AuthManager (MSAL refresh token
       // cache) supplies Graph API tokens, matching stdio-mode behaviour.
       const mcpAuth = this.options.trustProxyAuth
-        ? (_req: Request, _res: Response, next: (err?: unknown) => void) => next()
+        ? (_req: Request, _res: Response, next: express.NextFunction) => next()
         : microsoftBearerTokenAuthMiddleware;
       app.get(
         '/mcp',
