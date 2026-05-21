@@ -161,6 +161,11 @@ class MicrosoftGraphServer {
           '--obo requires MS365_MCP_CLIENT_SECRET to be set (confidential client required for On-Behalf-Of flow).'
         );
       }
+      if (this.options.trustProxyAuth) {
+        throw new Error(
+          '--obo cannot be combined with --trust-proxy-auth: the proxy-auth pass-through skips the incoming bearer token that OBO would exchange.'
+        );
+      }
       this.oboClient = new OboClient(this.secrets);
       logger.info('On-Behalf-Of (OBO) flow enabled');
     }
