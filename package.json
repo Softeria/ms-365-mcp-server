@@ -33,7 +33,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@azure/msal-node": "^3.8.0",
+    "@azure/msal-node": "^5.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@toon-format/toon": "^0.8.0",
     "commander": "^11.1.0",
