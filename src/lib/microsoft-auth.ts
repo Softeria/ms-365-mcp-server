@@ -34,51 +34,51 @@ function isJwtExpired(token: string): boolean {
  * Graph access falls back to the locally cached MSAL refresh token via
  * AuthManager (the same path stdio mode uses).
  */
-export const microsoftBearerTokenAuthMiddleware = (
-  opts: { trustProxyAuth?: boolean } = {}
-) => (
-  req: Request & { microsoftAuth?: { accessToken: string } },
-  res: Response,
-  next: NextFunction
-): void => {
-  if (opts.trustProxyAuth) {
+export const microsoftBearerTokenAuthMiddleware =
+  (opts: { trustProxyAuth?: boolean } = {}) =>
+  (
+    req: Request & { microsoftAuth?: { accessToken: string } },
+    res: Response,
+    next: NextFunction
+  ): void => {
+    if (opts.trustProxyAuth) {
+      next();
+      return;
+    }
+
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res
+        .status(401)
+        .set(
+          'WWW-Authenticate',
+          buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
+        )
+        .json({
+          error: 'invalid_token',
+          error_description: 'Missing or malformed Authorization header',
+        });
+      return;
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    if (isJwtExpired(accessToken)) {
+      res
+        .status(401)
+        .set(
+          'WWW-Authenticate',
+          buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
+        )
+        .json({ error: 'invalid_token', error_description: 'The access token has expired' });
+      return;
+    }
+
+    req.microsoftAuth = { accessToken };
+
     next();
-    return;
-  }
-
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res
-      .status(401)
-      .set(
-        'WWW-Authenticate',
-        buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
-      )
-      .json({
-        error: 'invalid_token',
-        error_description: 'Missing or malformed Authorization header',
-      });
-    return;
-  }
-
-  const accessToken = authHeader.substring(7);
-
-  if (isJwtExpired(accessToken)) {
-    res
-      .status(401)
-      .set(
-        'WWW-Authenticate',
-        buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
-      )
-      .json({ error: 'invalid_token', error_description: 'The access token has expired' });
-    return;
-  }
-
-  req.microsoftAuth = { accessToken };
-
-  next();
-};
+  };
 
 /**
  * Exchange authorization code for access token
