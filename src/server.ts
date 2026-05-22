@@ -17,7 +17,9 @@ import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
+  OAuthUpstreamError,
   refreshAccessToken,
+  toOAuthErrorResponse,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import type { CommandOptions } from './cli.ts';
@@ -581,11 +583,18 @@ class MicrosoftGraphServer {
             });
           }
         } catch (error) {
-          logger.error('Token endpoint error:', error);
-          res.status(500).json({
-            error: 'server_error',
-            error_description: 'Internal server error during token exchange',
-          });
+          if (error instanceof OAuthUpstreamError) {
+            logger.warn('Token endpoint: upstream OAuth error surfaced to client', {
+              upstream_status: error.status,
+              error: error.body.error,
+              suberror: error.body.suberror,
+              error_codes: error.body.error_codes,
+            });
+          } else {
+            logger.error('Token endpoint error:', error);
+          }
+          const { status, body } = toOAuthErrorResponse(error);
+          res.status(status).json(body);
         }
       });
 
