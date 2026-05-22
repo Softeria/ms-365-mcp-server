@@ -1,8 +1,19 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { api } from '../generated/client.js';
+import { isDestructiveOperation, type DestructiveCheckConfig } from './destructive-ops.js';
 
 type ToolEndpoint = (typeof api.endpoints)[number];
+
+/**
+ * Subset of EndpointConfig needed to describe a tool's schema in discovery
+ * mode. Kept as a structural type so we don't import the full EndpointConfig
+ * from graph-tools.ts (which would create a circular dependency).
+ */
+export interface ToolSchemaConfig extends DestructiveCheckConfig {
+  llmTip?: string;
+  descriptionOverride?: string;
+}
 
 function unwrapOptional(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: boolean } {
   const def = (schema as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
@@ -16,11 +27,17 @@ function unwrapOptional(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: 
 /**
  * Returns a JSON Schema describing every parameter a discovery tool accepts,
  * so an agent can construct a correctly-shaped `parameters` object for execute-tool.
+ *
+ * Includes synthetic runtime params injected by graph-tools.ts that an agent
+ * needs to know about — currently `confirm` for destructive operations. Other
+ * runtime params (`fetchAllPages`, `account`, `includeHeaders`, ...) are not
+ * yet surfaced here; they're optional booleans with safe defaults so omitting
+ * them from discovery only costs a feature, not correctness. `confirm` is the
+ * exception because the server fails closed without it on destructive tools.
  */
 export function describeToolSchema(
   tool: ToolEndpoint,
-  llmTip: string | undefined,
-  descriptionOverride?: string
+  config: ToolSchemaConfig | undefined
 ): {
   name: string;
   method: string;
@@ -49,11 +66,28 @@ export function describeToolSchema(
     };
   });
 
+  // Surface the destructive-confirm gate so agents in --discovery mode know
+  // to pass `confirm: true`. Without this, every destructive tool returns
+  // confirmation_required with no way for the agent to recover from the schema.
+  if (isDestructiveOperation(tool.method, config)) {
+    params.push({
+      name: 'confirm',
+      in: 'Query',
+      required: false,
+      description:
+        'Required for destructive operations. Set to true only after the user has explicitly approved this action. ' +
+        'Calls without confirm: true return { error: "confirmation_required" } without touching user data. ' +
+        'Server-wide opt-out: MS365_MCP_REQUIRE_CONFIRM=false.',
+      schema: { type: 'boolean' },
+    });
+  }
+
+  const llmTip = config?.llmTip;
   return {
     name: tool.alias,
     method: tool.method.toUpperCase(),
     path: tool.path,
-    description: descriptionOverride ?? tool.description ?? '',
+    description: config?.descriptionOverride ?? tool.description ?? '',
     ...(llmTip ? { llmTip } : {}),
     parameters: params,
   };
