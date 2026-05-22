@@ -4,6 +4,7 @@ import {
   CircuitOpenError,
   backoffDelayMs,
   fetchWithResilience,
+  isMethodIdempotent,
   loadResilienceConfig,
   parseRetryAfterMs,
   __resetSharedBreakerForTests,
@@ -128,7 +129,7 @@ describe('loadResilienceConfig', () => {
     expect(cfg.maxRetries).toBe(3);
     expect(cfg.baseBackoffMs).toBe(200);
     expect(cfg.maxBackoffMs).toBe(5_000);
-    expect(cfg.fetchTimeoutMs).toBe(30_000);
+    expect(cfg.fetchTimeoutMs).toBe(100_000);
     expect(cfg.circuitFailureThreshold).toBe(5);
     expect(cfg.circuitCooldownMs).toBe(30_000);
     expect(cfg.circuitDisabled).toBe(false);
@@ -149,7 +150,28 @@ describe('loadResilienceConfig', () => {
     process.env.MS365_MCP_GRAPH_TIMEOUT_MS = '-5';
     const cfg = loadResilienceConfig();
     expect(cfg.maxRetries).toBe(3);
-    expect(cfg.fetchTimeoutMs).toBe(30_000);
+    expect(cfg.fetchTimeoutMs).toBe(100_000);
+  });
+});
+
+describe('isMethodIdempotent', () => {
+  it('returns true for RFC 7231 idempotent methods', () => {
+    expect(isMethodIdempotent('GET')).toBe(true);
+    expect(isMethodIdempotent('HEAD')).toBe(true);
+    expect(isMethodIdempotent('PUT')).toBe(true);
+    expect(isMethodIdempotent('DELETE')).toBe(true);
+    expect(isMethodIdempotent('OPTIONS')).toBe(true);
+    expect(isMethodIdempotent('TRACE')).toBe(true);
+  });
+
+  it('returns false for non-idempotent methods', () => {
+    expect(isMethodIdempotent('POST')).toBe(false);
+    expect(isMethodIdempotent('PATCH')).toBe(false);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isMethodIdempotent('get')).toBe(true);
+    expect(isMethodIdempotent('Patch')).toBe(false);
   });
 });
 
@@ -385,6 +407,82 @@ describe('fetchWithResilience', () => {
       )
     ).rejects.toMatchObject({ name: 'AbortError' });
 
+    vi.unstubAllGlobals();
+  });
+
+  it('does NOT retry POST on 503 (non-idempotent method, side-effect may have landed)', async () => {
+    const fake = makeFakeFetch([makeResponse(503), makeResponse(200)]);
+    vi.stubGlobal('fetch', fake.fetch);
+    const r = await fetchWithResilience(
+      'https://graph.microsoft.com/v1.0/me/sendMail',
+      { method: 'POST', body: '{}' },
+      cfg,
+      new CircuitBreaker(99, 30_000, false),
+      noSleep
+    );
+    expect(r.status).toBe(503);
+    expect(fake.calls).toBe(1); // no retry — the 200 in queue is never reached
+    vi.unstubAllGlobals();
+  });
+
+  it('does NOT retry PATCH on network error', async () => {
+    const fake = makeFakeFetch([new TypeError('fetch failed'), makeResponse(200)]);
+    vi.stubGlobal('fetch', fake.fetch);
+    await expect(
+      fetchWithResilience(
+        'https://graph.microsoft.com/v1.0/me',
+        { method: 'PATCH', body: '{}' },
+        cfg,
+        new CircuitBreaker(99, 30_000, false),
+        noSleep
+      )
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(fake.calls).toBe(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('DOES retry POST on 429 (Graph throttles before executing, no side-effect risk)', async () => {
+    const fake = makeFakeFetch([makeResponse(429, { 'retry-after': '0' }), makeResponse(202)]);
+    vi.stubGlobal('fetch', fake.fetch);
+    const r = await fetchWithResilience(
+      'https://graph.microsoft.com/v1.0/me/sendMail',
+      { method: 'POST', body: '{}' },
+      cfg,
+      new CircuitBreaker(99, 30_000, false),
+      noSleep
+    );
+    expect(r.status).toBe(202);
+    expect(fake.calls).toBe(2);
+    vi.unstubAllGlobals();
+  });
+
+  it('DOES retry PUT on 503 (PUT is idempotent per RFC 7231)', async () => {
+    const fake = makeFakeFetch([makeResponse(503), makeResponse(200)]);
+    vi.stubGlobal('fetch', fake.fetch);
+    const r = await fetchWithResilience(
+      'https://graph.microsoft.com/v1.0/me/drive/root:/file.txt:/content',
+      { method: 'PUT', body: 'payload' },
+      cfg,
+      new CircuitBreaker(99, 30_000, false),
+      noSleep
+    );
+    expect(r.status).toBe(200);
+    expect(fake.calls).toBe(2);
+    vi.unstubAllGlobals();
+  });
+
+  it('DOES retry DELETE on network error (DELETE is idempotent)', async () => {
+    const fake = makeFakeFetch([new TypeError('fetch failed'), makeResponse(200)]);
+    vi.stubGlobal('fetch', fake.fetch);
+    const r = await fetchWithResilience(
+      'https://graph.microsoft.com/v1.0/me/messages/AAMk',
+      { method: 'DELETE' },
+      cfg,
+      new CircuitBreaker(99, 30_000, false),
+      noSleep
+    );
+    expect(r.status).toBe(200);
+    expect(fake.calls).toBe(2);
     vi.unstubAllGlobals();
   });
 });

@@ -6,14 +6,22 @@ import logger from '../logger.js';
  * Three concerns folded into one module:
  *
  *  1. **Fetch timeout** via AbortController — a stuck Graph call must not
- *     hang an MCP request indefinitely. Default 30 s, override with
+ *     hang an MCP request indefinitely. Default 100 s (matches the .NET
+ *     `HttpClient` / `aiohttp` defaults so large direct uploads of 50–250 MB
+ *     over slow links don't get aborted mid-flight). Override with
  *     `MS365_MCP_GRAPH_TIMEOUT_MS`.
  *
  *  2. **Retry with backoff** on transient failures:
  *       - HTTP 429 — honour `Retry-After` (seconds or HTTP-date), cap at 60 s.
- *       - HTTP 503 / 504 — exponential backoff (200 ms → 400 → 800 → …, cap 5 s).
- *       - Network errors (fetch threw, ECONNRESET, AbortError on retry, …)
- *         — same backoff schedule.
+ *         Safe to retry on every method including POST / PATCH because Graph
+ *         throttles *before* executing the operation; the side effect has
+ *         not landed server-side when a 429 comes back.
+ *       - HTTP 503 / 504 / network errors — retried for **idempotent methods
+ *         only** (GET / HEAD / PUT / DELETE / OPTIONS / TRACE, per RFC 7231).
+ *         POST and PATCH cannot be retried on these failures: a client-side
+ *         timeout or 5xx after the request was already executing server-side
+ *         would silently duplicate the side effect. For non-idempotent
+ *         methods the failure is surfaced to the caller immediately.
  *       - HTTP 5xx other / 4xx other (auth, invalid input, 403 scope errors)
  *         — NOT retried. Those are deterministic.
  *     Default 3 retries, override with `MS365_MCP_GRAPH_MAX_RETRIES`.
@@ -56,7 +64,7 @@ export function loadResilienceConfig(): ResilienceConfig {
     maxRetries: intEnv('MS365_MCP_GRAPH_MAX_RETRIES', 3),
     baseBackoffMs: intEnv('MS365_MCP_GRAPH_BASE_BACKOFF_MS', 200),
     maxBackoffMs: intEnv('MS365_MCP_GRAPH_MAX_BACKOFF_MS', 5_000),
-    fetchTimeoutMs: intEnv('MS365_MCP_GRAPH_TIMEOUT_MS', 30_000),
+    fetchTimeoutMs: intEnv('MS365_MCP_GRAPH_TIMEOUT_MS', 100_000),
     circuitFailureThreshold: intEnv('MS365_MCP_GRAPH_CIRCUIT_THRESHOLD', 5),
     circuitCooldownMs: intEnv('MS365_MCP_GRAPH_CIRCUIT_COOLDOWN_MS', 30_000),
     circuitDisabled:
@@ -181,6 +189,21 @@ function isRetriableStatus(status: number): boolean {
   return status === 429 || status === 503 || status === 504;
 }
 
+/**
+ * Per RFC 7231 §4.2.2 (and RFC 5789 §1 for PATCH): GET, HEAD, PUT, DELETE,
+ * OPTIONS, TRACE are idempotent — retrying them after a network failure or
+ * 5xx is safe because applying the request N times has the same effect as
+ * applying it once. POST and PATCH are explicitly NOT idempotent. 429 is
+ * still safe to retry on any method because the throttling decision happens
+ * before Graph executes the operation.
+ */
+export function isMethodIdempotent(method: string): boolean {
+  const m = method.toUpperCase();
+  return (
+    m === 'GET' || m === 'HEAD' || m === 'PUT' || m === 'DELETE' || m === 'OPTIONS' || m === 'TRACE'
+  );
+}
+
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -210,6 +233,9 @@ export async function fetchWithResilience(
     throw new CircuitOpenError(remainingCooldown);
   }
 
+  const method = (init?.method ?? 'GET').toString().toUpperCase();
+  const methodIsIdempotent = isMethodIdempotent(method);
+
   let attempt = 0;
   while (true) {
     const controller = new AbortController();
@@ -231,11 +257,31 @@ export async function fetchWithResilience(
       return response;
     }
 
+    // Non-idempotent methods (POST, PATCH) cannot be safely retried on
+    // 503/504/network errors — the request may have already executed
+    // server-side. 429 is the exception: Graph throttles before executing,
+    // so retrying a throttled POST is safe and follows Graph's documented
+    // contract.
+    const is429 = response !== null && response.status === 429;
+    const retryAllowedByMethod = methodIsIdempotent || is429;
+
     // Determine whether to retry
-    const canRetry = attempt < config.maxRetries;
+    const canRetry = attempt < config.maxRetries && retryAllowedByMethod;
     if (!canRetry) {
       breaker.recordFailure();
-      if (response !== null) return response;
+      if (response !== null) {
+        if (!retryAllowedByMethod && attempt === 0) {
+          logger.warn(
+            `Graph ${method} ${response.status}: not retried (non-idempotent method, side-effect may have landed)`
+          );
+        }
+        return response;
+      }
+      if (!retryAllowedByMethod && attempt === 0) {
+        logger.warn(
+          `Graph ${method} network error: not retried (non-idempotent method, side-effect may have landed)`
+        );
+      }
       throw networkError ?? new Error('Graph fetch failed (unknown error)');
     }
 
