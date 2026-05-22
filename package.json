@@ -1,11 +1,11 @@
 {
-  "name": "@softeria/ms-365-mcp-server",
+  "name": "@areteintelligence/microsoft-mcp-server",
   "version": "0.0.0-development",
-  "description": " A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API",
+  "description": "Areté's self-hosted MCP server for Microsoft 365 (Outlook mail/calendar, OneDrive files) via the Microsoft Graph API",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ms-365-mcp-server": "dist/index.js"
+    "microsoft-mcp-server": "dist/index.js"
   },
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
@@ -22,15 +22,16 @@
     "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts"
   },
   "keywords": [
+    "arete",
     "microsoft",
     "365",
     "mcp",
     "server"
   ],
-  "author": "",
+  "author": "Areté",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "restricted"
   },
   "dependencies": {
     "@azure/msal-node": "^5.2.2",
@@ -46,8 +47,6 @@
     "zod-to-json-schema": "^3.25.1"
   },
   "optionalDependencies": {
-    "@azure/identity": "^4.5.0",
-    "@azure/keyvault-secrets": "^4.9.0",
     "keytar": "^7.9.0"
   },
   "devDependencies": {
@@ -75,6 +74,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Softeria/ms-365-mcp-server.git"
+    "url": "https://github.com/aretecp/ms-365-mcp-server.git"
   }
 }

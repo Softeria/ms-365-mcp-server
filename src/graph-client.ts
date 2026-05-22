@@ -170,7 +170,7 @@ class GraphClient {
     accessToken: string,
     options: GraphRequestOptions
   ): Promise<Response> {
-    const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
+    const cloudEndpoints = getCloudEndpoints();
     const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);

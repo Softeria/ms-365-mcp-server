@@ -1,25 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import logger from './logger.js';
 import GraphClient from './graph-client.js';
-import AuthManager, {
-  getEndpointRequiredScopes,
-  getMissingAllowedScopes,
-  parseAllowedScopes,
-} from './auth.js';
+import AuthManager from './auth.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
-import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
-export interface DiscoverySearchIndex {
-  bm25: BM25Index;
-  nameTokens: Map<string, Set<string>>;
-}
-import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,20 +128,6 @@ interface UtilityTool {
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
   openWorldHint?: boolean;
-}
-
-interface DisabledToolScope {
-  toolName: string;
-  missingScopes: string[];
-}
-
-function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
-  const shown = disabledTools
-    .slice(0, 20)
-    .map((tool) => `${tool.toolName} (missing: ${tool.missingScopes.join(', ')})`);
-  const suffix =
-    disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
-  return `${shown.join('; ')}${suffix}`;
 }
 
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
@@ -662,66 +637,15 @@ async function executeGraphTool(
 export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
-  readOnly: boolean = false,
-  enabledToolsPattern?: string,
-  orgMode: boolean = false,
   authManager?: AuthManager,
   multiAccount: boolean = false,
-  accountNames: string[] = [],
-  allowedScopesValue?: string
+  accountNames: string[] = []
 ): number {
-  let enabledToolsRegex: RegExp | undefined;
-  if (enabledToolsPattern) {
-    try {
-      enabledToolsRegex = new RegExp(enabledToolsPattern, 'i');
-      logger.info(`Tool filtering enabled with pattern: ${enabledToolsPattern}`);
-    } catch {
-      logger.error(`Invalid tool filter regex pattern: ${enabledToolsPattern}. Ignoring filter.`);
-    }
-  }
-
   let registeredCount = 0;
-  let skippedCount = 0;
   let failedCount = 0;
-  const allowedScopes = parseAllowedScopes(allowedScopesValue);
-  const disabledByAllowedScopes: DisabledToolScope[] = [];
 
   for (const tool of api.endpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
-      logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
-      skippedCount++;
-      continue;
-    }
-
-    const method = tool.method.toUpperCase();
-    if (readOnly && method !== 'GET') {
-      // Allow POST endpoints that are explicitly marked as readOnly in endpoints.json
-      // (e.g. get-schedule, find-meeting-times which are read-only queries via POST).
-      // PATCH/DELETE are always blocked in read-only mode.
-      if (!(method === 'POST' && endpointConfig?.readOnly)) {
-        logger.info(`Skipping write operation ${tool.alias} in read-only mode`);
-        skippedCount++;
-        continue;
-      }
-    }
-
-    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
-      logger.info(`Skipping tool ${tool.alias} - doesn't match filter pattern`);
-      skippedCount++;
-      continue;
-    }
-
-    const requiredScopes = getEndpointRequiredScopes(endpointConfig, orgMode);
-    const missingScopes =
-      allowedScopes !== undefined && !endpointConfig
-        ? ['endpoint scope metadata']
-        : getMissingAllowedScopes(requiredScopes, allowedScopes);
-    if (missingScopes.length > 0) {
-      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
-      skippedCount++;
-      continue;
-    }
 
     const paramSchema: Record<string, z.ZodTypeAny> = {};
     if (tool.parameters && tool.parameters.length > 0) {
@@ -890,12 +814,6 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  if (disabledByAllowedScopes.length > 0) {
-    logger.info(
-      `Allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
-    );
-  }
-
   const utilityCtx: UtilityToolContext = {
     graphClient,
     authManager,
@@ -903,8 +821,6 @@ export function registerGraphTools(
     accountNames,
   };
   for (const utility of UTILITY_TOOLS) {
-    if (readOnly && !utility.readOnlyHint) continue;
-    if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
       registeredCount++;
@@ -914,371 +830,6 @@ export function registerGraphTools(
     }
   }
 
-  // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
-  // It is the canonical owner of account discovery — no duplicate registration here.
-
-  logger.info(
-    `Tool registration complete: ${registeredCount} registered, ${skippedCount} skipped, ${failedCount} failed`
-  );
+  logger.info(`Tool registration complete: ${registeredCount} registered, ${failedCount} failed`);
   return registeredCount;
-}
-
-export function buildToolsRegistry(
-  readOnly: boolean,
-  orgMode: boolean,
-  enabledToolsRegex?: RegExp,
-  allowedScopesValue?: string,
-  disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
-): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
-  const toolsMap = new Map<
-    string,
-    { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }
-  >();
-  const allowedScopes = parseAllowedScopes(allowedScopesValue);
-
-  for (const tool of api.endpoints) {
-    const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
-      continue;
-    }
-
-    const method = tool.method.toUpperCase();
-    if (readOnly && method !== 'GET') {
-      if (!(method === 'POST' && endpointConfig?.readOnly)) {
-        continue;
-      }
-    }
-
-    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
-      continue;
-    }
-
-    const missingScopes =
-      allowedScopes !== undefined && !endpointConfig
-        ? ['endpoint scope metadata']
-        : getMissingAllowedScopes(
-            getEndpointRequiredScopes(endpointConfig, orgMode),
-            allowedScopes
-          );
-    if (missingScopes.length > 0) {
-      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
-      continue;
-    }
-
-    toolsMap.set(tool.alias, { tool, config: endpointConfig });
-  }
-
-  return toolsMap;
-}
-
-/**
- * Builds a BM25 index over the tool registry. Name tokens are weighted 3x and llmTip
- * tokens 2x via repetition, so a tool whose name matches the query outranks one that
- * merely mentions the query term in its Microsoft-supplied description.
- */
-export function buildDiscoverySearchIndex(
-  toolsRegistry: ReturnType<typeof buildToolsRegistry>,
-  utilityTools: readonly UtilityTool[] = []
-): DiscoverySearchIndex {
-  // Cap contribution from the `description` and `llmTip` fields so a verbose llmTip
-  // (e.g. the KQL search-syntax guide on list-mail-messages, ~300 tokens) doesn't
-  // inflate a tool's doc length and crush BM25's length normalization. Names and
-  // paths are short and reliable, so they stay uncapped and are repeated to carry
-  // the bulk of the ranking signal. Tip excerpt (12 tokens) is enough to capture
-  // the first "what this tool does" phrase without swamping the doc.
-  const TIP_EXCERPT_TOKENS = 12;
-  const DESC_CAP_TOKENS = 40;
-  const docs: Array<{ id: string; tokens: string[] }> = [];
-  const nameTokens = new Map<string, Set<string>>();
-  for (const [name, { tool, config }] of toolsRegistry) {
-    const nt = tokenize(name);
-    nameTokens.set(name, new Set(nt));
-    const pathTokens = tokenize(tool.path);
-    const descTokens = tokenize(tool.description).slice(0, DESC_CAP_TOKENS);
-    const tipTokens = tokenize(config?.llmTip).slice(0, TIP_EXCERPT_TOKENS);
-    const tokens = [
-      ...nt,
-      ...nt,
-      ...nt,
-      ...nt,
-      ...nt,
-      ...pathTokens,
-      ...pathTokens,
-      ...tipTokens,
-      ...descTokens,
-    ];
-    docs.push({ id: name, tokens });
-  }
-  for (const utility of utilityTools) {
-    const nt = tokenize(utility.name);
-    nameTokens.set(utility.name, new Set(nt));
-    const pathTokens = tokenize(utility.path);
-    const descTokens = tokenize(utility.description).slice(0, DESC_CAP_TOKENS);
-    const tokens = [...nt, ...nt, ...nt, ...nt, ...nt, ...pathTokens, ...pathTokens, ...descTokens];
-    docs.push({ id: utility.name, tokens });
-  }
-  return { bm25: buildBM25Index(docs), nameTokens };
-}
-
-/**
- * BM25 + a "name precision" bonus: reward tools whose names contain a high fraction
- * of the query tokens (and consist mostly of query-matching tokens). This counteracts
- * cases where a tool with a longer or more off-topic description outranks a tool
- * whose name directly matches — a common problem because many endpoint descriptions
- * are the wrong Graph prose pasted in.
- */
-export function scoreDiscoveryQuery(
-  query: string,
-  index: DiscoverySearchIndex
-): Array<{ id: string; score: number }> {
-  const queryTokenSet = new Set(tokenize(query));
-  if (queryTokenSet.size === 0) return [];
-  const ranked = scoreQuery(query, index.bm25);
-  const NAME_BONUS_WEIGHT = 2;
-  for (const r of ranked) {
-    const nt = index.nameTokens.get(r.id);
-    if (!nt || nt.size === 0) continue;
-    let matchedIdf = 0;
-    let matchedCount = 0;
-    for (const qt of queryTokenSet) {
-      if (nt.has(qt)) {
-        matchedCount++;
-        matchedIdf += index.bm25.idf.get(qt) ?? 0;
-      }
-    }
-    if (matchedCount === 0) continue;
-    const precision = matchedCount / nt.size;
-    r.score += precision * matchedIdf * NAME_BONUS_WEIGHT;
-  }
-  ranked.sort((a, b) => b.score - a.score);
-  return ranked;
-}
-
-export function registerDiscoveryTools(
-  server: McpServer,
-  graphClient: GraphClient,
-  readOnly: boolean = false,
-  orgMode: boolean = false,
-  authManager?: AuthManager,
-  multiAccount: boolean = false,
-  accountNames: string[] = [],
-  enabledTools?: string,
-  allowedScopesValue?: string
-): void {
-  let enabledToolsRegex: RegExp | undefined;
-  if (enabledTools) {
-    try {
-      enabledToolsRegex = new RegExp(enabledTools, 'i');
-      logger.info(`Discovery mode: filtering tools with pattern ${enabledTools}`);
-    } catch (error) {
-      logger.error(
-        `Invalid --enabled-tools regex ${JSON.stringify(enabledTools)} — ignoring filter: ${(error as Error).message}`
-      );
-    }
-  }
-
-  const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
-  const toolsRegistry = buildToolsRegistry(
-    readOnly,
-    orgMode,
-    enabledToolsRegex,
-    allowedScopesValue,
-    disabledByAllowedScopes
-  );
-  if (disabledByAllowedScopes.length > 0) {
-    logger.info(
-      `Discovery mode: allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
-    );
-  }
-  const utilityTools = UTILITY_TOOLS.filter((u) => {
-    if (readOnly && !u.readOnlyHint) return false;
-    if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
-    return true;
-  });
-  const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
-  const totalCount = toolsRegistry.size + utilityTools.length;
-  logger.info(
-    `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} utility)`
-  );
-
-  const utilityCtx: UtilityToolContext = {
-    graphClient,
-    authManager,
-    multiAccount,
-    accountNames,
-  };
-  const utilityByName = new Map(utilityTools.map((u) => [u.name, u]));
-
-  const categoryNames = Object.keys(TOOL_CATEGORIES).join(', ');
-
-  const toResultEntry = (name: string) => {
-    const entry = toolsRegistry.get(name);
-    if (entry) {
-      const { tool, config } = entry;
-      return {
-        name,
-        method: tool.method.toUpperCase(),
-        path: tool.path,
-        description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
-        ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
-      };
-    }
-    const utility = utilityByName.get(name);
-    if (utility) {
-      return {
-        name: utility.name,
-        method: utility.method,
-        path: utility.path,
-        description: utility.description,
-      };
-    }
-    return null;
-  };
-
-  server.tool(
-    'search-tools',
-    `Search through ${totalCount} tools (${toolsRegistry.size} Microsoft Graph API operations + ${utilityTools.length} server utilities like download-bytes). Ranks results by BM25 over tool name, llmTip, description, and path. After picking a tool, call get-tool-schema for parameters, then execute-tool.`,
-    {
-      query: z
-        .string()
-        .describe(
-          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
-        )
-        .optional(),
-      category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
-      limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
-    },
-    {
-      title: 'search-tools',
-      readOnlyHint: true,
-      openWorldHint: true,
-    },
-    async ({ query, category, limit = 10 }) => {
-      const maxLimit = Math.min(Math.max(limit, 1), 50);
-      const categoryDef = category ? TOOL_CATEGORIES[category] : undefined;
-      const categoryFilter = (name: string) => !categoryDef || categoryDef.pattern.test(name);
-
-      let orderedNames: string[];
-      if (query && query.trim().length > 0) {
-        const ranked = scoreDiscoveryQuery(query, searchIndex);
-        orderedNames = ranked.map((r) => r.id).filter(categoryFilter);
-      } else {
-        orderedNames = [...toolsRegistry.keys(), ...utilityTools.map((u) => u.name)].filter(
-          categoryFilter
-        );
-      }
-
-      const tools = orderedNames.slice(0, maxLimit).map(toResultEntry).filter(Boolean);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                found: tools.length,
-                total: totalCount,
-                tools,
-                tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  server.tool(
-    'get-tool-schema',
-    'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
-    {
-      tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
-    },
-    {
-      title: 'get-tool-schema',
-      readOnlyHint: true,
-      openWorldHint: false,
-    },
-    async ({ tool_name }) => {
-      const entry = toolsRegistry.get(tool_name);
-      if (entry) {
-        const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
-        };
-      }
-      const utility = utilityByName.get(tool_name);
-      if (utility) {
-        const schema = describeUtilityToolSchema(utility, utilityCtx);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
-        };
-      }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              error: `Tool not found: ${tool_name}`,
-              tip: 'Use search-tools to find available tools.',
-            }),
-          },
-        ],
-        isError: true,
-      };
-    }
-  );
-
-  server.tool(
-    'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
-    {
-      tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
-      parameters: z
-        .record(z.any())
-        .describe(
-          'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
-        )
-        .optional(),
-    },
-    {
-      title: 'execute-tool',
-      readOnlyHint: false,
-      destructiveHint: true,
-      openWorldHint: true,
-    },
-    async ({ tool_name, parameters = {} }) => {
-      const toolData = toolsRegistry.get(tool_name);
-      if (toolData) {
-        return executeGraphTool(
-          toolData.tool,
-          toolData.config,
-          graphClient,
-          parameters,
-          authManager
-        );
-      }
-      const utility = utilityByName.get(tool_name);
-      if (utility) {
-        return utility.execute(parameters, utilityCtx);
-      }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              error: `Tool not found: ${tool_name}`,
-              tip: 'Use search-tools to find available tools.',
-            }),
-          },
-        ],
-        isError: true,
-      };
-    }
-  );
-
-  // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }

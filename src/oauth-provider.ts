@@ -11,7 +11,7 @@ export class MicrosoftOAuthProvider extends ProxyOAuthServerProvider {
   constructor(authManager: AuthManager, secrets: AppSecrets) {
     const tenantId = secrets.tenantId || 'common';
     const clientId = secrets.clientId;
-    const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
+    const cloudEndpoints = getCloudEndpoints();
 
     super({
       endpoints: {

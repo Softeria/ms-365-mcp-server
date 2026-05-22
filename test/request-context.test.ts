@@ -114,7 +114,6 @@ describe('GraphClient request-context integration', () => {
     const mockSecrets: AppSecrets = {
       clientId: 'test-client',
       tenantId: 'common',
-      cloudType: 'global',
     };
 
     const graphClient = new GraphClient(mockAuthManager, mockSecrets);

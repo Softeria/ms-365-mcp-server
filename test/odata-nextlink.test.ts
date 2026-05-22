@@ -32,7 +32,6 @@ const mockSecrets = {
   clientId: 'test-client-id',
   tenantId: 'test-tenant-id',
   clientSecret: 'test-client-secret',
-  cloudType: 'global' as const,
 };
 
 const { default: GraphClient } = await import('../src/graph-client.js');

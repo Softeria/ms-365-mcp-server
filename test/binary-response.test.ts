@@ -85,7 +85,6 @@ describe('GraphClient binary response handling', () => {
       const mockSecrets = {
         clientId: 'x',
         tenantId: 'common',
-        cloudType: 'global',
       };
       const client = new GraphClient(
         mockAuth as Parameters<typeof GraphClient>[0],

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import path from 'path';
-import { getSelectedAccountPath, getTokenCachePath } from '../src/auth.js';
+import { getSelectedAccountPath, getTokenCachePath } from '../src/token-cache-storage.js';
 
 describe('token cache path configuration', () => {
   beforeEach(() => {
