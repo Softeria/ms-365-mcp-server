@@ -26,6 +26,7 @@ import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import { dumpError } from './crash-logging.js';
 import crypto from 'node:crypto';
 import OboClient from './obo-client.js';
 
@@ -727,6 +728,9 @@ class MicrosoftGraphServer {
       }
     } else {
       const transport = new StdioServerTransport();
+      transport.onerror = (error) => {
+        logger.error('Stdio transport error', { error: dumpError(error) });
+      };
       await this.server!.connect(transport);
       logger.info('Server connected to stdio transport');
     }
