@@ -11,7 +11,32 @@ import {
   shouldUseLocalAuthStorage,
 } from './startup-pinning.js';
 import { createTokenCacheStorage } from './token-cache-storage.js';
+import { dumpError, getActiveResources } from './crash-logging.js';
 import { version } from './version.js';
+
+// Global crash handlers. Without these, an unhandled rejection from a dependency
+// (MSAL HTTP, keytar native, fetch in node) kills the stdio process silently
+// before winston can flush. Log to stderr synchronously so the dump survives.
+process.on('unhandledRejection', (reason) => {
+  const dump = {
+    kind: 'unhandledRejection',
+    reason: dumpError(reason),
+    activeResources: getActiveResources(),
+  };
+  console.error('[ms365-mcp] unhandledRejection', JSON.stringify(dump));
+  logger.error('unhandledRejection', dump);
+});
+
+process.on('uncaughtException', (err, origin) => {
+  const dump = {
+    kind: 'uncaughtException',
+    origin,
+    error: dumpError(err),
+    activeResources: getActiveResources(),
+  };
+  console.error('[ms365-mcp] uncaughtException', JSON.stringify(dump));
+  logger.error('uncaughtException', dump);
+});
 
 async function main(): Promise<void> {
   try {
