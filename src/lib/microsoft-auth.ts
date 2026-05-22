@@ -80,6 +80,68 @@ export const microsoftBearerTokenAuthMiddleware =
     next();
   };
 
+export interface UpstreamOAuthErrorBody {
+  error: string;
+  error_description?: string;
+  error_codes?: number[];
+  suberror?: string;
+  trace_id?: string;
+  correlation_id?: string;
+  timestamp?: string;
+}
+
+export class OAuthUpstreamError extends Error {
+  readonly status: number;
+  readonly body: UpstreamOAuthErrorBody;
+  readonly raw: string;
+
+  constructor(status: number, raw: string, body: UpstreamOAuthErrorBody) {
+    const suffix = body.error_description ? ` - ${body.error_description}` : '';
+    super(`OAuth upstream error: ${body.error}${suffix}`);
+    this.name = 'OAuthUpstreamError';
+    this.status = status;
+    this.body = body;
+    this.raw = raw;
+  }
+}
+
+function parseUpstreamOAuthError(raw: string): UpstreamOAuthErrorBody | null {
+  try {
+    const json = JSON.parse(raw) as unknown;
+    if (
+      json !== null &&
+      typeof json === 'object' &&
+      typeof (json as { error?: unknown }).error === 'string'
+    ) {
+      return json as UpstreamOAuthErrorBody;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return null;
+}
+
+export function toOAuthErrorResponse(error: unknown): {
+  status: number;
+  body: { error: string; error_description?: string; suberror?: string };
+} {
+  if (error instanceof OAuthUpstreamError) {
+    const body: { error: string; error_description?: string; suberror?: string } = {
+      error: error.body.error,
+    };
+    if (error.body.error_description) body.error_description = error.body.error_description;
+    if (error.body.suberror) body.suberror = error.body.suberror;
+    return { status: 400, body };
+  }
+  return {
+    status: 500,
+    body: {
+      error: 'server_error',
+      error_description: 'Internal server error during token exchange',
+    },
+  };
+}
+
 /**
  * Exchange authorization code for access token
  */
@@ -125,9 +187,20 @@ export async function exchangeCodeForToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    logger.error(`Failed to exchange code for token: ${error}`);
-    throw new Error(`Failed to exchange code for token: ${error}`);
+    const raw = await response.text();
+    const parsed = parseUpstreamOAuthError(raw);
+    if (parsed) {
+      logger.warn(`Token endpoint upstream OAuth error: ${parsed.error}`, {
+        status: response.status,
+        error: parsed.error,
+        suberror: parsed.suberror,
+        error_codes: parsed.error_codes,
+        correlation_id: parsed.correlation_id,
+      });
+      throw new OAuthUpstreamError(response.status, raw, parsed);
+    }
+    logger.error(`Failed to exchange code for token: ${raw}`);
+    throw new Error(`Failed to exchange code for token: ${raw}`);
   }
 
   return response.json();
@@ -169,9 +242,20 @@ export async function refreshAccessToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    logger.error(`Failed to refresh token: ${error}`);
-    throw new Error(`Failed to refresh token: ${error}`);
+    const raw = await response.text();
+    const parsed = parseUpstreamOAuthError(raw);
+    if (parsed) {
+      logger.warn(`Token endpoint upstream OAuth error: ${parsed.error}`, {
+        status: response.status,
+        error: parsed.error,
+        suberror: parsed.suberror,
+        error_codes: parsed.error_codes,
+        correlation_id: parsed.correlation_id,
+      });
+      throw new OAuthUpstreamError(response.status, raw, parsed);
+    }
+    logger.error(`Failed to refresh token: ${raw}`);
+    throw new Error(`Failed to refresh token: ${raw}`);
   }
 
   return response.json();
