@@ -67,21 +67,11 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
-/**
- * A Graph operation is destructive when the HTTP method mutates server state.
- * POST endpoints flagged `readOnly` in endpoints.json (e.g. get-schedule,
- * find-meeting-times) are treated as non-destructive because they are queries
- * dressed as POST for body-based parameters.
- */
-export function isDestructiveOperation(
-  method: string,
-  config: EndpointConfig | undefined
-): boolean {
-  const upper = method.toUpperCase();
-  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(upper)) return false;
-  if (upper === 'POST' && config?.readOnly) return false;
-  return true;
-}
+// Canonical definition lives in lib/destructive-ops.ts so tool-schema.ts can
+// use it without circling back through graph-tools.ts; re-exported here for
+// external callers (tests, etc.) that imported it from this module.
+import { isDestructiveOperation } from './lib/destructive-ops.js';
+export { isDestructiveOperation };
 
 /**
  * Defense-in-depth: destructive tools require an explicit `confirm: true` from
@@ -1275,7 +1265,7 @@ export function registerDiscoveryTools(
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
       if (entry) {
-        const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
+        const schema = describeToolSchema(entry.tool, entry.config);
         return {
           content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };
