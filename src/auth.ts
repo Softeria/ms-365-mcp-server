@@ -95,10 +95,10 @@ class AuthManager {
     this.tokenExpiry = null;
     this.selectedAccountId = null;
     this.storage = storage ?? new DefaultTokenCacheStorage();
-
-    const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
-    this.oauthToken = oauthTokenFromEnv ?? null;
-    this.isOAuthMode = oauthTokenFromEnv != null;
+    // OAuth mode is entered at runtime when MicrosoftOAuthProvider calls setOAuthToken
+    // after verifying a bearer token. There is no static configuration path into it.
+    this.oauthToken = null;
+    this.isOAuthMode = false;
   }
 
   static async create(options: AuthManagerCreateOptions = {}): Promise<AuthManager> {
@@ -235,7 +235,7 @@ class AuthManager {
           throw new Error(
             `Multiple accounts configured but no 'account' parameter provided and no default selected. ` +
               `Available accounts: ${availableAccounts}. ` +
-              `Pass account="<email>" in your tool call or use select-account to set a default.`
+              `Pass account="<email>" in your tool call.`
           );
         }
       }

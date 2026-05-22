@@ -99,7 +99,7 @@ class GraphClient {
         const errorText = await response.text();
         if (errorText.includes('scope') || errorText.includes('permission')) {
           throw new Error(
-            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. The signed-in user has not consented to a Graph scope this tool requires; re-authenticate after the Entra app registration grants it.`
           );
         }
         throw new Error(

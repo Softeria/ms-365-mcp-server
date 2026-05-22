@@ -17,8 +17,6 @@ describe('secrets module', () => {
       vi.stubEnv('MS365_MCP_CLIENT_ID', 'test-client-id');
       vi.stubEnv('MS365_MCP_TENANT_ID', 'test-tenant-id');
       vi.stubEnv('MS365_MCP_CLIENT_SECRET', 'test-client-secret');
-      vi.stubEnv('MS365_MCP_KEYVAULT_URL', '');
-
       const secrets = await getSecrets();
 
       expect(secrets.clientId).toBe('test-client-id');
@@ -29,8 +27,6 @@ describe('secrets module', () => {
     it('should default tenantId to common when not set', async () => {
       vi.stubEnv('MS365_MCP_CLIENT_ID', 'test-client-id');
       vi.stubEnv('MS365_MCP_TENANT_ID', '');
-      vi.stubEnv('MS365_MCP_KEYVAULT_URL', '');
-
       const secrets = await getSecrets();
 
       expect(secrets.tenantId).toBe('common');
@@ -38,8 +34,6 @@ describe('secrets module', () => {
 
     it('should cache secrets after first call', async () => {
       vi.stubEnv('MS365_MCP_CLIENT_ID', 'first-client-id');
-      vi.stubEnv('MS365_MCP_KEYVAULT_URL', '');
-
       const secrets1 = await getSecrets();
       expect(secrets1.clientId).toBe('first-client-id');
 
@@ -51,8 +45,6 @@ describe('secrets module', () => {
 
     it('should return fresh secrets after cache clear', async () => {
       vi.stubEnv('MS365_MCP_CLIENT_ID', 'first-client-id');
-      vi.stubEnv('MS365_MCP_KEYVAULT_URL', '');
-
       await getSecrets();
       clearSecretsCache();
 

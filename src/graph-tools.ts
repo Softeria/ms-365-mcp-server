@@ -734,10 +734,9 @@ export function registerGraphTools(
         .optional();
     }
 
-    // Add account parameter for multi-account mode.
-    // Layer 2: Account names are surfaced in the description (not as a strict enum) so the LLM
-    // sees available accounts upfront without a round-trip, but accounts added mid-session via
-    // --login are still accepted — getTokenForAccount() handles validation at runtime.
+    // Add account parameter for multi-account mode. Account names are surfaced in the
+    // description (not a strict enum) so the LLM sees the choices upfront without a
+    // round-trip; getTokenForAccount() validates the value at runtime.
     if (multiAccount) {
       const accountHint =
         accountNames.length > 0 ? `Known accounts: ${accountNames.join(', ')}. ` : '';

@@ -66,7 +66,6 @@ Environment variables:
 - `MS365_MCP_MAX_TOP=<n>` — hard cap on Graph `$top` for list requests.
 - `MS365_MCP_BODY_FORMAT=html` — return email bodies as HTML instead of plain text (default: text).
 - `MS365_MCP_TOKEN_CACHE_PATH`, `MS365_MCP_SELECTED_ACCOUNT_PATH` — file-based fallback locations for the MSAL token cache. Replaced by SQLite-backed per-user sessions in PR 3.
-- `MS365_MCP_OAUTH_TOKEN` — bring-your-own-token (single-user, no refresh). Useful for local Inspector testing.
 - `LOG_LEVEL`, `SILENT`.
 
 ## Output formats
