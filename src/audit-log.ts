@@ -58,10 +58,13 @@ const auditLogger = winston.createLogger({
   },
   transports: [
     new winston.transports.Console({
-      // Container Apps / App Service / Docker capture stdout and forward to
-      // Log Analytics — that is the production audit sink for HTTP mode.
-      // Vitest sets `VITEST=true`; staying silent there avoids polluting
-      // unrelated tests that exercise the real graph-tools module.
+      // Route audit events to stderr so they don't collide with JSON-RPC on
+      // stdout when this server runs in stdio mode. Container platforms
+      // (Container Apps, App Service, Docker) capture both stdout and stderr
+      // and forward to Log Analytics, so the production audit sink is
+      // unaffected. Vitest sets `VITEST=true`; staying silent there avoids
+      // polluting unrelated tests that exercise the real graph-tools module.
+      stderrLevels: ['info'],
       silent:
         process.env.SILENT === 'true' ||
         process.env.SILENT === '1' ||
