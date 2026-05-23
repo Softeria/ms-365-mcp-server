@@ -208,6 +208,7 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 - **Read-only mode**: use `--read-only` to disable all write operations (send, delete, update, create)
 - **Tool filtering**: use `--enabled-tools <regex>` or `--preset <names>` to restrict available tools
 - **CORS**: configure `MS365_MCP_CORS_ORIGIN` to restrict allowed origins (defaults to `http://localhost:3000`); set explicitly when clients run on a different origin
+- **Confirm gate on destructive tools**: enabled by default. Destructive tools (POST except `readOnly`, PATCH, PUT, DELETE — `delete-mail-message`, `send-mail`, `update-event`, etc.) return `{ "error": "confirmation_required" }` until the caller re-invokes them with `"confirm": true`. Mitigates accidental writes when an LLM misroutes a request or follows an injected instruction. Server-wide opt-out for trusted automation: `MS365_MCP_REQUIRE_CONFIRM=false`
 
 ## Exposed Endpoints
 
