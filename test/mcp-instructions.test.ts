@@ -22,4 +22,10 @@ describe('buildMcpServerInstructions', () => {
     const s = buildMcpServerInstructions({ ...baseCtx, discovery: false, readOnly: true });
     expect(s).toContain('read-only');
   });
+
+  it('does not suggest account switching when multiAccount is false', () => {
+    const s = buildMcpServerInstructions({ ...baseCtx, discovery: false, multiAccount: false });
+    expect(s).not.toContain('Multiple accounts');
+    expect(s).not.toContain('account parameter');
+  });
 });

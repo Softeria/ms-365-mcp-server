@@ -3,9 +3,40 @@
 import 'dotenv/config';
 import { parseArgs } from './cli.js';
 import logger from './logger.js';
-import AuthManager, { buildScopesFromEndpoints } from './auth.js';
+import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
 import MicrosoftGraphServer from './server.js';
+import {
+  getExpectedAccountInertWarning,
+  shouldAssertExpectedAccountAtStartup,
+  shouldUseLocalAuthStorage,
+} from './startup-pinning.js';
+import { createTokenCacheStorage } from './token-cache-storage.js';
+import { dumpError, getActiveResources } from './crash-logging.js';
 import { version } from './version.js';
+
+// Global crash handlers. Without these, an unhandled rejection from a dependency
+// (MSAL HTTP, keytar native, fetch in node) kills the stdio process silently
+// before winston can flush. Log to stderr synchronously so the dump survives.
+process.on('unhandledRejection', (reason) => {
+  const dump = {
+    kind: 'unhandledRejection',
+    reason: dumpError(reason),
+    activeResources: getActiveResources(),
+  };
+  console.error('[ms365-mcp] unhandledRejection', JSON.stringify(dump));
+  logger.error('unhandledRejection', dump);
+});
+
+process.on('uncaughtException', (err, origin) => {
+  const dump = {
+    kind: 'uncaughtException',
+    origin,
+    error: dumpError(err),
+    activeResources: getActiveResources(),
+  };
+  console.error('[ms365-mcp] uncaughtException', JSON.stringify(dump));
+  logger.error('uncaughtException', dump);
+});
 
 async function main(): Promise<void> {
   try {
@@ -17,22 +48,58 @@ async function main(): Promise<void> {
     }
 
     const readOnly = args.readOnly || false;
-    const scopes = buildScopesFromEndpoints(includeWorkScopes, args.enabledTools, readOnly);
+    const effectiveScopes = resolveAuthScopes(args);
 
     if (args.listPermissions) {
-      const sorted = [...scopes].sort((a, b) => a.localeCompare(b));
+      const diagnostics = buildAllowedScopeDiagnostics(args);
       const mode = includeWorkScopes ? 'org' : 'personal';
       const filter = args.enabledTools ? args.enabledTools : undefined;
-      console.log(JSON.stringify({ mode, readOnly, filter, permissions: sorted }, null, 2));
+      if (diagnostics.disabledTools.length > 0) {
+        console.error(
+          `Warning: allowed scopes disabled ${diagnostics.disabledTools.length} tools. Missing scopes: ${diagnostics.missingAllowedScopesForTools.join(', ')}`
+        );
+      }
+      console.log(
+        JSON.stringify(
+          {
+            mode,
+            readOnly,
+            filter,
+            ...diagnostics,
+          },
+          null,
+          2
+        )
+      );
       process.exit(0);
     }
 
-    const authManager = await AuthManager.create(scopes);
-    await authManager.loadTokenCache();
+    const useLocalAuthStorage = shouldUseLocalAuthStorage(args);
+    const storage = await createTokenCacheStorage({
+      allowCommandStorage: useLocalAuthStorage,
+      logProvider: useLocalAuthStorage,
+    });
+    const authManager = await AuthManager.create(
+      effectiveScopes,
+      {
+        expectedUsername: args.expectedUsername,
+        expectedHomeAccountId: args.expectedHomeAccountId,
+      },
+      { storage }
+    );
+    if (useLocalAuthStorage) {
+      await authManager.loadTokenCache();
+    }
 
     if (args.authBrowser) {
       authManager.setUseInteractiveAuth(true);
       logger.info('Browser-based interactive auth enabled');
+    }
+
+    const expectedAccountWarning = getExpectedAccountInertWarning(args, authManager);
+    if (expectedAccountWarning) {
+      logger.warn(expectedAccountWarning);
+      console.error(expectedAccountWarning);
     }
 
     if (args.login) {
@@ -93,6 +160,10 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       process.exit(0);
+    }
+
+    if (shouldAssertExpectedAccountAtStartup(args, authManager)) {
+      await authManager.assertExpectedAccountAvailable();
     }
 
     const server = new MicrosoftGraphServer(authManager, args);

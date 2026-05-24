@@ -34,7 +34,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@azure/msal-node": "^3.8.0",
+    "@azure/msal-node": "^5.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@toon-format/toon": "^0.8.0",
     "commander": "^11.1.0",
@@ -76,6 +76,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/softeria/ms-365-mcp-server.git"
+    "url": "https://github.com/Softeria/ms-365-mcp-server.git"
   }
 }

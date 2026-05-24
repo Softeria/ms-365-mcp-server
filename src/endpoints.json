@@ -671,5 +671,50 @@
       "Calendars.ReadWrite"
     ],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list \u2014 include all attendees, not just new ones."
+  },
+  {
+    "pathPattern": "/users/{user-id}/sendMail",
+    "method": "post",
+    "toolName": "send-shared-mailbox-mail",
+    "scopes": [
+      "Mail.Send.Shared"
+    ],
+    "llmTip": "Send a message from a shared mailbox. The 'user-id' is the shared mailbox email address (e.g. support@enabi.io). Requires Send As (or Send on Behalf Of) permission granted in Exchange Online for the signed-in user on this shared mailbox. CRITICAL: Do not guess recipient email addresses; resolve them via list-outlook-contacts or other directory tools."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages",
+    "method": "post",
+    "toolName": "create-shared-mailbox-draft",
+    "scopes": [
+      "Mail.ReadWrite.Shared"
+    ],
+    "llmTip": "Create a draft message in a shared mailbox. The 'user-id' is the shared mailbox email address. Pair with send-draft-message style flows by editing the draft, then sending via the shared-mailbox send endpoints."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
+    "method": "post",
+    "toolName": "reply-shared-mailbox-mail",
+    "scopes": [
+      "Mail.Send.Shared"
+    ],
+    "llmTip": "Reply to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address. The 'comment' field is your reply text. Do NOT reconstruct the email manually. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/replyAll",
+    "method": "post",
+    "toolName": "reply-all-shared-mailbox-mail",
+    "scopes": [
+      "Mail.Send.Shared"
+    ],
+    "llmTip": "Reply-all to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address. The 'comment' field is your reply text. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/forward",
+    "method": "post",
+    "toolName": "forward-shared-mailbox-mail",
+    "scopes": [
+      "Mail.Send.Shared"
+    ],
+    "llmTip": "Forward a message from a shared mailbox preserving full HTML formatting and attachments. The 'user-id' is the shared mailbox email address. 'toRecipients' is required. The 'comment' field adds text above the forwarded content. Requires Send As permission on the shared mailbox in Exchange."
   }
 ]

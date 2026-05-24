@@ -65,10 +65,18 @@ export const ALLOWED_TOOLS: ReadonlySet<string> = new Set([
   'update-mail-rule',
   'update-mailbox-settings',
 
-  // --- Shared mailbox (READ ONLY; sending from shared mailbox is intentionally NOT exposed) ---
+  // --- Shared mailbox (read + compose). ---
+  // Compose endpoints require Exchange Online "Send As" (or "Send on Behalf Of")
+  // permission granted on the shared mailbox for each user who needs to send.
+  // That is an Exchange admin action, separate from OAuth consent.
+  'create-shared-mailbox-draft',
+  'forward-shared-mailbox-mail',
   'get-shared-mailbox-message',
   'list-shared-mailbox-folder-messages',
   'list-shared-mailbox-messages',
+  'reply-all-shared-mailbox-mail',
+  'reply-shared-mailbox-mail',
+  'send-shared-mailbox-mail',
 
   // --- Calendar (personal; shared calendars / find-meeting-times intentionally excluded) ---
   'accept-calendar-event',
@@ -133,7 +141,8 @@ export const ENABI_REQUIRED_SCOPES: readonly string[] = [
   'User.Read',
   'Mail.ReadWrite', // subsumes Mail.Read
   'Mail.Send',
-  'Mail.Read.Shared',
+  'Mail.ReadWrite.Shared', // subsumes Mail.Read.Shared; needed for create-shared-mailbox-draft
+  'Mail.Send.Shared', // shared-mailbox send / reply / reply-all / forward
   'MailboxSettings.ReadWrite', // subsumes MailboxSettings.Read
   'Calendars.ReadWrite', // subsumes Calendars.Read
   'Contacts.ReadWrite', // subsumes Contacts.Read

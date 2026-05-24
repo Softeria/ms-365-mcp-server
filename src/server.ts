@@ -8,17 +8,25 @@ import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
 import GraphClient from './graph-client.js';
-import AuthManager, { buildScopesFromEndpoints } from './auth.js';
+import AuthManager, {
+  buildScopesFromEndpoints,
+  parseAllowedScopes,
+  resolveAuthScopes,
+} from './auth.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
+  OAuthUpstreamError,
   refreshAccessToken,
+  toOAuthErrorResponse,
 } from './lib/microsoft-auth.js';
+import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
+import { dumpError } from './crash-logging.js';
 import crypto from 'node:crypto';
 import OboClient from './obo-client.js';
 
@@ -107,7 +115,10 @@ class MicrosoftGraphServer {
         this.options.readOnly,
         this.options.orgMode,
         this.authManager,
-        this.multiAccount
+        this.multiAccount,
+        this.accountNames,
+        this.options.enabledTools,
+        this.options.allowedScopes
       );
     } else {
       registerGraphTools(
@@ -118,7 +129,8 @@ class MicrosoftGraphServer {
         this.options.orgMode,
         this.authManager,
         this.multiAccount,
-        this.accountNames
+        this.accountNames,
+        this.options.allowedScopes
       );
     }
 
@@ -150,6 +162,11 @@ class MicrosoftGraphServer {
       if (!this.secrets.clientSecret) {
         throw new Error(
           '--obo requires MS365_MCP_CLIENT_SECRET to be set (confidential client required for On-Behalf-Of flow).'
+        );
+      }
+      if (this.options.trustProxyAuth) {
+        throw new Error(
+          '--obo cannot be combined with --trust-proxy-auth: the proxy-auth pass-through skips the incoming bearer token that OBO would exchange.'
         );
       }
       this.oboClient = new OboClient(this.secrets);
@@ -250,7 +267,7 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+        const scopes = resolveAuthScopes(this.options);
 
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
@@ -279,7 +296,7 @@ class MicrosoftGraphServer {
 
         const scopes = this.options.obo
           ? [`api://${this.secrets!.clientId}/access_as_user`]
-          : buildScopesFromEndpoints(this.options.orgMode, this.options.enabledTools);
+          : resolveAuthScopes(this.options);
 
         res.json({
           resource: `${requestOrigin}/mcp`,
@@ -324,6 +341,30 @@ class MicrosoftGraphServer {
         const clientCodeChallenge = url.searchParams.get('code_challenge');
         const clientCodeChallengeMethod = url.searchParams.get('code_challenge_method');
         const state = url.searchParams.get('state');
+
+        // Validate redirect_uri before forwarding to Microsoft to mitigate
+        // CWE-601 (open redirect). Microsoft Entra performs its own redirect
+        // URI validation, but a permissively configured app registration
+        // (e.g. wildcard reply URLs) would let an attacker craft an
+        // /authorize link whose authorization code is delivered to an
+        // attacker-controlled origin. We defensively reject obviously
+        // dangerous schemes (javascript:, data:, file:) and arbitrary
+        // non-loopback http URIs here, and honour an explicit allowlist
+        // configured via MS365_MCP_ALLOWED_REDIRECT_URIS.
+        const redirectUriParam = url.searchParams.get('redirect_uri');
+        if (redirectUriParam) {
+          const allowlist = parseAllowlist(process.env.MS365_MCP_ALLOWED_REDIRECT_URIS);
+          if (!isAllowedRedirectUri(redirectUriParam, allowlist)) {
+            logger.warn('Rejected /authorize request with disallowed redirect_uri', {
+              redirect_uri: redirectUriParam,
+            });
+            res.status(400).json({
+              error: 'invalid_request',
+              error_description: 'redirect_uri is not allowed',
+            });
+            return;
+          }
+        }
 
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
@@ -401,30 +442,33 @@ class MicrosoftGraphServer {
         // Use our Microsoft app's client_id
         microsoftAuthUrl.searchParams.set('client_id', clientId);
 
-        // Ensure we have the minimal required scopes if none provided
-        if (!microsoftAuthUrl.searchParams.get('scope')) {
-          microsoftAuthUrl.searchParams.set(
-            'scope',
-            'User.Read Files.Read Mail.Read offline_access'
-          );
-        } else {
-          // Inject offline_access silently here (not advertised in scopes_supported)
-          // so Entra ID issues a refresh token, enabling silent token refresh after
-          // the access token expires. We deliberately do NOT add offline_access to
-          // buildScopesFromEndpoints(): advertising the scope in OAuth metadata made
-          // MCP clients request it explicitly, which triggers a "Maintain access to
-          // data" consent line that fails in tenants where user consent for
-          // applications is restricted by policy (even when admin has pre-consented
-          // every scope). Injecting silently in the forwarding path gives Entra
-          // what it needs to issue a refresh token without surfacing the scope to
-          // the client.
-          const scopeValue = microsoftAuthUrl.searchParams.get('scope')!;
-          const scopeList = scopeValue.split(/\s+/).filter(Boolean);
-          if (!scopeList.includes('offline_access')) {
-            scopeList.push('offline_access');
-            microsoftAuthUrl.searchParams.set('scope', scopeList.join(' '));
-          }
-        }
+        // Determine base scopes from the client request or from the user's
+        // configuration flags, then silently inject User.Read and offline_access.
+        // Neither is advertised in scopes_supported:
+        //   - User.Read: needed by Microsoft Graph /me access, which the
+        //     token-verification and login-test code paths rely on. Without
+        //     it, narrow presets (e.g. search-only) would produce tokens that
+        //     can't validate against /me.
+        //   - offline_access: needed so Entra ID issues a refresh token for
+        //     silent renewal. Advertising it in OAuth metadata made MCP
+        //     clients request it explicitly, which triggers a "Maintain
+        //     access to data" consent line that fails in tenants where user
+        //     consent for applications is restricted by policy (even when
+        //     admin has pre-consented every scope).
+        const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
+        const clientScope = microsoftAuthUrl.searchParams.get('scope');
+        const baseScopes =
+          explicitAllowedScopes !== undefined
+            ? resolveAuthScopes(this.options)
+            : clientScope
+              ? clientScope.split(/\s+/).filter(Boolean)
+              : buildScopesFromEndpoints(
+                  this.options.orgMode,
+                  this.options.enabledTools,
+                  this.options.readOnly
+                );
+        const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
+        microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 
         // Redirect to Microsoft's authorization page
         res.redirect(microsoftAuthUrl.toString());
@@ -540,11 +584,18 @@ class MicrosoftGraphServer {
             });
           }
         } catch (error) {
-          logger.error('Token endpoint error:', error);
-          res.status(500).json({
-            error: 'server_error',
-            error_description: 'Internal server error during token exchange',
-          });
+          if (error instanceof OAuthUpstreamError) {
+            logger.warn('Token endpoint: upstream OAuth error surfaced to client', {
+              upstream_status: error.status,
+              error: error.body.error,
+              suberror: error.body.suberror,
+              error_codes: error.body.error_codes,
+            });
+          } else {
+            logger.error('Token endpoint error:', error);
+          }
+          const { status, body } = toOAuthErrorResponse(error);
+          res.status(status).json(body);
         }
       });
 
@@ -555,11 +606,15 @@ class MicrosoftGraphServer {
         })
       );
 
-      // Microsoft Graph MCP endpoints with bearer token auth
-      // Handle both GET and POST methods as required by MCP Streamable HTTP specification
+      // Microsoft Graph MCP endpoints with bearer token auth (or pass-through
+      // when --trust-proxy-auth is set; see microsoftBearerTokenAuthMiddleware
+      // for the AuthManager fallback that makes that mode work).
+      const mcpAuth = microsoftBearerTokenAuthMiddleware({
+        trustProxyAuth: this.options.trustProxyAuth,
+      });
       app.get(
         '/mcp',
-        microsoftBearerTokenAuthMiddleware,
+        mcpAuth,
         async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
@@ -604,7 +659,7 @@ class MicrosoftGraphServer {
 
       app.post(
         '/mcp',
-        microsoftBearerTokenAuthMiddleware,
+        mcpAuth,
         async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
@@ -673,6 +728,9 @@ class MicrosoftGraphServer {
       }
     } else {
       const transport = new StdioServerTransport();
+      transport.onerror = (error) => {
+        logger.error('Stdio transport error', { error: dumpError(error) });
+      };
       await this.server!.connect(transport);
       logger.info('Server connected to stdio transport');
     }

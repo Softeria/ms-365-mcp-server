@@ -14,7 +14,7 @@ export type Endpoint = {
   path: string;
   alias: string;
   description?: string;
-  requestFormat: 'json';
+  requestFormat: 'json' | 'binary' | 'form-data' | 'form-url' | 'text';
   parameters?: Parameter[];
   response: z.ZodType<any>;
   errors?: Array<{

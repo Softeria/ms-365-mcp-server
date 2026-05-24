@@ -83,8 +83,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 1 GET endpoint (parse-teams-url removed — Teams out of scope)
-    expect(mockServer.tool).toHaveBeenCalledTimes(1);
+    // 1 GET endpoint + download-bytes utility tool (parse-teams-url removed — Teams out of scope)
+    expect(mockServer.tool).toHaveBeenCalledTimes(2);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -100,8 +100,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // All 5 mocked endpoints register (parse-teams-url removed — Teams out of scope)
-    expect(mockServer.tool).toHaveBeenCalledTimes(5);
+    // 5 mocked endpoints + download-bytes utility tool (parse-teams-url removed — Teams out of scope)
+    expect(mockServer.tool).toHaveBeenCalledTimes(6);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');

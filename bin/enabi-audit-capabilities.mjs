@@ -34,6 +34,7 @@ const HIERARCHY = {
   'Calendars.ReadWrite': ['Calendars.Read'],
   'Contacts.ReadWrite': ['Contacts.Read'],
   'MailboxSettings.ReadWrite': ['MailboxSettings.Read'],
+  'Mail.ReadWrite.Shared': ['Mail.Read.Shared'],
 };
 const requestedScopes = new Set();
 for (const ep of endpoints) {

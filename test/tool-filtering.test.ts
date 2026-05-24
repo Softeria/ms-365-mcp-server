@@ -51,8 +51,8 @@ describe('Tool Filtering', () => {
   it('should register all tools when no filter is provided', () => {
     registerGraphTools(server, graphClient, false);
 
-    // 5 mocked endpoints (parse-teams-url removed — Teams out of scope)
-    expect(toolSpy).toHaveBeenCalledTimes(5);
+    // 5 mocked endpoints + download-bytes utility tool (parse-teams-url removed — Teams out of scope)
+    expect(toolSpy).toHaveBeenCalledTimes(6);
     expect(toolSpy).toHaveBeenCalledWith(
       'list-mail-messages',
       expect.any(String),
@@ -133,8 +133,8 @@ describe('Tool Filtering', () => {
   it('should handle invalid regex patterns gracefully', () => {
     registerGraphTools(server, graphClient, false, '[invalid regex');
 
-    // 5 mocked endpoints (no filter applied on invalid regex)
-    expect(toolSpy).toHaveBeenCalledTimes(5);
+    // 5 mocked endpoints + download-bytes utility tool (no filter applied on invalid regex)
+    expect(toolSpy).toHaveBeenCalledTimes(6);
   });
 
   it('should combine read-only and filtering correctly', () => {

@@ -1,7 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { randomUUID } from 'crypto';
 import logger from './logger.js';
+import { auditLog, getUserIdentityForAudit, sanitizeArgs } from './audit-log.js';
+import { isAllowed } from './enabi-allowlist.js';
 import GraphClient from './graph-client.js';
-import AuthManager from './auth.js';
+import AuthManager, {
+  getEndpointRequiredScopes,
+  getMissingAllowedScopes,
+  parseAllowedScopes,
+} from './auth.js';
 import { api } from './generated/client.js';
 import { z } from 'zod';
 import { readFileSync } from 'fs';
@@ -10,13 +17,11 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
-import { isAllowed } from './enabi-allowlist.js';
-import { audit } from './audit-log.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
 }
-import { describeToolSchema } from './lib/tool-schema.js';
+import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,6 +123,138 @@ interface CallToolResult {
   [key: string]: unknown;
 }
 
+interface UtilityToolContext {
+  graphClient: GraphClient;
+  authManager?: AuthManager;
+  multiAccount: boolean;
+  accountNames: string[];
+}
+
+interface UtilityTool {
+  name: string;
+  // Synthetic for display in search-tools / get-tool-schema. The `tool:` prefix
+  // marks these as non-Graph so an LLM doesn't try to construct a Graph URL from them.
+  method: string;
+  path: string;
+  description: string;
+  buildSchema: (ctx: UtilityToolContext) => Record<string, z.ZodTypeAny>;
+  execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
+  readOnlyHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+interface DisabledToolScope {
+  toolName: string;
+  missingScopes: string[];
+}
+
+function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
+  const shown = disabledTools
+    .slice(0, 20)
+    .map((tool) => `${tool.toolName} (missing: ${tool.missingScopes.join(', ')})`);
+  const suffix =
+    disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
+  return `${shown.join('; ')}${suffix}`;
+}
+
+export const UTILITY_TOOLS: readonly UtilityTool[] = [
+  // Enabi: parse-teams-url was removed in commit f1c0c73 — Teams is out of
+  // scope and src/lib/teams-url-parser.ts no longer exists. Re-add the entry
+  // here only if the file is restored and the tool is allowlisted.
+  {
+    name: 'download-bytes',
+    method: 'GET',
+    path: 'tool:download-bytes',
+    description:
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Relative Microsoft Graph path starting with "/". Common paths: ' +
+              '/drives/{drive-id}/items/{driveItem-id}/content (drive file content); ' +
+              '/me/messages/{message-id}/attachments/{attachment-id}/$value (mail attachment, list-mail-attachments returns the IDs); ' +
+              '/me/photo/$value or /users/{user-id}/photo/$value (profile photo); ' +
+              '/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams chat hosted content, list-chat-message-hosted-contents returns the IDs); ' +
+              '/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams channel hosted content). ' +
+              'For meeting recordings (often large), use get-meeting-recording-content which returns a URL for out-of-band download by the client.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'target is required and must be a non-empty string.' }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!target.startsWith('/')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a relative Microsoft Graph path starting with "/", e.g. /me/photo/$value or /drives/{drive-id}/items/{driveItem-id}/content. Absolute URLs are not accepted; if you have an @microsoft.graph.downloadUrl, use the equivalent /content or /$value path instead (Graph 302-redirects to the same bytes).',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        return await graphClient.graphRequest(target, { accessToken: accountAccessToken });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+];
+
+function registerUtilityToolWithMcp(
+  server: McpServer,
+  utility: UtilityTool,
+  ctx: UtilityToolContext
+): void {
+  server.tool(
+    utility.name,
+    utility.description,
+    utility.buildSchema(ctx),
+    {
+      title: utility.name,
+      readOnlyHint: utility.readOnlyHint ?? true,
+      openWorldHint: utility.openWorldHint ?? true,
+    },
+    async (params) => utility.execute(params, ctx)
+  );
+}
+
 async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
@@ -125,9 +262,15 @@ async function executeGraphTool(
   params: Record<string, unknown>,
   authManager?: AuthManager
 ): Promise<CallToolResult> {
-  const auditStart = Date.now();
-  const auditAccount = (params.account as string | undefined) ?? undefined;
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+
+  const requestId = randomUUID();
+  const startTime = Date.now();
+  const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
+  const httpMethod = tool.method.toUpperCase();
+  const auditAccount = (params.account as string | undefined) ?? undefined;
+  const sanitizedArgs = sanitizeArgs(params) as Record<string, unknown>;
+
   try {
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
@@ -329,7 +472,7 @@ async function executeGraphTool(
     const options: {
       method: string;
       headers: Record<string, string>;
-      body?: string;
+      body?: string | Buffer | Uint8Array;
       rawResponse?: boolean;
       includeHeaders?: boolean;
       excludeResponse?: boolean;
@@ -341,7 +484,12 @@ async function executeGraphTool(
     };
 
     if (options.method !== 'GET' && body) {
-      if (config?.contentType === 'text/html') {
+      if (tool.requestFormat === 'binary' && typeof body === 'string') {
+        options.body = Buffer.from(body, 'base64');
+        if (!config?.contentType) {
+          headers['Content-Type'] = 'application/octet-stream';
+        }
+      } else if (config?.contentType === 'text/html') {
         if (typeof body === 'string') {
           options.body = body;
         } else if (typeof body === 'object' && 'content' in body) {
@@ -473,11 +621,15 @@ async function executeGraphTool(
       text: item.text,
     }));
 
-    audit({
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
       tool: tool.alias,
-      args: params,
-      success: !response.isError,
-      durationMs: Date.now() - auditStart,
+      http_method: httpMethod,
+      status: response.isError ? 'error' : 'success',
+      duration_ms: Date.now() - startTime,
+      args: sanitizedArgs,
       account: auditAccount,
     });
 
@@ -487,14 +639,20 @@ async function executeGraphTool(
       isError: response.isError,
     };
   } catch (error) {
+    const err = error as { name?: string; code?: string | number; status?: string | number };
     logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
-    audit({
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
       tool: tool.alias,
-      args: params,
-      success: false,
-      durationMs: Date.now() - auditStart,
+      http_method: httpMethod,
+      status: 'error',
+      duration_ms: Date.now() - startTime,
+      error_type: err?.name || 'Error',
+      error_code: err?.status ?? err?.code,
+      args: sanitizedArgs,
       account: auditAccount,
-      error: (error as Error).message,
     });
     return {
       content: [
@@ -518,7 +676,8 @@ export function registerGraphTools(
   orgMode: boolean = false,
   authManager?: AuthManager,
   multiAccount: boolean = false,
-  accountNames: string[] = []
+  accountNames: string[] = [],
+  allowedScopesValue?: string
 ): number {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -533,10 +692,12 @@ export function registerGraphTools(
   let registeredCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  const allowedScopes = parseAllowedScopes(allowedScopesValue);
+  const disabledByAllowedScopes: DisabledToolScope[] = [];
 
   for (const tool of api.endpoints) {
     // Enabi allowlist: refuse to register any tool not on the explicit list.
-    // This is a belt-and-suspenders defense against upstream-sync drift.
+    // Belt-and-suspenders defense against upstream-sync drift.
     if (!isAllowed(tool.alias)) {
       logger.error(
         `Enabi allowlist rejected tool "${tool.alias}" — not registered. ` +
@@ -567,6 +728,17 @@ export function registerGraphTools(
 
     if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
       logger.info(`Skipping tool ${tool.alias} - doesn't match filter pattern`);
+      skippedCount++;
+      continue;
+    }
+
+    const requiredScopes = getEndpointRequiredScopes(endpointConfig, orgMode);
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopes(requiredScopes, allowedScopes);
+    if (missingScopes.length > 0) {
+      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
       skippedCount++;
       continue;
     }
@@ -738,7 +910,32 @@ export function registerGraphTools(
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
   }
 
-  // Enabi: parse-teams-url removed — Teams is out of scope.
+  if (disabledByAllowedScopes.length > 0) {
+    logger.info(
+      `Allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
+    );
+  }
+
+  const utilityCtx: UtilityToolContext = {
+    graphClient,
+    authManager,
+    multiAccount,
+    accountNames,
+  };
+  for (const utility of UTILITY_TOOLS) {
+    // Enabi: utility tools (download-bytes) are out of scope.
+    // They register only if added to the allowlist.
+    if (!isAllowed(utility.name)) continue;
+    if (readOnly && !utility.readOnlyHint) continue;
+    if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
+    try {
+      registerUtilityToolWithMcp(server, utility, utilityCtx);
+      registeredCount++;
+    } catch (error) {
+      logger.error(`Failed to register tool ${utility.name}: ${(error as Error).message}`);
+      failedCount++;
+    }
+  }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
   // It is the canonical owner of account discovery — no duplicate registration here.
@@ -751,15 +948,23 @@ export function registerGraphTools(
 
 export function buildToolsRegistry(
   readOnly: boolean,
-  orgMode: boolean
+  orgMode: boolean,
+  enabledToolsRegex?: RegExp,
+  allowedScopesValue?: string,
+  disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
   const toolsMap = new Map<
     string,
     { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }
   >();
+  const allowedScopes = parseAllowedScopes(allowedScopesValue);
 
   for (const tool of api.endpoints) {
-    if (!isAllowed(tool.alias)) continue;
+    // Enabi allowlist: same gate as registerGraphTools.
+    if (!isAllowed(tool.alias)) {
+      continue;
+    }
+
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
@@ -771,6 +976,22 @@ export function buildToolsRegistry(
       if (!(method === 'POST' && endpointConfig?.readOnly)) {
         continue;
       }
+    }
+
+    if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
+      continue;
+    }
+
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopes(
+            getEndpointRequiredScopes(endpointConfig, orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
+      continue;
     }
 
     toolsMap.set(tool.alias, { tool, config: endpointConfig });
@@ -785,7 +1006,8 @@ export function buildToolsRegistry(
  * merely mentions the query term in its Microsoft-supplied description.
  */
 export function buildDiscoverySearchIndex(
-  toolsRegistry: ReturnType<typeof buildToolsRegistry>
+  toolsRegistry: ReturnType<typeof buildToolsRegistry>,
+  utilityTools: readonly UtilityTool[] = []
 ): DiscoverySearchIndex {
   // Cap contribution from the `description` and `llmTip` fields so a verbose llmTip
   // (e.g. the KQL search-syntax guide on list-mail-messages, ~300 tokens) doesn't
@@ -815,6 +1037,14 @@ export function buildDiscoverySearchIndex(
       ...descTokens,
     ];
     docs.push({ id: name, tokens });
+  }
+  for (const utility of utilityTools) {
+    const nt = tokenize(utility.name);
+    nameTokens.set(utility.name, new Set(nt));
+    const pathTokens = tokenize(utility.path);
+    const descTokens = tokenize(utility.description).slice(0, DESC_CAP_TOKENS);
+    const tokens = [...nt, ...nt, ...nt, ...nt, ...nt, ...pathTokens, ...pathTokens, ...descTokens];
+    docs.push({ id: utility.name, tokens });
   }
   return { bm25: buildBM25Index(docs), nameTokens };
 }
@@ -859,35 +1089,90 @@ export function registerDiscoveryTools(
   readOnly: boolean = false,
   orgMode: boolean = false,
   authManager?: AuthManager,
-  _multiAccount: boolean = false
+  multiAccount: boolean = false,
+  accountNames: string[] = [],
+  enabledTools?: string,
+  allowedScopesValue?: string
 ): void {
-  const toolsRegistry = buildToolsRegistry(readOnly, orgMode);
-  const searchIndex = buildDiscoverySearchIndex(toolsRegistry);
-  logger.info(`Discovery mode: ${toolsRegistry.size} tools available in registry`);
+  let enabledToolsRegex: RegExp | undefined;
+  if (enabledTools) {
+    try {
+      enabledToolsRegex = new RegExp(enabledTools, 'i');
+      logger.info(`Discovery mode: filtering tools with pattern ${enabledTools}`);
+    } catch (error) {
+      logger.error(
+        `Invalid --enabled-tools regex ${JSON.stringify(enabledTools)} — ignoring filter: ${(error as Error).message}`
+      );
+    }
+  }
+
+  const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const toolsRegistry = buildToolsRegistry(
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    disabledByAllowedScopes
+  );
+  if (disabledByAllowedScopes.length > 0) {
+    logger.info(
+      `Discovery mode: allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
+    );
+  }
+  const utilityTools = UTILITY_TOOLS.filter((u) => {
+    if (!isAllowed(u.name)) return false;
+    if (readOnly && !u.readOnlyHint) return false;
+    if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
+    return true;
+  });
+  const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
+  const totalCount = toolsRegistry.size + utilityTools.length;
+  logger.info(
+    `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} utility)`
+  );
+
+  const utilityCtx: UtilityToolContext = {
+    graphClient,
+    authManager,
+    multiAccount,
+    accountNames,
+  };
+  const utilityByName = new Map(utilityTools.map((u) => [u.name, u]));
 
   const categoryNames = Object.keys(TOOL_CATEGORIES).join(', ');
 
   const toResultEntry = (name: string) => {
     const entry = toolsRegistry.get(name);
-    if (!entry) return null;
-    const { tool, config } = entry;
-    return {
-      name,
-      method: tool.method.toUpperCase(),
-      path: tool.path,
-      description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
-      ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
-    };
+    if (entry) {
+      const { tool, config } = entry;
+      return {
+        name,
+        method: tool.method.toUpperCase(),
+        path: tool.path,
+        description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+        ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
+      };
+    }
+    const utility = utilityByName.get(name);
+    if (utility) {
+      return {
+        name: utility.name,
+        method: utility.method,
+        path: utility.path,
+        description: utility.description,
+      };
+    }
+    return null;
   };
 
   server.tool(
     'search-tools',
-    `Search through ${toolsRegistry.size} Microsoft Graph API tools. Ranks results by BM25 over tool name, llmTip, description, and path (tokenized on hyphens, camelCase, and whitespace). After picking a tool, call get-tool-schema to see its parameters, then execute-tool to invoke it.`,
+    `Search through ${totalCount} tools (${toolsRegistry.size} Microsoft Graph API operations + ${utilityTools.length} server utilities like download-bytes). Ranks results by BM25 over tool name, llmTip, description, and path. After picking a tool, call get-tool-schema for parameters, then execute-tool.`,
     {
       query: z
         .string()
         .describe(
-          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "create calendar event", "list unread messages".'
+          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
         )
         .optional(),
       category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
@@ -908,7 +1193,9 @@ export function registerDiscoveryTools(
         const ranked = scoreDiscoveryQuery(query, searchIndex);
         orderedNames = ranked.map((r) => r.id).filter(categoryFilter);
       } else {
-        orderedNames = [...toolsRegistry.keys()].filter(categoryFilter);
+        orderedNames = [...toolsRegistry.keys(), ...utilityTools.map((u) => u.name)].filter(
+          categoryFilter
+        );
       }
 
       const tools = orderedNames.slice(0, maxLimit).map(toResultEntry).filter(Boolean);
@@ -920,7 +1207,7 @@ export function registerDiscoveryTools(
             text: JSON.stringify(
               {
                 found: tools.length,
-                total: toolsRegistry.size,
+                total: totalCount,
                 tools,
                 tip: 'Call get-tool-schema(tool_name) to see parameters before invoking execute-tool.',
               },
@@ -946,23 +1233,30 @@ export function registerDiscoveryTools(
     },
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
-      if (!entry) {
+      if (entry) {
+        const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
         return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
+          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };
       }
-      const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
+      const utility = utilityByName.get(tool_name);
+      if (utility) {
+        const schema = describeUtilityToolSchema(utility, utilityCtx);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
+        };
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${tool_name}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
       };
     }
   );
@@ -987,22 +1281,31 @@ export function registerDiscoveryTools(
     },
     async ({ tool_name, parameters = {} }) => {
       const toolData = toolsRegistry.get(tool_name);
-      if (!toolData) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: `Tool not found: ${tool_name}`,
-                tip: 'Use search-tools to find available tools.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+      if (toolData) {
+        return executeGraphTool(
+          toolData.tool,
+          toolData.config,
+          graphClient,
+          parameters,
+          authManager
+        );
       }
-
-      return executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager);
+      const utility = utilityByName.get(tool_name);
+      if (utility) {
+        return utility.execute(parameters, utilityCtx);
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${tool_name}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
   );
 

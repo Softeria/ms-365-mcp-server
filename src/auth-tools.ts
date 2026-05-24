@@ -96,7 +96,15 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
   });
 
   server.tool('verify-login', 'Check current Microsoft authentication status', {}, async () => {
-    const testResult = await authManager.testLogin();
+    let testResult: Awaited<ReturnType<AuthManager['testLogin']>>;
+    try {
+      testResult = await authManager.testLogin();
+    } catch (error) {
+      testResult = {
+        success: false,
+        message: `Login failed: ${(error as Error).message}`,
+      };
+    }
 
     return {
       content: [
@@ -121,6 +129,7 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
       try {
         const accounts = await authManager.listAccounts();
         const selectedAccountId = authManager.getSelectedAccountId();
+        const pinnedMode = authManager.hasExpectedAccount();
         const result = accounts.map((account) => ({
           email: account.username || 'unknown',
           name: account.name,
@@ -134,7 +143,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
               text: JSON.stringify({
                 accounts: result,
                 count: result.length,
-                tip: "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
+                tip: pinnedMode
+                  ? 'Expected account pinning is configured; account parameters are disabled.'
+                  : "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
               }),
             },
           ],

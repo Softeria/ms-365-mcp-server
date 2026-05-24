@@ -4,6 +4,11 @@
 // isAllowed() in src/enabi-allowlist.ts.
 process.env.ENABI_ALLOWLIST_BYPASS = '1';
 
+// Enabi's cloud-config refuses to start without MS365_MCP_CLIENT_ID. Tests that
+// exercise AuthManager.create() need a placeholder; production still requires
+// the real value set in the environment.
+process.env.MS365_MCP_CLIENT_ID = process.env.MS365_MCP_CLIENT_ID ?? 'test-client-id';
+
 // Node 18 lacks the Web `File` global that Node 20+ and browsers provide.
 // The generated Graph client uses `z.instanceof(File)` for multipart upload
 // endpoints, so importing it under Node 18 throws ReferenceError at module load.

@@ -18,6 +18,14 @@ MCP Clients (Claude Desktop, Claude Code, Open WebUI, ...)
          Microsoft Graph API
 ```
 
+## Headless stdio auth-cache storage
+
+Production HTTP deployments are stateless: normal Graph requests carry a per-user bearer token, including On-Behalf-Of (`--obo`) deployments, and the server does not store MSAL token state for those requests.
+
+For headless stdio deployments that use local MSAL login (`--login`, `--verify-login`, auth tools, account selection, and regular stdio Graph calls), `MS365_MCP_AUTH_CACHE_COMMAND` can point at an external executable wrapper that stores the MSAL token cache and selected-account metadata in a deployment-approved backing store. The package only defines the provider-neutral command protocol; provider-specific scripts for AWS, Azure, GCP, Redis, databases, or other stores live outside this package.
+
+In HTTP mode, `MS365_MCP_AUTH_CACHE_COMMAND` is skipped at startup and per Graph request unless local auth tools are explicitly enabled with `--enable-auth-tools` or a local account command such as `--login`, `--verify-login`, `--list-accounts`, `--select-account`, `--remove-account`, or `--logout` is invoked.
+
 ## Docker
 
 A `Dockerfile` is included for containerized deployments:
@@ -130,6 +138,28 @@ When deploying for an organization, create a dedicated app registration instead 
 
 5. **Store credentials** in Key Vault (see [Azure Key Vault Integration](../README.md#azure-key-vault-integration))
 
+## Redirect URI Validation
+
+The /authorize endpoint defensively validates client-supplied `redirect_uri` values before forwarding them to Microsoft Entra (CWE-601, Open Redirect). Microsoft Entra also validates the URI against your app registration, but this server-side check rejects obviously dangerous schemes (`javascript:`, `data:`, `file:`, …) and arbitrary remote `http://` origins before the request leaves the server.
+
+Default behaviour (no explicit allowlist):
+
+- Only `http:` and `https:` schemes are accepted.
+- `http:` is only allowed for loopback hosts (`localhost`, `127.0.0.1`, `::1`).
+- All other `https://` origins are accepted (Entra still has the final say).
+
+For production deployments, configure an explicit allowlist via the `MS365_MCP_ALLOWED_REDIRECT_URIS` environment variable. It takes a comma-separated list of exact URIs; only exact string matches pass validation:
+
+```bash
+# Single redirect URI
+MS365_MCP_ALLOWED_REDIRECT_URIS=https://mcp.example.com/auth/callback
+
+# Multiple URIs (comma-separated, no spaces required)
+MS365_MCP_ALLOWED_REDIRECT_URIS=https://mcp.example.com/auth/callback,https://staging.example.com/auth/callback
+```
+
+The list should mirror the redirect URIs registered on your Azure AD app registration. Leaving the variable unset falls back to the default behaviour above, which is appropriate for local development but not recommended for shared/production deployments.
+
 ## Reverse Proxy / Custom Domain
 
 When running behind a reverse proxy, set `MS365_MCP_PUBLIC_URL` so that the OAuth authorize URL handed back to the user's browser is resolvable from outside the server's network:
@@ -172,11 +202,13 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 ## Security Considerations
 
 - **Stateless**: the server does not store tokens — each request carries the user's Bearer token
+- **Account pinning**: `MS365_MCP_EXPECTED_USERNAME` and `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID` protect local MSAL cache flows for headless stdio deployments. In `--http`, `--obo`, or `MS365_MCP_OAUTH_TOKEN` deployments they are warning-only because Graph calls use request-provided tokens.
 - **Admin consent**: grant tenant-wide consent to avoid per-user consent prompts
 - **Managed identity**: use managed identity for Key Vault access (no secrets in environment variables)
 - **Read-only mode**: use `--read-only` to disable all write operations (send, delete, update, create)
 - **Tool filtering**: use `--enabled-tools <regex>` or `--preset <names>` to restrict available tools
 - **CORS**: configure `MS365_MCP_CORS_ORIGIN` to restrict allowed origins (defaults to `http://localhost:3000`); set explicitly when clients run on a different origin
+- **Structured audit log**: enabled by default. Every tool invocation emits one JSON line on stdout (captured by the container platform's log collector) and to `~/.ms-365-mcp-server/logs/audit.log` (mode `0o600`) with `{ event, request_id, user_principal_name, tool, http_method, status, duration_ms, error_type?, error_code? }`. The schema is intentionally narrow — tool parameters and Graph response bodies are NEVER recorded, and error messages are reduced to `error_type` / `error_code` so upstream library errors do not leak token fragments or query-string PII. Forms the "who accessed what, when" trail required for GDPR / HIPAA / PIPEDA / SOC 2 audit. Opt-out: `MS365_MCP_AUDIT_LOG=false`
 
 ## Exposed Endpoints
 

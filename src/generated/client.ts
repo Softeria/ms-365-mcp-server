@@ -2461,6 +2461,121 @@ export const endpoints = makeApi([
     ],
     response: z.any(),
   },
+  {
+    method: "post",
+    path: "/users/:userId/sendMail",
+    alias: "send-shared-mailbox-mail",
+    description: "POST /users/{user-id}/sendMail",
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
+    response: z.any(),
+  },
+  {
+    method: "post",
+    path: "/users/:userId/messages",
+    alias: "create-shared-mailbox-draft",
+    description: "POST /users/{user-id}/messages",
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
+    response: z.any(),
+  },
+  {
+    method: "post",
+    path: "/users/:userId/messages/:messageId/reply",
+    alias: "reply-shared-mailbox-mail",
+    description: "POST /users/{user-id}/messages/{message-id}/reply",
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
+    response: z.any(),
+  },
+  {
+    method: "post",
+    path: "/users/:userId/messages/:messageId/replyAll",
+    alias: "reply-all-shared-mailbox-mail",
+    description: "POST /users/{user-id}/messages/{message-id}/replyAll",
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
+    response: z.any(),
+  },
+  {
+    method: "post",
+    path: "/users/:userId/messages/:messageId/forward",
+    alias: "forward-shared-mailbox-mail",
+    description: "POST /users/{user-id}/messages/{message-id}/forward",
+    requestFormat: "json",
+    parameters: [
+      {
+        name: "userId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: user-id"),
+      },
+      {
+        name: "messageId",
+        type: "Path",
+        schema: z.string().describe("Path parameter: message-id"),
+      },
+      {
+        name: "body",
+        type: "Body",
+        schema: z.any().describe("Request body as a JSON object. Shape follows the Microsoft Graph API for this endpoint."),
+      },
+    ],
+    response: z.any(),
+  },
 ]);
 
 export const api = { endpoints };

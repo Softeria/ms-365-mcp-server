@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.claude
+CLAUDE.md
+.github
+.vscode
+*.log
+.DS_Store
+coverage
+.env
+.env.*
+.token-cache.json
+.selected-account.json
+.mcp.json
