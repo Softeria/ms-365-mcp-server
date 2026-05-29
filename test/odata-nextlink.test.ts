@@ -88,3 +88,40 @@ describe('OData nextLink preservation', () => {
     mockFetch.mockRestore();
   });
 });
+
+describe('Graph API version routing', () => {
+  let graphClient: InstanceType<typeof GraphClient>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
+  });
+
+  it('targets /v1.0 by default', async () => {
+    const mockFetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ value: [] }), { status: 200 }));
+
+    await graphClient.graphRequest('/me/messages');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://graph.microsoft.com/v1.0/me/messages');
+
+    mockFetch.mockRestore();
+  });
+
+  it('targets /beta when apiVersion is "beta"', async () => {
+    const mockFetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ value: [] }), { status: 200 }));
+
+    await graphClient.graphRequest('/planner/tasks/abc/messages', { apiVersion: 'beta' });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://graph.microsoft.com/beta/planner/tasks/abc/messages');
+
+    mockFetch.mockRestore();
+  });
+});

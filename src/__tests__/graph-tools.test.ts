@@ -742,6 +742,155 @@ describe('graph-tools', () => {
     });
   });
 
+  // ---- 9b. get-download-url utility tool ----
+  describe('get-download-url', () => {
+    it('strips /content, fetches item metadata, and returns the pre-authed downloadUrl', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const downloadUrl = 'https://contoso.sharepoint.com/download.aspx?tempauth=abc';
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: 'item1',
+                name: 'report.pdf',
+                size: 12727,
+                file: { mimeType: 'application/pdf' },
+                '@microsoft.graph.downloadUrl': downloadUrl,
+              }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-download-url');
+      expect(tool).toBeDefined();
+
+      const result = await tool!.handler({
+        target: '/drives/d1/items/item1/content',
+      });
+
+      // /content is stripped before fetching the item metadata
+      const [requestedPath] = graphClient.graphRequest.mock.calls[0];
+      expect(requestedPath).toBe('/drives/d1/items/item1');
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.downloadUrl).toBe(downloadUrl);
+      expect(payload.name).toBe('report.pdf');
+      expect(payload.size).toBe(12727);
+      expect(payload.contentType).toBe('application/pdf');
+    });
+
+    it('rejects mail attachment $value paths (no pre-authed URL exists)', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = { graphRequest: vi.fn() };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-download-url');
+      const result = await tool!.handler({
+        target: '/me/messages/m1/attachments/a1/$value',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/do not expose a pre-authenticated download URL/);
+    });
+
+    it('errors when the resource exposes no downloadUrl', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: JSON.stringify({ id: 'item1', name: 'x' }) }],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-download-url');
+      const result = await tool!.handler({ target: '/drives/d1/items/item1' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/No pre-authenticated download URL/);
+    });
+
+    it('surfaces the underlying Graph error instead of masking it as no-downloadUrl', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      // graphRequest catches Graph HTTP errors internally and returns { isError: true }.
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 403 Forbidden' }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-download-url');
+      const result = await tool!.handler({ target: '/drives/d1/items/item1/content' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/403 Forbidden/);
+      expect(payload.error).not.toMatch(/No pre-authenticated download URL/);
+    });
+
+    it('does not falsely reject drive folders literally named "attachments"', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const downloadUrl = 'https://contoso.sharepoint.com/download.aspx?tempauth=xyz';
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ name: 'report.pdf', '@microsoft.graph.downloadUrl': downloadUrl }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('get-download-url');
+      const result = await tool!.handler({
+        target: '/me/drive/root:/Project/attachments/report.pdf:/content',
+      });
+
+      expect(result.isError).toBeFalsy();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.downloadUrl).toBe(downloadUrl);
+    });
+  });
+
   // ---- 10. Utility tools surface in --discovery mode ----
   describe('allowed scopes filtering', () => {
     it('registerGraphTools hides Graph tools outside the allowed scopes', async () => {
@@ -1029,6 +1178,55 @@ describe('graph-tools', () => {
       // readOnlyHint: true so they should be present.
       expect(server.tools.has('download-bytes')).toBe(true);
       expect(server.tools.has('parse-teams-url')).toBe(true);
+    });
+  });
+
+  // ---- 13. Per-endpoint Graph API version selection ----
+  describe('apiVersion routing', () => {
+    it('passes apiVersion through to graphRequest when set in endpoints.json', async () => {
+      const endpoint = makeEndpoint({ path: '/planner/tasks/{id}/messages' });
+      const config = makeConfig({
+        pathPattern: '/planner/tasks/{id}/messages',
+        scopes: ['Tasks.Read'],
+        apiVersion: 'beta',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBe('beta');
+    });
+
+    it('omits apiVersion (defaults to v1.0) when not set in endpoints.json', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBeUndefined();
     });
   });
 });

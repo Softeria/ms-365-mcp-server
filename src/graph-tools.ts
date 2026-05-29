@@ -40,6 +40,7 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  apiVersion?: 'v1.0' | 'beta'; // Graph API version to target. Defaults to 'v1.0'. Use 'beta' for endpoints that exist only under /beta (e.g. Planner task chat).
 }
 
 const endpointsData = JSON.parse(
@@ -193,7 +194,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'GET',
     path: 'tool:download-bytes',
     description:
-      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }.',
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For files above a few KB or any bulk download, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -254,6 +255,167 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
         }
         return await graphClient.graphRequest(target, { accessToken: accountAccessToken });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+  {
+    name: 'get-download-url',
+    method: 'GET',
+    path: 'tool:get-download-url',
+    description:
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content, meeting recordings). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. NOTE: mail file attachments (/messages/{id}/attachments/{id}/$value) do NOT expose a pre-authenticated URL — Graph offers no such link for them; use download-bytes for small ones.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Relative Microsoft Graph path starting with "/". Either a driveItem content path or the item path itself, e.g. ' +
+              '/drives/{drive-id}/items/{driveItem-id}/content, /me/drive/items/{driveItem-id}/content, ' +
+              '/sites/{site-id}/drive/items/{driveItem-id}, or ' +
+              '/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}/content. ' +
+              'A trailing /content is optional and is stripped automatically. Mail attachment $value paths are not supported (Graph exposes no pre-authenticated URL for them).'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'target is required and must be a non-empty string.' }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!target.startsWith('/')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a relative Microsoft Graph path starting with "/", e.g. /drives/{drive-id}/items/{driveItem-id}/content.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Normalize: separate any query string and strip trailing slashes so the /content and
+      // /$value suffix checks are robust to e.g. "/content/" or "/content?select=id".
+      const queryIdx = target.indexOf('?');
+      const query = queryIdx >= 0 ? target.slice(queryIdx) : '';
+      const pathPart = (queryIdx >= 0 ? target.slice(0, queryIdx) : target).replace(/\/+$/, '');
+      // Mail/event attachments expose no pre-authenticated download URL in Graph; bytes come
+      // only from base64 contentBytes or the authenticated /$value endpoint (use download-bytes).
+      // Match the specific mail/event attachment shape so drive folders literally named
+      // "attachments" are not falsely rejected.
+      if (/\/(messages|events)\/[^/]+\/attachments\//.test(pathPart)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'Mail file attachments do not expose a pre-authenticated download URL. Use download-bytes for small attachments.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Other /$value byte endpoints (profile photo, Teams hosted content) likewise have no URL.
+      if (pathPart.endsWith('/$value')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  '$value byte endpoints do not expose a pre-authenticated download URL. Use download-bytes to read these bytes.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // The downloadUrl lives on the driveItem metadata, not the /content sub-path.
+      const itemPath =
+        (pathPart.endsWith('/content') ? pathPart.slice(0, -'/content'.length) : pathPart) + query;
+      try {
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        const response = await graphClient.graphRequest(itemPath, {
+          accessToken: accountAccessToken,
+        });
+        // graphRequest swallows Graph HTTP errors and returns { isError: true } (see
+        // graph-client.ts); surface the real error (401/403/404/429/...) instead of masking
+        // it as "no download URL available".
+        if (response?.isError) {
+          return response;
+        }
+        const text = response?.content?.[0]?.text;
+        let item: Record<string, unknown> | undefined;
+        if (typeof text === 'string') {
+          try {
+            item = JSON.parse(text);
+          } catch {
+            item = undefined;
+          }
+        }
+        const downloadUrl =
+          (item?.['@microsoft.graph.downloadUrl'] as string | undefined) ??
+          (item?.['@content.downloadUrl'] as string | undefined);
+        if (!downloadUrl) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error:
+                    'No pre-authenticated download URL is available for this resource. It may not be a drive item or recording, or it exposes bytes only via download-bytes.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const file = item?.file as { mimeType?: string } | undefined;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                downloadUrl,
+                name: item?.name,
+                size: item?.size,
+                contentType: file?.mimeType,
+              }),
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
@@ -503,10 +665,16 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      apiVersion?: 'v1.0' | 'beta';
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    // Route to the Graph API version declared in endpoints.json (defaults to v1.0).
+    if (config?.apiVersion) {
+      options.apiVersion = config.apiVersion;
+    }
 
     if (options.method !== 'GET' && body) {
       if (tool.requestFormat === 'binary' && typeof body === 'string') {
@@ -582,7 +750,9 @@ async function executeGraphTool(
           // Previously, query params were extracted into nextOptions.queryParams
           // but graphRequest/performRequest never read that field — they were lost.
           const url = new URL(nextLink);
-          const nextPath = url.pathname.replace('/v1.0', '') + url.search;
+          // Strip whichever Graph version prefix the nextLink carries so the path
+          // is relative to the version root (beta endpoints emit /beta nextLinks).
+          const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
           const nextOptions = { ...options };
 
           const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
