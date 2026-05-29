@@ -1012,6 +1012,30 @@
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
   },
   {
+    "pathPattern": "/planner/tasks/{plannerTask-id}/messages",
+    "method": "get",
+    "toolName": "list-planner-task-messages",
+    "scopes": ["Tasks.Read"],
+    "apiVersion": "beta",
+    "llmTip": "Lists messages in a Planner task's chat — the modern Planner 'task chat', distinct from the legacy conversationThreadId comments (which live in the M365 group conversation thread). Each message has id, content (HTML), createdBy, createdDateTime, mentions, reactions. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+  },
+  {
+    "pathPattern": "/planner/tasks/{plannerTask-id}/messages",
+    "method": "post",
+    "toolName": "create-planner-task-message",
+    "scopes": ["Tasks.ReadWrite"],
+    "apiVersion": "beta",
+    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+  },
+  {
+    "pathPattern": "/planner/tasks/{plannerTask-id}/messages/{plannerTaskChatMessage-id}",
+    "method": "delete",
+    "toolName": "delete-planner-task-message",
+    "scopes": ["Tasks.ReadWrite"],
+    "apiVersion": "beta",
+    "llmTip": "Deletes a message from a Planner task's chat. No request body and no ETag/If-Match required; returns 204. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+  },
+  {
     "pathPattern": "/me/contacts",
     "method": "get",
     "toolName": "list-outlook-contacts",
