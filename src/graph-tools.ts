@@ -40,6 +40,7 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  apiVersion?: 'v1.0' | 'beta'; // Graph API version to target. Defaults to 'v1.0'. Use 'beta' for endpoints that exist only under /beta (e.g. Planner task chat).
 }
 
 const endpointsData = JSON.parse(
@@ -503,10 +504,16 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      apiVersion?: 'v1.0' | 'beta';
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    // Route to the Graph API version declared in endpoints.json (defaults to v1.0).
+    if (config?.apiVersion) {
+      options.apiVersion = config.apiVersion;
+    }
 
     if (options.method !== 'GET' && body) {
       if (tool.requestFormat === 'binary' && typeof body === 'string') {
@@ -582,7 +589,9 @@ async function executeGraphTool(
           // Previously, query params were extracted into nextOptions.queryParams
           // but graphRequest/performRequest never read that field — they were lost.
           const url = new URL(nextLink);
-          const nextPath = url.pathname.replace('/v1.0', '') + url.search;
+          // Strip whichever Graph version prefix the nextLink carries so the path
+          // is relative to the version root (beta endpoints emit /beta nextLinks).
+          const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
           const nextOptions = { ...options };
 
           const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);

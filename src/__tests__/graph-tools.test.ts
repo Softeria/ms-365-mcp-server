@@ -1031,4 +1031,96 @@ describe('graph-tools', () => {
       expect(server.tools.has('parse-teams-url')).toBe(true);
     });
   });
+
+  // ---- 13. Per-endpoint Graph API version selection ----
+  describe('apiVersion routing', () => {
+    it('passes apiVersion through to graphRequest when set in endpoints.json', async () => {
+      const endpoint = makeEndpoint({ path: '/planner/tasks/{id}/messages' });
+      const config = makeConfig({
+        pathPattern: '/planner/tasks/{id}/messages',
+        scopes: ['Tasks.Read'],
+        apiVersion: 'beta',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBe('beta');
+    });
+
+    it('omits apiVersion (defaults to v1.0) when not set in endpoints.json', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBeUndefined();
+    });
+
+    it('strips the /beta prefix from a beta @odata.nextLink and retains apiVersion across pages', async () => {
+      const endpoint = makeEndpoint({ path: '/planner/tasks/{id}/messages' });
+      const config = makeConfig({
+        pathPattern: '/planner/tasks/{id}/messages',
+        scopes: ['Tasks.Read'],
+        apiVersion: 'beta',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }],
+                '@odata.nextLink':
+                  'https://graph.microsoft.com/beta/planner/tasks/abc/messages?$skiptoken=XYZ',
+              }),
+            },
+          ],
+        },
+        { content: [{ type: 'text', text: JSON.stringify({ value: [{ id: '2' }] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(2);
+      // Second call: the /beta prefix is stripped exactly once (no /beta/beta/...),
+      // leaving a version-relative path, and the beta apiVersion is preserved.
+      const [nextPath, nextOptions] = graphClient.graphRequest.mock.calls[1];
+      expect(nextPath).toBe('/planner/tasks/abc/messages?$skiptoken=XYZ');
+      expect(nextOptions.apiVersion).toBe('beta');
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.value.map((v: any) => v.id)).toEqual(['1', '2']);
+    });
+  });
 });
