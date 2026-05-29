@@ -1031,4 +1031,53 @@ describe('graph-tools', () => {
       expect(server.tools.has('parse-teams-url')).toBe(true);
     });
   });
+
+  // ---- 13. Per-endpoint Graph API version selection ----
+  describe('apiVersion routing', () => {
+    it('passes apiVersion through to graphRequest when set in endpoints.json', async () => {
+      const endpoint = makeEndpoint({ path: '/planner/tasks/{id}/messages' });
+      const config = makeConfig({
+        pathPattern: '/planner/tasks/{id}/messages',
+        scopes: ['Tasks.Read'],
+        apiVersion: 'beta',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBe('beta');
+    });
+
+    it('omits apiVersion (defaults to v1.0) when not set in endpoints.json', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(options.apiVersion).toBeUndefined();
+    });
+  });
 });
