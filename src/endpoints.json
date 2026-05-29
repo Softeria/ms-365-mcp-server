@@ -1025,7 +1025,7 @@
     "toolName": "create-planner-task-message",
     "scopes": ["Tasks.ReadWrite"],
     "apiVersion": "beta",
-    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Microsoft is retiring the classic task comments experience and hiding it from the task (Planner 2026 update), so task chat is the current supported way to post per-task updates teammates will see, with @mentions. Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/messages/{plannerTaskChatMessage-id}",
