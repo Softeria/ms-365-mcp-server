@@ -61,6 +61,11 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
   'Files.ReadWrite': ['Files.Read'],
   'Tasks.ReadWrite': ['Tasks.Read'],
   'Contacts.ReadWrite': ['Contacts.Read'],
+  // Sites.Selected is a site-scoped replacement for the broad Sites permissions.
+  // Treat it as covering all three so that --allowed-scopes Sites.Selected enables
+  // SharePoint tools without requiring Sites.Read.All / Sites.ReadWrite.All / Sites.Manage.All
+  // in the app registration.
+  'Sites.Selected': ['Sites.Read.All', 'Sites.ReadWrite.All', 'Sites.Manage.All'],
 };
 
 interface AllowedScopeOptions {
