@@ -75,6 +75,8 @@ class MicrosoftGraphServer {
       clientCodeChallengeMethod: string;
       serverCodeVerifier: string;
       createdAt: number;
+      clientRedirectUri?: string;  // original redirect_uri from the MCP client
+      serverRedirectUri?: string;  // server's own /callback URL sent to Microsoft
     }
   > = new Map();
 
@@ -417,12 +419,29 @@ class MicrosoftGraphServer {
             return;
           }
 
+          // Derive server's own callback URL — this is what Microsoft redirects
+          // back to, keeping loopback/native client redirect_uris off the
+          // Microsoft token request so Entra doesn't treat the exchange as a
+          // public client flow (AADSTS700025).
+          const publicBase = this.options.publicUrl || this.options.baseUrl;
+          const serverBase = publicBase
+            ? publicBase.replace(/\/$/, '')
+            : `${req.protocol}://${req.get('host')}`;
+          const serverCallbackUrl = `${serverBase}/callback`;
+
           this.pkceStore.set(state, {
             clientCodeChallenge,
             clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
             serverCodeVerifier,
             createdAt: Date.now(),
+            clientRedirectUri: redirectUriParam || undefined,
+            serverRedirectUri: serverCallbackUrl,
           });
+
+          // Replace client's redirect_uri with the server's own /callback URL
+          // so Microsoft always redirects to us (a non-loopback Web URI),
+          // not to the MCP client's random localhost port.
+          microsoftAuthUrl.searchParams.set('redirect_uri', serverCallbackUrl);
 
           // Send our server-generated code_challenge to Microsoft
           microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
@@ -430,6 +449,7 @@ class MicrosoftGraphServer {
 
           logger.info('Two-leg PKCE: stored client challenge, generated server challenge', {
             state: state.substring(0, 8) + '...',
+            serverCallbackUrl,
           });
         } else if (clientCodeChallenge) {
           // No state to key on — fall back to forwarding directly (Claude Code path)
@@ -472,6 +492,45 @@ class MicrosoftGraphServer {
 
         // Redirect to Microsoft's authorization page
         res.redirect(microsoftAuthUrl.toString());
+      });
+
+      // OAuth callback endpoint — Microsoft redirects here after user consent.
+      // We look up the original MCP client redirect_uri from the pkceStore and
+      // forward the code + state back to the client.
+      app.get('/callback', (req, res) => {
+        const url = new URL(req.url!, `${req.protocol}://${req.get('host')}`);
+        const state = url.searchParams.get('state');
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+        const errorDescription = url.searchParams.get('error_description');
+
+        if (!state) {
+          res.status(400).send('Missing state parameter');
+          return;
+        }
+
+        const pkceData = this.pkceStore.get(state);
+        if (!pkceData?.clientRedirectUri) {
+          logger.warn('Callback received for unknown or expired state', {
+            state: state.substring(0, 8) + '...',
+          });
+          res.status(400).send('Unknown or expired authorization state');
+          return;
+        }
+
+        // Forward code (or error) back to the MCP client's original redirect_uri
+        const clientRedirect = new URL(pkceData.clientRedirectUri);
+        if (code) clientRedirect.searchParams.set('code', code);
+        if (state) clientRedirect.searchParams.set('state', state);
+        if (error) clientRedirect.searchParams.set('error', error);
+        if (errorDescription) clientRedirect.searchParams.set('error_description', errorDescription);
+
+        logger.info('Callback: forwarding code to MCP client', {
+          state: state.substring(0, 8) + '...',
+          clientRedirectUri: pkceData.clientRedirectUri,
+        });
+
+        res.redirect(clientRedirect.toString());
       });
 
       // Token exchange endpoint
@@ -525,6 +584,7 @@ class MicrosoftGraphServer {
             // but the code is unique per authorization, so we verify the client's
             // code_verifier against all stored challenges and use the server's verifier
             let serverCodeVerifier: string | undefined;
+            let serverRedirectUri: string | undefined;
 
             if (body.code_verifier) {
               // Look through pkceStore for a matching client code_challenge
@@ -538,9 +598,14 @@ class MicrosoftGraphServer {
                 if (pkceData.clientCodeChallenge === clientChallengeComputed) {
                   // Client's code_verifier matches stored code_challenge — two-leg PKCE
                   serverCodeVerifier = pkceData.serverCodeVerifier;
+                  // Use the server's own /callback URL that was sent to Microsoft,
+                  // not the client's loopback redirect_uri. This avoids AADSTS700025
+                  // where Entra rejects a client_secret on loopback redirect URIs.
+                  serverRedirectUri = pkceData.serverRedirectUri;
                   this.pkceStore.delete(state);
                   logger.info('Two-leg PKCE: matched client verifier, using server verifier', {
                     state: state.substring(0, 8) + '...',
+                    serverRedirectUri,
                   });
                   break;
                 }
@@ -549,7 +614,7 @@ class MicrosoftGraphServer {
 
             const result = await exchangeCodeForToken(
               body.code as string,
-              body.redirect_uri as string,
+              serverRedirectUri || (body.redirect_uri as string),
               clientId,
               clientSecret,
               tenantId,
