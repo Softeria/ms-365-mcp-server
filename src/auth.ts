@@ -120,11 +120,14 @@ function getEndpointRequiredScopes(
 function collapseRedundantScopes(scopes: string[]): string[] {
   const scopesSet = new Set(scopes);
 
-  // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
-  // keep only the higher scope since it includes the permissions of the lower scopes.
+  // Scope hierarchy: if a higher scope is present, remove any of its lower scopes
+  // that are also in the set — the higher scope already implies them.
+  // Each lower scope is removed independently; we do not require all lower scopes
+  // to be present (e.g. Sites.Selected implies Sites.Read.All even when
+  // Sites.ReadWrite.All / Sites.Manage.All are absent).
   // Do NOT upgrade Read to ReadWrite if we only have Read scopes.
   Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
-    if (scopesSet.has(higherScope) && lowerScopes.every((scope) => scopesSet.has(scope))) {
+    if (scopesSet.has(higherScope)) {
       lowerScopes.forEach((scope) => scopesSet.delete(scope));
     }
   });
