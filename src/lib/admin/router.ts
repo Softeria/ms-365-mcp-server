@@ -31,6 +31,7 @@ import {
 import type { Pool } from 'pg';
 import type { RedisClient } from '../redis.js';
 import type { TenantPool } from '../tenant/tenant-pool.js';
+import type { BearerTokenVerifier } from '../microsoft-auth.js';
 import type { fetchConsentedGraphDelegatedScopes } from './scope-sync.js';
 import { createAdminTlsEnforceMiddleware } from './tls-enforce.js';
 import { createApiKeyRoutes, subscribeToApiKeyRevoke } from './api-keys.js';
@@ -59,6 +60,10 @@ export interface AdminRouterDeps {
   cursorSecret: Buffer;
   /** Optional override for deterministic tenant allowed_scopes sync tests. */
   scopeSyncFetcher?: typeof fetchConsentedGraphDelegatedScopes;
+  /** Optional fetch impl for deterministic Entra admin auth tests. */
+  fetchImpl?: typeof fetch;
+  /** Optional JWT verifier override for deterministic Entra admin auth tests. */
+  verifyToken?: BearerTokenVerifier;
 }
 
 /**

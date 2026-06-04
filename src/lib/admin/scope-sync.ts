@@ -8,6 +8,7 @@
 import { getCloudEndpoints, type CloudType } from '../../cloud-config.js';
 
 const MICROSOFT_GRAPH_APP_ID = '00000003-0000-0000-c000-000000000000';
+const TENANT_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface FetchGraphDelegatedScopesInput {
   tenantDirectoryId: string;
@@ -76,6 +77,56 @@ function graphHeaders(adminBearerToken: string): Record<string, string> {
   };
 }
 
+function decodeJwtTid(adminBearerToken: string): string | null {
+  const [, payloadSegment] = adminBearerToken.split('.');
+  if (!payloadSegment) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as {
+      tid?: unknown;
+    };
+    return typeof payload.tid === 'string' && payload.tid.trim().length > 0
+      ? payload.tid.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function assertBearerTenantMatches(adminBearerToken: string, tenantDirectoryId: string): void {
+  const expectedTenantId = tenantDirectoryId.trim();
+  if (!TENANT_GUID.test(expectedTenantId)) {
+    throw new Error('Microsoft Graph scope sync target tenant_id is invalid');
+  }
+
+  const tokenTenantId = decodeJwtTid(adminBearerToken);
+  if (!tokenTenantId) {
+    throw new Error('Microsoft Graph scope sync admin bearer token is missing tid');
+  }
+  if (tokenTenantId.toLowerCase() !== expectedTenantId.toLowerCase()) {
+    throw new Error('Microsoft Graph scope sync admin bearer token tenant mismatch');
+  }
+}
+
+function validateGraphNextLink(nextLink: string, graphBase: string): string {
+  let expected: URL;
+  let candidate: URL;
+  try {
+    expected = new URL(graphBase);
+    candidate = new URL(nextLink);
+  } catch {
+    throw new Error('Microsoft Graph scope sync returned an invalid nextLink');
+  }
+
+  if (candidate.protocol !== 'https:' || candidate.origin !== expected.origin) {
+    throw new Error('Microsoft Graph scope sync rejected an off-host nextLink');
+  }
+  if (candidate.pathname !== '/v1.0' && !candidate.pathname.startsWith('/v1.0/')) {
+    throw new Error('Microsoft Graph scope sync rejected a nextLink outside Graph v1.0');
+  }
+  return candidate.toString();
+}
+
 async function fetchJson<T>(
   url: string,
   adminBearerToken: string,
@@ -90,6 +141,7 @@ async function fetchJson<T>(
 
 async function fetchGraphCollection<T>(
   url: string,
+  graphBase: string,
   adminBearerToken: string,
   fetchImpl: typeof fetch
 ): Promise<T[]> {
@@ -105,7 +157,10 @@ async function fetchGraphCollection<T>(
       throw new Error('Microsoft Graph scope sync returned a malformed collection');
     }
     rows.push(...page.value);
-    next = typeof page['@odata.nextLink'] === 'string' ? page['@odata.nextLink'] : undefined;
+    next =
+      typeof page['@odata.nextLink'] === 'string'
+        ? validateGraphNextLink(page['@odata.nextLink'], graphBase)
+        : undefined;
   }
   return rows;
 }
@@ -121,11 +176,14 @@ function quoteODataString(value: string): string {
 export async function fetchConsentedGraphDelegatedScopes(
   input: FetchGraphDelegatedScopesInput
 ): Promise<string[]> {
+  assertBearerTenantMatches(input.adminBearerToken, input.tenantDirectoryId);
+
   const fetchImpl = input.fetchImpl ?? fetch;
   const graphBase = getCloudEndpoints(input.cloudType).graphApi;
   const clientFilter = encodeURIComponent(`appId eq ${quoteODataString(input.clientId)}`);
   const servicePrincipals = await fetchGraphCollection<ServicePrincipalRow>(
     graphUrl(graphBase, `/servicePrincipals?$filter=${clientFilter}&$select=id,appId`),
+    graphBase,
     input.adminBearerToken,
     fetchImpl
   );
@@ -140,6 +198,7 @@ export async function fetchConsentedGraphDelegatedScopes(
       graphBase,
       `/oauth2PermissionGrants?$filter=${grantFilter}&$select=scope,resourceId,clientId`
     ),
+    graphBase,
     input.adminBearerToken,
     fetchImpl
   );

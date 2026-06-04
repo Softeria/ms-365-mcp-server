@@ -75,6 +75,8 @@ vi.mock('../../postgres.js', async () => {
 });
 
 import { createTenantsRoutes, tenantRowToWire } from '../tenants.js';
+import { createAdminRouter } from '../router.js';
+import { fetchConsentedGraphDelegatedScopes } from '../scope-sync.js';
 import { MemoryRedisFacade } from '../../redis-facade.js';
 import { createCursorSecret } from '../cursor.js';
 
@@ -129,6 +131,12 @@ function makeTenantPoolStub(): TenantPoolStub {
   };
 }
 
+function makeJwt(payload: Record<string, unknown>): string {
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.signature`;
+}
+
 async function startServer(
   pool: Pool,
   redis: MemoryRedisFacade,
@@ -157,6 +165,57 @@ async function startServer(
       entraConfig: { appClientId: 'x', groupId: 'g' },
       scopeSyncFetcher,
     } as unknown as import('../router.js').AdminRouterDeps)
+  );
+  const server = await new Promise<http.Server>((resolve) => {
+    const s = http.createServer(app).listen(0, () => resolve(s));
+  });
+  const port = (server.address() as AddressInfo).port;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: async () =>
+      new Promise<void>((r) => {
+        server.close(() => r());
+      }),
+  };
+}
+
+async function startAdminRouterServer(
+  pool: Pool,
+  redis: MemoryRedisFacade,
+  tenantPool: TenantPoolStub,
+  scopeSyncFetcher?: typeof import('../scope-sync.js').fetchConsentedGraphDelegatedScopes
+): Promise<{ url: string; close: () => Promise<void> }> {
+  const app = express();
+  app.use(express.json() as unknown as express.RequestHandler);
+  app.use((req, _res, next) => {
+    (req as express.Request & { id?: string }).id = `req-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    next();
+  });
+  app.use(
+    '/admin',
+    createAdminRouter({
+      pgPool: pool,
+      redis,
+      tenantPool: tenantPool as unknown as import('../router.js').AdminRouterDeps['tenantPool'],
+      kek: KEK,
+      cursorSecret: createCursorSecret(),
+      adminOrigins: [],
+      entraConfig: { appClientId: 'admin-app-client-id', groupId: 'admin-group-id' },
+      scopeSyncFetcher,
+      verifyToken: async ({ token }) => {
+        const [, payloadSegment] = token.split('.');
+        return JSON.parse(
+          Buffer.from(payloadSegment ?? '', 'base64url').toString('utf8')
+        ) as import('jose').JWTPayload;
+      },
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ value: [{ id: 'admin-group-id' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    })
   );
   const server = await new Promise<http.Server>((resolve) => {
     const s = http.createServer(app).listen(0, () => resolve(s));
@@ -1209,6 +1268,106 @@ describe('plan 04-02 Task 1 — /admin/tenants CRUD', () => {
       expect(stored).toEqual(VALID_BODY.allowed_scopes);
       expect(tp.invalidate).not.toHaveBeenCalled();
       expect(tp.evict).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 24: live Graph scope sync rejects admin bearer tenant mismatch before Graph fetch', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ value: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+    );
+
+    await expect(
+      fetchConsentedGraphDelegatedScopes({
+        tenantDirectoryId: VALID_BODY.tenant_id,
+        clientId: VALID_BODY.client_id,
+        cloudType: 'global',
+        adminBearerToken: makeJwt({ tid: '22222222-3333-4333-8444-555555555555' }),
+        fetchImpl,
+      })
+    ).rejects.toThrow(/tenant mismatch/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Test 25: live Graph scope sync rejects off-host nextLink before sending bearer', async () => {
+    const fetchImpl = vi.fn(
+      async (_url: string | URL | Request) =>
+        new Response(
+          JSON.stringify({
+            value: [{ id: 'client-sp-id', appId: VALID_BODY.client_id }],
+            '@odata.nextLink': 'https://evil.example.com/v1.0/servicePrincipals?$skiptoken=leak',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    );
+
+    await expect(
+      fetchConsentedGraphDelegatedScopes({
+        tenantDirectoryId: VALID_BODY.tenant_id,
+        clientId: VALID_BODY.client_id,
+        cloudType: 'global',
+        adminBearerToken: makeJwt({ tid: VALID_BODY.tenant_id }),
+        fetchImpl,
+      })
+    ).rejects.toThrow(/off-host nextLink/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('https://graph.microsoft.com/v1.0/');
+  });
+
+  it('Test 26: admin router rejects unauthenticated POST /admin/tenants/:id/sync-scopes', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const { url, close } = await startAdminRouterServer(pool, new MemoryRedisFacade(), tp);
+    try {
+      const res = await doPost(
+        `${url}/admin/tenants/99999999-9999-4999-8999-999999999999/sync-scopes`,
+        { graph_scopes: ['Mail.Read'] }
+      );
+      expect(res.status).toBe(401);
+      expect(res.body.type).toContain('unauthorized');
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 27: admin router authenticates bearer before mounted sync-scopes route', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const fetcher = vi.fn(async () => ['Mail.Read']);
+    const token = makeJwt({
+      tid: VALID_BODY.tenant_id,
+      aud: 'admin-app-client-id',
+      upn: 'admin@example.com',
+      oid: 'admin-oid',
+    });
+    const { url, close } = await startAdminRouterServer(pool, redis, tp, fetcher);
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY, {
+        Authorization: `Bearer ${token}`,
+      });
+      expect(created.status).toBe(201);
+
+      const synced = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        { Authorization: `Bearer ${token}` }
+      );
+      expect(synced.status).toBe(200);
+      expect(synced.body.allowed_scopes).toEqual(['Mail.Read']);
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantDirectoryId: VALID_BODY.tenant_id,
+          adminBearerToken: token,
+        })
+      );
     } finally {
       await close();
     }
