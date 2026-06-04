@@ -213,10 +213,7 @@ function tenantResourceUri(tenantId: string, path: string): string {
   return `m365://tenant/${tenantId}/${path}`;
 }
 
-function missingTools(
-  requiredTools: readonly string[],
-  tenant: DashboardTenantContext
-): string[] {
+function missingTools(requiredTools: readonly string[], tenant: DashboardTenantContext): string[] {
   if (!tenant.enabledToolsSet && !tenant.presetVersion) return [];
   const effectiveTools = tenant.presetVersion
     ? resolveDiscoveryCatalog({

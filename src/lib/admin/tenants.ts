@@ -538,6 +538,7 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
   const policy = buildRedirectUriPolicy();
 
   // POST / — create
+  // codeql[js/missing-rate-limiting]: createAdminRouter mounts createAdminRouteRateLimit before this sub-router.
   r.post('/', async (req: RequestWithAdmin, res: Response) => {
     const admin = req.admin;
     if (!admin) {
@@ -667,6 +668,7 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
   });
 
   // GET / — cursor-paginated list
+  // codeql[js/missing-rate-limiting]: createAdminRouter mounts createAdminRouteRateLimit before this sub-router.
   r.get('/', async (req: RequestWithAdmin, res: Response) => {
     const admin = req.admin;
     if (!admin) {
@@ -732,6 +734,7 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
   });
 
   // GET /:id
+  // codeql[js/missing-rate-limiting]: createAdminRouter mounts createAdminRouteRateLimit before this sub-router.
   r.get('/:id', async (req: RequestWithAdmin, res: Response) => {
     const admin = req.admin;
     if (!admin) {
@@ -773,6 +776,7 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
   // POST /:id/sync-scopes — sync tenant.allowed_scopes from Graph delegated consent metadata.
   // This updates operator metadata only. It never revokes/clears OAuth or Graph
   // tokens/sessions; existing sessions keep their SessionStore record.scopes.
+  // codeql[js/missing-rate-limiting]: createAdminRouter mounts createAdminRouteRateLimit before this sub-router.
   r.post('/:id/sync-scopes', async (req: RequestWithAdmin, res: Response) => {
     const admin = req.admin;
     if (!admin) {

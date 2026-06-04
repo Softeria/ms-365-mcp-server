@@ -25,6 +25,7 @@ env:
   # timer/OTel/pg-mem hangs. Non-quarantined integration tests still run.
   MS365_MCP_SKIP_CI_FLAKY: '1'
   NODE_OPTIONS: --max-old-space-size=12288
+  MS365_MCP_VITEST_NODE_OPTIONS: --max-old-space-size=12288
 
 jobs:
   integration:

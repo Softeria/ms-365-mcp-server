@@ -8,9 +8,10 @@
  * Middleware order:
  *   1. TLS enforce (T-04-01)
  *   2. Admin CORS (separate env MS365_MCP_ADMIN_ORIGINS; T-04-03)
- *   3. GET /health (auth bypass — smoke probe only)
- *   4. Dual-stack admin auth (plan 04-04, X-Admin-Api-Key > Bearer)
- *   5. Sub-routes (04-02 /tenants + 04-03 /api-keys + 04-05 /audit mounted)
+ *   3. Admin route rate limit (before health, auth, and database work)
+ *   4. GET /health (auth bypass — smoke probe only)
+ *   5. Dual-stack admin auth (plan 04-04, X-Admin-Api-Key > Bearer)
+ *   6. Sub-routes (04-02 /tenants + 04-03 /api-keys + 04-05 /audit mounted)
  *
  * The factory captures deps in a closure so callers get a single Express
  * Router handle to hand to `app.use('/admin', router)`. Per plan 04-01,
@@ -28,6 +29,7 @@ import {
   type NextFunction,
   type RequestHandler,
 } from 'express';
+import expressRateLimit from 'express-rate-limit';
 import type { Pool } from 'pg';
 import type { RedisClient } from '../redis.js';
 import type { TenantPool } from '../tenant/tenant-pool.js';
@@ -79,6 +81,25 @@ export function parseAdminOrigins(raw: string | undefined): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function createAdminRouteRateLimit(): RequestHandler {
+  const rawLimit = process.env.MS365_MCP_ADMIN_ROUTE_RATE_LIMIT_PER_MIN;
+  const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 600;
+  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 600;
+
+  return expressRateLimit({
+    windowMs: 60_000,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      type: 'https://ms365mcp.local/problems/rate_limited',
+      title: 'Rate limited',
+      status: 429,
+      detail: 'too many admin requests',
+    },
+  }) as unknown as RequestHandler;
 }
 
 // ── CORS ────────────────────────────────────────────────────────────────────
@@ -166,17 +187,22 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
   // 2. Admin-scoped CORS — separate allowlist from per-tenant CORS.
   r.use(createAdminCorsMiddleware({ allowlist: deps.adminOrigins }));
 
-  // 3. /health — auth bypass ONLY for this path. A smoke probe for bootstrap
+  // 3. Coarse admin route limiter — gates /health, auth, and every mounted
+  //    admin sub-router before authorization or database work happens.
+  r.use(createAdminRouteRateLimit());
+
+  // 4. /health — auth bypass ONLY for this path. A smoke probe for bootstrap
   //    and reverse-proxy health checks. Returns plain text so there is zero
   //    JSON ambiguity; the caller just asserts status 200 + body text.
   //    NOTE: this is the ONLY admin route that bypasses auth. All other
   //    handlers added in later plans (04-02..04-05) go through
   //    createAdminAuthMiddleware first.
+  // codeql[js/missing-rate-limiting]: createAdminRouteRateLimit gates this route before the handler.
   r.get('/health', (_req, res) => {
     res.type('text/plain').status(200).send('admin-router-alive');
   });
 
-  // 4. Dual-stack admin auth (plan 04-04): X-Admin-Api-Key header first,
+  // 5. Dual-stack admin auth (plan 04-04): X-Admin-Api-Key header first,
   //    Authorization: Bearer (Entra) second, neither → 401 problem+json.
   //    Mounted AFTER /health so the liveness probe bypasses auth, BEFORE
   //    sub-routes so every /admin/tenants + /admin/api-keys + /admin/audit

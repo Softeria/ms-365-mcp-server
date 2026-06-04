@@ -18,9 +18,9 @@ const APP_UNSUPPORTED_FALLBACK =
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENDPOINT_ALIASES = new Set(
   (
-    JSON.parse(
-      readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')
-    ) as Array<{ toolName: string }>
+    JSON.parse(readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')) as Array<{
+      toolName: string;
+    }>
   ).map((endpoint) => endpoint.toolName)
 );
 const DASHBOARD_SLUGS: readonly DashboardSlug[] = Object.freeze([
@@ -136,7 +136,9 @@ describe('dashboard fallback behavior', () => {
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent?.data?.unavailableScopes).toEqual([]);
     expect(result.structuredContent?.warnings.join('\n')).not.toContain('Mail.Read');
-    expect(result.structuredContent?.warnings.join('\n')).not.toContain('Required scopes unavailable');
+    expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+      'Required scopes unavailable'
+    );
   });
 
   it('does not treat visible discovery meta-tools as missing generated dashboard aliases', async () => {
@@ -158,11 +160,15 @@ describe('dashboard fallback behavior', () => {
     expect(result.isError).toBeUndefined();
     expect(result.structuredContent?.data?.unavailableTools).toEqual([]);
     expect(result.structuredContent?.warnings.join('\n')).not.toContain('list-mail-messages');
-    expect(result.structuredContent?.warnings.join('\n')).not.toContain('Required enabled tools unavailable');
+    expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+      'Required enabled tools unavailable'
+    );
   });
 
   it('keeps dashboard generated prerequisites on canonical endpoint aliases', () => {
-    const requiredTools = DASHBOARD_SLUGS.flatMap((slug) => [...dashboardDefinition(slug).requiredTools]);
+    const requiredTools = DASHBOARD_SLUGS.flatMap((slug) => [
+      ...dashboardDefinition(slug).requiredTools,
+    ]);
 
     expect(requiredTools).toEqual(
       expect.arrayContaining([
