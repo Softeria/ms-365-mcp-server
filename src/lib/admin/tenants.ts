@@ -157,6 +157,7 @@ type RequestWithAdmin = Request<any, any, any, any>;
  * construction from caller-controlled wildcard injection (WR-04).
  */
 const TENANT_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GRAPH_SCOPE_SYNC_TOKEN_HEADER = 'x-ms365-graph-token';
 
 /**
  * Explicit column list for SELECT. wrapped_dek INTENTIONALLY omitted — the
@@ -469,8 +470,21 @@ function canActOnTenant(admin: AdminContext, tenantId: string | null): boolean {
   return tenantId !== null && admin.tenantScoped === tenantId;
 }
 
-function readAdminBearerToken(req: RequestWithAdmin): string | null {
-  const raw = req.headers.authorization;
+function parseAllowedScopes(value: unknown): string[] {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === 'string' && value.length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function readGraphBearerToken(req: RequestWithAdmin): string | null {
+  const raw = req.headers[GRAPH_SCOPE_SYNC_TOKEN_HEADER];
   const header = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
   if (!header?.startsWith('Bearer ')) return null;
   const token = header.substring(7).trim();
@@ -835,37 +849,28 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
       return;
     }
 
-    const existingScopes = tenantRowToWire({
-      ...row,
-      mode: 'delegated',
-      client_secret_ref: null,
-      redirect_uri_allowlist: [],
-      cors_origins: [],
-      enabled_tools: null,
-      slug: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    }).allowed_scopes;
+    const previewExistingScopes = parseAllowedScopes(row.allowed_scopes);
 
     let fetchedGraphScopes: string[];
     let source: 'graph' | 'provided';
     try {
-      const adminBearerToken = readAdminBearerToken(req);
-      if (adminBearerToken) {
+      if (body.graph_scopes !== undefined) {
+        fetchedGraphScopes = normalizeGraphDelegatedScopes(body.graph_scopes);
+        source = 'provided';
+      } else {
+        const graphBearerToken = readGraphBearerToken(req);
+        if (!graphBearerToken) {
+          problemBadRequest(res, 'missing_graph_token_or_graph_scopes', req.id);
+          return;
+        }
         const fetcher = deps.scopeSyncFetcher ?? fetchConsentedGraphDelegatedScopes;
         fetchedGraphScopes = await fetcher({
           tenantDirectoryId: row.tenant_id,
           clientId: row.client_id,
           cloudType: row.cloud_type,
-          adminBearerToken,
+          graphBearerToken,
         });
         source = 'graph';
-      } else if (body.graph_scopes !== undefined) {
-        fetchedGraphScopes = normalizeGraphDelegatedScopes(body.graph_scopes);
-        source = 'provided';
-      } else {
-        problemBadRequest(res, 'missing_bearer_or_graph_scopes', req.id);
-        return;
       }
     } catch (err) {
       logger.warn(
@@ -880,40 +885,62 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
       return;
     }
 
-    const nextAllowedScopes = computeSyncedAllowedScopes({
-      existingScopes,
-      fetchedGraphScopes,
-      replaceAll: body.replace_all,
-    });
-    const added = nextAllowedScopes.filter((scope) => !existingScopes.includes(scope));
-    const removed = existingScopes.filter((scope) => !nextAllowedScopes.includes(scope));
-
     if (body.dry_run) {
+      const previewNextAllowedScopes = computeSyncedAllowedScopes({
+        existingScopes: previewExistingScopes,
+        fetchedGraphScopes,
+        replaceAll: body.replace_all,
+      });
+      const previewAdded = previewNextAllowedScopes.filter(
+        (scope) => !previewExistingScopes.includes(scope)
+      );
+      const previewRemoved = previewExistingScopes.filter(
+        (scope) => !previewNextAllowedScopes.includes(scope)
+      );
       res.status(200).json({
         id,
         dry_run: true,
         replace_all: body.replace_all,
         source,
-        existing_allowed_scopes: existingScopes,
+        existing_allowed_scopes: previewExistingScopes,
         fetched_graph_scopes: fetchedGraphScopes,
-        next_allowed_scopes: nextAllowedScopes,
-        added,
-        removed,
+        next_allowed_scopes: previewNextAllowedScopes,
+        added: previewAdded,
+        removed: previewRemoved,
       });
       return;
     }
 
     let existed = true;
+    let disabledAfterLock = false;
+    let nextAllowedScopes: string[] = [];
+    let added: string[] = [];
+    let removed: string[] = [];
     try {
       await withTransaction(async (client) => {
-        const sel = await client.query<{ id: string }>(
-          `SELECT id FROM tenants WHERE id = $1 FOR UPDATE`,
-          [id]
-        );
+        const sel = await client.query<{
+          id: string;
+          allowed_scopes: unknown;
+          disabled_at: Date | null;
+        }>(`SELECT id, allowed_scopes, disabled_at FROM tenants WHERE id = $1 FOR UPDATE`, [id]);
         if (sel.rows.length === 0) {
           existed = false;
           return;
         }
+        if (sel.rows[0]!.disabled_at !== null) {
+          disabledAfterLock = true;
+          return;
+        }
+
+        const lockedExistingScopes = parseAllowedScopes(sel.rows[0]!.allowed_scopes);
+        nextAllowedScopes = computeSyncedAllowedScopes({
+          existingScopes: lockedExistingScopes,
+          fetchedGraphScopes,
+          replaceAll: body.replace_all,
+        });
+        added = nextAllowedScopes.filter((scope) => !lockedExistingScopes.includes(scope));
+        removed = lockedExistingScopes.filter((scope) => !nextAllowedScopes.includes(scope));
+
         await client.query(
           `UPDATE tenants SET allowed_scopes = $1::jsonb, updated_at = NOW() WHERE id = $2`,
           [JSON.stringify(nextAllowedScopes), id]
@@ -946,6 +973,10 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
     }
     if (!existed) {
       problemNotFound(res, 'tenant', req.id);
+      return;
+    }
+    if (disabledAfterLock) {
+      problemConflict(res, 'cannot_sync_disabled_tenant', req.id);
       return;
     }
 

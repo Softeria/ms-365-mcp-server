@@ -9,12 +9,16 @@ import { getCloudEndpoints, type CloudType } from '../../cloud-config.js';
 
 const MICROSOFT_GRAPH_APP_ID = '00000003-0000-0000-c000-000000000000';
 const TENANT_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MANDATORY_DELEGATED_OAUTH_SCOPES = ['offline_access'] as const;
+const CANONICAL_DELEGATED_OAUTH_SCOPES = new Map(
+  MANDATORY_DELEGATED_OAUTH_SCOPES.map((scope) => [scope.toLowerCase(), scope])
+);
 
 export interface FetchGraphDelegatedScopesInput {
   tenantDirectoryId: string;
   clientId: string;
   cloudType: CloudType;
-  adminBearerToken: string;
+  graphBearerToken: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -39,10 +43,17 @@ interface OAuth2PermissionGrantRow {
   resourceId?: unknown;
 }
 
+interface DecodedJwtPayload {
+  tid?: unknown;
+  aud?: unknown;
+}
+
 function uniqueSorted(scopes: Iterable<string>): string[] {
-  return [...new Set([...scopes].map((s) => s.trim()).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b)
-  );
+  return [...new Set([...scopes].map((s) => s.trim()).filter(Boolean))].sort((a, b) => {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+  });
 }
 
 /**
@@ -54,57 +65,88 @@ export function isBareGraphScope(scope: string): boolean {
   return /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/.test(scope.trim());
 }
 
+function canonicalDelegatedOAuthScope(scope: string): string | null {
+  return CANONICAL_DELEGATED_OAUTH_SCOPES.get(scope.trim().toLowerCase()) ?? null;
+}
+
+function isManagedDelegatedScope(scope: string): boolean {
+  return isBareGraphScope(scope) || canonicalDelegatedOAuthScope(scope) !== null;
+}
+
+function normalizeManagedDelegatedScope(scope: string): string | null {
+  const canonicalOAuthScope = canonicalDelegatedOAuthScope(scope);
+  if (canonicalOAuthScope) return canonicalOAuthScope;
+  const trimmed = scope.trim();
+  return isBareGraphScope(trimmed) ? trimmed : null;
+}
+
 export function normalizeGraphDelegatedScopes(scopes: readonly string[]): string[] {
-  return uniqueSorted(scopes.filter(isBareGraphScope));
+  return uniqueSorted(scopes.map(normalizeManagedDelegatedScope).filter((scope) => scope !== null));
 }
 
 export function computeSyncedAllowedScopes(input: SyncAllowedScopesInput): string[] {
-  const graphScopes = normalizeGraphDelegatedScopes(input.fetchedGraphScopes);
+  const graphScopes = uniqueSorted([
+    ...normalizeGraphDelegatedScopes(input.fetchedGraphScopes),
+    ...MANDATORY_DELEGATED_OAUTH_SCOPES,
+  ]);
   if (input.replaceAll) {
     return graphScopes;
   }
 
-  const preservedNonGraphScopes = uniqueSorted(
-    input.existingScopes.filter((scope) => !isBareGraphScope(scope))
+  const preservedNonGraphScopes = input.existingScopes.filter(
+    (scope) => !isManagedDelegatedScope(scope)
   );
-  return [...graphScopes, ...preservedNonGraphScopes];
+  return uniqueSorted([...graphScopes, ...preservedNonGraphScopes]);
 }
 
-function graphHeaders(adminBearerToken: string): Record<string, string> {
+function graphHeaders(graphBearerToken: string): Record<string, string> {
   return {
-    Authorization: `Bearer ${adminBearerToken}`,
+    Authorization: `Bearer ${graphBearerToken}`,
     'Content-Type': 'application/json',
   };
 }
 
-function decodeJwtTid(adminBearerToken: string): string | null {
-  const [, payloadSegment] = adminBearerToken.split('.');
+function decodeJwtPayload(graphBearerToken: string): DecodedJwtPayload | null {
+  const [, payloadSegment] = graphBearerToken.split('.');
   if (!payloadSegment) return null;
 
   try {
-    const payload = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as {
-      tid?: unknown;
-    };
-    return typeof payload.tid === 'string' && payload.tid.trim().length > 0
-      ? payload.tid.trim()
-      : null;
+    return JSON.parse(
+      Buffer.from(payloadSegment, 'base64url').toString('utf8')
+    ) as DecodedJwtPayload;
   } catch {
     return null;
   }
 }
 
-function assertBearerTenantMatches(adminBearerToken: string, tenantDirectoryId: string): void {
+function assertGraphBearerMatches(
+  graphBearerToken: string,
+  tenantDirectoryId: string,
+  cloudType: CloudType
+): void {
   const expectedTenantId = tenantDirectoryId.trim();
   if (!TENANT_GUID.test(expectedTenantId)) {
     throw new Error('Microsoft Graph scope sync target tenant_id is invalid');
   }
 
-  const tokenTenantId = decodeJwtTid(adminBearerToken);
+  const payload = decodeJwtPayload(graphBearerToken);
+  const tokenTenantId = typeof payload?.tid === 'string' ? payload.tid.trim() : '';
   if (!tokenTenantId) {
-    throw new Error('Microsoft Graph scope sync admin bearer token is missing tid');
+    throw new Error('Microsoft Graph scope sync Graph bearer token is missing tid');
   }
   if (tokenTenantId.toLowerCase() !== expectedTenantId.toLowerCase()) {
-    throw new Error('Microsoft Graph scope sync admin bearer token tenant mismatch');
+    throw new Error('Microsoft Graph scope sync Graph bearer token tenant mismatch');
+  }
+
+  const graphAudience = getCloudEndpoints(cloudType).graphApi.replace(/\/+$/, '');
+  const allowedAudiences = new Set([MICROSOFT_GRAPH_APP_ID, graphAudience]);
+  const rawAudiences = Array.isArray(payload?.aud) ? payload.aud : [payload?.aud];
+  const audiences = rawAudiences.filter((aud): aud is string => typeof aud === 'string');
+  if (
+    audiences.length > 0 &&
+    !audiences.some((aud) => allowedAudiences.has(aud.replace(/\/+$/, '')))
+  ) {
+    throw new Error('Microsoft Graph scope sync Graph bearer token audience mismatch');
   }
 }
 
@@ -129,10 +171,10 @@ function validateGraphNextLink(nextLink: string, graphBase: string): string {
 
 async function fetchJson<T>(
   url: string,
-  adminBearerToken: string,
+  graphBearerToken: string,
   fetchImpl: typeof fetch
 ): Promise<T> {
-  const res = await fetchImpl(url, { headers: graphHeaders(adminBearerToken) });
+  const res = await fetchImpl(url, { headers: graphHeaders(graphBearerToken) });
   if (!res.ok) {
     throw new Error(`Microsoft Graph scope sync failed with HTTP ${res.status}`);
   }
@@ -142,7 +184,7 @@ async function fetchJson<T>(
 async function fetchGraphCollection<T>(
   url: string,
   graphBase: string,
-  adminBearerToken: string,
+  graphBearerToken: string,
   fetchImpl: typeof fetch
 ): Promise<T[]> {
   const rows: T[] = [];
@@ -150,7 +192,7 @@ async function fetchGraphCollection<T>(
   while (next) {
     const page: GraphCollection<T> = await fetchJson<GraphCollection<T>>(
       next,
-      adminBearerToken,
+      graphBearerToken,
       fetchImpl
     );
     if (!Array.isArray(page.value)) {
@@ -176,7 +218,7 @@ function quoteODataString(value: string): string {
 export async function fetchConsentedGraphDelegatedScopes(
   input: FetchGraphDelegatedScopesInput
 ): Promise<string[]> {
-  assertBearerTenantMatches(input.adminBearerToken, input.tenantDirectoryId);
+  assertGraphBearerMatches(input.graphBearerToken, input.tenantDirectoryId, input.cloudType);
 
   const fetchImpl = input.fetchImpl ?? fetch;
   const graphBase = getCloudEndpoints(input.cloudType).graphApi;
@@ -184,7 +226,7 @@ export async function fetchConsentedGraphDelegatedScopes(
   const servicePrincipals = await fetchGraphCollection<ServicePrincipalRow>(
     graphUrl(graphBase, `/servicePrincipals?$filter=${clientFilter}&$select=id,appId`),
     graphBase,
-    input.adminBearerToken,
+    input.graphBearerToken,
     fetchImpl
   );
   const clientSpId = servicePrincipals.find((sp) => typeof sp.id === 'string')?.id;
@@ -199,7 +241,7 @@ export async function fetchConsentedGraphDelegatedScopes(
       `/oauth2PermissionGrants?$filter=${grantFilter}&$select=scope,resourceId,clientId`
     ),
     graphBase,
-    input.adminBearerToken,
+    input.graphBearerToken,
     fetchImpl
   );
 
@@ -212,7 +254,7 @@ export async function fetchConsentedGraphDelegatedScopes(
   for (const resourceId of resourceIds) {
     const resource = await fetchJson<ServicePrincipalRow>(
       graphUrl(graphBase, `/servicePrincipals/${encodeURIComponent(resourceId)}?$select=id,appId`),
-      input.adminBearerToken,
+      input.graphBearerToken,
       fetchImpl
     );
     if (resource.appId === MICROSOFT_GRAPH_APP_ID) {

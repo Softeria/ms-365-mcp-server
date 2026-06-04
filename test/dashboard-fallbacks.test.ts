@@ -141,6 +141,25 @@ describe('dashboard fallback behavior', () => {
     );
   });
 
+  it('does not warn on empty allowed scopes because OAuth defaults apply', async () => {
+    const result = (await callTool(
+      dashboardServer({ allowedScopes: [] }),
+      'inbox-triage-view'
+    )) as {
+      structuredContent?: {
+        data?: { unavailableScopes?: string[] };
+        warnings: string[];
+      };
+      isError?: boolean;
+    };
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.data?.unavailableScopes).toEqual([]);
+    expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+      'Required scopes unavailable'
+    );
+  });
+
   it('does not treat visible discovery meta-tools as missing generated dashboard aliases', async () => {
     const result = (await callTool(
       dashboardServer({

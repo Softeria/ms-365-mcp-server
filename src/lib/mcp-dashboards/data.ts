@@ -231,7 +231,7 @@ function missingScopes(
   requiredScopes: readonly string[],
   allowedScopes: readonly string[] | undefined
 ): string[] {
-  if (!allowedScopes) return [];
+  if (!allowedScopes || allowedScopes.length === 0) return [];
   return requiredScopes.filter((scope) => !tenantScopeSatisfies(allowedScopes, scope));
 }
 
