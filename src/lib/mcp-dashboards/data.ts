@@ -1,6 +1,8 @@
 import type { DashboardSlug } from '../mcp-apps/assets.js';
 import type { ClientCapabilityProfile } from '../mcp-capabilities/profile.js';
 import type { ConnectorDiagnosticsPayload } from '../mcp-capabilities/diagnostics.js';
+import { resolveDiscoveryCatalog } from '../discovery-catalog/catalog.js';
+import { tenantScopeSatisfies } from '../scope-satisfaction.js';
 
 export const DASHBOARD_TOOL_NAMES = Object.freeze({
   'inbox-triage': 'inbox-triage-view',
@@ -17,6 +19,7 @@ export type DashboardToolName = (typeof DASHBOARD_TOOL_NAMES)[DashboardSlug];
 export interface DashboardTenantContext {
   readonly id: string;
   readonly enabledToolsSet?: ReadonlySet<string>;
+  readonly enabledToolsExplicit?: boolean;
   readonly allowedScopes?: readonly string[];
   readonly presetVersion?: string;
 }
@@ -212,19 +215,27 @@ function tenantResourceUri(tenantId: string, path: string): string {
 
 function missingTools(
   requiredTools: readonly string[],
-  enabledToolsSet: ReadonlySet<string> | undefined
+  tenant: DashboardTenantContext
 ): string[] {
-  if (!enabledToolsSet) return [];
-  return requiredTools.filter((tool) => !enabledToolsSet.has(tool));
+  if (!tenant.enabledToolsSet && !tenant.presetVersion) return [];
+  const effectiveTools = tenant.presetVersion
+    ? resolveDiscoveryCatalog({
+        presetVersion: tenant.presetVersion,
+        enabledToolsSet: tenant.enabledToolsSet,
+        enabledToolsExplicit: tenant.enabledToolsExplicit,
+        registryAliases: requiredTools,
+      }).discoveryCatalogSet
+    : tenant.enabledToolsSet;
+  if (!effectiveTools) return [];
+  return requiredTools.filter((tool) => !effectiveTools.has(tool));
 }
 
 function missingScopes(
   requiredScopes: readonly string[],
   allowedScopes: readonly string[] | undefined
 ): string[] {
-  if (!allowedScopes || allowedScopes.length === 0) return [];
-  const allowed = new Set(allowedScopes);
-  return requiredScopes.filter((scope) => !allowed.has(scope));
+  if (!allowedScopes) return [];
+  return requiredScopes.filter((scope) => !tenantScopeSatisfies(allowedScopes, scope));
 }
 
 function capabilityFlags(
@@ -277,7 +288,7 @@ export function buildDashboardData(
   context: DashboardBuildContext
 ): DashboardData {
   const definition = dashboardDefinition(slug);
-  const unavailableTools = missingTools(definition.requiredTools, context.tenant.enabledToolsSet);
+  const unavailableTools = missingTools(definition.requiredTools, context.tenant);
   const unavailableScopes = missingScopes(definition.requiredScopes, context.tenant.allowedScopes);
   const resource = {
     uri: tenantResourceUri(context.tenant.id, definition.resourcePath),

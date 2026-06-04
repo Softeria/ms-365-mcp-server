@@ -29,6 +29,7 @@ interface DashboardTenantDeps {
   readonly id?: string | null;
   readonly slug?: string | null;
   readonly preset_version?: string | null;
+  readonly enabled_tools?: string | null;
   readonly enabled_tools_set?: ReadonlySet<string>;
   readonly allowed_scopes?: readonly string[];
 }
@@ -70,6 +71,9 @@ function requestTenantContext(deps: RegisterDashboardToolsDeps): DashboardTenant
   return {
     id: tenantId,
     enabledToolsSet: requestTenant.enabledToolsSet ?? deps.tenant?.enabled_tools_set,
+    enabledToolsExplicit:
+      requestTenant.enabledToolsExplicit ??
+      (deps.tenant?.enabled_tools !== null && deps.tenant?.enabled_tools !== undefined),
     allowedScopes: deps.tenant?.allowed_scopes,
     presetVersion: requestTenant.presetVersion ?? deps.tenant?.preset_version ?? undefined,
   };

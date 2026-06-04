@@ -1,5 +1,6 @@
 import { ErrorCode, McpError, type ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import { resolveDiscoveryCatalog } from '../discovery-catalog/catalog.js';
+import { tenantScopeSatisfies } from '../scope-satisfaction.js';
 import type { GraphBackedMcpResourceUri, GraphBackedResourceKind } from './uri.js';
 
 const JSON_MIME_TYPE = 'application/json';
@@ -195,19 +196,6 @@ function throwResourceError(
   throw new McpError(ErrorCode.InvalidParams, message, { code, ...data });
 }
 
-function hasScope(allowedScopes: readonly string[], requiredScope: string): boolean {
-  if (allowedScopes.includes(requiredScope)) return true;
-  if (requiredScope.endsWith('.Read.All')) {
-    const writeScope = requiredScope.replace(/\.Read\.All$/, '.ReadWrite.All');
-    return allowedScopes.includes(writeScope);
-  }
-  if (requiredScope.endsWith('.Read')) {
-    const writeScope = requiredScope.replace(/\.Read$/, '.ReadWrite');
-    return allowedScopes.includes(writeScope);
-  }
-  return false;
-}
-
 function assertGraphResourceAllowed(
   definition: GraphBackedDefinition,
   deps: GraphBackedResourceDeps
@@ -232,7 +220,7 @@ function assertGraphResourceAllowed(
 
   const allowedScopes = deps.tenant?.allowed_scopes ?? [];
   const unavailableScopes = definition.requiredScopes.filter(
-    (scope) => !hasScope(allowedScopes, scope)
+    (scope) => !tenantScopeSatisfies(allowedScopes, scope)
   );
   if (unavailableScopes.length > 0) {
     throwResourceError(
