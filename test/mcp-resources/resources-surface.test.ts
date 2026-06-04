@@ -271,6 +271,27 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
     expect(body.data).not.toHaveProperty('accessToken');
   });
 
+  it('allows Mail.ReadWrite to satisfy Mail.Read for Graph-backed mail resources', async () => {
+    const graphClient = {
+      graphRequest: vi.fn(async () => ({
+        content: [{ type: 'text', text: JSON.stringify({ id: 'message-2', subject: 'Hi' }) }],
+      })),
+    };
+
+    await requestContext.run(discoveryContext(), () =>
+      readMcpResource(`m365://tenant/${TENANT_A}/mail/messages/message-2.json`, {
+        tenant: { ...discoveryTenant(), allowed_scopes: ['Mail.ReadWrite'] },
+        graphClient,
+      })
+    );
+
+    expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    expect(graphClient.graphRequest).toHaveBeenCalledWith('/me/messages/message-2', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+  });
+
   it('rejects Graph-backed resources when required scopes are absent', async () => {
     await expect(
       requestContext.run(discoveryContext(), () =>
