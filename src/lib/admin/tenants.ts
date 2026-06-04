@@ -82,6 +82,11 @@ import logger from '../../logger.js';
 import type { AdminRouterDeps } from './router.js';
 import type { RedisClient } from '../redis.js';
 import { DEFAULT_PRESET_VERSION } from '../tool-selection/preset-loader.js';
+import {
+  computeSyncedAllowedScopes,
+  fetchConsentedGraphDelegatedScopes,
+  normalizeGraphDelegatedScopes,
+} from './scope-sync.js';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -227,6 +232,14 @@ const CreateTenantZod = z.object({
 });
 
 const PatchTenantZod = CreateTenantZod.partial().strict();
+
+const SyncScopesZod = z
+  .object({
+    dry_run: z.boolean().default(false),
+    replace_all: z.boolean().default(false),
+    graph_scopes: z.array(z.string().min(1).max(256)).optional(),
+  })
+  .strict();
 
 const ListTenantsZod = z.object({
   cursor: z.string().max(512).optional(),
@@ -454,6 +467,14 @@ function wrappedDekHash(wrappedDek: unknown): string {
 function canActOnTenant(admin: AdminContext, tenantId: string | null): boolean {
   if (admin.tenantScoped === null) return true;
   return tenantId !== null && admin.tenantScoped === tenantId;
+}
+
+function readAdminBearerToken(req: RequestWithAdmin): string | null {
+  const raw = req.headers.authorization;
+  const header = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+  if (!header?.startsWith('Bearer ')) return null;
+  const token = header.substring(7).trim();
+  return token.length > 0 ? token : null;
 }
 
 // ── scanDel (exported — reused by plan 04-07 webhook dedup cleanup path) ───
@@ -747,6 +768,229 @@ export function createTenantsRoutes(deps: AdminRouterDeps): Router {
       );
       problemInternal(res, req.id);
     }
+  });
+
+  // POST /:id/sync-scopes — sync tenant.allowed_scopes from Graph delegated consent metadata.
+  // This updates operator metadata only. It never revokes/clears OAuth or Graph
+  // tokens/sessions; existing sessions keep their SessionStore record.scopes.
+  r.post('/:id/sync-scopes', async (req: RequestWithAdmin, res: Response) => {
+    const admin = req.admin;
+    if (!admin) {
+      problemInternal(res, req.id);
+      return;
+    }
+
+    const id = req.params.id;
+    if (!TENANT_GUID.test(id)) {
+      problemNotFound(res, 'tenant', req.id);
+      return;
+    }
+    if (!canActOnTenant(admin, id)) {
+      problemNotFound(res, 'tenant', req.id);
+      return;
+    }
+
+    const parsed = SyncScopesZod.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      problemBadRequest(res, parsed.error.issues.map((e) => e.message).join('; '), req.id);
+      return;
+    }
+    const body = parsed.data;
+
+    type TenantScopeSyncRow = {
+      id: string;
+      tenant_id: string;
+      client_id: string;
+      cloud_type: 'global' | 'china';
+      allowed_scopes: unknown;
+      disabled_at: Date | null;
+    };
+
+    let row: TenantScopeSyncRow;
+    try {
+      const { rows } = await deps.pgPool.query<TenantScopeSyncRow>(
+        `SELECT id, tenant_id, client_id, cloud_type, allowed_scopes, disabled_at FROM tenants WHERE id = $1`,
+        [id]
+      );
+      if (rows.length === 0) {
+        problemNotFound(res, 'tenant', req.id);
+        return;
+      }
+      row = rows[0]!;
+    } catch (err) {
+      logger.error(
+        { err: (err as Error).message, tenantId: id },
+        'admin-tenants: sync-scopes read failed'
+      );
+      problemInternal(res, req.id);
+      return;
+    }
+
+    if (row.disabled_at !== null) {
+      problemConflict(res, 'cannot_sync_disabled_tenant', req.id);
+      return;
+    }
+
+    const existingScopes = tenantRowToWire({
+      ...row,
+      mode: 'delegated',
+      client_secret_ref: null,
+      redirect_uri_allowlist: [],
+      cors_origins: [],
+      enabled_tools: null,
+      slug: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }).allowed_scopes;
+
+    let fetchedGraphScopes: string[];
+    let source: 'graph' | 'provided';
+    try {
+      const adminBearerToken = readAdminBearerToken(req);
+      if (adminBearerToken) {
+        const fetcher = deps.scopeSyncFetcher ?? fetchConsentedGraphDelegatedScopes;
+        fetchedGraphScopes = await fetcher({
+          tenantDirectoryId: row.tenant_id,
+          clientId: row.client_id,
+          cloudType: row.cloud_type,
+          adminBearerToken,
+        });
+        source = 'graph';
+      } else if (body.graph_scopes !== undefined) {
+        fetchedGraphScopes = normalizeGraphDelegatedScopes(body.graph_scopes);
+        source = 'provided';
+      } else {
+        problemBadRequest(res, 'missing_bearer_or_graph_scopes', req.id);
+        return;
+      }
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, err: (err as Error).message },
+        'admin-tenants: sync-scopes Graph fetch failed'
+      );
+      problemJson(res, 502, 'scope_sync_unavailable', {
+        title: 'Scope sync unavailable',
+        detail: 'Microsoft Graph delegated consent scopes could not be fetched',
+        instance: req.id,
+      });
+      return;
+    }
+
+    const nextAllowedScopes = computeSyncedAllowedScopes({
+      existingScopes,
+      fetchedGraphScopes,
+      replaceAll: body.replace_all,
+    });
+    const added = nextAllowedScopes.filter((scope) => !existingScopes.includes(scope));
+    const removed = existingScopes.filter((scope) => !nextAllowedScopes.includes(scope));
+
+    if (body.dry_run) {
+      res.status(200).json({
+        id,
+        dry_run: true,
+        replace_all: body.replace_all,
+        source,
+        existing_allowed_scopes: existingScopes,
+        fetched_graph_scopes: fetchedGraphScopes,
+        next_allowed_scopes: nextAllowedScopes,
+        added,
+        removed,
+      });
+      return;
+    }
+
+    let existed = true;
+    try {
+      await withTransaction(async (client) => {
+        const sel = await client.query<{ id: string }>(
+          `SELECT id FROM tenants WHERE id = $1 FOR UPDATE`,
+          [id]
+        );
+        if (sel.rows.length === 0) {
+          existed = false;
+          return;
+        }
+        await client.query(
+          `UPDATE tenants SET allowed_scopes = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+          [JSON.stringify(nextAllowedScopes), id]
+        );
+        await writeAudit(client, {
+          tenantId: id,
+          actor: admin.actor,
+          action: 'admin.tenant.sync-scopes',
+          target: id,
+          ip: req.ip ?? null,
+          requestId: req.id ?? 'unknown',
+          result: 'success',
+          meta: {
+            tenantId: id,
+            source,
+            replaceAll: body.replace_all,
+            addedCount: added.length,
+            removedCount: removed.length,
+            sessionInvalidation: false,
+          },
+        });
+      });
+    } catch (err) {
+      logger.error(
+        { err: (err as Error).message, tenantId: id },
+        'admin-tenants: sync-scopes transaction failed'
+      );
+      problemInternal(res, req.id);
+      return;
+    }
+    if (!existed) {
+      problemNotFound(res, 'tenant', req.id);
+      return;
+    }
+
+    // AFTER commit: invalidate tenant metadata caches only. Do not revoke tokens,
+    // delete PKCE/session/cache keys, or force OAuth/Graph session refresh.
+    try {
+      await publishTenantInvalidation(deps.redis, id);
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, err: (err as Error).message },
+        'admin-tenants: publishTenantInvalidation failed on sync-scopes; TTL fallback'
+      );
+    }
+    try {
+      if (
+        typeof (deps.tenantPool as unknown as { invalidate?: (id: string) => void }).invalidate ===
+        'function'
+      ) {
+        (deps.tenantPool as unknown as { invalidate: (id: string) => void }).invalidate(id);
+      } else {
+        deps.tenantPool.evict(id);
+      }
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, err: (err as Error).message },
+        'admin-tenants: tenantPool invalidation threw on sync-scopes'
+      );
+    }
+
+    logger.info(
+      {
+        tenantId: id,
+        actor: admin.actor,
+        source,
+        addedCount: added.length,
+        removedCount: removed.length,
+      },
+      'admin-tenants: synced allowed_scopes'
+    );
+    res.status(200).json({
+      id,
+      dry_run: false,
+      replace_all: body.replace_all,
+      source,
+      allowed_scopes: nextAllowedScopes,
+      fetched_graph_scopes: fetchedGraphScopes,
+      added,
+      removed,
+    });
   });
 
   // PATCH /:id

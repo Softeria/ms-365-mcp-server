@@ -31,6 +31,7 @@ import {
 import type { Pool } from 'pg';
 import type { RedisClient } from '../redis.js';
 import type { TenantPool } from '../tenant/tenant-pool.js';
+import type { fetchConsentedGraphDelegatedScopes } from './scope-sync.js';
 import { createAdminTlsEnforceMiddleware } from './tls-enforce.js';
 import { createApiKeyRoutes, subscribeToApiKeyRevoke } from './api-keys.js';
 import { createTenantsRoutes } from './tenants.js';
@@ -56,6 +57,8 @@ export interface AdminRouterDeps {
   };
   /** 32-byte HMAC secret for pagination cursors. Rotated per-process. */
   cursorSecret: Buffer;
+  /** Optional override for deterministic tenant allowed_scopes sync tests. */
+  scopeSyncFetcher?: typeof fetchConsentedGraphDelegatedScopes;
 }
 
 /**

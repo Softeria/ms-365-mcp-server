@@ -133,7 +133,8 @@ async function startServer(
   pool: Pool,
   redis: MemoryRedisFacade,
   admin: AdminContext,
-  tenantPool: TenantPoolStub
+  tenantPool: TenantPoolStub,
+  scopeSyncFetcher?: typeof import('../scope-sync.js').fetchConsentedGraphDelegatedScopes
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const app = express();
   app.use(express.json() as unknown as express.RequestHandler);
@@ -154,6 +155,7 @@ async function startServer(
       cursorSecret: createCursorSecret(),
       adminOrigins: [],
       entraConfig: { appClientId: 'x', groupId: 'g' },
+      scopeSyncFetcher,
     } as unknown as import('../router.js').AdminRouterDeps)
   );
   const server = await new Promise<http.Server>((resolve) => {
@@ -169,10 +171,14 @@ async function startServer(
   };
 }
 
-async function doPost(url: string, body?: unknown): Promise<{ status: number; body: any }> {
+async function doPost(
+  url: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<{ status: number; body: any }> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body ?? {}),
   });
   const text = await res.text();
@@ -972,6 +978,239 @@ describe('plan 04-02 Task 1 — /admin/tenants CRUD', () => {
       expect(cross.status).toBe(404);
     } finally {
       await scoped.close();
+    }
+  });
+
+  it('Test 19: POST /:id/sync-scopes dry-run previews without DB write or cache invalidation', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const publishedTenantIds: string[] = [];
+    redis.on('message', ((channel: string, message: string) => {
+      if (channel === 'mcp:tenant-invalidate') publishedTenantIds.push(message);
+    }) as (...args: unknown[]) => void);
+    await redis.subscribe('mcp:tenant-invalidate');
+
+    const { url, close } = await startServer(
+      pool,
+      redis,
+      { actor: 'admin@example.com', source: 'api-key', tenantScoped: null },
+      tp
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, {
+        ...VALID_BODY,
+        allowed_scopes: [
+          'User.Read',
+          'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+        ],
+      });
+      const res = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        dry_run: true,
+        graph_scopes: ['Mail.Read', 'Files.Read.All'],
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.dry_run).toBe(true);
+      expect(res.body.next_allowed_scopes).toEqual([
+        'Files.Read.All',
+        'Mail.Read',
+        'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+      ]);
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual([
+        'User.Read',
+        'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+      ]);
+      expect(tp.invalidate).not.toHaveBeenCalled();
+      expect(tp.evict).not.toHaveBeenCalled();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(publishedTenantIds).toEqual([]);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 20: POST /:id/sync-scopes applies DB update and invalidates tenant metadata cache without token/session revocation', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const publishedTenantIds: string[] = [];
+    redis.on('message', ((channel: string, message: string) => {
+      if (channel === 'mcp:tenant-invalidate') publishedTenantIds.push(message);
+    }) as (...args: unknown[]) => void);
+    await redis.subscribe('mcp:tenant-invalidate');
+
+    const fetcher = vi.fn(async () => ['Mail.Read', 'User.Read']);
+    const { url, close } = await startServer(
+      pool,
+      redis,
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        { Authorization: 'Bearer admin-token-for-test' }
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.allowed_scopes).toEqual(['Mail.Read', 'User.Read']);
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantDirectoryId: VALID_BODY.tenant_id,
+          clientId: VALID_BODY.client_id,
+          cloudType: 'global',
+          adminBearerToken: 'admin-token-for-test',
+        })
+      );
+
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual(['Mail.Read', 'User.Read']);
+      const called = tp.invalidate.mock.calls.length + tp.evict.mock.calls.length;
+      expect(called).toBeGreaterThanOrEqual(1);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(publishedTenantIds).toContain(created.body.id);
+
+      const { rows: auditRows } = await pool.query(
+        "SELECT * FROM audit_log WHERE action = 'admin.tenant.sync-scopes'"
+      );
+      const meta =
+        typeof auditRows[0].meta === 'string' ? JSON.parse(auditRows[0].meta) : auditRows[0].meta;
+      expect(meta.sessionInvalidation).toBe(false);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21: POST /:id/sync-scopes preserves non-Graph/product scopes unless replace_all is explicit', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'api-key', tenantScoped: null },
+      tp
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, {
+        ...VALID_BODY,
+        allowed_scopes: ['User.Read', 'https://graph.microsoft.com/custom-product-scope'],
+      });
+
+      const preserve = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        graph_scopes: ['Mail.Read'],
+      });
+      expect(preserve.status).toBe(200);
+      expect(preserve.body.allowed_scopes).toEqual([
+        'Mail.Read',
+        'https://graph.microsoft.com/custom-product-scope',
+      ]);
+
+      const replace = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        replace_all: true,
+        graph_scopes: ['Files.Read.All'],
+      });
+      expect(replace.status).toBe(200);
+      expect(replace.body.allowed_scopes).toEqual(['Files.Read.All']);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 22: POST /:id/sync-scopes enforces RBAC and returns 404 for cross-tenant scoped admin', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const global = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'g@example.com', source: 'entra', tenantScoped: null },
+      tp
+    );
+    let idA: string;
+    let idB: string;
+    try {
+      idA = (await doPost(`${global.url}/admin/tenants`, VALID_BODY)).body.id;
+      idB = (
+        await doPost(`${global.url}/admin/tenants`, {
+          ...VALID_BODY,
+          tenant_id: '22222222-3333-4333-8444-555555555555',
+        })
+      ).body.id;
+    } finally {
+      await global.close();
+    }
+
+    const scoped = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 's@example.com', source: 'api-key', tenantScoped: idA! },
+      tp
+    );
+    try {
+      const cross = await doPost(`${scoped.url}/admin/tenants/${idB}/sync-scopes`, {
+        graph_scopes: ['Mail.Read'],
+      });
+      expect(cross.status).toBe(404);
+    } finally {
+      await scoped.close();
+    }
+  });
+
+  it('Test 23: POST /:id/sync-scopes handles unavailable Graph fetch without DB write', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const fetcher = vi.fn(async () => {
+      throw new Error('Graph unavailable');
+    });
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        { Authorization: 'Bearer admin-token-for-test' }
+      );
+      expect(res.status).toBe(502);
+      expect(res.body.type).toContain('scope_sync_unavailable');
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual(VALID_BODY.allowed_scopes);
+      expect(tp.invalidate).not.toHaveBeenCalled();
+      expect(tp.evict).not.toHaveBeenCalled();
+    } finally {
+      await close();
     }
   });
 
