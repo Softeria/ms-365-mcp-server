@@ -6,6 +6,10 @@ src/presets/generated-index.ts
 src/presets/*.json
 openapi/
 .planning/
+CLAUDE.md
+.claude/get-shit-done/
+.claude/skills/
+.claude/agents/
 docs/coverage-report.md
 bin/.last-beta-snapshot.json
 bin/.last-powerbi-snapshot.json

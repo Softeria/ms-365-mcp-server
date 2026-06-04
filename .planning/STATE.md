@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: completed
 stopped_at: context exhaustion at 75% (2026-05-09)
-last_updated: "2026-05-09T01:20:00.000Z"
-last_activity: "2026-05-09 -- Phase 08 complete; final verifier passed"
+last_updated: "2026-06-04T00:00:00.000Z"
+last_activity: "2026-06-04 -- Quick task 260604-bga complete; dashboard/resource scope prerequisites fixed"
 progress:
   total_phases: 9
   completed_phases: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-18)
 
 Phase: 08 (maximal-mcp-claude-connector-surface) — COMPLETE
 Plan: 14 of 14
-Status: Phase 08 complete; review fixes validated; final verifier passed; full suite remains resource-inconclusive with exit 137
-Last activity: 2026-05-09 -- Phase 08 complete; final verifier passed
+Status: Phase 08 complete; review fixes validated; final verifier passed; quick task 260604-bga completed
+Last activity: 2026-06-04 -- Quick task 260604-bga complete; dashboard/resource scope prerequisites fixed
 
 Progress: [██████████] 100% (86/86 tracked plans; 8/9 phases)
 
@@ -110,6 +110,7 @@ Resume file: None
 | 260425-bxa | coolify-pull-policy | 2026-04-25 | `pull_policy: always` on mcp service — force Coolify to re-pull GHCR `:latest` on every redeploy. Resolves stale-image blocker that was masking the Redis subscriber-mode fixes (`ee08ae4`, `3027552`) and producing `rate_limit_error` on `tools/call`. | complete ✓ |
 | 260425-e5x | mcp-401-www-authenticate | 2026-04-25 | Emit `WWW-Authenticate: Bearer …resource_metadata=…` on every 401 from the MCP path (RFC 9728 / MCP 2025-06-18). Fixes Claude.ai-style connector failure "Couldn't reach the MCP server". 5 emit sites + new helper + 12 unit tests. Commits `f1f67d3`, `2c3bce6`. | complete ✓ |
 | 260425-gug | oauth-discovery-dcr | 2026-04-25 | RFC 8414 host-prefixed metadata routes + `registration_endpoint` in per-tenant auth-server metadata + `MS365_MCP_OAUTH_REDIRECT_HOSTS` env (default `claude.ai`) for DCR allowlist. Unblocks Claude.ai connector OAuth dance after /register stopped returning 400. Commit `a15eed8`. | complete ✓ |
+| 260604-bga | fix-false-positive-mail-read-prerequisit | 2026-06-04 | Fixed false-positive dashboard/resource prerequisites so stronger read scopes such as `Mail.ReadWrite` satisfy read requirements and discovery dashboards evaluate generated aliases against the effective discovery catalog. Commits `02249d1`, `a423a48`. | complete ✓ |
 
 ## Deferred Items
 

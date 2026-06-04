@@ -75,6 +75,12 @@ vi.mock('../../postgres.js', async () => {
 });
 
 import { createTenantsRoutes, tenantRowToWire } from '../tenants.js';
+import { createAdminRouter } from '../router.js';
+import {
+  computeSyncedAllowedScopes,
+  fetchConsentedGraphDelegatedScopes,
+  normalizeGraphDelegatedScopes,
+} from '../scope-sync.js';
 import { MemoryRedisFacade } from '../../redis-facade.js';
 import { createCursorSecret } from '../cursor.js';
 
@@ -129,11 +135,18 @@ function makeTenantPoolStub(): TenantPoolStub {
   };
 }
 
+function makeJwt(payload: Record<string, unknown>): string {
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.signature`;
+}
+
 async function startServer(
   pool: Pool,
   redis: MemoryRedisFacade,
   admin: AdminContext,
-  tenantPool: TenantPoolStub
+  tenantPool: TenantPoolStub,
+  scopeSyncFetcher?: typeof import('../scope-sync.js').fetchConsentedGraphDelegatedScopes
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const app = express();
   app.use(express.json() as unknown as express.RequestHandler);
@@ -154,6 +167,7 @@ async function startServer(
       cursorSecret: createCursorSecret(),
       adminOrigins: [],
       entraConfig: { appClientId: 'x', groupId: 'g' },
+      scopeSyncFetcher,
     } as unknown as import('../router.js').AdminRouterDeps)
   );
   const server = await new Promise<http.Server>((resolve) => {
@@ -169,10 +183,65 @@ async function startServer(
   };
 }
 
-async function doPost(url: string, body?: unknown): Promise<{ status: number; body: any }> {
+async function startAdminRouterServer(
+  pool: Pool,
+  redis: MemoryRedisFacade,
+  tenantPool: TenantPoolStub,
+  scopeSyncFetcher?: typeof import('../scope-sync.js').fetchConsentedGraphDelegatedScopes
+): Promise<{ url: string; close: () => Promise<void> }> {
+  const app = express();
+  app.use(express.json() as unknown as express.RequestHandler);
+  app.use((req, _res, next) => {
+    (req as express.Request & { id?: string }).id = `req-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    next();
+  });
+  app.use(
+    '/admin',
+    createAdminRouter({
+      pgPool: pool,
+      redis,
+      tenantPool: tenantPool as unknown as import('../router.js').AdminRouterDeps['tenantPool'],
+      kek: KEK,
+      cursorSecret: createCursorSecret(),
+      adminOrigins: [],
+      entraConfig: { appClientId: 'admin-app-client-id', groupId: 'admin-group-id' },
+      scopeSyncFetcher,
+      verifyToken: async ({ token }) => {
+        const [, payloadSegment] = token.split('.');
+        return JSON.parse(
+          Buffer.from(payloadSegment ?? '', 'base64url').toString('utf8')
+        ) as import('jose').JWTPayload;
+      },
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ value: [{ id: 'admin-group-id' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    })
+  );
+  const server = await new Promise<http.Server>((resolve) => {
+    const s = http.createServer(app).listen(0, () => resolve(s));
+  });
+  const port = (server.address() as AddressInfo).port;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: async () =>
+      new Promise<void>((r) => {
+        server.close(() => r());
+      }),
+  };
+}
+
+async function doPost(
+  url: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<{ status: number; body: any }> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body ?? {}),
   });
   const text = await res.text();
@@ -972,6 +1041,521 @@ describe('plan 04-02 Task 1 — /admin/tenants CRUD', () => {
       expect(cross.status).toBe(404);
     } finally {
       await scoped.close();
+    }
+  });
+
+  it('Test 19: POST /:id/sync-scopes dry-run previews without DB write or cache invalidation', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const publishedTenantIds: string[] = [];
+    redis.on('message', ((channel: string, message: string) => {
+      if (channel === 'mcp:tenant-invalidate') publishedTenantIds.push(message);
+    }) as (...args: unknown[]) => void);
+    await redis.subscribe('mcp:tenant-invalidate');
+
+    const { url, close } = await startServer(
+      pool,
+      redis,
+      { actor: 'admin@example.com', source: 'api-key', tenantScoped: null },
+      tp
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, {
+        ...VALID_BODY,
+        allowed_scopes: [
+          'User.Read',
+          'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+        ],
+      });
+      const res = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        dry_run: true,
+        graph_scopes: ['Mail.Read', 'Files.Read.All'],
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.dry_run).toBe(true);
+      expect(res.body.next_allowed_scopes).toEqual([
+        'Files.Read.All',
+        'Mail.Read',
+        'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+        'offline_access',
+      ]);
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual([
+        'User.Read',
+        'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
+      ]);
+      expect(tp.invalidate).not.toHaveBeenCalled();
+      expect(tp.evict).not.toHaveBeenCalled();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(publishedTenantIds).toEqual([]);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 20: POST /:id/sync-scopes applies DB update and invalidates tenant metadata cache without token/session revocation', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const publishedTenantIds: string[] = [];
+    redis.on('message', ((channel: string, message: string) => {
+      if (channel === 'mcp:tenant-invalidate') publishedTenantIds.push(message);
+    }) as (...args: unknown[]) => void);
+    await redis.subscribe('mcp:tenant-invalidate');
+
+    const fetcher = vi.fn(async () => ['Mail.Read', 'User.Read']);
+    const { url, close } = await startServer(
+      pool,
+      redis,
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        { 'x-ms365-graph-token': 'Bearer graph-token-for-test' }
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.allowed_scopes).toEqual(['Mail.Read', 'User.Read', 'offline_access']);
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantDirectoryId: VALID_BODY.tenant_id,
+          clientId: VALID_BODY.client_id,
+          cloudType: 'global',
+          graphBearerToken: 'graph-token-for-test',
+        })
+      );
+
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual(['Mail.Read', 'User.Read', 'offline_access']);
+      const called = tp.invalidate.mock.calls.length + tp.evict.mock.calls.length;
+      expect(called).toBeGreaterThanOrEqual(1);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(publishedTenantIds).toContain(created.body.id);
+
+      const { rows: auditRows } = await pool.query(
+        "SELECT * FROM audit_log WHERE action = 'admin.tenant.sync-scopes'"
+      );
+      const meta =
+        typeof auditRows[0].meta === 'string' ? JSON.parse(auditRows[0].meta) : auditRows[0].meta;
+      expect(meta.sessionInvalidation).toBe(false);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21: POST /:id/sync-scopes preserves non-Graph/product scopes unless replace_all is explicit', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'api-key', tenantScoped: null },
+      tp
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, {
+        ...VALID_BODY,
+        allowed_scopes: ['User.Read', 'https://graph.microsoft.com/custom-product-scope'],
+      });
+
+      const preserve = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        graph_scopes: ['Mail.Read'],
+      });
+      expect(preserve.status).toBe(200);
+      expect(preserve.body.allowed_scopes).toEqual([
+        'Mail.Read',
+        'https://graph.microsoft.com/custom-product-scope',
+        'offline_access',
+      ]);
+
+      const replace = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {
+        replace_all: true,
+        graph_scopes: ['Files.Read.All'],
+      });
+      expect(replace.status).toBe(200);
+      expect(replace.body.allowed_scopes).toEqual(['Files.Read.All', 'offline_access']);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21a: scope sync preserves offline_access and canonicalizes duplicates', () => {
+    expect(
+      normalizeGraphDelegatedScopes(['Mail.Read', 'OFFLINE_ACCESS', 'offline_access'])
+    ).toEqual(['Mail.Read', 'offline_access']);
+    expect(
+      computeSyncedAllowedScopes({
+        existingScopes: ['User.Read', 'https://graph.microsoft.com/custom-product-scope'],
+        fetchedGraphScopes: ['Files.Read.All', 'OFFLINE_ACCESS'],
+        replaceAll: true,
+      })
+    ).toEqual(['Files.Read.All', 'offline_access']);
+  });
+
+  it('Test 21b: API-key sync prefers provided graph_scopes over incidental Authorization', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const fetcher = vi.fn(async () => ['Files.Read.All']);
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'api-key', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        { graph_scopes: ['Mail.Read'] },
+        { Authorization: 'Bearer unrelated-admin-or-client-token' }
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.source).toBe('provided');
+      expect(res.body.allowed_scopes).toEqual(['Mail.Read', 'offline_access']);
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21c: POST /:id/sync-scopes requires graph_scopes or a dedicated Graph token', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const fetcher = vi.fn(async () => ['Files.Read.All']);
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(`${url}/admin/tenants/${created.body.id}/sync-scopes`, {});
+
+      expect(res.status).toBe(400);
+      expect(res.body.detail).toBe('missing_graph_token_or_graph_scopes');
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21d: POST /:id/sync-scopes merges preserved scopes from the locked row', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    let createdId = '';
+    const fetcher = vi.fn(async () => {
+      await pool.query(`UPDATE tenants SET allowed_scopes = $1::jsonb WHERE id = $2`, [
+        JSON.stringify(['User.Read', 'https://graph.microsoft.com/custom-product-scope']),
+        createdId,
+      ]);
+      return ['Mail.Read'];
+    });
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, {
+        ...VALID_BODY,
+        allowed_scopes: ['User.Read'],
+      });
+      createdId = created.body.id;
+      const res = await doPost(
+        `${url}/admin/tenants/${createdId}/sync-scopes`,
+        {},
+        { 'x-ms365-graph-token': 'Bearer graph-token-for-test' }
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.allowed_scopes).toEqual([
+        'Mail.Read',
+        'https://graph.microsoft.com/custom-product-scope',
+        'offline_access',
+      ]);
+      expect(res.body.added).toEqual(['Mail.Read', 'offline_access']);
+      expect(res.body.removed).toEqual(['User.Read']);
+
+      const { rows: auditRows } = await pool.query(
+        "SELECT * FROM audit_log WHERE action = 'admin.tenant.sync-scopes'"
+      );
+      const meta =
+        typeof auditRows[0].meta === 'string' ? JSON.parse(auditRows[0].meta) : auditRows[0].meta;
+      expect(meta.addedCount).toBe(2);
+      expect(meta.removedCount).toBe(1);
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 21e: POST /:id/sync-scopes rechecks disabled state under row lock', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    let createdId = '';
+    const fetcher = vi.fn(async () => {
+      await pool.query(`UPDATE tenants SET disabled_at = NOW() WHERE id = $1`, [createdId]);
+      return ['Mail.Read'];
+    });
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      createdId = created.body.id;
+      const res = await doPost(
+        `${url}/admin/tenants/${createdId}/sync-scopes`,
+        {},
+        { 'x-ms365-graph-token': 'Bearer graph-token-for-test' }
+      );
+
+      expect(res.status).toBe(409);
+      expect(res.body.detail).toBe('cannot_sync_disabled_tenant');
+      expect(tp.invalidate).not.toHaveBeenCalled();
+      expect(tp.evict).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 22: POST /:id/sync-scopes enforces RBAC and returns 404 for cross-tenant scoped admin', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const global = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'g@example.com', source: 'entra', tenantScoped: null },
+      tp
+    );
+    let idA: string;
+    let idB: string;
+    try {
+      idA = (await doPost(`${global.url}/admin/tenants`, VALID_BODY)).body.id;
+      idB = (
+        await doPost(`${global.url}/admin/tenants`, {
+          ...VALID_BODY,
+          tenant_id: '22222222-3333-4333-8444-555555555555',
+        })
+      ).body.id;
+    } finally {
+      await global.close();
+    }
+
+    const scoped = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 's@example.com', source: 'api-key', tenantScoped: idA! },
+      tp
+    );
+    try {
+      const cross = await doPost(`${scoped.url}/admin/tenants/${idB}/sync-scopes`, {
+        graph_scopes: ['Mail.Read'],
+      });
+      expect(cross.status).toBe(404);
+    } finally {
+      await scoped.close();
+    }
+  });
+
+  it('Test 23: POST /:id/sync-scopes handles unavailable Graph fetch without DB write', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const fetcher = vi.fn(async () => {
+      throw new Error('Graph unavailable');
+    });
+    const { url, close } = await startServer(
+      pool,
+      new MemoryRedisFacade(),
+      { actor: 'admin@example.com', source: 'entra', tenantScoped: null },
+      tp,
+      fetcher
+    );
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY);
+      const res = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        { 'x-ms365-graph-token': 'Bearer graph-token-for-test' }
+      );
+      expect(res.status).toBe(502);
+      expect(res.body.type).toContain('scope_sync_unavailable');
+      const { rows } = await pool.query('SELECT allowed_scopes FROM tenants WHERE id = $1', [
+        created.body.id,
+      ]);
+      const stored =
+        typeof rows[0].allowed_scopes === 'string'
+          ? JSON.parse(rows[0].allowed_scopes)
+          : rows[0].allowed_scopes;
+      expect(stored).toEqual(VALID_BODY.allowed_scopes);
+      expect(tp.invalidate).not.toHaveBeenCalled();
+      expect(tp.evict).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 24: live Graph scope sync rejects Graph bearer tenant mismatch before Graph fetch', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ value: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+    );
+
+    await expect(
+      fetchConsentedGraphDelegatedScopes({
+        tenantDirectoryId: VALID_BODY.tenant_id,
+        clientId: VALID_BODY.client_id,
+        cloudType: 'global',
+        graphBearerToken: makeJwt({ tid: '22222222-3333-4333-8444-555555555555' }),
+        fetchImpl,
+      })
+    ).rejects.toThrow(/tenant mismatch/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Test 24a: live Graph scope sync rejects non-Graph bearer audience before Graph fetch', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ value: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+    );
+
+    await expect(
+      fetchConsentedGraphDelegatedScopes({
+        tenantDirectoryId: VALID_BODY.tenant_id,
+        clientId: VALID_BODY.client_id,
+        cloudType: 'global',
+        graphBearerToken: makeJwt({ tid: VALID_BODY.tenant_id, aud: 'admin-app-client-id' }),
+        fetchImpl,
+      })
+    ).rejects.toThrow(/audience mismatch/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Test 25: live Graph scope sync rejects off-host nextLink before sending bearer', async () => {
+    const fetchImpl = vi.fn(
+      async (_url: string | URL | Request) =>
+        new Response(
+          JSON.stringify({
+            value: [{ id: 'client-sp-id', appId: VALID_BODY.client_id }],
+            '@odata.nextLink': 'https://evil.example.com/v1.0/servicePrincipals?$skiptoken=leak',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+    );
+
+    await expect(
+      fetchConsentedGraphDelegatedScopes({
+        tenantDirectoryId: VALID_BODY.tenant_id,
+        clientId: VALID_BODY.client_id,
+        cloudType: 'global',
+        graphBearerToken: makeJwt({ tid: VALID_BODY.tenant_id }),
+        fetchImpl,
+      })
+    ).rejects.toThrow(/off-host nextLink/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('https://graph.microsoft.com/v1.0/');
+  });
+
+  it('Test 26: admin router rejects unauthenticated POST /admin/tenants/:id/sync-scopes', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const { url, close } = await startAdminRouterServer(pool, new MemoryRedisFacade(), tp);
+    try {
+      const res = await doPost(
+        `${url}/admin/tenants/99999999-9999-4999-8999-999999999999/sync-scopes`,
+        { graph_scopes: ['Mail.Read'] }
+      );
+      expect(res.status).toBe(401);
+      expect(res.body.type).toContain('unauthorized');
+    } finally {
+      await close();
+    }
+  });
+
+  it('Test 27: admin router authenticates bearer before mounted sync-scopes route and keeps Graph token separate', async () => {
+    const pool = await makePool();
+    sharedPool = pool;
+    const tp = makeTenantPoolStub();
+    const redis = new MemoryRedisFacade();
+    const fetcher = vi.fn(async () => ['Mail.Read']);
+    const token = makeJwt({
+      tid: VALID_BODY.tenant_id,
+      aud: 'admin-app-client-id',
+      upn: 'admin@example.com',
+      oid: 'admin-oid',
+    });
+    const { url, close } = await startAdminRouterServer(pool, redis, tp, fetcher);
+    try {
+      const created = await doPost(`${url}/admin/tenants`, VALID_BODY, {
+        Authorization: `Bearer ${token}`,
+      });
+      expect(created.status).toBe(201);
+
+      const graphToken = makeJwt({
+        tid: VALID_BODY.tenant_id,
+        aud: 'https://graph.microsoft.com',
+      });
+      const synced = await doPost(
+        `${url}/admin/tenants/${created.body.id}/sync-scopes`,
+        {},
+        {
+          Authorization: `Bearer ${token}`,
+          'x-ms365-graph-token': `Bearer ${graphToken}`,
+        }
+      );
+      expect(synced.status).toBe(200);
+      expect(synced.body.allowed_scopes).toEqual(['Mail.Read', 'offline_access']);
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantDirectoryId: VALID_BODY.tenant_id,
+          graphBearerToken: graphToken,
+        })
+      );
+    } finally {
+      await close();
     }
   });
 

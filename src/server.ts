@@ -570,7 +570,9 @@ class MicrosoftGraphServer {
     // did not customize CORS. loadTenant runs first so req.tenant is set.
     const isProdMode = process.env.NODE_ENV === 'production';
     const fallbackAllowlist = computeCorsAllowlist();
-    app.use('/t/:tenantId', loadTenant);
+    const tenantLoadRouteRateLimit = createHttpRouteRateLimit();
+    // codeql[js/missing-rate-limiting]: route limiter runs before loadTenant performs tenant DB lookup.
+    app.use('/t/:tenantId', tenantLoadRouteRateLimit, loadTenant);
     app.use(
       '/t/:tenantId',
       createPerTenantCorsMiddleware({
@@ -846,8 +848,10 @@ class MicrosoftGraphServer {
         tenantPool,
         kek: await loadKekForWebhook(),
       });
+      // codeql[js/missing-rate-limiting]: routeRateLimit gates webhook delivery before body parsing and DB work.
       app.post(
         '/t/:tenantId/notifications',
+        routeRateLimit,
         // body-parser's NextHandleFunction signature predates Express 5's
         // RequestHandler (IncomingMessage vs. Request). At runtime both
         // accept the same req/res so the cast is safe; the type mismatch

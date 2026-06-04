@@ -81,4 +81,17 @@ describe('authorize request identity', () => {
 
     expect(isSameAuthorizeRequest(existing, changed)).toBe(false);
   });
+
+  it('preserves idempotent retries for older PKCE entries without forwarded authorize params', () => {
+    const retry = entry({
+      forwardedAuthorizeParams: {
+        response_type: 'code',
+        redirect_uri: 'https://client.example/callback',
+        scope: 'User.Read',
+        state: 'state-1',
+      },
+    });
+
+    expect(isSameAuthorizeRequest(entry(), retry)).toBe(true);
+  });
 });

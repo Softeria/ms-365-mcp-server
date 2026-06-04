@@ -26,10 +26,11 @@ function forwardedParamsMatch(
   left?: Readonly<Record<string, string>>,
   right?: Readonly<Record<string, string>>
 ): boolean {
-  const leftEntries = Object.entries(left ?? {});
-  const rightRecord = right ?? {};
-  if (leftEntries.length !== Object.keys(rightRecord).length) return false;
-  return leftEntries.every(([key, value]) => rightRecord[key] === value);
+  if (left === undefined || right === undefined) return true;
+
+  const leftEntries = Object.entries(left);
+  if (leftEntries.length !== Object.keys(right).length) return false;
+  return leftEntries.every(([key, value]) => right[key] === value);
 }
 
 export function isSameAuthorizeRequest(

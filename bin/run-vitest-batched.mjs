@@ -8,7 +8,10 @@ const batchSize = Number.parseInt(
   process.env.MS365_MCP_TEST_BATCH_SIZE ?? String(DEFAULT_BATCH_SIZE),
   10
 );
-const vitestNodeOptions = process.env.MS365_MCP_VITEST_NODE_OPTIONS ?? DEFAULT_VITEST_NODE_OPTIONS;
+const vitestNodeOptions =
+  process.env.MS365_MCP_VITEST_NODE_OPTIONS ??
+  process.env.NODE_OPTIONS ??
+  DEFAULT_VITEST_NODE_OPTIONS;
 
 if (!Number.isInteger(batchSize) || batchSize < 1) {
   throw new Error(
