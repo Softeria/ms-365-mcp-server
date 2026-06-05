@@ -40,5 +40,12 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
+      # vitest 4 requires Node >= 20, so tests run on 20+ only
       - name: Run tests
+        if: matrix.node-version != '18.x'
         run: npm test
+
+      # On Node 18 we still verify the built artifact starts and loads its modules
+      - name: Smoke test (Node 18 runtime check)
+        if: matrix.node-version == '18.x'
+        run: node dist/index.js --list-presets
