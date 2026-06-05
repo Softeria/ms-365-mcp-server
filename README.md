@@ -504,7 +504,17 @@ npx @softeria/ms-365-mcp-server --preset mail
 npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 ```
 
-Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `all`
+Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `all`
+
+The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose an exact tool list for a single Microsoft app (derived from API paths, so they never over-match across apps). Use these for "expose exactly one app" deployments:
+
+```bash
+# Outlook only (mail + calendar + contacts; no shared mailboxes, no files)
+npx @softeria/ms-365-mcp-server --preset outlook
+
+# Teams only (requires --org-mode)
+npx @softeria/ms-365-mcp-server --org-mode --preset teams
+```
 
 ## Dynamic Tool Discovery
 
