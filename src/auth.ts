@@ -25,6 +25,7 @@ interface EndpointConfig {
   workScopes?: string[];
   llmTip?: string;
   readOnly?: boolean;
+  presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
 
 const __filename = fileURLToPath(import.meta.url);

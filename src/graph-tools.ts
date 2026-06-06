@@ -40,6 +40,7 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
 
 const endpointsData = JSON.parse(
