@@ -11,7 +11,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const endpoints: Array<{ toolName: string; pathPattern: string }> = JSON.parse(
+const endpoints: Array<{ toolName: string; pathPattern: string; app?: string }> = JSON.parse(
   readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')
 );
 const allToolNames = [...new Set(endpoints.map((e) => e.toolName))];
@@ -22,6 +22,12 @@ function matchedTools(preset: string): string[] {
 }
 
 describe('app-scoped presets', () => {
+  it('endpoints.json app values are limited to known app presets', () => {
+    const knownApps = new Set(['outlook', 'onedrive', 'teams']);
+    const unknown = endpoints.filter((e) => e.app !== undefined && !knownApps.has(e.app));
+    expect(unknown.map((e) => `${e.toolName}: ${e.app}`)).toEqual([]);
+  });
+
   it.each(['outlook', 'onedrive', 'teams'])('%s matches a non-empty tool set', (preset) => {
     expect(matchedTools(preset).length).toBeGreaterThan(0);
   });

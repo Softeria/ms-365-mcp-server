@@ -25,6 +25,7 @@ interface EndpointConfig {
   workScopes?: string[];
   llmTip?: string;
   readOnly?: boolean;
+  app?: string; // App-scoped preset this endpoint belongs to (outlook, onedrive, teams)
 }
 
 const __filename = fileURLToPath(import.meta.url);

@@ -13,45 +13,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const endpointEntries = JSON.parse(
   readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as Array<{ toolName: string; pathPattern: string }>;
+) as Array<{ toolName: string; app?: string }>;
 
-// App presets are exact tool-name allow-lists derived from endpoints.json
-// path prefixes, so they can't over-match across apps the way the loose
-// name regexes above can (e.g. "mail" also matching shared-mailbox tools).
-// New endpoints are classified automatically by their pathPattern.
-function appPresetPattern(predicate: (pathPattern: string) => boolean): RegExp {
-  const names = [
-    ...new Set(endpointEntries.filter((e) => predicate(e.pathPattern)).map((e) => e.toolName)),
-  ];
+// App presets are exact tool-name allow-lists built from the "app" field in
+// endpoints.json, so they can't over-match across apps the way the loose
+// name regexes can (e.g. "mail" also matching shared-mailbox tools).
+function appPresetPattern(app: string): RegExp {
+  const names = [...new Set(endpointEntries.filter((e) => e.app === app).map((e) => e.toolName))];
   return new RegExp(`^(?:${names.join('|')})$`);
 }
-
-const startsWithAny = (pathPattern: string, prefixes: string[]) =>
-  prefixes.some((prefix) => pathPattern.startsWith(prefix));
-
-const OUTLOOK_PATH_PREFIXES = [
-  '/me/messages',
-  '/me/mailFolders',
-  '/me/sendMail',
-  '/me/mailboxSettings',
-  '/me/inferenceClassification',
-  '/me/outlook',
-  '/me/events',
-  '/me/calendar',
-  '/me/findMeetingTimes',
-  '/me/contacts',
-  '/me/contactFolders',
-];
-
-const TEAMS_PATH_PREFIXES = [
-  '/chats',
-  '/teams',
-  '/me/chats',
-  '/me/joinedTeams',
-  '/me/onlineMeetings',
-  '/me/teamwork',
-  '/me/presence',
-];
 
 export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   mail: {
@@ -116,19 +86,17 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
   outlook: {
     name: 'outlook',
-    pattern: appPresetPattern((p) => startsWithAny(p, OUTLOOK_PATH_PREFIXES)),
+    pattern: appPresetPattern('outlook'),
     description: 'Outlook app only: mail, calendar and contacts (exact tool list)',
   },
   onedrive: {
     name: 'onedrive',
-    pattern: appPresetPattern(
-      (p) => (p.startsWith('/drives') || p === '/me/drives') && !p.includes('/workbook')
-    ),
+    pattern: appPresetPattern('onedrive'),
     description: 'OneDrive app only: drive and file operations, excluding Excel (exact tool list)',
   },
   teams: {
     name: 'teams',
-    pattern: appPresetPattern((p) => startsWithAny(p, TEAMS_PATH_PREFIXES)),
+    pattern: appPresetPattern('teams'),
     description: 'Teams app only: chats, channels, meetings and presence (exact tool list)',
     requiresOrgMode: true,
   },

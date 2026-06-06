@@ -11,67 +11,77 @@
     "method": "get",
     "toolName": "list-mail-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "get",
     "toolName": "list-mail-folders",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-mail-child-folders",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders",
     "method": "post",
     "toolName": "create-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a top-level mail folder. Use create-mail-child-folder to create a subfolder inside an existing folder. Use list-mail-folders to find existing folder IDs."
+    "llmTip": "Creates a top-level mail folder. Use create-mail-child-folder to create a subfolder inside an existing folder. Use list-mail-folders to find existing folder IDs.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/childFolders",
     "method": "post",
     "toolName": "create-mail-child-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a subfolder inside an existing mail folder. Use list-mail-folders or list-mail-child-folders to find the parent folder ID."
+    "llmTip": "Creates a subfolder inside an existing mail folder. Use list-mail-folders or list-mail-child-folders to find the parent folder ID.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}",
     "method": "patch",
     "toolName": "update-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Renames a mail folder by updating its displayName. Use list-mail-folders to find the folder ID."
+    "llmTip": "Renames a mail folder by updating its displayName. Use list-mail-folders to find the folder ID.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}",
     "method": "delete",
     "toolName": "delete-mail-folder",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
     "method": "get",
     "toolName": "list-mail-folder-messages",
     "scopes": ["Mail.Read"],
-    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
+    "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "get",
     "toolName": "get-mail-message",
-    "scopes": ["Mail.Read"]
+    "scopes": ["Mail.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/sendMail",
     "method": "post",
     "toolName": "send-mail",
     "scopes": ["Mail.Send"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/users/{user-id}/messages",
@@ -138,159 +148,182 @@
     "pathPattern": "/me/messages",
     "method": "post",
     "toolName": "create-draft-email",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Soft delete — moves to Deleted Items. To permanently delete, delete again from Deleted Items."
+    "llmTip": "Soft delete — moves to Deleted Items. To permanently delete, delete again from Deleted Items.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",
     "method": "post",
     "toolName": "move-mail-message",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive)."
+    "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive).",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}",
     "method": "patch",
     "toolName": "update-mail-message",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-mail-attachment",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
+    "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/createUploadSession",
     "method": "post",
     "toolName": "create-mail-attachment-upload-session",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For large attachments (3-150MB). Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl for direct PUT of file bytes."
+    "llmTip": "For large attachments (3-150MB). Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl for direct PUT of file bytes.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-mail-attachments",
     "scopes": ["Mail.Read"],
-    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files).",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
     "method": "delete",
     "toolName": "delete-mail-attachment",
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/forward",
     "method": "post",
     "toolName": "forward-mail-message",
     "scopes": ["Mail.Send"],
-    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side."
+    "llmTip": "Forward an email preserving full HTML formatting and attachments. The 'comment' field adds text above the forwarded content. toRecipients is required. Do NOT reconstruct the email manually - this endpoint handles everything server-side.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/reply",
     "method": "post",
     "toolName": "reply-mail-message",
     "scopes": ["Mail.Send"],
-    "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually."
+    "llmTip": "Reply to an email preserving full HTML formatting. The 'comment' field is your reply text. Do NOT reconstruct the email manually.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/replyAll",
     "method": "post",
     "toolName": "reply-all-mail-message",
     "scopes": ["Mail.Send"],
-    "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text."
+    "llmTip": "Reply-all preserving full HTML formatting. The 'comment' field is your reply text.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/createForward",
     "method": "post",
     "toolName": "create-forward-draft",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
+    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReply",
     "method": "post",
     "toolName": "create-reply-draft",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
     "method": "post",
     "toolName": "create-reply-all-draft",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
     "method": "post",
     "toolName": "send-draft-message",
     "scopes": ["Mail.Send"],
-    "llmTip": "No request body needed — just call with the message ID. Draft must exist in Drafts folder."
+    "llmTip": "No request body needed — just call with the message ID. Draft must exist in Drafts folder.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
     "method": "get",
     "toolName": "list-mail-rules",
     "scopes": ["MailboxSettings.Read"],
-    "llmTip": "Lists all message rules for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Each rule has displayName, sequence, isEnabled, conditions (fromAddresses, subjectContains, etc.), actions (moveToFolder, forwardTo, delete, etc.), and exceptions."
+    "llmTip": "Lists all message rules for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Each rule has displayName, sequence, isEnabled, conditions (fromAddresses, subjectContains, etc.), actions (moveToFolder, forwardTo, delete, etc.), and exceptions.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules",
     "method": "post",
     "toolName": "create-mail-rule",
     "scopes": ["MailboxSettings.ReadWrite"],
-    "llmTip": "Creates a message rule for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Body: { displayName: 'Rule name', sequence: 1, isEnabled: true, conditions: { fromAddresses: [{ emailAddress: { address: 'user@example.com' } }] }, actions: { moveToFolder: 'folder-id' } }. Actions: moveToFolder, copyToFolder, forwardTo, forwardAsAttachmentTo, delete, markAsRead, markImportance, stopProcessingRules."
+    "llmTip": "Creates a message rule for a mail folder. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Body: { displayName: 'Rule name', sequence: 1, isEnabled: true, conditions: { fromAddresses: [{ emailAddress: { address: 'user@example.com' } }] }, actions: { moveToFolder: 'folder-id' } }. Actions: moveToFolder, copyToFolder, forwardTo, forwardAsAttachmentTo, delete, markAsRead, markImportance, stopProcessingRules.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
     "method": "patch",
     "toolName": "update-mail-rule",
     "scopes": ["MailboxSettings.ReadWrite"],
-    "llmTip": "Updates an existing message rule. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Send only the properties to change. Common use: { isEnabled: false } to disable a rule, or update conditions/actions."
+    "llmTip": "Updates an existing message rule. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules. Send only the properties to change. Common use: { isEnabled: false } to disable a rule, or update conditions/actions.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messageRules/{messageRule-id}",
     "method": "delete",
     "toolName": "delete-mail-rule",
     "scopes": ["MailboxSettings.ReadWrite"],
-    "llmTip": "Deletes a message rule permanently. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules."
+    "llmTip": "Deletes a message rule permanently. Use the Inbox folder ID (get it from list-mail-folders) for inbox rules.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/inferenceClassification/overrides",
     "method": "get",
     "toolName": "list-focused-inbox-overrides",
     "scopes": ["Mail.Read"],
-    "llmTip": "Lists Focused Inbox classification overrides — explicit rules that force messages from a given sender (by SMTP address) into either the Focused or Other tab, regardless of what the Outlook ML classifier would predict. Each override has id, classifyAs ('focused' or 'other'), and senderEmailAddress {name, address}. Returns an empty collection if the user has never set an override."
+    "llmTip": "Lists Focused Inbox classification overrides — explicit rules that force messages from a given sender (by SMTP address) into either the Focused or Other tab, regardless of what the Outlook ML classifier would predict. Each override has id, classifyAs ('focused' or 'other'), and senderEmailAddress {name, address}. Returns an empty collection if the user has never set an override.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/inferenceClassification/overrides",
     "method": "post",
     "toolName": "create-focused-inbox-override",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Creates a Focused Inbox override for a sender. Body: { classifyAs: 'focused', senderEmailAddress: { name: 'Display Name', address: 'sender@example.com' } }. classifyAs must be 'focused' or 'other'. If an override already exists for that SMTP address, POST updates the existing override's name and classifyAs (use this to rename a sender). Resolve the sender's address with list-users or by reading a recent mail header — do not invent SMTP addresses."
+    "llmTip": "Creates a Focused Inbox override for a sender. Body: { classifyAs: 'focused', senderEmailAddress: { name: 'Display Name', address: 'sender@example.com' } }. classifyAs must be 'focused' or 'other'. If an override already exists for that SMTP address, POST updates the existing override's name and classifyAs (use this to rename a sender). Resolve the sender's address with list-users or by reading a recent mail header — do not invent SMTP addresses.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
     "method": "patch",
     "toolName": "update-focused-inbox-override",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Updates the classifyAs field of an existing override. Body: { classifyAs: 'focused' } or { classifyAs: 'other' }. Per Graph API, PATCH cannot change senderEmailAddress — to change the SMTP address, delete and recreate the override. To rename the display name only, POST a new override with the same SMTP address (it will overwrite the name)."
+    "llmTip": "Updates the classifyAs field of an existing override. Body: { classifyAs: 'focused' } or { classifyAs: 'other' }. Per Graph API, PATCH cannot change senderEmailAddress — to change the SMTP address, delete and recreate the override. To rename the display name only, POST a new override with the same SMTP address (it will overwrite the name).",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/inferenceClassification/overrides/{inferenceClassificationOverride-id}",
     "method": "delete",
     "toolName": "delete-focused-inbox-override",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a Focused Inbox override. Future messages from that sender revert to the Outlook ML classifier's default behavior. Use list-focused-inbox-overrides to find the ID first."
+    "llmTip": "Deletes a Focused Inbox override. Future messages from that sender revert to the Outlook ML classifier's default behavior. Use list-focused-inbox-overrides to find the ID first.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events",
@@ -299,7 +332,8 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-calendar-view instead to see individual occurrences within a date range."
+    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-calendar-view instead to see individual occurrences within a date range.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}",
@@ -307,49 +341,56 @@
     "toolName": "get-calendar-event",
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true
+    "supportsExpandExtendedProperties": true,
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events",
     "method": "post",
     "toolName": "create-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "patch",
     "toolName": "update-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}",
     "method": "delete",
     "toolName": "delete-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Deleting a seriesMaster deletes ALL occurrences of the recurring event. To cancel a single occurrence, delete that specific instance ID from list-calendar-event-instances."
+    "llmTip": "Deleting a seriesMaster deletes ALL occurrences of the recurring event. To cancel a single occurrence, delete that specific instance ID from list-calendar-event-instances.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/accept",
     "method": "post",
     "toolName": "accept-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Accepts a meeting invitation. Optional body: { sendResponse: true, comment: 'I will attend.' }. Set sendResponse to false to accept silently without notifying the organizer."
+    "llmTip": "Accepts a meeting invitation. Optional body: { sendResponse: true, comment: 'I will attend.' }. Set sendResponse to false to accept silently without notifying the organizer.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/decline",
     "method": "post",
     "toolName": "decline-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Declines a meeting invitation. Optional body: { sendResponse: true, comment: 'Cannot attend, conflict.' }. The event remains in the calendar as declined unless the user deletes it."
+    "llmTip": "Declines a meeting invitation. Optional body: { sendResponse: true, comment: 'Cannot attend, conflict.' }. The event remains in the calendar as declined unless the user deletes it.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/tentativelyAccept",
     "method": "post",
     "toolName": "tentatively-accept-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Tentatively accepts a meeting invitation. Optional body: { sendResponse: true, comment: 'I might be able to attend.' }. Use proposedNewTime to suggest an alternative: { proposedNewTime: { start: { dateTime, timeZone }, end: { dateTime, timeZone } } }."
+    "llmTip": "Tentatively accepts a meeting invitation. Optional body: { sendResponse: true, comment: 'I might be able to attend.' }. Use proposedNewTime to suggest an alternative: { proposedNewTime: { start: { dateTime, timeZone }, end: { dateTime, timeZone } } }.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
@@ -358,7 +399,8 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-specific-calendar-view instead."
+    "llmTip": "WARNING: Does NOT expand recurring events — only returns seriesMaster. Use get-specific-calendar-view instead.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
@@ -366,28 +408,32 @@
     "toolName": "get-specific-calendar-event",
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
-    "supportsExpandExtendedProperties": true
+    "supportsExpandExtendedProperties": true,
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "post",
     "toolName": "create-specific-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "patch",
     "toolName": "update-specific-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "delete",
     "toolName": "delete-specific-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, use the specific instance ID."
+    "llmTip": "Deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, use the specific instance ID.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendarView",
@@ -396,7 +442,8 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/calendarView",
@@ -405,14 +452,16 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendar/getSchedule",
     "method": "post",
     "toolName": "get-schedule",
     "readOnly": true,
-    "workScopes": ["Calendars.Read"]
+    "workScopes": ["Calendars.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/users/{user-id}/calendar/events",
@@ -434,169 +483,194 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "Expand a recurring event into individual instances within a date range. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use this to see all occurrences of a recurring event."
+    "llmTip": "Expand a recurring event into individual instances within a date range. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use this to see all occurrences of a recurring event.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars",
     "method": "get",
     "toolName": "list-calendars",
-    "scopes": ["Calendars.Read"]
+    "scopes": ["Calendars.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars",
     "method": "post",
     "toolName": "create-calendar",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Creates a new personal calendar. Body: { name: 'My Calendar', color: 'auto' }. Available colors: auto, lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor."
+    "llmTip": "Creates a new personal calendar. Body: { name: 'My Calendar', color: 'auto' }. Available colors: auto, lightBlue, lightGreen, lightOrange, lightGray, lightYellow, lightTeal, lightPink, lightBrown, lightRed, maxColor.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}",
     "method": "patch",
     "toolName": "update-calendar",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Updates a calendar's properties. Body: { name: 'New Name', color: 'lightBlue' }. Cannot update the default calendar's name."
+    "llmTip": "Updates a calendar's properties. Body: { name: 'New Name', color: 'lightBlue' }. Cannot update the default calendar's name.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}",
     "method": "delete",
     "toolName": "delete-calendar",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Deletes a calendar and all its events. The default calendar cannot be deleted. This action cannot be undone."
+    "llmTip": "Deletes a calendar and all its events. The default calendar cannot be deleted. This action cannot be undone.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/findMeetingTimes",
     "method": "post",
     "toolName": "find-meeting-times",
     "readOnly": true,
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/drives",
     "method": "get",
     "toolName": "list-drives",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/delta()",
     "method": "get",
     "toolName": "get-drive-delta",
     "scopes": ["Files.Read"],
-    "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select and delta tokens for incremental sync via @odata.deltaLink."
+    "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select and delta tokens for incremental sync via @odata.deltaLink.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
     "method": "get",
     "toolName": "get-drive-root-item",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
-    "scopes": ["Files.Read"]
+    "scopes": ["Files.Read"],
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
-    "scopes": ["Files.ReadWrite"]
+    "scopes": ["Files.ReadWrite"],
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
     "method": "put",
     "toolName": "upload-file-content",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
     "method": "post",
     "toolName": "create-upload-session",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "For large file uploads (no size limit). Returns a pre-authenticated uploadUrl for direct PUT of file bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "llmTip": "For large file uploads (no size limit). Returns a pre-authenticated uploadUrl for direct PUT of file bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "get",
     "toolName": "get-drive-item",
     "scopes": ["Files.Read"],
-    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl)."
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl).",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "patch",
     "toolName": "move-rename-onedrive-item",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request."
+    "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "post",
     "toolName": "create-onedrive-folder",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'."
+    "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/invite",
     "method": "post",
     "toolName": "share-drive-item",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
     "method": "post",
     "toolName": "create-drive-item-share-link",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
     "method": "post",
     "toolName": "copy-drive-item",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
+    "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/preview",
     "method": "post",
     "toolName": "create-drive-item-preview",
     "scopes": ["Files.Read"],
-    "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
+    "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/thumbnails",
     "method": "get",
     "toolName": "list-drive-item-thumbnails",
     "scopes": ["Files.Read"],
-    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
+    "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions",
     "method": "get",
     "toolName": "list-drive-item-permissions",
     "scopes": ["Files.Read"],
-    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
+    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions/{permission-id}",
     "method": "delete",
     "toolName": "delete-drive-item-permission",
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Removes a specific permission from a file or folder. Only permissions that are not inherited can be deleted. Use list-drive-item-permissions first to find the permission ID."
+    "llmTip": "Removes a specific permission from a file or folder. Only permissions that are not inherited can be deleted. Use list-drive-item-permissions first to find the permission ID.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/versions",
     "method": "get",
     "toolName": "list-drive-item-versions",
     "scopes": ["Files.Read"],
-    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
+    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/search(q='{q}')",
@@ -604,7 +678,8 @@
     "toolName": "search-onedrive-files",
     "scopes": ["Files.Read"],
     "skipEncoding": ["q"],
-    "llmTip": "Searches for files in a drive by name or content. The q parameter searches file names, metadata, and file content. Returns matching driveItems with id, name, webUrl, size, lastModifiedDateTime. Use list-drives first to get the drive-id."
+    "llmTip": "Searches for files in a drive by name or content. The q parameter searches file names, metadata, and file content. Returns matching driveItems with id, name, webUrl, size, lastModifiedDateTime. Use list-drives first to get the drive-id.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/charts/add",
@@ -643,7 +718,8 @@
     "toolName": "get-mail-message-mime",
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
-    "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
+    "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
@@ -1016,32 +1092,37 @@
     "method": "get",
     "toolName": "list-outlook-contacts",
     "scopes": ["Contacts.Read"],
-    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching."
+    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "get",
     "toolName": "get-outlook-contact",
-    "scopes": ["Contacts.Read"]
+    "scopes": ["Contacts.Read"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contacts",
     "method": "post",
     "toolName": "create-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"]
+    "scopes": ["Contacts.ReadWrite"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "patch",
     "toolName": "update-outlook-contact",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "emailAddresses array is replaced entirely — include all addresses, not just new ones."
+    "llmTip": "emailAddresses array is replaced entirely — include all addresses, not just new ones.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
     "method": "delete",
     "toolName": "delete-outlook-contact",
-    "scopes": ["Contacts.ReadWrite"]
+    "scopes": ["Contacts.ReadWrite"],
+    "app": "outlook"
   },
   {
     "pathPattern": "/me",
@@ -1054,14 +1135,16 @@
     "method": "get",
     "toolName": "get-mailbox-settings",
     "scopes": ["MailboxSettings.Read"],
-    "llmTip": "Gets the current user's mailbox settings including automaticRepliesSetting (out-of-office status, message, scheduledStartDateTime/EndDateTime, externalAudience), language, timeZone, dateFormat, timeFormat, delegateMeetingMessageDeliveryOptions, and userPurpose."
+    "llmTip": "Gets the current user's mailbox settings including automaticRepliesSetting (out-of-office status, message, scheduledStartDateTime/EndDateTime, externalAudience), language, timeZone, dateFormat, timeFormat, delegateMeetingMessageDeliveryOptions, and userPurpose.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailboxSettings",
     "method": "patch",
     "toolName": "update-mailbox-settings",
     "scopes": ["MailboxSettings.ReadWrite"],
-    "llmTip": "Updates mailbox settings. Common use: configure Out-of-Office (automatic replies). Body example: { automaticRepliesSetting: { status: 'scheduled', scheduledStartDateTime: { dateTime: '2026-03-28T17:00:00', timeZone: 'Eastern Standard Time' }, scheduledEndDateTime: { dateTime: '2026-04-01T08:00:00', timeZone: 'Eastern Standard Time' }, internalReplyMessage: 'I am OOO.', externalReplyMessage: 'I am out of office.' } }. Status values: disabled, alwaysEnabled, scheduled."
+    "llmTip": "Updates mailbox settings. Common use: configure Out-of-Office (automatic replies). Body example: { automaticRepliesSetting: { status: 'scheduled', scheduledStartDateTime: { dateTime: '2026-03-28T17:00:00', timeZone: 'Eastern Standard Time' }, scheduledEndDateTime: { dateTime: '2026-04-01T08:00:00', timeZone: 'Eastern Standard Time' }, internalReplyMessage: 'I am OOO.', externalReplyMessage: 'I am out of office.' } }. Status values: disabled, alwaysEnabled, scheduled.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/manager",
@@ -1151,213 +1234,247 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/members",
     "method": "get",
     "toolName": "list-chat-members",
     "workScopes": ["ChatMember.Read"],
-    "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat."
+    "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat.",
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "get",
     "toolName": "list-chat-messages",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-chat-message",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
     "workScopes": ["ChatMessage.Read"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value.",
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
     "workScopes": ["ChatMessage.Send"],
-    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "workScopes": ["Channel.ReadBasic.All"]
+    "workScopes": ["Channel.ReadBasic.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "workScopes": ["Channel.ReadBasic.All"]
+    "workScopes": ["Channel.ReadBasic.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "post",
     "toolName": "create-team-channel",
-    "workScopes": ["Channel.Create"]
+    "workScopes": ["Channel.Create"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "patch",
     "toolName": "update-team-channel",
-    "workScopes": ["ChannelSettings.ReadWrite.All"]
+    "workScopes": ["ChannelSettings.ReadWrite.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "delete",
     "toolName": "delete-team-channel",
-    "workScopes": ["Channel.Delete.All"]
+    "workScopes": ["Channel.Delete.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "get",
     "toolName": "list-channel-messages",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
     "method": "get",
     "toolName": "get-channel-message",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents",
     "method": "get",
     "toolName": "list-channel-message-hosted-contents",
     "workScopes": ["ChannelMessage.Read.All"],
-    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value."
+    "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value.",
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
     "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API.",
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-channel-message",
     "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API.",
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-channel-message-replies",
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "post",
     "toolName": "add-team-member",
-    "workScopes": ["TeamMember.ReadWrite.All"]
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/members/{conversationMember-id}",
     "method": "delete",
     "toolName": "remove-team-member",
-    "workScopes": ["TeamMember.ReadWrite.All"]
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
     "method": "get",
     "toolName": "list-channel-tabs",
-    "workScopes": ["TeamsTab.Read.All"]
+    "workScopes": ["TeamsTab.Read.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/setReaction",
     "method": "post",
     "toolName": "set-channel-message-reaction",
-    "workScopes": ["ChannelMessage.Send"]
+    "workScopes": ["ChannelMessage.Send"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/unsetReaction",
     "method": "post",
     "toolName": "unset-channel-message-reaction",
-    "workScopes": ["ChannelMessage.Send"]
+    "workScopes": ["ChannelMessage.Send"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/members",
     "method": "get",
     "toolName": "list-team-members",
-    "workScopes": ["TeamMember.Read.All"]
+    "workScopes": ["TeamMember.Read.All"],
+    "app": "teams"
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/filesFolder",
     "method": "get",
     "toolName": "get-channel-files-folder",
     "workScopes": ["ChannelSettings.Read.All"],
-    "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
+    "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files.",
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "get",
     "toolName": "list-chat-message-replies",
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
     "workScopes": ["ChatMessage.Send"],
-    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API."
+    "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API.",
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/setReaction",
     "method": "post",
     "toolName": "set-chat-message-reaction",
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/unsetReaction",
     "method": "post",
     "toolName": "unset-chat-message-reaction",
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/pinnedMessages",
     "method": "get",
     "toolName": "list-pinned-chat-messages",
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/pinnedMessages",
     "method": "post",
     "toolName": "pin-chat-message",
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "app": "teams"
   },
   {
     "pathPattern": "/chats/{chat-id}/pinnedMessages/{pinnedChatMessageInfo-id}",
     "method": "delete",
     "toolName": "unpin-chat-message",
-    "workScopes": ["Chat.ReadWrite"]
+    "workScopes": ["Chat.ReadWrite"],
+    "app": "teams"
   },
   {
     "pathPattern": "/sites",
@@ -1515,49 +1632,56 @@
     "method": "get",
     "toolName": "list-online-meetings",
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
+    "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "get",
     "toolName": "get-online-meeting",
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID."
+    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings",
     "method": "post",
     "toolName": "create-online-meeting",
     "workScopes": ["OnlineMeetings.ReadWrite"],
-    "llmTip": "Creates a new online meeting. Required body: { subject, startDateTime, endDateTime }. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
+    "llmTip": "Creates a new online meeting. Required body: { subject, startDateTime, endDateTime }. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "patch",
     "toolName": "update-online-meeting",
     "workScopes": ["OnlineMeetings.ReadWrite"],
-    "llmTip": "Updates an existing online meeting. Updatable properties: subject, startDateTime, endDateTime, participants, lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters. Send only the properties you want to change."
+    "llmTip": "Updates an existing online meeting. Updatable properties: subject, startDateTime, endDateTime, participants, lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters. Send only the properties you want to change.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
     "method": "delete",
     "toolName": "delete-online-meeting",
     "workScopes": ["OnlineMeetings.ReadWrite"],
-    "llmTip": "Deletes an online meeting. This cannot be undone. The meeting join link will no longer work after deletion."
+    "llmTip": "Deletes an online meeting. This cannot be undone. The meeting join link will no longer work after deletion.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts",
     "method": "get",
     "toolName": "list-meeting-transcripts",
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
-    "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings."
+    "llmTip": "Lists available transcripts for a meeting. Get the meeting ID first via list-online-meetings.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}",
     "method": "get",
     "toolName": "get-meeting-transcript",
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
-    "llmTip": "Gets metadata for a specific transcript: createdDateTime, contentCorrelationId (links transcript to its recording), meetingId, meetingOrganizer. Use contentCorrelationId to match a transcript with its recording. For the actual transcript text, use get-meeting-transcript-content instead."
+    "llmTip": "Gets metadata for a specific transcript: createdDateTime, contentCorrelationId (links transcript to its recording), meetingId, meetingOrganizer. Use contentCorrelationId to match a transcript with its recording. For the actual transcript text, use get-meeting-transcript-content instead.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/transcripts/{callTranscript-id}/content",
@@ -1565,21 +1689,24 @@
     "toolName": "get-meeting-transcript-content",
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "acceptType": "text/vtt",
-    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
+    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings",
     "method": "get",
     "toolName": "list-meeting-recordings",
     "workScopes": ["OnlineMeetingRecording.Read.All"],
-    "llmTip": "Lists recordings for a meeting. Each recording has createdDateTime, endDateTime, meetingOrganizer, contentCorrelationId (links to corresponding transcript). For recurring meetings, there is one recording per occurrence."
+    "llmTip": "Lists recordings for a meeting. Each recording has createdDateTime, endDateTime, meetingOrganizer, contentCorrelationId (links to corresponding transcript). For recurring meetings, there is one recording per occurrence.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}",
     "method": "get",
     "toolName": "get-meeting-recording",
     "workScopes": ["OnlineMeetingRecording.Read.All"],
-    "llmTip": "Gets metadata for a specific recording: createdDateTime, endDateTime, contentCorrelationId (links recording to its transcript), meetingOrganizer, callId. Use contentCorrelationId to match a recording with its transcript. For the actual video file, use get-meeting-recording-content instead."
+    "llmTip": "Gets metadata for a specific recording: createdDateTime, endDateTime, contentCorrelationId (links recording to its transcript), meetingOrganizer, callId. Use contentCorrelationId to match a recording with its transcript. For the actual video file, use get-meeting-recording-content instead.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings/{callRecording-id}/content",
@@ -1587,28 +1714,32 @@
     "toolName": "get-meeting-recording-content",
     "workScopes": ["OnlineMeetingRecording.Read.All"],
     "returnDownloadUrl": true,
-    "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline."
+    "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports",
     "method": "get",
     "toolName": "list-meeting-attendance-reports",
     "workScopes": ["OnlineMeetingArtifact.Read.All"],
-    "llmTip": "Lists attendance reports for a meeting. Each report has meetingStartDateTime, meetingEndDateTime, totalParticipantCount. For recurring meetings, there is one report per occurrence. Get the meeting ID first via list-online-meetings."
+    "llmTip": "Lists attendance reports for a meeting. Each report has meetingStartDateTime, meetingEndDateTime, totalParticipantCount. For recurring meetings, there is one report per occurrence. Get the meeting ID first via list-online-meetings.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}",
     "method": "get",
     "toolName": "get-meeting-attendance-report",
     "workScopes": ["OnlineMeetingArtifact.Read.All"],
-    "llmTip": "Gets a specific attendance report with totalParticipantCount, meetingStartDateTime, meetingEndDateTime."
+    "llmTip": "Gets a specific attendance report with totalParticipantCount, meetingStartDateTime, meetingEndDateTime.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports/{meetingAttendanceReport-id}/attendanceRecords",
     "method": "get",
     "toolName": "list-meeting-attendance-records",
     "workScopes": ["OnlineMeetingArtifact.Read.All"],
-    "llmTip": "Lists individual attendance records for a meeting report. Each record has: identity (displayName), emailAddress, role (Organizer/Presenter/Attendee), totalAttendanceInSeconds, and attendanceIntervals with joinDateTime/leaveDateTime. Use to determine who attended, how long, and when they joined/left."
+    "llmTip": "Lists individual attendance records for a meeting report. Each record has: identity (displayName), emailAddress, role (Organizer/Presenter/Attendee), totalAttendanceInSeconds, and attendanceIntervals with joinDateTime/leaveDateTime. Use to determine who attended, how long, and when they joined/left.",
+    "app": "teams"
   },
   {
     "pathPattern": "/groups/{group-id}/conversations",
@@ -1636,7 +1767,8 @@
     "method": "get",
     "toolName": "get-my-presence",
     "workScopes": ["Presence.Read"],
-    "llmTip": "Gets the current user's presence status. Returns availability (Available, Busy, DoNotDisturb, BeRightBack, Away, Offline) and activity (InACall, InAMeeting, Presenting, OutOfOffice, etc.). Useful to check your own status before scheduling."
+    "llmTip": "Gets the current user's presence status. Returns availability (Available, Busy, DoNotDisturb, BeRightBack, Away, Offline) and activity (InACall, InAMeeting, Presenting, OutOfOffice, etc.). Useful to check your own status before scheduling.",
+    "app": "teams"
   },
   {
     "pathPattern": "/users/{user-id}/presence",
@@ -1714,42 +1846,48 @@
     "method": "post",
     "toolName": "cancel-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Cancels a meeting (organizer only) and sends a cancellation message to all attendees. Body: { Comment (optional string, custom message) }. Use this instead of delete-calendar-event when you want attendees to see 'Canceled' in their calendar. Attendees calling this get HTTP 400 — they should use decline-calendar-event instead."
+    "llmTip": "Cancels a meeting (organizer only) and sends a cancellation message to all attendees. Body: { Comment (optional string, custom message) }. Use this instead of delete-calendar-event when you want attendees to see 'Canceled' in their calendar. Attendees calling this get HTTP 400 — they should use decline-calendar-event instead.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/forward",
     "method": "post",
     "toolName": "forward-calendar-event",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Forwards a meeting invitation to additional recipients. Body: { ToRecipients: [{ emailAddress: { address, name } }], Comment (optional) }. If the forwarder is an attendee (not organizer), the organizer is also notified and the new recipient is added to the organizer's attendee list."
+    "llmTip": "Forwards a meeting invitation to additional recipients. Body: { ToRecipients: [{ emailAddress: { address, name } }], Comment (optional) }. If the forwarder is an attendee (not organizer), the organizer is also notified and the new recipient is added to the organizer's attendee list.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/snoozeReminder",
     "method": "post",
     "toolName": "snooze-calendar-event-reminder",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Postpones a triggered event reminder. Body: { NewReminderTime: { dateTime (ISO 8601), timeZone (IANA or Windows, e.g. 'Pacific Standard Time') } }. The reminder will re-fire at the new time."
+    "llmTip": "Postpones a triggered event reminder. Body: { NewReminderTime: { dateTime (ISO 8601), timeZone (IANA or Windows, e.g. 'Pacific Standard Time') } }. The reminder will re-fire at the new time.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/{event-id}/dismissReminder",
     "method": "post",
     "toolName": "dismiss-calendar-event-reminder",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Dismisses a triggered event reminder so it won't re-fire. No request body required. Pair with list-calendar-events or get-schedule to find active reminders."
+    "llmTip": "Dismisses a triggered event reminder so it won't re-fire. No request body required. Pair with list-calendar-events or get-schedule to find active reminders.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/events/delta()",
     "method": "get",
     "toolName": "list-calendar-events-delta",
     "scopes": ["Calendars.Read"],
-    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Use $select to limit fields. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Use $select to limit fields. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendarView/delta()",
     "method": "get",
     "toolName": "list-calendar-view-delta",
     "scopes": ["Calendars.Read"],
-    "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
+    "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/groups",
@@ -1805,7 +1943,8 @@
     "method": "post",
     "toolName": "create-chat",
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
-    "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
+    "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc.",
+    "app": "teams"
   },
   {
     "pathPattern": "/subscriptions",
@@ -1854,7 +1993,8 @@
     "method": "post",
     "toolName": "extract-drive-item-sensitivity-labels",
     "workScopes": ["Files.Read.All"],
-    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred.",
+    "app": "onedrive"
   },
   {
     "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
@@ -1875,28 +2015,32 @@
     "method": "post",
     "toolName": "copy-mail-message",
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Copies a message to another mail folder. Body: { DestinationId: '<mailFolder-id or well-known name like inbox, archive, junkemail>' }. Returns the newly created message (with a new id) in the destination folder. For moving instead of copying, use move-mail-message."
+    "llmTip": "Copies a message to another mail folder. Body: { DestinationId: '<mailFolder-id or well-known name like inbox, archive, junkemail>' }. Returns the newly created message (with a new id) in the destination folder. For moving instead of copying, use move-mail-message.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages/delta()",
     "method": "get",
     "toolName": "list-mail-folder-messages-delta",
     "scopes": ["Mail.Read"],
-    "llmTip": "Incremental sync of messages within a mail folder. Graph only supports delta scoped to a folder — use mailFolder-id = 'inbox' for the well-known inbox, or another folder id from list-mail-folders. First call returns all messages plus @odata.deltaLink; subsequent calls with that link return only changes (created/updated/deleted). @odata.nextLink paginates within a single delta window. Deltas expire after ~30 days of inactivity — start over if the server returns 410. Prefer this over full re-list for polling."
+    "llmTip": "Incremental sync of messages within a mail folder. Graph only supports delta scoped to a folder — use mailFolder-id = 'inbox' for the well-known inbox, or another folder id from list-mail-folders. First call returns all messages plus @odata.deltaLink; subsequent calls with that link return only changes (created/updated/deleted). @odata.nextLink paginates within a single delta window. Deltas expire after ~30 days of inactivity — start over if the server returns 410. Prefer this over full re-list for polling.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/outlook/masterCategories",
     "method": "get",
     "toolName": "list-outlook-categories",
     "scopes": ["MailboxSettings.Read"],
-    "llmTip": "Lists the user's Outlook categories (colored labels) used to tag messages, events, contacts, and tasks. Each category has displayName and color (preset0 through preset24, or 'none'). Use this to show available tags before applying via update-mail-message or update-calendar-event with body { categories: ['Category Name'] }."
+    "llmTip": "Lists the user's Outlook categories (colored labels) used to tag messages, events, contacts, and tasks. Each category has displayName and color (preset0 through preset24, or 'none'). Use this to show available tags before applying via update-mail-message or update-calendar-event with body { categories: ['Category Name'] }.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/outlook/masterCategories",
     "method": "post",
     "toolName": "create-outlook-category",
     "scopes": ["MailboxSettings.ReadWrite"],
-    "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events."
+    "llmTip": "Creates a new Outlook category. Body: { displayName (unique), color (one of: none, preset0 … preset24 — maps to red, orange, yellow, green, teal, olive, blue, purple, cranberry, steel, dark-steel, gray, dark-gray, black, dark-red, dark-orange, dark-yellow, dark-green, dark-teal, dark-olive, dark-blue, dark-purple, dark-cranberry) }. Category names are case-sensitive when applied to messages/events.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/getMailTips",
@@ -1911,98 +2055,112 @@
     "method": "get",
     "toolName": "list-supported-time-zones",
     "scopes": ["User.Read"],
-    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/outlook/supportedLanguages()",
     "method": "get",
     "toolName": "list-supported-languages",
     "scopes": ["User.Read"],
-    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US') and displayName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language."
+    "llmTip": "Lists locales and languages the user's mailbox server supports for the Outlook UI and message rendering. Returns localeInfo objects with locale (e.g. 'en-US') and displayName ('English (United States)'). Use this to validate the locale value before calling update-mailbox-settings to change the user's preferred language.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendar/calendarPermissions",
     "method": "get",
     "toolName": "list-my-calendar-permissions",
     "scopes": ["Calendars.Read"],
-    "llmTip": "Lists share recipients and delegates on the user's primary calendar. Returns calendarPermission objects with id, role ('none' | 'freeBusyRead' | 'limitedRead' | 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' | 'custom'), emailAddress { name, address }, isInsideOrganization, isRemovable, allowedRoles. Returns an empty collection when called by a delegate or share recipient (only the calendar owner sees the full list). For a non-primary calendar, use /me/calendars/{calendar-id}/calendarPermissions — not currently exposed."
+    "llmTip": "Lists share recipients and delegates on the user's primary calendar. Returns calendarPermission objects with id, role ('none' | 'freeBusyRead' | 'limitedRead' | 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' | 'custom'), emailAddress { name, address }, isInsideOrganization, isRemovable, allowedRoles. Returns an empty collection when called by a delegate or share recipient (only the calendar owner sees the full list). For a non-primary calendar, use /me/calendars/{calendar-id}/calendarPermissions — not currently exposed.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendar/calendarPermissions",
     "method": "post",
     "toolName": "create-my-calendar-permission",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Shares the user's primary calendar with another user (or sets up a delegate). Body: { emailAddress: { name: 'Adele Vance', address: 'adele@contoso.com' }, role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess', isInsideOrganization: true, isRemovable: true }. Use list-users to resolve the recipient SMTP. Returns the created calendarPermission with its id (used by update-my-calendar-permission and delete-my-calendar-permission)."
+    "llmTip": "Shares the user's primary calendar with another user (or sets up a delegate). Body: { emailAddress: { name: 'Adele Vance', address: 'adele@contoso.com' }, role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess', isInsideOrganization: true, isRemovable: true }. Use list-users to resolve the recipient SMTP. Returns the created calendarPermission with its id (used by update-my-calendar-permission and delete-my-calendar-permission).",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
     "method": "patch",
     "toolName": "update-my-calendar-permission",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Changes the role (permission level) granted to an existing share recipient or delegate. Body: { role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' }. Only the role property is writable — to change the recipient's email or other properties, delete and recreate via delete-my-calendar-permission + create-my-calendar-permission. Get the permission id via list-my-calendar-permissions."
+    "llmTip": "Changes the role (permission level) granted to an existing share recipient or delegate. Body: { role: 'read' | 'write' | 'delegateWithoutPrivateEventAccess' | 'delegateWithPrivateEventAccess' }. Only the role property is writable — to change the recipient's email or other properties, delete and recreate via delete-my-calendar-permission + create-my-calendar-permission. Get the permission id via list-my-calendar-permissions.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/calendar/calendarPermissions/{calendarPermission-id}",
     "method": "delete",
     "toolName": "delete-my-calendar-permission",
     "scopes": ["Calendars.ReadWrite"],
-    "llmTip": "Revokes a calendar share or delegate access. Get the permission id via list-my-calendar-permissions. Permissions where isRemovable=false (e.g. the implicit 'My Organization' default) cannot be deleted — Graph returns an error."
+    "llmTip": "Revokes a calendar share or delegate access. Get the permission id via list-my-calendar-permissions. Permissions where isRemovable=false (e.g. the implicit 'My Organization' default) cannot be deleted — Graph returns an error.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-contact-folder-child-folders",
     "scopes": ["Contacts.Read"],
-    "llmTip": "Lists immediate sub-folders under a given contact folder. Returns id, displayName, parentFolderId. Use list-contact-folders to discover top-level folders, then this tool to traverse one level deeper. Supports $filter, $top, $orderby. Note: contact folders are typically a flat list in Outlook clients, but Graph allows nesting via this endpoint."
+    "llmTip": "Lists immediate sub-folders under a given contact folder. Returns id, displayName, parentFolderId. Use list-contact-folders to discover top-level folders, then this tool to traverse one level deeper. Supports $filter, $top, $orderby. Note: contact folders are typically a flat list in Outlook clients, but Graph allows nesting via this endpoint.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}/childFolders",
     "method": "post",
     "toolName": "create-contact-child-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth."
+    "llmTip": "Creates a sub-folder under an existing contact folder. Body: { displayName: 'Sub-folder name' }. Use list-contact-folders to discover the parent id. The returned contactFolder has its own id usable with update-contact-folder, delete-contact-folder, list-contact-folder-contacts, and create-contact-in-folder — contactFolder ids are mailbox-unique regardless of nesting depth.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders",
     "method": "get",
     "toolName": "list-contact-folders",
     "scopes": ["Contacts.Read"],
-    "llmTip": "Lists the user's Outlook contact folders (the named buckets that organize contacts). Always includes the built-in 'Contacts' folder; user-created folders also appear. Returns id, displayName, and parentFolderId. To identify the default folder, match displayName === 'Contacts'. Use this before list-contact-folder-contacts or create-contact-in-folder to discover folder ids. Supports OData query parameters."
+    "llmTip": "Lists the user's Outlook contact folders (the named buckets that organize contacts). Always includes the built-in 'Contacts' folder; user-created folders also appear. Returns id, displayName, and parentFolderId. To identify the default folder, match displayName === 'Contacts'. Use this before list-contact-folder-contacts or create-contact-in-folder to discover folder ids. Supports OData query parameters.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders",
     "method": "post",
     "toolName": "create-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Creates a new contact folder under the user's mailbox root. Body: { displayName: 'Family' }. Returns the created contactFolder with its id. To create a sub-folder under an existing folder, use create-contact-child-folder."
+    "llmTip": "Creates a new contact folder under the user's mailbox root. Body: { displayName: 'Family' }. Returns the created contactFolder with its id. To create a sub-folder under an existing folder, use create-contact-child-folder.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}",
     "method": "patch",
     "toolName": "update-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Updates a contact folder. Body: { displayName?: 'New name', parentFolderId?: '<id>' } — both displayName (rename) and parentFolderId (move) are writable. The default 'Contacts' folder may not be renameable. Get the folder id via list-contact-folders."
+    "llmTip": "Updates a contact folder. Body: { displayName?: 'New name', parentFolderId?: '<id>' } — both displayName (rename) and parentFolderId (move) are writable. The default 'Contacts' folder may not be renameable. Get the folder id via list-contact-folders.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}",
     "method": "delete",
     "toolName": "delete-contact-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Deletes a contact folder. The default 'Contacts' folder cannot be deleted — Graph returns an error. The folder (and its contents) typically lands in Deleted Items rather than being permanently removed. Get the folder id via list-contact-folders."
+    "llmTip": "Deletes a contact folder. The default 'Contacts' folder cannot be deleted — Graph returns an error. The folder (and its contents) typically lands in Deleted Items rather than being permanently removed. Get the folder id via list-contact-folders.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}/contacts",
     "method": "get",
     "toolName": "list-contact-folder-contacts",
     "scopes": ["Contacts.Read"],
-    "llmTip": "Lists contacts inside a specific folder. Pair with list-contact-folders to discover the folder id. Note: the existing list-outlook-contacts (GET /me/contacts) only returns contacts from the default folder — use this tool to read contacts from any folder. Supports $filter, $search='query', $orderby, $top, $select."
+    "llmTip": "Lists contacts inside a specific folder. Pair with list-contact-folders to discover the folder id. Note: the existing list-outlook-contacts (GET /me/contacts) only returns contacts from the default folder — use this tool to read contacts from any folder. Supports $filter, $search='query', $orderby, $top, $select.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/contactFolders/{contactFolder-id}/contacts",
     "method": "post",
     "toolName": "create-contact-in-folder",
     "scopes": ["Contacts.ReadWrite"],
-    "llmTip": "Creates a contact inside a specific folder (instead of the default Contacts folder). Body is a contact resource: { givenName, surname, displayName, emailAddresses: [{ address, name }], businessPhones: [], mobilePhone, jobTitle, companyName, ... }. The existing create-outlook-contact (POST /me/contacts) writes to the default folder only; use this when organizing contacts into named folders. Get the folder id via list-contact-folders."
+    "llmTip": "Creates a contact inside a specific folder (instead of the default Contacts folder). Body is a contact resource: { givenName, surname, displayName, emailAddresses: [{ address, name }], businessPhones: [], mobilePhone, jobTitle, companyName, ... }. The existing create-outlook-contact (POST /me/contacts) writes to the default folder only; use this when organizing contacts into named folders. Get the folder id via list-contact-folders.",
+    "app": "outlook"
   },
   {
     "pathPattern": "/me/photo/$value",
@@ -2061,7 +2219,8 @@
     "toolName": "set-my-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability + activity (must be one of these documented combos: Available/Available, Busy/InACall, Busy/InAConferenceCall, Away/Away, DoNotDisturb/Presenting), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, valid range PT5M–PT4H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session."
+    "llmTip": "Sets the user's presence session as an application. Body: { sessionId (your app's client/session id, required), availability + activity (must be one of these documented combos: Available/Available, Busy/InACall, Busy/InAConferenceCall, Away/Away, DoNotDisturb/Presenting), expirationDuration (ISO 8601 duration like 'PT1H' — defaults to PT5M, valid range PT5M–PT4H) }. Note: if the user also wants to override their *visible* status regardless of activity, prefer set-my-user-preferred-presence. clear-my-presence ends the session.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/presence/clearPresence",
@@ -2069,7 +2228,8 @@
     "toolName": "clear-my-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Ends the application's presence session for the current user. Body: { sessionId } — must match the sessionId used in set-my-presence. If this was the user's only presence session, their status returns to Offline."
+    "llmTip": "Ends the application's presence session for the current user. Body: { sessionId } — must match the sessionId used in set-my-presence. If this was the user's only presence session, their status returns to Offline.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/presence/setUserPreferredPresence",
@@ -2077,7 +2237,8 @@
     "toolName": "set-my-user-preferred-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability + activity (must be one of these documented combos: Available/Available, Busy/Busy, DoNotDisturb/DoNotDisturb, BeRightBack/BeRightBack, Away/Away, Offline/OffWork), expirationDuration (ISO 8601 duration like 'PT2H' — if omitted, defaults to 1 day for DoNotDisturb/Busy and 7 days for other availability values; not 'indefinite'). Requires at least one active presence session (Teams client signed in or set-my-presence call) — otherwise the user appears Offline. Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence."
+    "llmTip": "Sets the user's preferred (sticky) availability and activity — the value Teams clients display regardless of underlying activity. Body: { availability + activity (must be one of these documented combos: Available/Available, Busy/Busy, DoNotDisturb/DoNotDisturb, BeRightBack/BeRightBack, Away/Away, Offline/OffWork), expirationDuration (ISO 8601 duration like 'PT2H' — if omitted, defaults to 1 day for DoNotDisturb/Busy and 7 days for other availability values; not 'indefinite'). Requires at least one active presence session (Teams client signed in or set-my-presence call) — otherwise the user appears Offline. Use this for 'put me in Do Not Disturb for 2 hours' workflows. clear-my-user-preferred-presence reverts to actual presence.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/presence/clearUserPreferredPresence",
@@ -2085,7 +2246,8 @@
     "toolName": "clear-my-user-preferred-presence",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity. Body: {} (an empty JSON object — required, not 'no body')."
+    "llmTip": "Clears any preferred (sticky) presence override set via set-my-user-preferred-presence. The user's visible status returns to their actual activity. Body: {} (an empty JSON object — required, not 'no body').",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/presence/setStatusMessage",
@@ -2093,21 +2255,24 @@
     "toolName": "set-my-status-message",
     "workScopes": ["Presence.ReadWrite"],
     "contentType": "application/json",
-    "llmTip": "Sets the user's Teams status message (the free-text note shown next to their name, e.g. 'Heads-down on Q3 plan'). Body: { statusMessage: { message: { content: 'text or HTML', contentType: 'text' | 'html' }, expiryDateTime: { dateTime: '2026-05-06T17:00:00', timeZone: 'UTC' } (optional) } }. Pass an empty object {} or message.content='' to clear. expiryDateTime is optional — omit for no expiration."
+    "llmTip": "Sets the user's Teams status message (the free-text note shown next to their name, e.g. 'Heads-down on Q3 plan'). Body: { statusMessage: { message: { content: 'text or HTML', contentType: 'text' | 'html' }, expiryDateTime: { dateTime: '2026-05-06T17:00:00', timeZone: 'UTC' } (optional) } }. Pass an empty object {} or message.content='' to clear. expiryDateTime is optional — omit for no expiration.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/teamwork/associatedTeams",
     "method": "get",
     "toolName": "list-my-associated-teams",
     "workScopes": ["Team.ReadBasic.All"],
-    "llmTip": "Lists Teams the current user is associated with — both joined teams and host teams of shared channels the user is a direct member of. Returns associatedTeamInfo objects with id, displayName, and tenantId. Broader than list-joined-teams because it includes shared-channel host teams."
+    "llmTip": "Lists Teams the current user is associated with — both joined teams and host teams of shared channels the user is a direct member of. Returns associatedTeamInfo objects with id, displayName, and tenantId. Broader than list-joined-teams because it includes shared-channel host teams.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/teamwork/installedApps",
     "method": "get",
     "toolName": "list-my-installed-teams-apps",
     "workScopes": ["TeamsAppInstallation.ReadForUser"],
-    "llmTip": "Lists Teams apps installed in the current user's personal scope (the apps pinned to the user's Teams sidebar / accessible without joining a team or chat). Use $expand=teamsApp,teamsAppDefinition for full app metadata (displayName, version, distributionMethod). Useful before send-my-activity-notification to discover the user's own teamsAppId."
+    "llmTip": "Lists Teams apps installed in the current user's personal scope (the apps pinned to the user's Teams sidebar / accessible without joining a team or chat). Use $expand=teamsApp,teamsAppDefinition for full app metadata (displayName, version, distributionMethod). Useful before send-my-activity-notification to discover the user's own teamsAppId.",
+    "app": "teams"
   },
   {
     "pathPattern": "/me/teamwork/sendActivityNotification",
@@ -2115,6 +2280,7 @@
     "toolName": "send-my-activity-notification",
     "workScopes": ["TeamsActivity.Send"],
     "contentType": "application/json",
-    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications.",
+    "app": "teams"
   }
 ]
