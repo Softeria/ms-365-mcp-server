@@ -975,6 +975,16 @@ class AuthManager {
    */
   async getTokenForAccount(identifier?: string): Promise<string> {
     if (this.isOAuthMode && this.oauthToken) {
+      // Refuse instead of silently returning the bearer's identity (discussion #467):
+      // in OAuth mode the token comes from the connecting client and cannot be
+      // switched to a cached MSAL account.
+      if (identifier) {
+        throw new Error(
+          `Cannot switch to account '${identifier}': the server is in OAuth mode and always uses ` +
+            `the identity of the supplied bearer token. Account switching requires stdio mode ` +
+            `(or HTTP with --trust-proxy-auth).`
+        );
+      }
       return this.oauthToken;
     }
 

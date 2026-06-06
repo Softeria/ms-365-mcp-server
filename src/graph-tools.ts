@@ -158,6 +158,35 @@ function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   return `${shown.join('; ')}${suffix}`;
 }
 
+/**
+ * In OAuth/HTTP bearer mode the `account` parameter cannot switch identities —
+ * every Graph call uses the connecting client's bearer token. Previously a
+ * provided `account` was silently ignored and the bearer user's data returned
+ * (discussion #467). Returns an error message when an `account` param is
+ * provided that the bearer identity cannot honor; a param matching the bearer's
+ * own identity passes through. Returns null when account routing via the MSAL
+ * cache is available (stdio mode, or HTTP with --trust-proxy-auth).
+ */
+async function checkAccountParamInBearerMode(
+  accountParam: string | undefined,
+  authManager?: AuthManager
+): Promise<string | null> {
+  if (!accountParam || !authManager) return null;
+  const contextToken = getRequestTokens()?.accessToken;
+  if (!contextToken && !authManager.isOAuthModeEnabled()) return null;
+  const bearerToken = contextToken ?? (await authManager.getToken().catch(() => null)) ?? undefined;
+  const bearerIdentity = getUserIdentityForAudit(bearerToken);
+  if (bearerIdentity && bearerIdentity.toLowerCase() === accountParam.toLowerCase()) return null;
+  return (
+    `The 'account' parameter is not supported in HTTP/OAuth mode: every request uses the identity ` +
+    `of the connecting client's bearer token` +
+    (bearerIdentity ? ` ('${bearerIdentity}')` : '') +
+    `, so account switching is not possible. To act as '${accountParam}', reconnect the MCP client ` +
+    `authenticated as that account, or run the server in stdio mode (or HTTP with --trust-proxy-auth) ` +
+    `where cached accounts are available.`
+  );
+}
+
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
   {
     name: 'parse-teams-url',
@@ -250,6 +279,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         };
       }
       try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
         let accountAccessToken: string | undefined;
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
@@ -298,12 +334,23 @@ async function executeGraphTool(
   const httpMethod = tool.method.toUpperCase();
 
   try {
+    const accountParam = params.account as string | undefined;
+
+    // In OAuth/HTTP bearer mode, refuse an `account` param that doesn't match the bearer
+    // identity instead of silently returning the bearer user's data (discussion #467).
+    const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+    if (accountModeError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+        isError: true,
+      };
+    }
+
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
     // Also skip when a request-context token exists (HTTP/OAuth flow where token comes from middleware).
     let accountAccessToken: string | undefined;
     if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
-      const accountParam = params.account as string | undefined;
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
       } catch (err) {

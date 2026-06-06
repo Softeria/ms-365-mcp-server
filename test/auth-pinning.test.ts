@@ -198,7 +198,12 @@ describe('strict expected account pinning', () => {
       isOAuthMode: true,
     });
 
-    await expect(auth.getTokenForAccount('personal@example.com')).resolves.toBe('byot-token');
+    // Account switching is refused in OAuth/BYOT mode (discussion #467), and the
+    // pinning logic stays inert: the MSAL cache is never consulted.
+    await expect(auth.getTokenForAccount('personal@example.com')).rejects.toThrow(
+      /Cannot switch to account 'personal@example.com'/
+    );
+    await expect(auth.getTokenForAccount()).resolves.toBe('byot-token');
     expect(tokenCache.getAllAccounts).not.toHaveBeenCalled();
   });
 });
