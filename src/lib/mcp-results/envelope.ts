@@ -21,6 +21,10 @@ export interface CreateMcpResultEnvelopeInput {
   nextActions?: string[];
   warnings?: string[];
   meta?: Record<string, unknown>;
+  textDetails?: {
+    heading: string;
+    data: unknown;
+  };
 }
 
 export interface CreateMcpErrorEnvelopeInput {
@@ -71,7 +75,11 @@ function compactList(values: string[] | undefined, fallback: string[] = []): str
   return compacted.length > 0 ? compacted : fallback;
 }
 
-function renderText(structured: McpStructuredContent, isError = false): string {
+function renderText(
+  structured: McpStructuredContent,
+  isError = false,
+  textDetails?: CreateMcpResultEnvelopeInput['textDetails']
+): string {
   const lines = [structured.summary];
   if (isError) lines.unshift('Error');
   if (structured.warnings.length > 0) {
@@ -85,6 +93,9 @@ function renderText(structured: McpStructuredContent, isError = false): string {
         (resource) => `- Open ${resource.name ?? 'resource'}: ${resource.uri}`
       )
     );
+  }
+  if (textDetails) {
+    lines.push('', textDetails.heading, JSON.stringify(sanitizeValue(textDetails.data), null, 2));
   }
   if (structured.nextActions.length > 0) {
     lines.push('', 'Next actions:', ...structured.nextActions.map((action) => `- ${action}`));
@@ -136,7 +147,12 @@ export function createMcpResultEnvelope(input: CreateMcpResultEnvelopeInput): Ca
     warnings: compactList(input.warnings, []),
   };
   const parsed = McpResultEnvelopeZod.safeParse({
-    content: [{ type: 'text', text: renderText(candidate as McpStructuredContent) }],
+    content: [
+      {
+        type: 'text',
+        text: renderText(candidate as McpStructuredContent, false, input.textDetails),
+      },
+    ],
     structuredContent: candidate,
     _meta: sanitizeMeta(input.meta, input.toolName),
   });

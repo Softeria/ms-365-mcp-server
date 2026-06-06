@@ -137,6 +137,17 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+function visibleConfirmationFrom(result: ToolLikeResult): Record<string, unknown> {
+  const text = result.content[0]?.text ?? '';
+  const marker = 'Confirmation object for execute:\n';
+  const start = text.indexOf(marker);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const afterMarker = text.slice(start + marker.length);
+  const end = afterMarker.indexOf('\n\nNext actions:');
+  const jsonText = (end === -1 ? afterMarker : afterMarker.slice(0, end)).trim();
+  return asRecord(JSON.parse(jsonText)).confirmation as Record<string, unknown>;
+}
+
 function graphClientStub(): GraphClient {
   return {} as unknown as GraphClient;
 }
@@ -248,6 +259,61 @@ describe('generic bulk-action tool', () => {
       status: 'succeeded',
     });
     expect(JSON.stringify(payload)).not.toContain('chat-id');
+  });
+
+  it('renders a copyable preview confirmation object in visible text and accepts it on execute', async () => {
+    resetBulkResultStoreForTesting();
+    const { server, handlers } = makeServer();
+    const executeToolAlias = vi.fn(async () => ({
+      content: [{ type: 'text', text: JSON.stringify({ id: 'safe-id' }) }],
+    }));
+    registerBulkActionTools(mcpServerStub(server), {
+      graphClient: graphClientStub(),
+      readOnly: false,
+      orgMode: true,
+      executeToolAlias,
+    });
+    const items = [{ id: 'read-1', toolName: 'get-chat', parameters: { chatId: 'chat-id' } }];
+
+    const preview = await withTenant(
+      [BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL, 'get-chat'],
+      async () => handlers.get(BULK_ACTION_TOOL)!({ mode: 'preview', outputMode: 'ids', items })
+    );
+    const visibleText = preview.content[0]?.text ?? '';
+
+    expect(visibleText).toContain('Confirmation object for execute:');
+    expect(visibleText).toContain('"planDigest"');
+    expect(visibleText).toContain('"confirmed": true');
+    expect(visibleText).toContain('"expiresAt"');
+    expect(visibleText).toContain('"signature"');
+
+    const confirmation = visibleConfirmationFrom(preview);
+    expect(confirmation).toMatchObject({
+      planDigest: expect.any(String),
+      confirmed: true,
+      expiresAt: expect.any(String),
+      signature: expect.any(String),
+    });
+
+    const executed = await withTenant(
+      [BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL, 'get-chat'],
+      async () =>
+        handlers.get(BULK_ACTION_TOOL)!({
+          mode: 'execute',
+          outputMode: 'ids',
+          confirmation,
+          items,
+        })
+    );
+
+    expect(executed.isError).not.toBe(true);
+    expect(executeToolAlias).toHaveBeenCalledTimes(1);
+    const payload = asRecord(dataFrom(executed));
+    expect(payload.status).toBe('completed');
+    expect((payload.items as Record<string, unknown>[])[0]).toMatchObject({
+      id: 'read-1',
+      status: 'succeeded',
+    });
   });
 
   it('honors enabled-tools registration filters per synthetic alias', () => {

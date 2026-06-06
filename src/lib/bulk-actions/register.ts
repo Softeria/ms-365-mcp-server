@@ -392,11 +392,21 @@ async function handleBulkAction(
       summary: `Bulk action preview created for ${plan.items.length} item${plan.items.length === 1 ? '' : 's'}.`,
       data: renderBulkOutput({ planSummary, outputMode: input.outputMode, status: 'preview' }),
       nextActions: plan.requiresConfirmation
-        ? ['Call bulk-action with mode=execute and the returned confirmation object.']
+        ? ['Call bulk-action with mode=execute and copy the visible confirmation object.']
         : ['Call bulk-action with mode=execute to run the allowed items.'],
       warnings: plan.items.some((item) => item.status !== 'allowed')
         ? ['some_items_blocked_or_invalid']
         : [],
+      textDetails: plan.requiresConfirmation
+        ? {
+            heading: 'Confirmation object for execute:',
+            data: {
+              status: 'preview',
+              itemCount: plan.items.length,
+              confirmation: planSummary.confirmation,
+            },
+          }
+        : undefined,
       meta: { digestPrefix: plan.planDigest.slice(0, 12), ownerRef: bulkOwnerKey() },
     });
   }
