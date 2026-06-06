@@ -43,6 +43,25 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not have duplicate tool names', () => {
+    const seen = new Set<string>();
+    const duplicates = endpoints.filter((e) => {
+      if (seen.has(e.toolName)) return true;
+      seen.add(e.toolName);
+      return false;
+    });
+
+    if (duplicates.length > 0) {
+      const details = duplicates
+        .map((e) => `  ${e.toolName} (${e.method.toUpperCase()} ${e.pathPattern})`)
+        .join('\n');
+      expect.fail(
+        `${duplicates.length} duplicate toolName(s) in endpoints.json. ` +
+          `Each tool must be defined exactly once.\n${details}`
+      );
+    }
+  });
+
   it('should have a matching generated client endpoint for every entry', () => {
     const generatedTools = new Set(api.endpoints.map((e) => e.alias));
     const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));

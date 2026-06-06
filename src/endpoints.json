@@ -559,13 +559,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/root",
-    "method": "get",
-    "toolName": "get-drive-root-item",
-    "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.Read"]
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
