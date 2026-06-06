@@ -164,6 +164,39 @@ describe('Phase 8 progress and cancellation for paginated Graph tools', () => {
     expect(payload.partial.value).toHaveLength(1);
   });
 
+  it('normalizes initial AbortError graph responses as cancellations', async () => {
+    const { registerGraphTools } = await import('../src/graph-tools.js');
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const graphRequest = vi
+      .fn()
+      .mockImplementation(async (_path: string, options: { signal?: AbortSignal }) => {
+        cancelOperation({
+          tenantId: 'tenant-a',
+          requestId: 'request-1',
+          progressToken: 'progress-1',
+        });
+        expect(options.signal?.aborted).toBe(true);
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: 'aborted' }) }],
+          _meta: { errorCode: 'AbortError' },
+          isError: true,
+        };
+      });
+
+    registerGraphTools(server, { graphRequest } as never, false, undefined, true);
+
+    const result = await withTenant('tenant-a', () => callList(server, { fetchAllPages: true }));
+    const payload = JSON.parse(result.content[0]!.text) as {
+      status: string;
+      partial: { value: unknown[] };
+    };
+
+    expect(payload.status).toBe('cancelled');
+    expect(payload.partial.value).toEqual([]);
+    expect(result.isError).toBeUndefined();
+    expect(result._meta?.cancelled).toBe(true);
+  });
+
   it('aborts the active paginated Graph request signal when cancelOperation is called', async () => {
     const { registerGraphTools } = await import('../src/graph-tools.js');
     const server = new McpServer({ name: 'test', version: '0.0.0' });

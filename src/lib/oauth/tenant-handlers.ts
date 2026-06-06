@@ -814,6 +814,45 @@ export function createTenantTokenHandler(config: TenantTokenHandlerConfig) {
       res.status(400).json({ error: 'invalid_grant', error_description: 'binding mismatch' });
       return;
     }
+
+    const isStaticTenantClient = submittedClientId === tenant.client_id;
+    let issueGatewayRefreshToken = isStaticTenantClient;
+    if (!isStaticTenantClient) {
+      if (!pgPool || !(await isOAuthClientStoreAvailable(pgPool))) {
+        emitTokenAudit(
+          tenant.id,
+          'failure',
+          { error: 'invalid_client', reason: 'dynamic_client_store_unavailable' },
+          req
+        );
+        res.status(400).json({ error: 'invalid_client' });
+        return;
+      }
+      const registration = await getActiveOAuthClientRegistration(
+        pgPool,
+        tenant.id,
+        submittedClientId
+      );
+      const validDynamicClient = Boolean(
+        registration &&
+        hasExactRedirectUri(registration, submittedRedirectUri) &&
+        registration.grantTypes.includes('authorization_code') &&
+        registration.responseTypes.includes('code')
+      );
+      if (!validDynamicClient) {
+        emitTokenAudit(
+          tenant.id,
+          'failure',
+          { error: 'invalid_client', reason: 'dynamic_client_inactive_or_unauthorized' },
+          req
+        );
+        res.status(400).json({ error: 'invalid_client' });
+        return;
+      }
+      issueGatewayRefreshToken = Boolean(registration?.grantTypes.includes('refresh_token'));
+      await touchOAuthClientRegistration(pgPool, tenant.id, submittedClientId);
+    }
+
     const consumedEntry = await pkceStore.takeByChallenge(tenant.id, clientCodeChallenge);
     if (!consumedEntry) {
       emitTokenAudit(
@@ -824,16 +863,6 @@ export function createTenantTokenHandler(config: TenantTokenHandlerConfig) {
       );
       res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE mismatch' });
       return;
-    }
-
-    let issueGatewayRefreshToken = submittedClientId === tenant.client_id;
-    if (!issueGatewayRefreshToken && pgPool) {
-      const registration = await getActiveOAuthClientRegistration(
-        pgPool,
-        tenant.id,
-        submittedClientId
-      );
-      issueGatewayRefreshToken = Boolean(registration?.grantTypes.includes('refresh_token'));
     }
 
     try {

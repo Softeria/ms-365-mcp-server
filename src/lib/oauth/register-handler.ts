@@ -39,7 +39,7 @@ export function createRegisterHandler(
       'authorization_code',
       'refresh_token',
     ];
-    const defaultGrantTypes = options.defaultGrantTypes ?? supportedGrantTypes;
+    const defaultGrantTypes = options.defaultGrantTypes ?? ['authorization_code'];
     const grantTypes = stringList(body.grant_types, defaultGrantTypes);
     const responseTypes = stringList(body.response_types, ['code']);
     const tokenEndpointAuthMethod =

@@ -143,6 +143,7 @@ function fakeDynamicClientPool(input: {
   clientId: string;
   redirectUri: string;
   grantTypes: string[];
+  active?: boolean;
 }): Pool {
   const now = new Date();
   return {
@@ -150,22 +151,25 @@ function fakeDynamicClientPool(input: {
       if (sql.includes('select 1 from oauth_clients')) return { rows: [{ '?column?': 1 }] };
       if (sql.includes('from oauth_clients')) {
         return {
-          rows: [
-            {
-              id: 'oauth-client-row-1',
-              tenant_id: input.tenantId,
-              client_id: input.clientId,
-              client_name: 'Dynamic Client',
-              redirect_uris: [input.redirectUri],
-              grant_types: input.grantTypes,
-              response_types: ['code'],
-              token_endpoint_auth_method: 'none',
-              created_at: now,
-              updated_at: now,
-              last_seen_at: null,
-              disabled_at: null,
-            },
-          ],
+          rows:
+            input.active === false
+              ? []
+              : [
+                  {
+                    id: 'oauth-client-row-1',
+                    tenant_id: input.tenantId,
+                    client_id: input.clientId,
+                    client_name: 'Dynamic Client',
+                    redirect_uris: [input.redirectUri],
+                    grant_types: input.grantTypes,
+                    response_types: ['code'],
+                    token_endpoint_auth_method: 'none',
+                    created_at: now,
+                    updated_at: now,
+                    last_seen_at: null,
+                    disabled_at: null,
+                  },
+                ],
         };
       }
       return { rows: [] };
@@ -476,6 +480,42 @@ describe('plan 06-05 — real delegated OAuth handlers', () => {
 
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toBe('invalid_scope');
+  });
+
+  it('/token revalidates dynamic clients before consuming PKCE or exchanging code', async () => {
+    const dynamicClientId = 'dynamic-disabled-client';
+    harness = await startApp({
+      pgPool: fakeDynamicClientPool({
+        tenantId: 'tenant-oauth-surface',
+        clientId: dynamicClientId,
+        redirectUri: 'http://localhost:3000/callback',
+        grantTypes: ['authorization_code', 'refresh_token'],
+        active: false,
+      }),
+    });
+    const pkce = newPkce();
+    await seedPkce(harness, pkce.verifier, {
+      clientId: dynamicClientId,
+      tokenScopes: ['User.Read'],
+    });
+
+    const rejected = await fetch(`${harness.url}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: 'auth-code-disabled-dynamic-client',
+        redirect_uri: 'http://localhost:3000/callback',
+        client_id: dynamicClientId,
+        code_verifier: pkce.verifier,
+      }),
+    });
+
+    expect(rejected.status).toBe(400);
+    expect(((await rejected.json()) as { error: string }).error).toBe('invalid_client');
+    expect(harness.mockAcquireByCode).not.toHaveBeenCalled();
+    const challenge = crypto.createHash('sha256').update(pkce.verifier).digest('base64url');
+    expect(await harness.pkceStore.getByChallenge(harness.tenant.id, challenge)).not.toBeNull();
   });
 
   it('does not store upstream refresh material for auth-code-only dynamic clients', async () => {

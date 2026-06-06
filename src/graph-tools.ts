@@ -1124,25 +1124,37 @@ async function executeGraphToolInner(
       `Making graph request to ${path} with options: ${JSON.stringify(loggableOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
     );
 
+    const cancelledGraphResponse = (): CallToolResult => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            status: 'cancelled',
+            operation: tool.alias,
+            partial: { value: [] },
+          }),
+        },
+      ],
+      _meta: { cancelled: true },
+    });
+    const isInitialAbortResponse = (
+      candidate: Awaited<ReturnType<GraphClient['graphRequest']>>
+    ): boolean =>
+      candidate.isError === true &&
+      operationWasRegistered &&
+      operationController?.signal.aborted === true &&
+      (candidate._meta?.errorCode === 'AbortError' || candidate._meta?.errorCode === 'cancelled');
+
     let response: Awaited<ReturnType<GraphClient['graphRequest']>> | undefined;
     try {
       try {
         response = await graphClient.graphRequest(path, options);
+        if (isInitialAbortResponse(response)) {
+          response = cancelledGraphResponse();
+        }
       } catch (error) {
         if (operationWasRegistered && operationController?.signal.aborted) {
-          response = {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  status: 'cancelled',
-                  operation: tool.alias,
-                  partial: { value: [] },
-                }),
-              },
-            ],
-            _meta: { cancelled: true },
-          };
+          response = cancelledGraphResponse();
         } else {
           throw error;
         }

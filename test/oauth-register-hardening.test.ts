@@ -210,7 +210,28 @@ describe('POST /register — redirect_uri allowlist (AUTH-06, T-01-06)', () => {
     expect(refreshRes.body).toMatchObject({ error: 'invalid_client_metadata' });
   });
 
-  it('accepts refresh grants when the mount policy enables them', async () => {
+  it('defaults to authorization_code only even when the mount policy supports refresh grants', async () => {
+    server = await startMiniServer({
+      mode: 'prod',
+      publicUrlHost: null,
+      supportedGrantTypes: ['authorization_code', 'refresh_token'],
+    });
+
+    const omitted = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+    });
+    expect(omitted.status).toBe(201);
+    expect((omitted.body as { grant_types: string[] }).grant_types).toEqual(['authorization_code']);
+
+    const empty = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      grant_types: [],
+    });
+    expect(empty.status).toBe(201);
+    expect((empty.body as { grant_types: string[] }).grant_types).toEqual(['authorization_code']);
+  });
+
+  it('accepts refresh grants when the mount policy enables them and the client requests them', async () => {
     server = await startMiniServer({
       mode: 'prod',
       publicUrlHost: null,

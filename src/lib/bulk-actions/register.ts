@@ -15,6 +15,7 @@ import {
   BULK_ACTION_TOOL,
   BULK_LIMITS,
   BulkActionInputZod,
+  BulkConfirmationZod,
   READ_BULK_RESULT_TOOL,
   ReadBulkResultInputZod,
   type BulkActionInput,
@@ -25,6 +26,7 @@ import { buildBulkPlan, bulkPlanPublicSummary, currentContextSnapshot } from './
 import {
   bulkOwnerKey,
   bulkResultStoreAvailable,
+  getBulkResultRuntimeTransportMode,
   readBulkResult,
   storeBulkResult,
   type BulkStoredItem,
@@ -59,6 +61,30 @@ export interface RegisterBulkActionToolsOptions {
 }
 
 const BULK_CONFIRMATION_HMAC_SECRET = randomBytes(32);
+const BULK_CONFIRMATION_SECRET_ENV = 'MS365_MCP_BULK_CONFIRMATION_SECRET';
+
+function configuredBulkConfirmationSecret(): Buffer | undefined {
+  const configured = process.env[BULK_CONFIRMATION_SECRET_ENV]?.trim();
+  if (!configured) return undefined;
+  const secret = Buffer.from(configured, 'utf8');
+  if (secret.length < 32) {
+    throw new Error(`${BULK_CONFIRMATION_SECRET_ENV} must be at least 32 bytes.`);
+  }
+  return secret;
+}
+
+function assertBulkConfirmationSigningConfigured(): void {
+  if (configuredBulkConfirmationSecret()) return;
+  if (getBulkResultRuntimeTransportMode() === 'http') {
+    throw new Error(
+      `${BULK_CONFIRMATION_SECRET_ENV} must be configured for HTTP bulk-action confirmations.`
+    );
+  }
+}
+
+function bulkConfirmationHmacSecret(): Buffer {
+  return configuredBulkConfirmationSecret() ?? BULK_CONFIRMATION_HMAC_SECRET;
+}
 
 function bulkConfirmationSignaturePayload(input: {
   planDigest: string;
@@ -81,7 +107,7 @@ function signBulkConfirmation(input: {
   tenantId: string | undefined;
   ownerKey: string;
 }): string {
-  return createHmac('sha256', BULK_CONFIRMATION_HMAC_SECRET)
+  return createHmac('sha256', bulkConfirmationHmacSecret())
     .update(bulkConfirmationSignaturePayload(input))
     .digest('base64url');
 }
@@ -706,6 +732,7 @@ export function registerBulkActionTools(
   server: McpServer,
   options: RegisterBulkActionToolsOptions
 ): number {
+  assertBulkConfirmationSigningConfigured();
   let registered = 0;
   if (
     patternAllows(options.enabledToolsPattern, BULK_ACTION_TOOL) &&
@@ -729,13 +756,7 @@ export function registerBulkActionTools(
           .min(1)
           .max(BULK_LIMITS.maxItems),
         outputMode: z.enum(['summary', 'errors', 'ids', 'full']).default('summary'),
-        confirmation: z
-          .object({
-            planDigest: z.string(),
-            confirmed: z.literal(true),
-            expiresAt: z.string().datetime(),
-          })
-          .optional(),
+        confirmation: BulkConfirmationZod.optional(),
       },
       { title: BULK_ACTION_TOOL, readOnlyHint: false, destructiveHint: true, openWorldHint: true },
       async (params, extra) =>
