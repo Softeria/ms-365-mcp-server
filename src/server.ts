@@ -628,6 +628,7 @@ class MicrosoftGraphServer {
       // for the AuthManager fallback that makes that mode work).
       const mcpAuth = microsoftBearerTokenAuthMiddleware({
         trustProxyAuth: this.options.trustProxyAuth,
+        allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
       });
       app.get(
         '/mcp',
