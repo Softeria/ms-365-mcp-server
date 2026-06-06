@@ -123,7 +123,11 @@ When deploying for an organization, create a dedicated app registration instead 
 1. **Create the app** in [Azure Portal](https://portal.azure.com) > App registrations > New registration
    - Name: `MS365 MCP Server`
    - Supported account types: **Accounts in this organizational directory only** (single tenant)
-   - Redirect URI: your server's callback URL
+   - Redirect URI (platform type **Web**): the **MCP client's** OAuth callback URL, not the server's own domain. The server proxies the OAuth flow and forwards the client's `redirect_uri` to Microsoft Entra, so Entra delivers the authorization code directly to the client. Register one redirect URI per MCP client you want to support, for example:
+     - Claude (claude.ai, Desktop, Cowork): `https://claude.ai/api/mcp/auth_callback`
+     - Other clients: check the `redirect_uri` query parameter your client sends to the server's `/authorize` endpoint (visible in the server logs)
+
+   > **Common pitfall**: registering `https://your-server-domain/callback` here breaks sign-in with `AADSTS50011` (redirect URI mismatch) after the user authenticates. The server has no callback endpoint of its own; the authorization code always goes to the MCP client.
 
 2. **Add API permissions** > Microsoft Graph > Delegated permissions
    Run `npx @softeria/ms-365-mcp-server --org-mode --list-permissions` to print the exact list of permissions required for your enabled tools.
