@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import AuthManager from './auth.js';
+import { getRequestTokens } from './request-context.js';
 
 export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
   server.tool(
@@ -130,6 +131,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
         const accounts = await authManager.listAccounts();
         const selectedAccountId = authManager.getSelectedAccountId();
         const pinnedMode = authManager.hasExpectedAccount();
+        // OAuth bearer requests always use the connecting client's identity, so
+        // cached accounts are not reachable via the account parameter (discussion #467).
+        const oauthBearerMode = authManager.isOAuthModeEnabled() || Boolean(getRequestTokens());
         const result = accounts.map((account) => ({
           email: account.username || 'unknown',
           name: account.name,
@@ -145,7 +149,9 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
                 count: result.length,
                 tip: pinnedMode
                   ? 'Expected account pinning is configured; account parameters are disabled.'
-                  : "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
+                  : oauthBearerMode
+                    ? "This server is in HTTP/OAuth mode: every request uses the identity of the connecting client's bearer token. The cached accounts listed here cannot be targeted via the 'account' parameter; reconnect the MCP client as the desired account instead."
+                    : "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
               }),
             },
           ],

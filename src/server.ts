@@ -141,18 +141,31 @@ class MicrosoftGraphServer {
     this.secrets = await getSecrets();
     this.version = version;
 
-    // Detect multi-account mode and cache account names for schema enum
-    try {
-      this.multiAccount = await this.authManager.isMultiAccount();
-      if (this.multiAccount) {
-        const accounts = await this.authManager.listAccounts();
-        this.accountNames = accounts.map((a) => a.username).filter((u): u is string => !!u);
-        logger.info(
-          `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
-        );
+    // Detect multi-account mode and cache account names for schema enum.
+    // Skip in HTTP bearer mode and BYOT: those requests are authenticated by the
+    // client's OAuth bearer token, so MSAL-cached accounts can never serve them and
+    // advertising an `account` parameter would be misleading (discussion #467).
+    // HTTP with --trust-proxy-auth falls back to the MSAL cache, so account
+    // routing stays available there.
+    const accountRoutingAvailable =
+      (!this.options.http || this.options.trustProxyAuth) && !this.authManager.isOAuthModeEnabled();
+    if (accountRoutingAvailable) {
+      try {
+        this.multiAccount = await this.authManager.isMultiAccount();
+        if (this.multiAccount) {
+          const accounts = await this.authManager.listAccounts();
+          this.accountNames = accounts.map((a) => a.username).filter((u): u is string => !!u);
+          logger.info(
+            `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
+          );
+        }
+      } catch (err) {
+        logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
       }
-    } catch (err) {
-      logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
+    } else {
+      logger.info(
+        'Account routing disabled: requests use the OAuth bearer identity, so the "account" parameter is not injected into tool schemas'
+      );
     }
 
     if (this.options.obo) {
