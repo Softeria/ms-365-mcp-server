@@ -296,7 +296,7 @@ function compactBulkOutput(input: {
       retryAfterSeconds: item.retryAfterSeconds,
     })),
     nextAction: input.resultId
-      ? 'Call read-bulk-result with resultId to page through sanitized details.'
+      ? `Call read-bulk-result with resultId=${input.resultId} to page through sanitized details.`
       : 'Review the compact summary; detailed result paging is unavailable for this execution.',
   };
 }
@@ -667,8 +667,14 @@ async function handleBulkAction(
     summary: `Bulk action ${status} for ${results.length} item${results.length === 1 ? '' : 's'}.`,
     data: output,
     nextActions: resultId
-      ? ['Call read-bulk-result with resultId to page through sanitized details.']
+      ? [`Call read-bulk-result with resultId=${resultId} to page through sanitized details.`]
       : ['Review statuses and retry failed items only if safe.'],
+    textDetails: resultId
+      ? {
+          heading: 'Bulk result readback:',
+          data: { resultId, command: { tool: READ_BULK_RESULT_TOOL, resultId, limit: 100 } },
+        }
+      : undefined,
     warnings: [
       ...(status === 'completed' ? [] : ['some_items_failed']),
       ...(outputBudgetWarning ? ['result_details_compacted_after_execution'] : []),
@@ -713,8 +719,25 @@ async function handleReadBulkResult(rawInput: unknown): Promise<CallToolResult> 
     summary: `Read ${outcome.value.items.length} bulk result item${outcome.value.items.length === 1 ? '' : 's'}.`,
     data: outcome.value,
     nextActions: outcome.value.nextCursor
-      ? ['Call read-bulk-result again with nextCursor for more items.']
+      ? [
+          `Call read-bulk-result with resultId=${outcome.value.resultId} cursor=${outcome.value.nextCursor} for the next page.`,
+        ]
       : ['No further bulk result pages remain.'],
+    textDetails: outcome.value.nextCursor
+      ? {
+          heading: 'Next page cursor:',
+          data: {
+            resultId: outcome.value.resultId,
+            cursor: outcome.value.nextCursor,
+            command: {
+              tool: READ_BULK_RESULT_TOOL,
+              resultId: outcome.value.resultId,
+              cursor: outcome.value.nextCursor,
+              limit: parsed.data.limit,
+            },
+          },
+        }
+      : undefined,
     meta: { resultId: outcome.value.resultId, ownerRef: bulkOwnerKey() },
   });
 }

@@ -305,7 +305,7 @@ describe('Phase 8 structured discovery tool integration', () => {
     expect(McpResultEnvelopeZod.parse(executed)).toEqual(executed);
   });
 
-  it('preserves full transcript VTT text in structured discovery execute-tool output', async () => {
+  it('preserves full transcript VTT text in visible and structured discovery execute-tool output', async () => {
     const { registerDiscoveryTools } = (await import('../src/graph-tools.js')) as {
       registerDiscoveryTools: typeof registerDiscoveryToolsType;
     };
@@ -350,12 +350,17 @@ describe('Phase 8 structured discovery tool integration', () => {
       );
 
       expect(executed.content[0]?.text).toContain('Fetched transcript content');
-      expect(executed.content[0]?.text).not.toBe(vtt);
+      expect(executed.content[0]?.text).toContain('WEBVTT');
+      expect(executed.content[0]?.text).toContain('Transcript line. Transcript line.');
+      expect(executed.content[0]?.text).toContain(vtt);
       expect(executed.structuredContent?.summary).toBe('Fetched transcript content.');
       expect(executed.structuredContent?.data).toMatchObject({
         contentType: 'text/vtt',
         content: vtt,
       });
+      expect(executed.structuredContent?.nextActions).not.toContain(
+        'Read structuredContent.data.content for the complete WEBVTT transcript.'
+      );
       expect(JSON.stringify(executed.structuredContent?.data).length).toBeGreaterThan(4000);
       expect(McpResultEnvelopeZod.parse(executed)).toEqual(executed);
 

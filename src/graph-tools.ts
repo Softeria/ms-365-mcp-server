@@ -503,7 +503,7 @@ function createTranscriptStructuredResult(
     content: [
       {
         type: 'text',
-        text: `Fetched transcript content (${Buffer.byteLength(content ?? '', 'utf8')} bytes).`,
+        text: `Fetched transcript content (${Buffer.byteLength(content ?? '', 'utf8')} bytes):\n\n${content ?? ''}`,
       },
     ],
     structuredContent: {
@@ -513,7 +513,7 @@ function createTranscriptStructuredResult(
         content: content ?? '',
       },
       resources: [],
-      nextActions: ['Read structuredContent.data.content for the complete WEBVTT transcript.'],
+      nextActions: [],
       warnings: [],
     },
     _meta: {

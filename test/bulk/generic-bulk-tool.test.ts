@@ -781,6 +781,10 @@ describe('generic bulk-action tool', () => {
     const payload = asRecord(dataFrom(executed));
     expect(payload.resultId).toEqual(expect.stringMatching(/^bulk_/));
     expect(payload.resultStore).toBe('redis_durable');
+    expect(executed.content[0]?.text).toContain(String(payload.resultId));
+    expect(executed.content[0]?.text).toContain(
+      `Call read-bulk-result with resultId=${String(payload.resultId)}`
+    );
 
     const read = await withTenant([BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL, 'get-chat'], async () =>
       handlers.get(READ_BULK_RESULT_TOOL)!({ resultId: payload.resultId, limit: 10 })
@@ -896,6 +900,7 @@ describe('generic bulk-action tool', () => {
     );
     const payload = asRecord(dataFrom(executed));
     expect(payload.resultId).toEqual(expect.stringMatching(/^bulk_/));
+    expect(executed.content[0]?.text).toContain(String(payload.resultId));
     const read = await withTenant([BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL, 'get-chat'], async () =>
       handlers.get(READ_BULK_RESULT_TOOL)!({ resultId: payload.resultId, limit: 10 })
     );
@@ -1229,6 +1234,10 @@ describe('generic bulk-action tool', () => {
       async () => handlers.get(READ_BULK_RESULT_TOOL)!({ resultId, limit: 1 })
     );
     const cursor = asRecord(dataFrom(firstPage)).nextCursor;
+    expect(firstPage.content[0]?.text).toContain(String(resultId));
+    expect(firstPage.content[0]?.text).toContain(`cursor=${String(cursor)}`);
+    expect(firstPage.content[0]?.text).toContain('read-bulk-result');
+    expect(firstPage.content[0]?.text).not.toContain('nextCursor');
 
     const replayOne = await withTenant(
       [BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL, 'get-chat'],
