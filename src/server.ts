@@ -294,8 +294,12 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
+        // OBO advertises the GUID-form scope (not api://...) — with a single
+        // app as both API and OBO client, the user token's aud is the app
+        // itself, and Azure only allows refreshing such self-tokens when the
+        // resource is the GUID-based App Identifier (AADSTS90009 otherwise).
         const scopes = this.options.obo
-          ? [`api://${this.secrets!.clientId}/access_as_user`]
+          ? [`${this.secrets!.clientId}/access_as_user`]
           : resolveAuthScopes(this.options);
 
         res.json({

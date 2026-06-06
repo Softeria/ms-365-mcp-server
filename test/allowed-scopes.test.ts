@@ -174,7 +174,7 @@ describe('allowed scope HTTP behavior', () => {
     await handler(mockRequest('/.well-known/oauth-protected-resource'), res);
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes_supported: ['api://test-client-id/access_as_user'] })
+      expect.objectContaining({ scopes_supported: ['test-client-id/access_as_user'] })
     );
   });
 
