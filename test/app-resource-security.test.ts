@@ -6,11 +6,30 @@ import {
   APP_ASSET_SOURCE_DIR,
   scanAppAssets,
 } from '../src/lib/mcp-apps/assets.js';
-import { sanitizeHtmlSnippet, validateAppAssetText } from '../src/lib/mcp-apps/security.js';
+import {
+  APP_UI_META,
+  sanitizeHtmlSnippet,
+  validateAppAssetText,
+} from '../src/lib/mcp-apps/security.js';
 
 const FORBIDDEN_MARKERS = ['access_token', 'refresh_token', 'client_secret', '.env'];
 
 describe('MCP app resource security', () => {
+  it('uses current MCP Apps metadata keys without legacy CSP directives', () => {
+    expect(APP_UI_META.ui).toMatchObject({
+      csp: {
+        connectDomains: [],
+        resourceDomains: [],
+        baseUriDomains: [],
+      },
+      sandbox: 'allow-scripts',
+      prefersBorder: true,
+    });
+    expect(APP_UI_META.ui.csp).not.toHaveProperty('defaultSrc');
+    expect(APP_UI_META.ui.csp).not.toHaveProperty('scriptSrc');
+    expect(APP_UI_META.ui.csp).not.toHaveProperty('connectSrc');
+  });
+
   it('escapes user-provided HTML and text snippets before app rendering', () => {
     const unsafe = '<img src=x onerror="alert(1)"><script>alert("x")</script>&hello';
 

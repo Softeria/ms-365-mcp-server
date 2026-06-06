@@ -17,6 +17,7 @@ import { registerMcpApps } from './lib/mcp-apps/register.js';
 import { registerMcpCompletions } from './lib/mcp-completions/register.js';
 import { registerMcpLogging } from './lib/mcp-logging/register.js';
 import { buildEffectiveCapabilityProfile } from './lib/mcp-capabilities/profile.js';
+import { registerConnectorDiagnosticsTool } from './lib/mcp-capabilities/diagnostics.js';
 import { registerDashboardTools } from './lib/mcp-dashboards/tools.js';
 import {
   mcpSessionRegistry,
@@ -298,6 +299,16 @@ class MicrosoftGraphServer {
         capabilityProfile,
         registerTools: false,
       });
+      const connectorDiagnosticsDeps = {
+        server: { name: 'Microsoft365MCP', version: this.version },
+        tenant: tenant ? { id: tenant.id, label: tenant.slug } : { id: 'single-tenant' },
+        surface: 'discovery' as const,
+        transport: this.options.http ? ('streamable-http' as const) : ('stdio' as const),
+        profile: capabilityProfile,
+        metadataUrls: tenant ? { mcp: `/t/${tenant.id}/mcp` } : {},
+        expectedDisplayName: 'Microsoft 365 MCP Gateway',
+      };
+      registerConnectorDiagnosticsTool(server, connectorDiagnosticsDeps);
       registerMcpResources(server, {
         tenant:
           tenant && enabledToolsSet
@@ -312,14 +323,7 @@ class MicrosoftGraphServer {
         readOnly: this.options.readOnly,
         orgMode: this.options.orgMode,
         graphClient: this.graphClient!,
-        connector: {
-          server: { name: 'Microsoft365MCP', version: this.version },
-          surface: 'discovery',
-          transport: this.options.http ? 'streamable-http' : 'stdio',
-          profile: capabilityProfile,
-          metadataUrls: tenant ? { mcp: `/t/${tenant.id}/mcp` } : {},
-          expectedDisplayName: 'Microsoft 365 MCP Gateway',
-        },
+        connector: connectorDiagnosticsDeps,
         resourceSubscriptions: this.resourceSubscriptions,
       });
       registerMcpPrompts(server, {

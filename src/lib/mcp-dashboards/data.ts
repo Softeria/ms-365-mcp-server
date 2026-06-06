@@ -165,7 +165,7 @@ const DEFINITIONS: Record<DashboardSlug, DashboardDefinition> = {
   'connector-diagnostics': {
     slug: 'connector-diagnostics',
     title: 'Connector Diagnostics Dashboard',
-    requiredTools: ['connector-diagnostics'],
+    requiredTools: [],
     requiredScopes: [],
     emptyHeading: 'No connector diagnostics available',
     emptyHint:

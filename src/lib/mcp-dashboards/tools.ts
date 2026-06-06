@@ -60,7 +60,6 @@ const DASHBOARD_ORDER: readonly DashboardSlug[] = Object.freeze([
   'teams-digest',
   'file-search',
   'permissions-overview',
-  'connector-diagnostics',
   'skill-editor',
 ]);
 

@@ -4,14 +4,18 @@ export interface ValidationResult {
 }
 
 export interface AppCspMetadata {
-  defaultSrc: string[];
-  scriptSrc: string[];
-  styleSrc: string[];
-  imgSrc: string[];
-  connectSrc: string[];
-  frameAncestors: string[];
-  baseUri: string[];
-  formAction: string[];
+  connectDomains: string[];
+  resourceDomains: string[];
+  baseUriDomains: string[];
+}
+
+export interface AppUiMetadata {
+  ui: {
+    csp: AppCspMetadata;
+    sandbox: string;
+    prefersBorder: boolean;
+    domain?: string;
+  };
 }
 
 const FORBIDDEN_MARKERS = ['access_token', 'refresh_token', 'client_secret', '.env'] as const;
@@ -20,22 +24,32 @@ const EXTERNAL_SCRIPT_RE = /<script\b[^>]*\bsrc\s*=\s*["']?https?:\/\//i;
 export const APP_MIME_TYPE = 'text/html;profile=mcp-app';
 
 export const APP_CSP: AppCspMetadata = Object.freeze({
-  defaultSrc: Object.freeze(["'none'"]) as unknown as string[],
-  scriptSrc: Object.freeze(["'self'"]) as unknown as string[],
-  styleSrc: Object.freeze(["'self'", "'unsafe-inline'"]) as unknown as string[],
-  imgSrc: Object.freeze(["'self'", 'data:']) as unknown as string[],
-  connectSrc: Object.freeze(["'self'"]) as unknown as string[],
-  frameAncestors: Object.freeze(["'none'"]) as unknown as string[],
-  baseUri: Object.freeze(["'none'"]) as unknown as string[],
-  formAction: Object.freeze(["'none'"]) as unknown as string[],
+  connectDomains: Object.freeze([]) as unknown as string[],
+  resourceDomains: Object.freeze([]) as unknown as string[],
+  baseUriDomains: Object.freeze([]) as unknown as string[],
 });
 
-export const APP_UI_META = Object.freeze({
+export const APP_UI_META: AppUiMetadata = Object.freeze({
   ui: Object.freeze({
     csp: APP_CSP,
     sandbox: 'allow-scripts',
+    prefersBorder: true,
+    ...appDomainMetadata(),
   }),
 });
+
+function appDomainMetadata(): { domain?: string } {
+  const raw = process.env.MS365_MCP_APP_DOMAIN ?? process.env.MS365_MCP_PUBLIC_URL;
+  if (!raw?.trim()) return {};
+
+  try {
+    const parsed = raw.includes('://') ? new URL(raw) : new URL(`https://${raw}`);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return {};
+    return { domain: parsed.hostname };
+  } catch {
+    return {};
+  }
+}
 
 export function sanitizeHtmlSnippet(value: string): string {
   return value

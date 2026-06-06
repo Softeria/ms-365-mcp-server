@@ -84,14 +84,14 @@ function registeredToolNames(server: McpServer): string[] {
 }
 
 describe('MCP dashboard tools and app resources', () => {
-  it('registers seven dashboard tools with connector diagnostics included', () => {
+  it('registers dashboard fallback tools without shadowing text-first connector diagnostics', () => {
     const server = registerDashboards();
     const names = registeredToolNames(server);
 
     expect(
       names.filter((name) => Object.values(DASHBOARD_TOOL_NAMES).includes(name as never))
-    ).toHaveLength(7);
-    expect(names).toContain('connector-diagnostics');
+    ).toHaveLength(6);
+    expect(names).not.toContain('connector-diagnostics');
     expect(names).toContain('inbox-triage-view');
     expect(names).not.toContain('connector-diagnostics-view');
   });

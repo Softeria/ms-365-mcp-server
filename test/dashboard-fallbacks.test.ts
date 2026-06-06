@@ -32,12 +32,7 @@ const DASHBOARD_SLUGS: readonly DashboardSlug[] = Object.freeze([
   'connector-diagnostics',
   'skill-editor',
 ]);
-const DASHBOARD_HELPER_TOOLS = new Set([
-  'connector-diagnostics',
-  'list-skills',
-  'validate-skill',
-  'save-skill',
-]);
+const DASHBOARD_HELPER_TOOLS = new Set(['list-skills', 'validate-skill', 'save-skill']);
 
 function noAppsProfile() {
   return buildEffectiveCapabilityProfile({
@@ -237,7 +232,6 @@ describe('dashboard fallback behavior', () => {
 
   it('treats visible discovery helper tools as satisfying helper dashboard prerequisites', async () => {
     const checks = [
-      { toolName: 'connector-diagnostics', expectedTools: ['connector-diagnostics'] },
       {
         toolName: 'skill-editor-view',
         expectedTools: ['list-skills', 'validate-skill', 'save-skill'],
@@ -286,6 +280,7 @@ describe('dashboard fallback behavior', () => {
       ])
     );
     expect(requiredTools).not.toContain('me.ListMessages');
+    expect(dashboardDefinition('connector-diagnostics').requiredTools).toEqual([]);
     for (const tool of requiredTools) {
       expect(ENDPOINT_ALIASES.has(tool) || DASHBOARD_HELPER_TOOLS.has(tool)).toBe(true);
     }

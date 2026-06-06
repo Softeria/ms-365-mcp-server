@@ -55,13 +55,24 @@ describe('connector diagnostics', () => {
       },
     });
 
+    expect(diagnostics.text).toContain('Server: Microsoft365MCP 0.0.0-test');
+    expect(diagnostics.text).toContain('Health: ok');
+    expect(diagnostics.text).toContain('Client capabilities:');
+    expect(diagnostics.text).toContain('Apps status: fallback');
+    expect(diagnostics.text).toContain('Resources status: fallback');
+    expect(diagnostics.text).toContain('Structured results status: enabled');
+    expect(diagnostics.text).toContain('Metadata URLs: protectedResource:');
+    expect(diagnostics.text).toContain('If Apps UI is unavailable');
     expect(diagnostics.text).toContain('Your client does not advertise');
     expect(diagnostics.structured).toEqual(
       expect.objectContaining({
+        health: expect.objectContaining({ status: 'ok' }),
         transport: 'streamable-http',
         capabilities: expect.any(Object),
+        capabilityStatuses: expect.any(Array),
         disabledFeatures: expect.any(Array),
         metadataUrls: expect.any(Object),
+        fallbackInstructions: expect.any(Array),
         expectedDisplayName: 'Microsoft 365 MCP Gateway',
         fallbacks: expect.any(Array),
       })
@@ -89,13 +100,26 @@ describe('connector diagnostics', () => {
     };
     const textPayload = result.content[0]!.text;
 
+    expect(textPayload).toContain('Server: Microsoft365MCP 0.0.0-test');
+    expect(textPayload).toContain('Health: ok');
+    expect(textPayload).toContain('Tenant: tenant-a');
+    expect(textPayload).toContain('Transport: streamable-http');
+    expect(textPayload).toContain('Client capabilities:');
+    expect(textPayload).toContain('Apps status: fallback');
+    expect(textPayload).toContain('Resources status: fallback');
+    expect(textPayload).toContain('Structured results status: enabled');
+    expect(textPayload).toContain('Metadata URLs: mcp: https://example.test/t/tenant-a/mcp');
+    expect(textPayload).toContain('If Apps UI is unavailable');
     expect(textPayload).toContain('Your client does not advertise');
     expect(result.structuredContent).toEqual(
       expect.objectContaining({
+        health: expect.objectContaining({ status: 'ok' }),
         transport: 'streamable-http',
         capabilities: expect.any(Object),
+        capabilityStatuses: expect.any(Array),
         disabledFeatures: expect.any(Array),
         metadataUrls: expect.any(Object),
+        fallbackInstructions: expect.any(Array),
         expectedDisplayName: 'Microsoft 365 MCP Gateway',
         fallbacks: expect.any(Array),
       })
