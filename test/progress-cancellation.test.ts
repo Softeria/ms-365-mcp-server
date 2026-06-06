@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ClientCapabilityProfile } from '../src/lib/mcp-capabilities/profile.js';
-import { cancelOperation } from '../src/lib/mcp-progress/cancellation.js';
+import {
+  cancelOperation,
+  isOperationCancelled,
+  registerOperation,
+  resetOperationsForTesting,
+} from '../src/lib/mcp-progress/cancellation.js';
 import { requestContext } from '../src/request-context.js';
 import type { CallToolResult } from '../src/graph-tools.js';
+import { fetchAllPages } from '../src/lib/middleware/page-iterator.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -83,6 +89,23 @@ async function withTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T>
 }
 
 describe('Phase 8 progress and cancellation for paginated Graph tools', () => {
+  it('keeps operation keys unambiguous when request IDs and progress tokens contain delimiters', () => {
+    resetOperationsForTesting();
+    const first = { tenantId: 'tenant-a', requestId: 'request:a', progressToken: 'b' };
+    const second = { tenantId: 'tenant-a', requestId: 'request', progressToken: 'a:b' };
+
+    try {
+      registerOperation(first);
+      registerOperation(second);
+
+      expect(cancelOperation(first)).toBe(true);
+      expect(isOperationCancelled(first)).toBe(true);
+      expect(isOperationCancelled(second)).toBe(false);
+    } finally {
+      resetOperationsForTesting();
+    }
+  });
+
   it('emits increasing progress notifications when a progress token is supplied', async () => {
     const { registerGraphTools } = await import('../src/graph-tools.js');
     const server = new McpServer({ name: 'test', version: '0.0.0' });
@@ -108,18 +131,21 @@ describe('Phase 8 progress and cancellation for paginated Graph tools', () => {
     expect(progress.every((n) => n.params.progressToken === 'progress-1')).toBe(true);
   });
 
-  it('cancels pagination and returns a same-tenant partial resource URI', async () => {
+  it('cancels pagination and returns inline partial data without an unreadable resource URI', async () => {
     const { registerGraphTools } = await import('../src/graph-tools.js');
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     const graphRequest = vi
       .fn()
       .mockResolvedValueOnce(page(['a'], 'https://graph.microsoft.com/v1.0/me/messages?$skip=1'))
-      .mockImplementationOnce(async () => {
+      .mockImplementationOnce(async (_path: string, options: { signal?: AbortSignal }) => {
         cancelOperation({
           tenantId: 'tenant-a',
           requestId: 'request-1',
           progressToken: 'progress-1',
         });
+        if (options.signal?.aborted) {
+          throw new DOMException('The operation was aborted.', 'AbortError');
+        }
         return page(['b'], 'https://graph.microsoft.com/v1.0/me/messages?$skip=2');
       });
 
@@ -128,13 +154,144 @@ describe('Phase 8 progress and cancellation for paginated Graph tools', () => {
     const result = await withTenant('tenant-a', () => callList(server, { fetchAllPages: true }));
     const payload = JSON.parse(result.content[0]!.text) as {
       status: string;
-      resourceUri: string;
+      resourceUri?: string;
       partial: { value: unknown[] };
     };
 
     expect(payload.status).toBe('cancelled');
-    expect(payload.resourceUri).toBe('m365://tenant/tenant-a/partial/request-1/progress-1.json');
+    expect(payload.resourceUri).toBeUndefined();
+    expect(result._meta?.partialResourceUri).toBeUndefined();
     expect(payload.partial.value).toHaveLength(1);
+  });
+
+  it('aborts the active paginated Graph request signal when cancelOperation is called', async () => {
+    const { registerGraphTools } = await import('../src/graph-tools.js');
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    let secondPageSignal: AbortSignal | undefined;
+    let resolveSecondPageStarted: (() => void) | undefined;
+    const secondPageStarted = new Promise<void>((resolve) => {
+      resolveSecondPageStarted = resolve;
+    });
+    const graphRequest = vi
+      .fn()
+      .mockResolvedValueOnce(page(['a'], 'https://graph.microsoft.com/v1.0/me/messages?$skip=1'))
+      .mockImplementationOnce(
+        async (_path: string, options: { signal?: AbortSignal }) =>
+          new Promise<ReturnType<typeof page>>((resolve, reject) => {
+            secondPageSignal = options.signal;
+            resolveSecondPageStarted?.();
+            const timer = setTimeout(() => resolve(page(['b'])), 10_000);
+            options.signal?.addEventListener(
+              'abort',
+              () => {
+                clearTimeout(timer);
+                reject(new DOMException('The operation was aborted.', 'AbortError'));
+              },
+              { once: true }
+            );
+          })
+      );
+
+    registerGraphTools(server, { graphRequest } as never, false, undefined, true);
+
+    const resultPromise = withTenant('tenant-a', () => callList(server, { fetchAllPages: true }));
+    await secondPageStarted;
+    expect(secondPageSignal?.aborted).toBe(false);
+
+    cancelOperation({
+      tenantId: 'tenant-a',
+      requestId: 'request-1',
+      progressToken: 'progress-1',
+    });
+
+    const result = await resultPromise;
+    const payload = JSON.parse(result.content[0]!.text) as {
+      status: string;
+      resourceUri?: string;
+      partial: { value: unknown[] };
+    };
+
+    expect(secondPageSignal?.aborted).toBe(true);
+    expect(payload.status).toBe('cancelled');
+    expect(payload.resourceUri).toBeUndefined();
+    expect(result._meta?.partialResourceUri).toBeUndefined();
+    expect(payload.partial.value).toHaveLength(1);
+  });
+
+  it('stops fetchAllPages before the next page request when cancelled after progress', async () => {
+    resetOperationsForTesting();
+    const operationKey = {
+      tenantId: 'tenant-a',
+      requestId: 'request-1',
+      progressToken: 'progress-1',
+    };
+    registerOperation(operationKey);
+    const graphRequest = vi.fn().mockResolvedValue(page(['b']));
+    const sendNotification = vi.fn(async () => {
+      cancelOperation(operationKey);
+    });
+
+    try {
+      const result = await fetchAllPages(
+        '/me/messages',
+        { method: 'GET', headers: {} },
+        { graphRequest } as never,
+        {
+          seedFirstPage: JSON.parse(
+            page(['a'], 'https://graph.microsoft.com/v1.0/me/messages?$skip=1').content[0]!.text
+          ) as Record<string, unknown>,
+          progressToken: 'progress-1',
+          sendNotification,
+          capabilityProfile: progressProfile,
+          operationKey,
+        }
+      );
+
+      expect(result).toMatchObject({
+        _cancelled: true,
+      });
+      expect((result as Record<string, unknown>)._partialResourceUri).toBeUndefined();
+      expect(result.value).toHaveLength(1);
+      expect(graphRequest).not.toHaveBeenCalled();
+      expect(sendNotification).toHaveBeenCalledTimes(1);
+    } finally {
+      resetOperationsForTesting();
+    }
+  });
+
+  it('marks seeded pagination as cancelled when cancelled before iteration yields', async () => {
+    resetOperationsForTesting();
+    const operationKey = {
+      tenantId: 'tenant-a',
+      requestId: 'request-1',
+      progressToken: 'progress-1',
+    };
+    registerOperation(operationKey);
+    cancelOperation(operationKey);
+    const graphRequest = vi.fn();
+
+    try {
+      const result = await fetchAllPages(
+        '/me/messages',
+        { method: 'GET', headers: {} },
+        { graphRequest } as never,
+        {
+          seedFirstPage: JSON.parse(
+            page(['a'], 'https://graph.microsoft.com/v1.0/me/messages?$skip=1').content[0]!.text
+          ) as Record<string, unknown>,
+          operationKey,
+        }
+      );
+
+      expect(result).toMatchObject({
+        _cancelled: true,
+      });
+      expect((result as Record<string, unknown>)._partialResourceUri).toBeUndefined();
+      expect(result.value).toHaveLength(0);
+      expect(graphRequest).not.toHaveBeenCalled();
+    } finally {
+      resetOperationsForTesting();
+    }
   });
 
   it('does not allow Tenant A cancellation to cancel Tenant B work', async () => {

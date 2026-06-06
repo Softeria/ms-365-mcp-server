@@ -156,8 +156,9 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     // Should have attempted MSAL account resolution
     expect(mockAuthManager.getTokenForAccount).toHaveBeenCalled();
 
-    // Should fail because MSAL cache is empty
+    // Should fail because MSAL cache is empty without leaking raw account details.
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('No accounts found');
+    expect(result.content[0].text).toContain('account_token_resolution_failed');
+    expect(result.content[0].text).not.toContain('No accounts found');
   });
 });

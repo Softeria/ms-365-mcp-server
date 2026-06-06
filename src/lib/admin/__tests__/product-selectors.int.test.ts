@@ -79,10 +79,15 @@ vi.mock('../../../presets/generated-index.js', () => {
   const PWRAUTO = Object.freeze(new Set<string>(['__pwrauto__list-flows']));
   const EXO = Object.freeze(new Set<string>(['__exo__get-mailbox']));
   const SP_ADMIN = Object.freeze(new Set<string>(['__spadmin__list-sites']));
+  const DISCOVERY = Object.freeze(
+    new Set<string>(['search-tools', 'get-tool-schema', 'execute-tool'])
+  );
   return {
+    DISCOVERY_V1_OPS: DISCOVERY,
     ESSENTIALS_V1_OPS: ESSENTIALS,
     PRESET_VERSIONS: new Map([
       ['essentials-v1', ESSENTIALS],
+      ['discovery-v1', DISCOVERY],
       ['powerbi-essentials', POWERBI],
       ['pwrapps-essentials', PWRAPPS],
       ['pwrauto-essentials', PWRAUTO],

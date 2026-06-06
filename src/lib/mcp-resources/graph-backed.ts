@@ -372,11 +372,39 @@ function idLink(
   return { uri: canonicalGraphUri(tenantId, path), name, mimeType: JSON_MIME_TYPE, description };
 }
 
+function isGraphResourceDefinitionAllowed(
+  definition: GraphBackedDefinition,
+  tenant?: GraphBackedResourceDeps['tenant']
+): boolean {
+  const enabledTools = tenant?.enabled_tools_set;
+  const effectiveTools = tenant?.preset_version
+    ? resolveDiscoveryCatalog({
+        presetVersion: tenant.preset_version,
+        enabledToolsSet: enabledTools,
+        enabledToolsExplicit: tenant.enabled_tools !== null && tenant.enabled_tools !== undefined,
+        registryAliases: [definition.toolName],
+      }).discoveryCatalogSet
+    : enabledTools;
+  if (!effectiveTools?.has(definition.toolName)) return false;
+
+  const allowedScopes = tenant?.allowed_scopes ?? [];
+  return definition.requiredScopes.every((scope) => tenantScopeSatisfies(allowedScopes, scope));
+}
+
+function allowedDefinition(
+  kind: GraphBackedResourceKind,
+  tenant?: GraphBackedResourceDeps['tenant']
+): GraphBackedDefinition | null {
+  const definition = GRAPH_BACKED_DEFINITIONS[kind];
+  return isGraphResourceDefinitionAllowed(definition, tenant) ? definition : null;
+}
+
 export function graphResourceLinksForToolResult(input: {
   toolName: string;
   tenantId?: string;
   data: unknown;
   parameters?: Record<string, unknown>;
+  tenant?: GraphBackedResourceDeps['tenant'];
 }): GraphResourceLink[] {
   const tenantId = input.tenantId;
   if (!tenantId) return [];
@@ -385,6 +413,7 @@ export function graphResourceLinksForToolResult(input: {
   switch (input.toolName) {
     case 'list-users':
     case 'get-current-user':
+      if (!allowedDefinition('user', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id
@@ -398,6 +427,7 @@ export function graphResourceLinksForToolResult(input: {
       });
     case 'list-groups':
     case 'get-group':
+      if (!allowedDefinition('group', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id
@@ -411,6 +441,7 @@ export function graphResourceLinksForToolResult(input: {
       });
     case 'list-joined-teams':
     case 'get-team':
+      if (!allowedDefinition('team', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id
@@ -424,6 +455,7 @@ export function graphResourceLinksForToolResult(input: {
       });
     case 'list-team-channels':
     case 'get-team-channel': {
+      if (!allowedDefinition('team-channel', input.tenant)) return [];
       const teamId = firstString(params, ['team-id', 'teamId']);
       if (!teamId) return [];
       return linksForItems(tenantId, input.data, (item) => {
@@ -440,6 +472,7 @@ export function graphResourceLinksForToolResult(input: {
     }
     case 'search-sharepoint-sites':
     case 'get-sharepoint-site':
+      if (!allowedDefinition('site', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id
@@ -452,6 +485,7 @@ export function graphResourceLinksForToolResult(input: {
           : null;
       });
     case 'get-drive-item': {
+      if (!allowedDefinition('drive-item', input.tenant)) return [];
       const driveId = firstString(params, ['drive-id', 'driveId']);
       return linksForItems(tenantId, input.data, (item) => {
         const itemId =
@@ -468,6 +502,7 @@ export function graphResourceLinksForToolResult(input: {
     case 'list-mail-messages':
     case 'get-mail-message':
     case 'me.ListMessages':
+      if (!allowedDefinition('mail-message', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id
@@ -482,6 +517,7 @@ export function graphResourceLinksForToolResult(input: {
     case 'list-calendar-events':
     case 'get-calendar-event':
     case 'get-calendar-view':
+      if (!allowedDefinition('calendar-event', input.tenant)) return [];
       return linksForItems(tenantId, input.data, (item) => {
         const id = stringField(item.id);
         return id

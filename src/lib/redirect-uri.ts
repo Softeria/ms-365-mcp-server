@@ -61,10 +61,9 @@ export function normalizeRedirectHostEntry(raw: string): string | null {
   }
 }
 
-export function validateRedirectUri(
-  raw: string,
-  policy: RedirectUriPolicy
-): { ok: true } | { ok: false; reason: string } {
+export function validateRedirectUriSafety(
+  raw: string
+): { ok: true; url: URL } | { ok: false; reason: string } {
   let url: URL;
   try {
     url = new URL(raw);
@@ -78,6 +77,17 @@ export function validateRedirectUri(
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return { ok: false, reason: `non-http(s) scheme: ${url.protocol}` };
   }
+
+  return { ok: true, url };
+}
+
+export function validateRedirectUri(
+  raw: string,
+  policy: RedirectUriPolicy
+): { ok: true } | { ok: false; reason: string } {
+  const safety = validateRedirectUriSafety(raw);
+  if (!safety.ok) return safety;
+  const { url } = safety;
 
   // Loopback: HTTP only, hostname must be localhost / 127.0.0.1 / ::1 / [::1].
   // Node's URL parser preserves brackets on IPv6 literals in `hostname`; we

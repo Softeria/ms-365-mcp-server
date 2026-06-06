@@ -2,7 +2,7 @@
  * Streamable HTTP transport handler (plan 03-09, TRANS-01; stateful
  * discovery sessions added in plan 07-08).
  *
- * Mounted at /t/:tenantId/mcp (GET + POST). Wraps the v1 stateless Streamable
+ * Mounted at /t/:tenantId/mcp (GET + POST + DELETE). Wraps the v1 stateless Streamable
  * HTTP code path from src/server.ts but per-tenant: every request builds a
  * fresh McpServer scoped to req.tenant + the per-request token in
  * requestContext.
@@ -16,12 +16,15 @@
  * surfaces use stateful MCP sessions so GET can carry live notifications.
  */
 import { randomUUID } from 'node:crypto';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { StreamableHTTPServerTransportOptions } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  ExpressStreamableHTTPServerTransport,
+  type ExpressStreamableHTTPServerTransportOptions,
+} from './express-streamable-http-transport.js';
 import type { Request, Response, RequestHandler } from 'express';
 import type { TenantRow } from '../tenant/tenant-row.js';
 import logger from '../../logger.js';
+import { requestContext } from '../../request-context.js';
 import { isDiscoverySurface } from '../tenant-surface/surface.js';
 import {
   buildEffectiveCapabilityProfile,
@@ -33,6 +36,7 @@ import {
   type McpNotificationServer,
   type McpNotificationSurface,
   type McpSessionRegistry,
+  type RegisteredMcpSession,
 } from '../mcp-notifications/session-registry.js';
 import type { RedisResourceSubscriptionStore } from '../mcp-notifications/resource-subscriptions.js';
 
@@ -42,8 +46,8 @@ export interface StreamableHttpDeps {
   resourceSubscriptions?: RedisResourceSubscriptionStore;
   surface?: McpNotificationSurface;
   createTransport?: (
-    options: StreamableHTTPServerTransportOptions
-  ) => StreamableHTTPServerTransport;
+    options: ExpressStreamableHTTPServerTransportOptions
+  ) => ExpressStreamableHTTPServerTransport;
   phase8Enabled?: (tenant: TenantRow, surface: McpNotificationSurface) => boolean;
 }
 
@@ -54,17 +58,18 @@ export interface StreamableHttpDeps {
  *   - Expects `req.tenant` populated by upstream loadTenant middleware. If
  *     missing, responds 500 `loadTenant_middleware_missing` — the mount order
  *     is wrong and no tool call should proceed.
- *   - Constructs a fresh McpServer AND a fresh StreamableHTTPServerTransport
- *     per request. Both are cheap to allocate; keeping them per-request means
- *     no shared state leaks across tenants (TENANT-04 isolation).
- *   - Registers `res.on('close', ...)` cleanup so if the client disconnects
- *     mid-response, the transport + server are torn down immediately rather
- *     than leaking handles.
+ *   - Static requests construct a fresh McpServer and Web-standard-backed
+ *     Express transport per request. Discovery requests reuse only explicitly
+ *     registered stateful sessions keyed by Mcp-Session-Id.
+ *   - Registers idempotent `res.once('close', ...)` cleanup so if the client
+ *     disconnects mid-response, the transport + server are torn down without
+ *     stacking duplicate response listeners.
  */
 export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHandler {
   const registry = deps.sessionRegistry ?? mcpSessionRegistry;
   const createTransport =
-    deps.createTransport ?? ((options) => new StreamableHTTPServerTransport(options));
+    deps.createTransport ?? ((options) => new ExpressStreamableHTTPServerTransport(options));
+  registry.setExpiredSessionCleanup((session) => closeRegisteredSession(session, deps));
 
   return async (req: Request, res: Response): Promise<void> => {
     const tenant = (req as Request & { tenant?: TenantRow }).tenant;
@@ -72,6 +77,8 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
       res.status(500).json({ error: 'loadTenant_middleware_missing' });
       return;
     }
+
+    await cleanupStaleSessions(registry, deps);
 
     const surface = deps.surface ?? (isDiscoverySurface(tenant) ? 'discovery' : 'static');
     const profile = profileFromInitialize(req, tenant, surface, deps);
@@ -92,14 +99,32 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
         return;
       }
 
+      const tracksActiveResponse = req.method === 'GET' || req.method === 'POST';
+      if (tracksActiveResponse) {
+        registry.openSseStream(requestedSessionId);
+      } else {
+        registry.touchSession(requestedSessionId);
+      }
+
       try {
-        await session.transport.handleRequest(
-          req as unknown as Parameters<typeof session.transport.handleRequest>[0],
-          res as unknown as Parameters<typeof session.transport.handleRequest>[1],
-          req.body
+        const existingCtx = requestContext.getStore() ?? {};
+        await requestContext.run(
+          {
+            ...existingCtx,
+            capabilityProfile: session.capabilityProfile ?? existingCtx.capabilityProfile,
+          },
+          async () => {
+            await session.transport.handleRequest(
+              req as unknown as Parameters<typeof session.transport.handleRequest>[0],
+              res as unknown as Parameters<typeof session.transport.handleRequest>[1],
+              req.body
+            );
+          }
         );
       } catch (err) {
         handleTransportError(res, err, tenant.id);
+      } finally {
+        if (tracksActiveResponse) registry.closeSseStream(requestedSessionId);
       }
       return;
     }
@@ -113,12 +138,11 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
       sendLoggingMessage: (message, sessionId) => server.sendLoggingMessage(message, sessionId),
       close: () => server.close(),
     };
-    const cleanupSession = async (sessionId: string): Promise<void> => {
+    const cleanupSession = oncePerKey(async (sessionId: string): Promise<void> => {
       const session = registry.unregisterSession(sessionId);
       if (!session) return;
-      await deps.resourceSubscriptions?.deleteSession(session.tenantId, sessionId);
-      await session.server.close?.();
-    };
+      await closeRegisteredSession(session, deps);
+    });
     const transport = createTransport({
       sessionIdGenerator: randomUUID,
       onsessioninitialized: (sessionId) => {
@@ -145,7 +169,11 @@ export function createStreamableHttpHandler(deps: StreamableHttpDeps): RequestHa
         res as unknown as Parameters<typeof transport.handleRequest>[1],
         req.body
       );
+      if (!transport.sessionId) {
+        await Promise.all([transport.close(), server.close()]);
+      }
     } catch (err) {
+      await Promise.allSettled([transport.close(), server.close()]);
       handleTransportError(res, err, tenant.id);
     }
   };
@@ -159,13 +187,15 @@ async function handleStatelessRequest(
   _profile: ClientCapabilityProfile
 ): Promise<void> {
   const server = await deps.buildMcpServer(tenant);
-  const transport = new StreamableHTTPServerTransport({
+  const transport = new ExpressStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
 
-  res.on('close', () => {
-    void transport.close();
-    void server.close();
+  const cleanup = onceAsync(() =>
+    Promise.all([transport.close(), server.close()]).then(() => undefined)
+  );
+  res.once('close', () => {
+    void cleanup();
   });
 
   try {
@@ -178,6 +208,71 @@ async function handleStatelessRequest(
   } catch (err) {
     handleTransportError(res, err, tenant.id);
   }
+}
+
+async function cleanupStaleSessions(
+  registry: McpSessionRegistry,
+  deps: StreamableHttpDeps
+): Promise<void> {
+  const stale = [...registry.takeExpiredSessions(), ...registry.takeOverflowSessions()];
+  if (stale.length === 0) return;
+
+  await Promise.all(stale.map((session) => closeRegisteredSession(session, deps)));
+}
+
+async function closeRegisteredSession(
+  session: RegisteredMcpSession,
+  deps: StreamableHttpDeps
+): Promise<void> {
+  const cleanupSteps: Array<{ cleanupStep: string; run: () => void | Promise<void> }> = [
+    {
+      cleanupStep: 'resourceSubscriptions.deleteSession',
+      run: () => deps.resourceSubscriptions?.deleteSession(session.tenantId, session.sessionId),
+    },
+    { cleanupStep: 'transport.close', run: () => session.transport.close() },
+    { cleanupStep: 'server.close', run: () => session.server.close?.() },
+  ];
+  const cleanupResults = await Promise.allSettled(
+    cleanupSteps.map((step) => Promise.resolve().then(step.run))
+  );
+
+  for (const [index, result] of cleanupResults.entries()) {
+    if (result.status === 'rejected') {
+      logger.warn(
+        {
+          tenantId: session.tenantId,
+          sessionId: session.sessionId,
+          cleanupStep: cleanupSteps[index]?.cleanupStep,
+          err: result.reason,
+        },
+        'Streamable HTTP session cleanup step failed'
+      );
+    }
+  }
+}
+
+function onceAsync<T extends unknown[]>(
+  fn: (...args: T) => Promise<void>
+): (...args: T) => Promise<void> {
+  let called = false;
+  return async (...args: T) => {
+    if (called) return;
+    called = true;
+    await fn(...args);
+  };
+}
+
+function oncePerKey<T>(fn: (key: T) => Promise<void>): (key: T) => Promise<void> {
+  const pending = new Set<T>();
+  return async (key: T) => {
+    if (pending.has(key)) return;
+    pending.add(key);
+    try {
+      await fn(key);
+    } finally {
+      pending.delete(key);
+    }
+  };
 }
 
 function getSessionId(req: Request): string | undefined {

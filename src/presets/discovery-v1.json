@@ -6,6 +6,8 @@
     "search-tools",
     "get-tool-schema",
     "execute-tool",
+    "bulk-action",
+    "read-bulk-result",
     "bookmark-tool",
     "list-bookmarks",
     "unbookmark-tool",

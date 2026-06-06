@@ -121,6 +121,57 @@ describe('dashboard fallback behavior', () => {
     expect(result.structuredContent?.warnings.join('\n')).toContain('Required scopes unavailable');
   });
 
+  it.each([
+    'me.ListMessages',
+    'me.messages.ListMessages',
+    'me.mailFolders.childFolders.ListMessages',
+  ])(
+    'treats generated mail alias %s as satisfying legacy dashboard prerequisites',
+    async (alias) => {
+      const result = (await callTool(
+        dashboardServer({ enabledTools: new Set([alias]) }),
+        'inbox-triage-view'
+      )) as {
+        structuredContent?: {
+          data?: { unavailableTools?: string[] };
+          warnings: string[];
+        };
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBeUndefined();
+      expect(result.structuredContent?.data?.unavailableTools).toEqual([]);
+      expect(result.structuredContent?.warnings.join('\n')).not.toContain('list-mail-messages');
+      expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+        'Required enabled tools unavailable'
+      );
+    }
+  );
+
+  it('treats generated dashboard aliases as satisfying explicit discovery allowlists', async () => {
+    const result = (await callTool(
+      dashboardServer({
+        enabledTools: new Set(['me.ListCalendarView']),
+        allowedScopes: ['Calendars.Read'],
+      }),
+      'calendar-brief-view'
+    )) as {
+      structuredContent?: {
+        data?: { unavailableTools?: string[]; unavailableScopes?: string[] };
+        warnings: string[];
+      };
+      isError?: boolean;
+    };
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.data?.unavailableTools).toEqual([]);
+    expect(result.structuredContent?.data?.unavailableScopes).toEqual([]);
+    expect(result.structuredContent?.warnings.join('\n')).not.toContain('get-calendar-view');
+    expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+      'Required enabled tools unavailable'
+    );
+  });
+
   it('does not warn that Mail.Read is missing when Mail.ReadWrite is allowed', async () => {
     const result = (await callTool(
       dashboardServer({ allowedScopes: ['Mail.ReadWrite'] }),
@@ -182,6 +233,41 @@ describe('dashboard fallback behavior', () => {
     expect(result.structuredContent?.warnings.join('\n')).not.toContain(
       'Required enabled tools unavailable'
     );
+  });
+
+  it('treats visible discovery helper tools as satisfying helper dashboard prerequisites', async () => {
+    const checks = [
+      { toolName: 'connector-diagnostics', expectedTools: ['connector-diagnostics'] },
+      {
+        toolName: 'skill-editor-view',
+        expectedTools: ['list-skills', 'validate-skill', 'save-skill'],
+      },
+    ];
+
+    for (const check of checks) {
+      const result = (await callTool(
+        dashboardServer({
+          enabledTools: DISCOVERY_META_TOOL_NAMES,
+          enabledToolsExplicit: false,
+        }),
+        check.toolName
+      )) as {
+        structuredContent?: {
+          data?: { unavailableTools?: string[] };
+          warnings: string[];
+        };
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBeUndefined();
+      expect(result.structuredContent?.data?.unavailableTools).toEqual([]);
+      for (const toolName of check.expectedTools) {
+        expect(result.structuredContent?.warnings.join('\n')).not.toContain(toolName);
+      }
+      expect(result.structuredContent?.warnings.join('\n')).not.toContain(
+        'Required enabled tools unavailable'
+      );
+    }
   });
 
   it('keeps dashboard generated prerequisites on canonical endpoint aliases', () => {

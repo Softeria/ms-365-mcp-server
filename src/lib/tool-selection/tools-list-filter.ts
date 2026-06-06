@@ -44,7 +44,12 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getRequestTenant } from '../../request-context.js';
 import logger from '../../logger.js';
+import { DISCOVERY_META_TOOL_NAMES } from '../tenant-surface/surface.js';
+import { checkDispatch, type CallToolResultLike } from './dispatch-guard.js';
 import { safeMcpName } from './safe-mcp-name.js';
+export const MANDATORY_DISCOVERY_TOOL_NAMES: ReadonlySet<string> = Object.freeze(
+  new Set(['search-tools', 'get-tool-schema', 'execute-tool'])
+);
 
 /**
  * JSON-RPC method literal the MCP SDK uses for tools/list requests.
@@ -63,6 +68,14 @@ const TOOLS_LIST_METHOD = 'tools/list' as const;
  * hot-reload the filter module.
  */
 const WRAP_MARK = Symbol.for('ms-365-mcp-server.tools-list-filter.wrapped');
+const NATIVE_DISPATCH_WRAP_MARK = Symbol.for(
+  'ms-365-mcp-server.native-discovery-dispatch-filter.wrapped'
+);
+
+interface NativeRegisteredTool {
+  handler?: (args: unknown, extra: unknown) => Promise<unknown> | unknown;
+  [NATIVE_DISPATCH_WRAP_MARK]?: true;
+}
 
 interface ToolEntry {
   name: string;
@@ -140,6 +153,17 @@ export function wrapToolsListHandler(mcpServer: McpServer): void {
  * itself on pass-through. Exported only for direct unit testing (callers
  * should use `wrapToolsListHandler`).
  */
+function effectiveDiscoveryVisibleSet(
+  enabledSet: ReadonlySet<string> | undefined
+): ReadonlySet<string> | undefined {
+  if (!enabledSet) return undefined;
+  const visibleSet = new Set<string>(enabledSet);
+  for (const primitive of MANDATORY_DISCOVERY_TOOL_NAMES) {
+    visibleSet.add(primitive);
+  }
+  return visibleSet;
+}
+
 export function applyTenantFilter(result: ListToolsResult): ListToolsResult {
   const tenant = getRequestTenant();
   const enabledSet = tenant.enabledToolsSet;
@@ -169,8 +193,12 @@ export function applyTenantFilter(result: ListToolsResult): ListToolsResult {
   // Registered MCP tool names are run through `safeMcpName` (SEP-986
   // pattern), so we expand the comparison set to include both forms.
   // Cheap one-time build per request; sets are O(1) lookup.
+  const visibleSet =
+    tenant.presetVersion === 'discovery-v1'
+      ? effectiveDiscoveryVisibleSet(enabledSet)!
+      : new Set<string>(enabledSet);
   const expandedSet = new Set<string>();
-  for (const alias of enabledSet) {
+  for (const alias of visibleSet) {
     expandedSet.add(alias);
     expandedSet.add(safeMcpName(alias));
   }
@@ -192,6 +220,39 @@ export function applyTenantFilter(result: ListToolsResult): ListToolsResult {
     ...result,
     tools: filteredTools,
   };
+}
+
+function nativeDispatchRejection(alias: string): CallToolResultLike | null {
+  const tenant = getRequestTenant();
+  if (tenant.presetVersion !== 'discovery-v1') return null;
+  const effectiveSet = effectiveDiscoveryVisibleSet(tenant.enabledToolsSet);
+  return checkDispatch(alias, effectiveSet, tenant.id, tenant.presetVersion);
+}
+
+/**
+ * Guard registered native discovery tools on direct tools/call dispatch.
+ * tools/list filtering is only advertisement control; MCP clients can still
+ * call any registered tool by name. Discovery-v1 native tools therefore need
+ * the same enabled-tools policy at handler entry, with mandatory discovery
+ * primitives treated as always visible.
+ */
+export function wrapNativeDiscoveryToolHandlers(mcpServer: McpServer): void {
+  const registered = (
+    mcpServer as unknown as { _registeredTools?: Record<string, NativeRegisteredTool> }
+  )._registeredTools;
+  if (!registered) return;
+
+  for (const alias of DISCOVERY_META_TOOL_NAMES) {
+    const tool = registered[alias];
+    if (!tool?.handler || tool[NATIVE_DISPATCH_WRAP_MARK]) continue;
+    const original = tool.handler.bind(tool);
+    tool.handler = async (args: unknown, extra: unknown) => {
+      const rejection = nativeDispatchRejection(alias);
+      if (rejection) return rejection;
+      return await original(args, extra);
+    };
+    tool[NATIVE_DISPATCH_WRAP_MARK] = true;
+  }
 }
 
 /**

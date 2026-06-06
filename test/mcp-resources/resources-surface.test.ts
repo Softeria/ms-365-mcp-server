@@ -5,6 +5,10 @@ import {
   DISCOVERY_META_TOOL_NAMES,
   DISCOVERY_PRESET_VERSION,
 } from '../../src/lib/tenant-surface/surface.js';
+import {
+  buildEffectiveCapabilityProfile,
+  DEFAULT_SERVER_CAPABILITIES,
+} from '../../src/lib/mcp-capabilities/profile.js';
 import { readMcpResource } from '../../src/lib/mcp-resources/read.js';
 import { registerMcpResources } from '../../src/lib/mcp-resources/register.js';
 import MicrosoftGraphServer from '../../src/server.js';
@@ -132,6 +136,14 @@ function discoveryTenant() {
   };
 }
 
+function restrictedDashboardTenant() {
+  return {
+    ...discoveryTenant(),
+    enabled_tools: 'connector-diagnostics',
+    enabled_tools_set: Object.freeze(new Set(['connector-diagnostics'])),
+  };
+}
+
 describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,6 +239,104 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
     expect(memoryMocks.listBookmarks).not.toHaveBeenCalled();
   });
 
+  it('reads dashboard resources with canonical same-tenant response URIs', async () => {
+    const result = await requestContext.run(discoveryContext(), () =>
+      readMcpResource(`mcp://tenant/${TENANT_A}/dashboards/inbox-triage.json`, {
+        tenant: discoveryTenant(),
+      })
+    );
+    const body = JSON.parse(readText(result)) as {
+      uri: string;
+      dashboard: string;
+      tenantId: string;
+      unavailableTools: string[];
+      unavailableScopes: string[];
+      resources: Array<{ uri: string }>;
+    };
+
+    expect(result.contents[0].uri).toBe(`m365://tenant/${TENANT_A}/dashboards/inbox-triage.json`);
+    expect(body).toMatchObject({
+      uri: `m365://tenant/${TENANT_A}/dashboards/inbox-triage.json`,
+      dashboard: 'inbox-triage',
+      tenantId: TENANT_A,
+      unavailableTools: [],
+      unavailableScopes: [],
+    });
+    expect(body.resources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          uri: `m365://tenant/${TENANT_A}/dashboards/inbox-triage.json`,
+        }),
+      ])
+    );
+  });
+
+  it('fails closed on dashboard URI tenant mismatch before building dashboard data', async () => {
+    await expect(
+      requestContext.run(discoveryContext(), () =>
+        readMcpResource(`m365://tenant/${TENANT_B}/dashboards/inbox-triage.json`, {
+          tenant: discoveryTenant(),
+        })
+      )
+    ).rejects.toMatchObject({
+      data: { code: 'tenant_resource_mismatch' },
+    });
+  });
+
+  it('rejects dashboard resources when the backing dashboard tool is disabled', async () => {
+    const tenant = restrictedDashboardTenant();
+
+    await expect(
+      requestContext.run(
+        {
+          ...discoveryContext(),
+          enabledToolsSet: tenant.enabled_tools_set,
+          enabledToolsExplicit: true,
+        },
+        () =>
+          readMcpResource(`mcp://tenant/${TENANT_A}/dashboards/inbox-triage.json`, {
+            tenant,
+          })
+      )
+    ).rejects.toMatchObject({
+      data: { code: 'invalid_resource_uri' },
+    });
+  });
+
+  it('reads connector capabilities from the live request profile before static connector deps', async () => {
+    const staticProfile = buildEffectiveCapabilityProfile({
+      protocolVersion: '2025-03-26',
+      clientInfo: { name: 'static-client', version: '1.0.0' },
+      advertisedCapabilities: {},
+      transport: 'legacy-sse',
+      surface: 'discovery',
+      tenantPolicy: { phase8Enabled: false },
+      serverCapabilities: DEFAULT_SERVER_CAPABILITIES,
+    });
+    const liveProfile = buildEffectiveCapabilityProfile({
+      protocolVersion: '2025-06-18',
+      clientInfo: { name: 'live-client', version: '2.0.0' },
+      advertisedCapabilities: { resources: {}, prompts: {}, progress: {} },
+      transport: 'stdio',
+      surface: 'static',
+      tenantPolicy: { phase8Enabled: true },
+      serverCapabilities: DEFAULT_SERVER_CAPABILITIES,
+    });
+
+    const result = await requestContext.run(
+      { ...discoveryContext(), capabilityProfile: liveProfile },
+      () =>
+        readMcpResource(`m365://tenant/${TENANT_A}/connector/capabilities.json`, {
+          tenant: discoveryTenant(),
+          connector: { profile: staticProfile },
+        })
+    );
+    const body = JSON.parse(readText(result)) as { transport: string; enabledFeatures: string[] };
+
+    expect(body.transport).toBe('stdio');
+    expect(body.enabledFeatures).toContain('resources');
+  });
+
   it('reads Graph-backed resources through bounded same-tenant Graph GETs', async () => {
     const graphClient = {
       graphRequest: vi.fn(async () => ({
@@ -292,6 +402,45 @@ describe('Phase 7 Plan 07-11 Task 2 - MCP resource read dispatch', () => {
     });
   });
 
+  it('round-trips Graph-backed resource IDs with encoded slashes', async () => {
+    const graphClient = {
+      graphRequest: vi.fn(async () => ({
+        content: [{ type: 'text', text: JSON.stringify({ id: 'message/with/slash' }) }],
+      })),
+    };
+    const messageId = 'message/with/slash';
+    const encodedMessageId = encodeURIComponent(messageId);
+
+    await requestContext.run(discoveryContext(), () =>
+      readMcpResource(`m365://tenant/${TENANT_A}/mail/messages/${encodedMessageId}.json`, {
+        tenant: discoveryTenant(),
+        graphClient,
+      })
+    );
+
+    expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    expect(graphClient.graphRequest).toHaveBeenCalledWith('/me/messages/message%2Fwith%2Fslash', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+  });
+
+  it('rejects Graph-backed resource IDs containing encoded dot segments', async () => {
+    const graphClient = { graphRequest: vi.fn() };
+
+    await expect(
+      requestContext.run(discoveryContext(), () =>
+        readMcpResource(`m365://tenant/${TENANT_A}/mail/messages/message%2F..%2Fsecret.json`, {
+          tenant: discoveryTenant(),
+          graphClient,
+        })
+      )
+    ).rejects.toMatchObject({
+      data: { code: 'invalid_resource_uri' },
+    });
+    expect(graphClient.graphRequest).not.toHaveBeenCalled();
+  });
+
   it('rejects Graph-backed resources when required scopes are absent', async () => {
     await expect(
       requestContext.run(discoveryContext(), () =>
@@ -332,9 +481,26 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
     expect(uris).toContain(`m365://tenant/${TENANT_A}/facts.json`);
     expect(uris).toContain(`m365://tenant/${TENANT_A}/connector/capabilities.json`);
     expect(uris).toContain(`m365://tenant/${TENANT_A}/connector/diagnostics.json`);
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/dashboards/inbox-triage.json`);
+    expect(uris).toContain(`mcp://tenant/${TENANT_A}/dashboards/inbox-triage.json`);
     expect(list.resources.find((resource) => resource.uri.endsWith('/scopes.json'))?.mimeType).toBe(
       'application/json'
     );
+  });
+
+  it('filters dashboard resources by visible dashboard tools for explicit discovery tenants', async () => {
+    const server = new McpServer({ name: 'resources-test', version: '0.0.0' });
+    registerMcpResources(server, {
+      tenant: restrictedDashboardTenant(),
+      orgMode: true,
+    });
+
+    const list = await requestContext.run(discoveryContext(), () => invokeResourcesList(server));
+    const uris = list.resources.map((resource) => resource.uri).sort();
+
+    expect(uris).toContain(`m365://tenant/${TENANT_A}/dashboards/connector-diagnostics.json`);
+    expect(uris).not.toContain(`m365://tenant/${TENANT_A}/dashboards/inbox-triage.json`);
+    expect(uris).not.toContain(`mcp://tenant/${TENANT_A}/dashboards/inbox-triage.json`);
   });
 
   it('registers workload, endpoint schema, and editable skill resource templates', async () => {
@@ -358,6 +524,7 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
         'm365://tenant/{tenantId}/skills/{name}.schema.json',
         'm365://tenant/{tenantId}/enabled-tools.json',
         'm365://tenant/{tenantId}/connector/capabilities.json',
+        'm365://tenant/{tenantId}/dashboards/{slug}.json',
         'm365://tenant/{tenantId}/users/{userId}.json',
         'm365://tenant/{tenantId}/mail/messages/{messageId}.json',
       ])
@@ -386,6 +553,11 @@ describe('Phase 7 Plan 07-11 Task 3 - MCP resource registration', () => {
       list.resourceTemplates.find((template) =>
         template.uriTemplate.endsWith('/skills/{name}.schema.json')
       )
+    ).toMatchObject({
+      mimeType: 'application/json',
+    });
+    expect(
+      list.resourceTemplates.find((template) => template.uriTemplate.includes('/dashboards/'))
     ).toMatchObject({
       mimeType: 'application/json',
     });

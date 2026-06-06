@@ -213,18 +213,59 @@ function tenantResourceUri(tenantId: string, path: string): string {
   return `m365://tenant/${tenantId}/${path}`;
 }
 
+const DASHBOARD_ALIAS_EQUIVALENTS = Object.freeze({
+  'list-mail-messages': [
+    'me.ListMessages',
+    '__beta__me.ListMessages',
+    'me.messages.ListMessages',
+    '__beta__me.messages.ListMessages',
+    'me.mailFolders.childFolders.ListMessages',
+    '__beta__me.mailFolders.childFolders.ListMessages',
+  ],
+  'get-calendar-view': ['me.ListCalendarView', '__beta__me.ListCalendarView'],
+  'list-channel-messages': ['teams.channels.ListMessages', '__beta__teams.channels.ListMessages'],
+  'search-query': ['search.query', '__beta__search.query'],
+  'list-users': ['users.user.ListUser', '__beta__users.user.ListUser'],
+  'search-sharepoint-sites': ['sites.site.ListSite', '__beta__sites.site.ListSite'],
+} as const satisfies Record<string, readonly string[]>);
+
+function aliasesForRequiredTool(tool: string): readonly string[] {
+  return [
+    tool,
+    ...(DASHBOARD_ALIAS_EQUIVALENTS[tool as keyof typeof DASHBOARD_ALIAS_EQUIVALENTS] ?? []),
+  ];
+}
+
+function registryAliasesForRequiredTools(requiredTools: readonly string[]): string[] {
+  const aliases = new Set<string>();
+  for (const tool of requiredTools) {
+    for (const alias of aliasesForRequiredTool(tool)) {
+      aliases.add(alias);
+    }
+  }
+  return [...aliases];
+}
+
+function hasRequiredTool(effectiveTools: ReadonlySet<string>, tool: string): boolean {
+  return aliasesForRequiredTool(tool).some((alias) => effectiveTools.has(alias));
+}
+
 function missingTools(requiredTools: readonly string[], tenant: DashboardTenantContext): string[] {
   if (!tenant.enabledToolsSet && !tenant.presetVersion) return [];
+  const registryAliases = registryAliasesForRequiredTools(requiredTools);
   const effectiveTools = tenant.presetVersion
-    ? resolveDiscoveryCatalog({
-        presetVersion: tenant.presetVersion,
-        enabledToolsSet: tenant.enabledToolsSet,
-        enabledToolsExplicit: tenant.enabledToolsExplicit,
-        registryAliases: requiredTools,
-      }).discoveryCatalogSet
+    ? (() => {
+        const catalog = resolveDiscoveryCatalog({
+          presetVersion: tenant.presetVersion,
+          enabledToolsSet: tenant.enabledToolsSet,
+          enabledToolsExplicit: tenant.enabledToolsExplicit,
+          registryAliases,
+        });
+        return new Set([...catalog.discoveryCatalogSet, ...catalog.visibleToolsSet]);
+      })()
     : tenant.enabledToolsSet;
   if (!effectiveTools) return [];
-  return requiredTools.filter((tool) => !effectiveTools.has(tool));
+  return requiredTools.filter((tool) => !hasRequiredTool(effectiveTools, tool));
 }
 
 function missingScopes(

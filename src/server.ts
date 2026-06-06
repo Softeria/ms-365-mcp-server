@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { ExpressStreamableHTTPServerTransport } from './lib/transports/express-streamable-http-transport.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { type Request, type Response, type RequestHandler } from 'express';
 import expressRateLimit from 'express-rate-limit';
@@ -48,6 +48,8 @@ import {
 } from './lib/oauth/authorize-request-identity.js';
 import { createRegisterHandler } from './lib/oauth/register-handler.js';
 import { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
+import { isOAuthClientStoreAvailable } from './lib/oauth/client-store.js';
+import { buildWwwAuthenticate } from './lib/www-authenticate.js';
 import { createTokenHandler } from './lib/oauth/token-handler.js';
 export { createRegisterHandler } from './lib/oauth/register-handler.js';
 export { createAuthorizeHandler, createTenantTokenHandler } from './lib/oauth/tenant-handlers.js';
@@ -69,6 +71,7 @@ import {
 import { createAuthSelectorMiddleware } from './lib/auth-selector.js';
 import {
   createToolsListFilterMiddleware,
+  wrapNativeDiscoveryToolHandlers,
   wrapToolsListHandler,
 } from './lib/tool-selection/tools-list-filter.js';
 import { resolveTenantSurface } from './lib/tenant-surface/surface.js';
@@ -81,8 +84,20 @@ import {
 import crypto from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import { nanoid } from 'nanoid';
+import { requestLogProps } from './lib/request-log-props.js';
 
 const LEGACY_SINGLE_TENANT_KEY = '_';
+
+function onceAsync<T extends unknown[]>(
+  fn: (...args: T) => Promise<void>
+): (...args: T) => Promise<void> {
+  let called = false;
+  return async (...args: T) => {
+    if (called) return;
+    called = true;
+    await fn(...args);
+  };
+}
 
 function pkceChallengeForVerifier(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
@@ -355,6 +370,9 @@ class MicrosoftGraphServer {
     // `_registeredTools` map. Safe to call in stdio mode — `wrapToolsListHandler`
     // reads `getRequestTenant()` from AsyncLocalStorage which falls back to
     // the stdio bootstrap triple (Pitfall 8). Idempotent on repeat calls.
+    // Native discovery tools also need dispatch guarding because tools/list
+    // filtering is not a tools/call authorization boundary.
+    wrapNativeDiscoveryToolHandlers(server);
     wrapToolsListHandler(server);
 
     return server;
@@ -427,6 +445,7 @@ class MicrosoftGraphServer {
     const { createPerTenantCorsMiddleware } = await import('./lib/cors.js');
 
     const loadTenant = createLoadTenantMiddleware({ pool: pg });
+    const durableDcrAvailable = await isOAuthClientStoreAvailable(pg);
     const resourceSubscriptions = new RedisResourceSubscriptionStore(redis);
     this.resourceSubscriptions = resourceSubscriptions;
     mcpSessionRegistry.setResourceSubscriptionChecker((tenantId, sessionId, uri) =>
@@ -614,7 +633,7 @@ class MicrosoftGraphServer {
         tenantDisplayName: tenant.slug,
         scopes: scopesForTenant(tenant),
         version: this.version,
-        dynamicRegistration: this.options.enableDynamicRegistration,
+        dynamicRegistration: this.options.enableDynamicRegistration && durableDcrAvailable,
       });
 
     const buildProtectedResourceMetadata = (
@@ -700,6 +719,7 @@ class MicrosoftGraphServer {
           tenantId: tenant.id,
           tenantDisplayName: tenant.slug,
           version: this.version,
+          dynamicRegistration: this.options.enableDynamicRegistration && durableDcrAvailable,
         })
       );
     });
@@ -713,9 +733,28 @@ class MicrosoftGraphServer {
       createAuthorizeHandler({
         pkceStore: this.pkceStore,
         pgPool: pg,
+        publicUrlHost: publicBase ? new URL(publicBase).hostname : null,
         extraAllowedHosts: oauthRedirectHosts,
       })
     );
+    if (this.options.enableDynamicRegistration && durableDcrAvailable) {
+      app.post('/t/:tenantId/register', tenantOauthRouteRateLimit, async (req, res, next) => {
+        const tenant = (req as Request & { tenant?: TenantRow }).tenant;
+        if (!tenant) {
+          res.status(404).json({ error: 'tenant_not_found' });
+          return;
+        }
+        return createRegisterHandler(
+          {
+            mode: isProdMode ? 'prod' : 'dev',
+            publicUrlHost: publicBase ? new URL(publicBase).hostname : null,
+            extraAllowedHosts: oauthRedirectHosts,
+          },
+          { pgPool: pg, tenantId: tenant.id }
+        )(req, res).catch(next);
+      });
+    }
+
     app.post(
       '/t/:tenantId/token',
       tenantOauthRouteRateLimit,
@@ -733,7 +772,7 @@ class MicrosoftGraphServer {
     // Pitfall 3):
     //   /t/:tenantId/sse          — legacy SSE GET stream (2024-11-05 spec)
     //   /t/:tenantId/messages     — legacy SSE POST channel (shim: initialize only)
-    //   /t/:tenantId/mcp          — Streamable HTTP (current MCP spec; GET+POST)
+    //   /t/:tenantId/mcp          — Streamable HTTP (current MCP spec; GET+POST+DELETE)
     //
     // All three share the SAME createMcpServer(tenant) factory (TRANS-05)
     // so tool registration is identical across transports. The closure
@@ -816,6 +855,16 @@ class MicrosoftGraphServer {
 
     // codeql[js/missing-rate-limiting]: createRateLimitMiddleware gates this route before the transport handler.
     app.get(
+      '/t/:tenantId/mcp',
+      seedTenantContext,
+      routeRateLimit,
+      authSelector,
+      rateLimit,
+      streamableHttp
+    );
+
+    // codeql[js/missing-rate-limiting]: createRateLimitMiddleware gates this route before the transport handler.
+    app.delete(
       '/t/:tenantId/mcp',
       seedTenantContext,
       routeRateLimit,
@@ -959,7 +1008,7 @@ class MicrosoftGraphServer {
               return url.startsWith('/healthz') || url.startsWith('/readyz');
             },
           },
-          customProps: (req) => ({ requestId: req.id, tenantId: null }),
+          customProps: requestLogProps,
         })
       );
 
@@ -1075,6 +1124,10 @@ class MicrosoftGraphServer {
               scopes,
               version: this.version,
               dynamicRegistration: this.options.enableDynamicRegistration,
+              grantTypesSupported:
+                process.env.MS365_MCP_LEGACY_OAUTH_REFRESH === '1'
+                  ? ['authorization_code', 'refresh_token']
+                  : ['authorization_code'],
             })
           );
         }
@@ -1102,11 +1155,20 @@ class MicrosoftGraphServer {
         // MCP connectors whose redirect_uri lives off-host (Claude.ai etc.).
         app.post(
           '/register',
-          createRegisterHandler({
-            mode: isProdMode ? 'prod' : 'dev',
-            publicUrlHost,
-            extraAllowedHosts: oauthRedirectHosts,
-          })
+          legacyOauthRouteRateLimit,
+          createRegisterHandler(
+            {
+              mode: isProdMode ? 'prod' : 'dev',
+              publicUrlHost,
+              extraAllowedHosts: oauthRedirectHosts,
+            },
+            {
+              supportedGrantTypes:
+                process.env.MS365_MCP_LEGACY_OAUTH_REFRESH === '1'
+                  ? ['authorization_code', 'refresh_token']
+                  : ['authorization_code'],
+            }
+          )
         );
       }
 
@@ -1275,6 +1337,14 @@ class MicrosoftGraphServer {
       ): Promise<void> => {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          res.setHeader(
+            'WWW-Authenticate',
+            buildWwwAuthenticate({
+              req,
+              error: 'bearer_token_required',
+              errorDescription: 'Bearer token required',
+            })
+          );
           res.status(401).json({ error: 'Missing or invalid access token' });
           return;
         }
@@ -1290,10 +1360,26 @@ class MicrosoftGraphServer {
               cloudType: legacySecrets?.cloudType ?? 'global',
             });
             if (typeof payload.tid !== 'string') {
+              res.setHeader(
+                'WWW-Authenticate',
+                buildWwwAuthenticate({
+                  req,
+                  error: 'invalid_token',
+                  errorDescription: 'Invalid token',
+                })
+              );
               res.status(401).json({ error: 'invalid_token', detail: 'missing_tid_claim' });
               return;
             }
             if (payload.tid.toLowerCase() !== expectedTid.toLowerCase()) {
+              res.setHeader(
+                'WWW-Authenticate',
+                buildWwwAuthenticate({
+                  req,
+                  error: 'invalid_token',
+                  errorDescription: 'Invalid token',
+                })
+              );
               res.status(401).json({
                 error: 'tenant_mismatch',
                 detail: 'JWT tid does not match configured MS365_MCP_TENANT_ID',
@@ -1302,6 +1388,14 @@ class MicrosoftGraphServer {
             }
           } catch (err) {
             logger.info({ err: (err as Error).message }, 'legacy /mcp: JWT verification failed');
+            res.setHeader(
+              'WWW-Authenticate',
+              buildWwwAuthenticate({
+                req,
+                error: 'invalid_token',
+                errorDescription: 'Invalid token',
+              })
+            );
             res.status(401).json({ error: 'invalid_token' });
             return;
           }
@@ -1322,13 +1416,15 @@ class MicrosoftGraphServer {
         async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
-            const transport = new StreamableHTTPServerTransport({
+            const transport = new ExpressStreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
 
-            res.on('close', () => {
-              transport.close();
-              server.close();
+            const cleanup = onceAsync(() =>
+              Promise.all([transport.close(), server.close()]).then(() => undefined)
+            );
+            res.once('close', () => {
+              void cleanup();
             });
 
             await server.connect(transport);
@@ -1379,13 +1475,15 @@ class MicrosoftGraphServer {
         async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
             const server = this.createMcpServer();
-            const transport = new StreamableHTTPServerTransport({
+            const transport = new ExpressStreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
             });
 
-            res.on('close', () => {
-              transport.close();
-              server.close();
+            const cleanup = onceAsync(() =>
+              Promise.all([transport.close(), server.close()]).then(() => undefined)
+            );
+            res.once('close', () => {
+              void cleanup();
             });
 
             await server.connect(transport);
@@ -1475,6 +1573,7 @@ class MicrosoftGraphServer {
             const metricsServer = createMetricsServer(prometheusExporter, {
               port: metricsPort,
               bearerToken: process.env.MS365_MCP_METRICS_BEARER ?? null,
+              host: process.env.MS365_MCP_METRICS_HOST,
             });
             // Attach mcp_oauth_pkce_store_size — observable gauge polls
             // pkceStore.size() on each collection interval.

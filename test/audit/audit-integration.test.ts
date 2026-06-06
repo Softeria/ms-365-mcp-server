@@ -223,6 +223,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
           redirect_uri: 'http://localhost:3100/callback-a',
           code_challenge: challenge,
           state: 'a',
+          client_id: 'client-A',
         }),
       { redirect: 'manual' }
     );
@@ -244,6 +245,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
           redirect_uri: 'http://not-in-allowlist.example/callback',
           code_challenge: challenge,
           state: 'a',
+          client_id: 'client-A',
         })
     );
     expect(res.status).toBe(400);
@@ -268,6 +270,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
           redirect_uri: 'http://localhost:3100/callback-a',
           code_challenge: clientChallenge,
           state: 'a',
+          client_id: 'client-A',
         }),
       { redirect: 'manual' }
     );
@@ -281,6 +284,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
         code: 'the-code',
         redirect_uri: 'http://localhost:3100/callback-a',
         code_verifier: clientVerifier,
+        client_id: 'client-A',
       }),
     });
     expect(tokenRes.status).toBe(200);
@@ -303,6 +307,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
         code: 'the-code',
         redirect_uri: 'http://localhost:3100/callback-a',
         code_verifier: bogusVerifier,
+        client_id: 'client-A',
       }),
     });
     expect(tokenRes.status).toBe(400);
@@ -325,6 +330,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
           redirect_uri: 'http://localhost:3100/callback-a',
           code_challenge: challenge1,
           state: 'a',
+          client_id: 'client-A',
         }),
       { redirect: 'manual' }
     );
@@ -334,6 +340,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
           redirect_uri: 'http://localhost:3200/callback-b',
           code_challenge: challenge2,
           state: 'b',
+          client_id: 'client-B',
         }),
       { redirect: 'manual' }
     );
@@ -354,6 +361,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
             redirect_uri: 'http://localhost:3100/callback-a',
             code_challenge: challenge1,
             state: 'a',
+            client_id: 'client-A',
           }),
         { redirect: 'manual' }
       ),
@@ -363,6 +371,7 @@ describe('audit integration (plan 03-10, TENANT-06)', () => {
             redirect_uri: 'http://localhost:3200/callback-b',
             code_challenge: challenge2,
             state: 'b',
+            client_id: 'client-B',
           }),
         { redirect: 'manual' }
       ),

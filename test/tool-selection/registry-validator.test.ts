@@ -22,9 +22,26 @@ vi.mock('../../src/generated/client.js', () => ({
 
 vi.mock('../../src/presets/generated-index.js', () => {
   const ESSENTIALS = Object.freeze(new Set<string>(['mail.messages.send']));
+  const DISCOVERY = Object.freeze(
+    new Set<string>([
+      'search-tools',
+      'get-tool-schema',
+      'execute-tool',
+      'record-fact',
+      'bookmark-tool',
+      'calendar-brief-view',
+      'connector-diagnostics',
+      'bulk-action',
+      'read-bulk-result',
+    ])
+  );
   return {
+    DISCOVERY_V1_OPS: DISCOVERY,
     ESSENTIALS_V1_OPS: ESSENTIALS,
-    PRESET_VERSIONS: new Map([['essentials-v1', ESSENTIALS]]),
+    PRESET_VERSIONS: new Map([
+      ['essentials-v1', ESSENTIALS],
+      ['discovery-v1', DISCOVERY],
+    ]),
   };
 });
 
@@ -55,6 +72,30 @@ describe('plan 05-04 Task 1 — registry-validator', () => {
       // __beta__security-alerts has "security" as its first segment after stripping.
       const r = validateSelectors(['security:*']);
       expect(r.ok).toBe(true);
+    });
+
+    it('registered native synthetic selector aliases are valid exact ops', async () => {
+      const { validateSelectors } =
+        await import('../../src/lib/tool-selection/registry-validator.js');
+      const r = validateSelectors([
+        'search-tools',
+        'get-tool-schema',
+        'execute-tool',
+        'record-fact',
+        'bookmark-tool',
+        'calendar-brief-view',
+        'connector-diagnostics',
+      ]);
+      expect(r.ok).toBe(true);
+    });
+
+    it('synthetic aliases do not create workload selectors', async () => {
+      const { validateSelectors } =
+        await import('../../src/lib/tool-selection/registry-validator.js');
+      const r = validateSelectors(['search:*', 'record:*']);
+      expect(r.ok).toBe(false);
+      if (r.ok) throw new Error('unreachable');
+      expect(r.invalid).toEqual(['search:*', 'record:*']);
     });
 
     it('valid preset selector → {ok: true}', async () => {
@@ -153,6 +194,7 @@ describe('plan 05-04 Task 1 — registry-validator', () => {
       const aliases = getRegistryAliases();
       expect(aliases.has('mail.messages.send')).toBe(true);
       expect(aliases.has('__beta__security-alerts')).toBe(true);
+      expect(aliases.has('search-tools')).toBe(true);
       expect(Object.isFrozen(aliases)).toBe(true);
     });
 

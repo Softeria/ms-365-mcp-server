@@ -1,5 +1,6 @@
 import { WORKLOAD_GUIDE_SLUGS, type WorkloadGuideSlug } from './catalog.js';
 
+import { APP_DEFINITIONS, type DashboardSlug } from '../mcp-apps/assets.js';
 import type { SkillResourceDescriptor } from '../mcp-skills/resources.js';
 
 export type TenantResourceView =
@@ -75,6 +76,14 @@ export interface SkillMcpResourceUri {
   descriptor: SkillResourceDescriptor;
 }
 
+export interface DashboardMcpResourceUri {
+  ok: true;
+  kind: 'dashboard';
+  tenantId: string;
+  slug: DashboardSlug;
+  path: `dashboards/${DashboardSlug}.json`;
+}
+
 export interface GraphBackedMcpResourceUri {
   ok: true;
   kind: 'graph';
@@ -98,11 +107,15 @@ export type ValidMcpResourceUri =
   | TenantMcpResourceUri
   | ConnectorMcpResourceUri
   | SkillMcpResourceUri
+  | DashboardMcpResourceUri
   | GraphBackedMcpResourceUri;
 
 export type ParsedMcpResourceUri = ValidMcpResourceUri | InvalidMcpResourceUri;
 
 const WORKLOAD_GUIDE_SET: ReadonlySet<string> = Object.freeze(new Set(WORKLOAD_GUIDE_SLUGS));
+const DASHBOARD_SLUG_SET: ReadonlySet<string> = Object.freeze(
+  new Set(APP_DEFINITIONS.map((app) => app.slug))
+);
 
 const TENANT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -127,49 +140,75 @@ const CONNECTOR_VIEW_BY_PATH: ReadonlyMap<string, ConnectorResourceView> = Objec
 interface GraphPattern {
   readonly pattern: RegExp;
   readonly kind: GraphBackedResourceKind;
-  readonly ids: (match: RegExpExecArray) => Readonly<Record<string, string>>;
+  readonly ids: (match: RegExpExecArray) => Readonly<Record<string, string>> | null;
+}
+
+function decodeGraphIds(
+  entries: ReadonlyArray<readonly [string, string | undefined]>
+): Readonly<Record<string, string>> | null {
+  const decoded: Record<string, string> = {};
+
+  for (const [key, value] of entries) {
+    if (value === undefined) return null;
+
+    try {
+      decoded[key] = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+  }
+
+  return decoded;
 }
 
 const GRAPH_PATTERNS: readonly GraphPattern[] = Object.freeze([
   {
     pattern: /^users\/([^/]+)\.json$/,
     kind: 'user',
-    ids: (match) => ({ userId: match[1] }),
+    ids: (match) => decodeGraphIds([['userId', match[1]]]),
   },
   {
     pattern: /^groups\/([^/]+)\.json$/,
     kind: 'group',
-    ids: (match) => ({ groupId: match[1] }),
+    ids: (match) => decodeGraphIds([['groupId', match[1]]]),
   },
   {
     pattern: /^teams\/([^/]+)\/channels\/([^/]+)\.json$/,
     kind: 'team-channel',
-    ids: (match) => ({ teamId: match[1], channelId: match[2] }),
+    ids: (match) =>
+      decodeGraphIds([
+        ['teamId', match[1]],
+        ['channelId', match[2]],
+      ]),
   },
   {
     pattern: /^teams\/([^/]+)\.json$/,
     kind: 'team',
-    ids: (match) => ({ teamId: match[1] }),
+    ids: (match) => decodeGraphIds([['teamId', match[1]]]),
   },
   {
     pattern: /^sites\/([^/]+)\.json$/,
     kind: 'site',
-    ids: (match) => ({ siteId: match[1] }),
+    ids: (match) => decodeGraphIds([['siteId', match[1]]]),
   },
   {
     pattern: /^drives\/([^/]+)\/items\/([^/]+)\.json$/,
     kind: 'drive-item',
-    ids: (match) => ({ driveId: match[1], itemId: match[2] }),
+    ids: (match) =>
+      decodeGraphIds([
+        ['driveId', match[1]],
+        ['itemId', match[2]],
+      ]),
   },
   {
     pattern: /^mail\/messages\/([^/]+)\.json$/,
     kind: 'mail-message',
-    ids: (match) => ({ messageId: match[1] }),
+    ids: (match) => decodeGraphIds([['messageId', match[1]]]),
   },
   {
     pattern: /^calendar\/events\/([^/]+)\.json$/,
     kind: 'calendar-event',
-    ids: (match) => ({ eventId: match[1] }),
+    ids: (match) => decodeGraphIds([['eventId', match[1]]]),
   },
 ]);
 
@@ -177,12 +216,49 @@ function invalid(code: ResourceUriErrorCode, message: string): InvalidMcpResourc
   return { ok: false, code, message };
 }
 
-function decodePathname(url: URL): string | null {
+function rawPathname(url: URL): string {
+  return url.pathname.replace(/^\/+/, '');
+}
+
+function decodePathname(pathname: string): string | null {
   try {
-    return decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+    return decodeURIComponent(pathname);
   } catch {
     return null;
   }
+}
+
+function hasDotSegment(pathname: string): boolean {
+  return pathname.split('/').some((segment) => segment === '.' || segment === '..');
+}
+
+function isDotSegment(segment: string): boolean {
+  if (segment === '.' || segment === '..') return true;
+  try {
+    const decoded = decodeURIComponent(segment);
+    return decoded === '.' || decoded === '..';
+  } catch {
+    return false;
+  }
+}
+
+function rawPathSegments(raw: string): readonly string[] {
+  const schemeEnd = raw.indexOf('://');
+  if (schemeEnd < 0) return [];
+
+  const authorityAndPath = raw.slice(schemeEnd + 3);
+  const slashIndex = authorityAndPath.indexOf('/');
+  if (slashIndex < 0) return [];
+
+  const pathAndDecorators = authorityAndPath.slice(slashIndex + 1);
+  const decoratorIndex = pathAndDecorators.search(/[?#]/);
+  const pathOnly =
+    decoratorIndex < 0 ? pathAndDecorators : pathAndDecorators.slice(0, decoratorIndex);
+  return pathOnly.split('/');
+}
+
+function hasRawDotSegment(raw: string): boolean {
+  return rawPathSegments(raw).some(isDotSegment);
 }
 
 function hasNoUrlDecorators(url: URL): boolean {
@@ -288,6 +364,27 @@ function parseSkillTenantResource(
   return null;
 }
 
+function parseDashboardTenantResource(
+  tenantId: string,
+  resourcePath: string
+): DashboardMcpResourceUri | InvalidMcpResourceUri | null {
+  const match = /^dashboards\/([a-z0-9-]+)\.json$/.exec(resourcePath);
+  if (!match) return null;
+
+  const slug = match[1];
+  if (!DASHBOARD_SLUG_SET.has(slug)) {
+    return invalid('invalid_resource_uri', 'Unsupported dashboard resource slug.');
+  }
+
+  return {
+    ok: true,
+    kind: 'dashboard',
+    tenantId,
+    slug: slug as DashboardSlug,
+    path: resourcePath as DashboardMcpResourceUri['path'],
+  };
+}
+
 function parseGraphTenantResource(
   tenantId: string,
   resourcePath: string
@@ -295,26 +392,37 @@ function parseGraphTenantResource(
   for (const graphPattern of GRAPH_PATTERNS) {
     const match = graphPattern.pattern.exec(resourcePath);
     if (!match) continue;
+
+    const ids = graphPattern.ids(match);
+    if (!ids) return null;
+
     return {
       ok: true,
       kind: 'graph',
       tenantId,
       graphKind: graphPattern.kind,
-      ids: graphPattern.ids(match),
+      ids,
       path: resourcePath as GraphBackedMcpResourceUri['path'],
     };
   }
   return null;
 }
 
-function parseTenantResource(pathname: string): ParsedMcpResourceUri {
+function parseTenantResource(
+  pathname: string,
+  rawTenantPath: string = pathname
+): ParsedMcpResourceUri {
   const segments = pathname.split('/');
   const tenantId = segments.shift();
   if (!tenantId || !TENANT_ID_RE.test(tenantId)) {
     return invalid('invalid_resource_uri', 'Tenant resource URI must include a UUID tenant id.');
   }
 
+  const rawSegments = rawTenantPath.split('/');
+  rawSegments.shift();
+
   const resourcePath = segments.join('/');
+  const rawResourcePath = rawSegments.join('/');
   const skillResource = parseSkillTenantResource(tenantId, resourcePath);
   if (skillResource) {
     return skillResource;
@@ -325,7 +433,12 @@ function parseTenantResource(pathname: string): ParsedMcpResourceUri {
     return connectorResource;
   }
 
-  const graphResource = parseGraphTenantResource(tenantId, resourcePath);
+  const dashboardResource = parseDashboardTenantResource(tenantId, resourcePath);
+  if (dashboardResource) {
+    return dashboardResource;
+  }
+
+  const graphResource = parseGraphTenantResource(tenantId, rawResourcePath);
   if (graphResource) {
     return graphResource;
   }
@@ -345,7 +458,7 @@ function parseTenantResource(pathname: string): ParsedMcpResourceUri {
 }
 
 export function parseMcpResourceUri(raw: string): ParsedMcpResourceUri {
-  if (/\/\.{1,2}(?:\/|$)/.test(raw)) {
+  if (hasRawDotSegment(raw)) {
     return invalid('invalid_resource_uri', 'Resource URI path must not include dot segments.');
   }
 
@@ -364,8 +477,15 @@ export function parseMcpResourceUri(raw: string): ParsedMcpResourceUri {
     return invalid('invalid_resource_uri', 'Resource URI must not include auth, query, or hash.');
   }
 
-  const pathname = decodePathname(url);
-  if (!pathname || pathname.includes('..') || pathname.includes('//')) {
+  const rawResourcePath = rawPathname(url);
+  const pathname = decodePathname(rawResourcePath);
+  if (
+    !rawResourcePath ||
+    !pathname ||
+    rawResourcePath.includes('//') ||
+    hasDotSegment(rawResourcePath) ||
+    hasDotSegment(pathname)
+  ) {
     return invalid('invalid_resource_uri', 'Resource URI path is invalid.');
   }
 
@@ -375,7 +495,7 @@ export function parseMcpResourceUri(raw: string): ParsedMcpResourceUri {
     case 'endpoint':
       return parseEndpointResource(pathname);
     case 'tenant':
-      return parseTenantResource(pathname);
+      return parseTenantResource(pathname, rawResourcePath);
     default:
       return invalid('invalid_resource_uri', 'Unsupported MCP resource host.');
   }
@@ -390,6 +510,7 @@ export function assertTenantResourceOwner(
     (parsed.kind !== 'tenant' &&
       parsed.kind !== 'skill' &&
       parsed.kind !== 'connector' &&
+      parsed.kind !== 'dashboard' &&
       parsed.kind !== 'graph')
   ) {
     return parsed;

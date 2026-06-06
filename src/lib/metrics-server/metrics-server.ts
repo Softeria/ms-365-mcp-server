@@ -29,6 +29,7 @@ import type { Request, Response } from 'express';
 import { pinoHttp } from 'pino-http';
 import { nanoid } from 'nanoid';
 import { createServer, type Server } from 'node:http';
+import { isIP } from 'node:net';
 import type { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 
 import { createBearerAuthMiddleware } from './bearer-auth.js';
@@ -41,9 +42,9 @@ export interface MetricsServerConfig {
    * a kernel-assigned port.
    */
   port: number;
-  /** Bearer token gate. null / undefined / empty = open endpoint (D-02). */
+  /** Bearer token gate. null / undefined / empty is allowed only for localhost binds. */
   bearerToken: string | null | undefined;
-  /** Optional host bind. Default undefined = 0.0.0.0 (all interfaces). */
+  /** Optional host bind. Default undefined = 127.0.0.1. Public binds require Bearer auth. */
   host?: string;
 }
 
@@ -109,33 +110,58 @@ export function createMetricsServer(
   });
 
   const server = createServer(app);
-  if (config.host) {
-    server.listen(config.port, config.host, () => {
-      const addr = server.address();
-      const actualPort = typeof addr === 'object' && addr ? addr.port : config.port;
-      logger.info(
-        {
-          metricsPort: actualPort,
-          metricsHost: config.host,
-          bearerGated: isBearerGated(config.bearerToken),
-        },
-        'plan 06-03 — metrics server listening'
-      );
-    });
-  } else {
-    server.listen(config.port, () => {
-      const addr = server.address();
-      const actualPort = typeof addr === 'object' && addr ? addr.port : config.port;
-      logger.info(
-        { metricsPort: actualPort, bearerGated: isBearerGated(config.bearerToken) },
-        'plan 06-03 — metrics server listening on all interfaces'
-      );
-    });
+  const host = normalizeMetricsHost(config.host);
+  if (isPublicMetricsBind(host) && !isBearerGated(config.bearerToken)) {
+    throw new Error('MS365_MCP_METRICS_BEARER is required when metrics bind publicly');
   }
+  server.listen(config.port, host, () => {
+    const addr = server.address();
+    const actualPort = typeof addr === 'object' && addr ? addr.port : config.port;
+    logger.info(
+      {
+        metricsPort: actualPort,
+        metricsHost: host,
+        bearerGated: isBearerGated(config.bearerToken),
+      },
+      'plan 06-03 — metrics server listening'
+    );
+  });
 
   return server;
 }
 
+function normalizeMetricsHost(host: string | undefined): string {
+  const trimmed = host?.trim();
+  return trimmed ? trimmed : '127.0.0.1';
+}
+
 function isBearerGated(token: string | null | undefined): boolean {
   return typeof token === 'string' && token.length > 0;
+}
+
+export function isPublicMetricsBind(host: string): boolean {
+  const normalizedHost = host.trim().toLowerCase();
+  const unbracketedHost =
+    normalizedHost.startsWith('[') && normalizedHost.endsWith(']')
+      ? normalizedHost.slice(1, -1)
+      : normalizedHost;
+
+  return !isLoopbackMetricsHost(unbracketedHost);
+}
+
+function isLoopbackMetricsHost(host: string): boolean {
+  if (host === 'localhost' || host === '::1') return true;
+
+  if (isIP(host) === 4) return host.startsWith('127.');
+  if (isIP(host) !== 6) return false;
+
+  const mappedIpv4 = host.match(/^(?:::ffff:|0:0:0:0:0:ffff:)(\d+\.\d+\.\d+\.\d+)$/u);
+  if (mappedIpv4) return mappedIpv4[1].startsWith('127.');
+
+  const hextets = host.split(':');
+  return (
+    hextets.length === 8 &&
+    hextets.slice(0, 7).every((part) => Number.parseInt(part, 16) === 0) &&
+    Number.parseInt(hextets[7], 16) === 1
+  );
 }

@@ -146,6 +146,8 @@ describe('plan 03-01 — Postgres schema round-trip', () => {
       '20261101000000_tenant_skills.sql',
       // Private owner scoping for memory rows.
       '20261102000000_user_scoped_memory.sql',
+      // HP9 Durable DCR: tenant-scoped OAuth client registrations.
+      '20261201000000_oauth_clients.sql',
     ]);
   });
 

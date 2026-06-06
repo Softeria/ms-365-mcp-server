@@ -44,6 +44,7 @@ export interface SessionRecord {
   graphAccessTokenExpiresOn?: string;
   clientId: string;
   scopes: string[];
+  tokenScopes?: string[];
   ownerSubject?: string;
   createdAt: number;
 }
@@ -77,8 +78,12 @@ export class SessionStore {
     private readonly dek: Buffer
   ) {}
 
+  private keyFromHash(tenantId: string, accessTokenHash: string): string {
+    return `mcp:session:${tenantId}:${accessTokenHash}`;
+  }
+
   private key(tenantId: string, accessToken: string): string {
-    return `mcp:session:${tenantId}:${hashAccessToken(accessToken)}`;
+    return this.keyFromHash(tenantId, hashAccessToken(accessToken));
   }
 
   /**
@@ -118,7 +123,19 @@ export class SessionStore {
    * rotation mismatch, corrupt ciphertext — all drop the key and warn).
    */
   async get(tenantId: string, accessToken: string): Promise<SessionRecord | null> {
-    const k = this.key(tenantId, accessToken);
+    return this.getByAccessTokenHash(tenantId, hashAccessToken(accessToken));
+  }
+
+  /**
+   * Look up a session record by an already-computed access-token hash. Used by
+   * opaque gateway refresh handles so the refresh index never stores the raw
+   * bearer token it points at.
+   */
+  async getByAccessTokenHash(
+    tenantId: string,
+    accessTokenHash: string
+  ): Promise<SessionRecord | null> {
+    const k = this.keyFromHash(tenantId, accessTokenHash);
     const raw = await this.redis.get(k);
     if (!raw) return null;
     try {
@@ -140,6 +157,11 @@ export class SessionStore {
    * revoked, or explicitly invalidated.
    */
   async delete(tenantId: string, accessToken: string): Promise<void> {
-    await this.redis.del(this.key(tenantId, accessToken));
+    await this.deleteByAccessTokenHash(tenantId, hashAccessToken(accessToken));
+  }
+
+  /** Remove a session by an already-computed access-token hash. */
+  async deleteByAccessTokenHash(tenantId: string, accessTokenHash: string): Promise<void> {
+    await this.redis.del(this.keyFromHash(tenantId, accessTokenHash));
   }
 }

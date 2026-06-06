@@ -19,6 +19,8 @@ export type AuthorizeRequestIdentity = Pick<
   | 'clientId'
   | 'redirectUri'
   | 'tenantId'
+  | 'scopes'
+  | 'tokenScopes'
   | 'forwardedAuthorizeParams'
 >;
 
@@ -33,6 +35,21 @@ function forwardedParamsMatch(
   return leftEntries.every(([key, value]) => right[key] === value);
 }
 
+function normalizedScopes(scopes: readonly string[]): string[] {
+  return Array.from(new Set(scopes.map((scope) => scope.trim()).filter(Boolean))).sort();
+}
+
+function scopesMatch(left?: readonly string[], right?: readonly string[]): boolean {
+  if (left === undefined || right === undefined) return true;
+
+  const leftScopes = normalizedScopes(left);
+  const rightScopes = normalizedScopes(right);
+  return (
+    leftScopes.length === rightScopes.length &&
+    leftScopes.every((scope, i) => rightScopes[i] === scope)
+  );
+}
+
 export function isSameAuthorizeRequest(
   entry: PkceEntry,
   expected: AuthorizeRequestIdentity
@@ -44,6 +61,8 @@ export function isSameAuthorizeRequest(
     entry.clientId === expected.clientId &&
     entry.redirectUri === expected.redirectUri &&
     entry.tenantId === expected.tenantId &&
+    scopesMatch(entry.scopes, expected.scopes) &&
+    scopesMatch(entry.tokenScopes, expected.tokenScopes) &&
     forwardedParamsMatch(entry.forwardedAuthorizeParams, expected.forwardedAuthorizeParams)
   );
 }

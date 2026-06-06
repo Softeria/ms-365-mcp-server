@@ -10,6 +10,7 @@ import { ODataErrorHandler } from './lib/middleware/odata-error.js';
 import { RetryHandler } from './lib/middleware/retry.js';
 import { ETagMiddleware } from './lib/middleware/etag.js';
 import { GraphError } from './lib/graph-errors.js';
+import { sanitizeErrorCode } from './lib/bulk-actions/sanitize.js';
 import type { GraphRequest } from './lib/middleware/types.js';
 import { trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import {
@@ -113,6 +114,19 @@ export function sanitizeGraphUrlForLog(rawUrl: string): string {
     const marker = rawUrl.search(/[?#]/);
     return marker === -1 ? rawUrl : `${rawUrl.slice(0, marker)}?<redacted>`;
   }
+}
+
+function safeGraphErrorMessage(error: GraphError): string {
+  const status = Number.isFinite(error.statusCode) ? error.statusCode : 'unknown';
+  const suffix = error.requiresOrgMode
+    ? ' This tool requires organization mode. Please restart with --org-mode flag.'
+    : '';
+  return `Microsoft Graph request failed with status ${status}.${suffix}`;
+}
+
+function safeErrorName(error: unknown): string {
+  const name = error instanceof Error ? error.name : undefined;
+  return sanitizeErrorCode(name, 'Error');
 }
 
 interface GraphRequestOptions {
@@ -430,39 +444,50 @@ class GraphClient {
         // stdio / legacy single-tenant paths skip to avoid orphaning rows.
         void this.emitGraphErrorAudit(endpoint, error);
 
-        let finalMessage = error.message;
-        if (error.requiresOrgMode) {
-          finalMessage +=
-            '. This tool requires organization mode. Please restart with --org-mode flag.';
-        }
+        const retryAfterSeconds =
+          typeof error.retryAfterMs === 'number' && Number.isFinite(error.retryAfterMs)
+            ? Math.max(1, Math.ceil(error.retryAfterMs / 1000))
+            : undefined;
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
-                error: finalMessage,
-                code: error.code,
+                error: safeGraphErrorMessage(error),
+                code: sanitizeErrorCode(error.code),
                 requestId: error.requestId,
               }),
             },
           ],
           isError: true,
           _meta: {
+            errorCode: sanitizeErrorCode(error.code),
+            retryAfterSeconds,
             graph: {
-              code: error.code,
+              code: sanitizeErrorCode(error.code),
               statusCode: error.statusCode,
               requestId: error.requestId,
               clientRequestId: error.clientRequestId,
               date: error.date,
+              retryAfterSeconds,
+              requiresOrgMode: error.requiresOrgMode === true,
             },
           },
         };
       }
       // Fallback for non-GraphError (network errors, auth-resolution failures,
-      // etc.). These never carry a Microsoft requestId so _meta.graph is omitted.
-      logger.error(`Error in Graph API request: ${error}`);
+      // etc.). Do not log or return raw exception messages because they can
+      // contain token, URL, request-body, or identity fragments.
+      const errorCode = safeErrorName(error);
+      logger.error({ errorCode }, 'Graph API request failed');
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ error: 'Graph API request failed.', code: errorCode }),
+          },
+        ],
+        _meta: { errorCode },
         isError: true,
       };
     }
@@ -496,10 +521,10 @@ class GraphClient {
         requestId: ctx?.requestId ?? 'no-req-id',
         result: 'failure',
         meta: {
-          code: error.code,
-          message: error.message,
+          code: sanitizeErrorCode(error.code),
           graphRequestId: error.requestId,
           httpStatus: error.statusCode,
+          requiresOrgMode: error.requiresOrgMode === true,
         },
       });
     } catch {

@@ -41,7 +41,7 @@ import { z } from 'zod';
 import { distance } from 'fastest-levenshtein';
 import { api } from '../../generated/client.js';
 import { PRESET_VERSIONS } from '../../presets/generated-index.js';
-import { PRODUCT_AUDIENCES } from '../auth/products.js';
+import { DISCOVERY_META_TOOL_NAMES } from '../tenant-surface/surface.js';
 import type { Selector } from './selector-ast.js';
 import { parseSelectorList } from './selector-ast.js';
 
@@ -76,16 +76,20 @@ import { extractWorkloadPrefix } from './workload-prefix.js';
 export { extractWorkloadPrefix };
 
 // Built once at module load, frozen to prevent downstream mutation.
+const GRAPH_REGISTRY_ALIASES = api.endpoints
+  .map((e) => e.alias)
+  .filter((a): a is string => typeof a === 'string' && a.length > 0);
+
+const GRAPH_REGISTRY_ALIAS_SET: ReadonlySet<string> = Object.freeze(
+  new Set(GRAPH_REGISTRY_ALIASES)
+);
+
 const REGISTRY_ALIASES: ReadonlySet<string> = Object.freeze(
-  new Set(
-    api.endpoints
-      .map((e) => e.alias)
-      .filter((a): a is string => typeof a === 'string' && a.length > 0)
-  )
+  new Set([...GRAPH_REGISTRY_ALIASES, ...DISCOVERY_META_TOOL_NAMES])
 );
 
 const WORKLOAD_PREFIXES: ReadonlySet<string> = Object.freeze(
-  new Set([...REGISTRY_ALIASES].map(extractWorkloadPrefix).filter((w) => w.length > 0))
+  new Set(GRAPH_REGISTRY_ALIASES.map(extractWorkloadPrefix).filter((w) => w.length > 0))
 );
 
 const PRESET_NAMES: ReadonlySet<string> = Object.freeze(new Set(PRESET_VERSIONS.keys()));
@@ -175,6 +179,10 @@ function topSuggestions(query: string, pool: ReadonlySet<string>): string[] {
 
 export function getRegistryAliases(): ReadonlySet<string> {
   return REGISTRY_ALIASES;
+}
+
+export function getGraphRegistryAliases(): ReadonlySet<string> {
+  return GRAPH_REGISTRY_ALIAS_SET;
 }
 
 export function getWorkloadPrefixes(): ReadonlySet<string> {

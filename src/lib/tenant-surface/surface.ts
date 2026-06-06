@@ -2,7 +2,9 @@ import type { TenantRow } from '../tenant/tenant-row.js';
 import { DISCOVERY_V1_OPS } from '../../presets/generated-index.js';
 
 export const DISCOVERY_PRESET_VERSION = 'discovery-v1';
-export const DISCOVERY_META_TOOL_NAMES: ReadonlySet<string> = DISCOVERY_V1_OPS;
+export const DISCOVERY_META_TOOL_NAMES: ReadonlySet<string> = Object.freeze(
+  new Set([...DISCOVERY_V1_OPS, 'bulk-action', 'read-bulk-result'])
+);
 
 const EMPTY_VISIBLE_TOOLS: ReadonlySet<string> = Object.freeze(new Set<string>());
 

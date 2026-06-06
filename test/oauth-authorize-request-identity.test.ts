@@ -82,6 +82,15 @@ describe('authorize request identity', () => {
     expect(isSameAuthorizeRequest(existing, changed)).toBe(false);
   });
 
+  it('compares duplicate PKCE retry scopes independent of ordering', () => {
+    const existing = entry({ scopes: ['Mail.Read', 'User.Read'] });
+
+    expect(isSameAuthorizeRequest(existing, entry({ scopes: ['User.Read', 'Mail.Read'] }))).toBe(
+      true
+    );
+    expect(isSameAuthorizeRequest(existing, entry({ scopes: ['User.Read'] }))).toBe(false);
+  });
+
   it('preserves idempotent retries for older PKCE entries without forwarded authorize params', () => {
     const retry = entry({
       forwardedAuthorizeParams: {

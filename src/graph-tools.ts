@@ -54,6 +54,8 @@ export {
   type DiscoverySearchIndex,
 } from './lib/graph-tools-pure.js';
 import { describeToolSchema } from './lib/tool-schema-describer.js';
+import { registerBulkActionTools } from './lib/bulk-actions/register.js';
+import { sanitizeErrorCode } from './lib/bulk-actions/sanitize.js';
 
 /**
  * Plan 05-06 (COVRG-05, D-20, T-05-12) — module-level per-tenant BM25 cache.
@@ -109,6 +111,33 @@ const endpointsData = JSON.parse(
 const endpointsMap: Map<string, EndpointConfig> = new Map(
   endpointsData.map((e) => [e.toolName, e])
 );
+
+function composeAbortSignals(...signals: Array<AbortSignal | undefined>): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  const activeSignals = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+  if (activeSignals.length === 0) return { cleanup: () => undefined };
+  if (activeSignals.length === 1) return { signal: activeSignals[0], cleanup: () => undefined };
+
+  const controller = new AbortController();
+  const abort = (): void => controller.abort();
+  const cleanups = activeSignals.map((signal) => {
+    if (signal.aborted) {
+      controller.abort();
+      return () => undefined;
+    }
+    signal.addEventListener('abort', abort, { once: true });
+    return () => signal.removeEventListener('abort', abort);
+  });
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const cleanup of cleanups) cleanup();
+    },
+  };
+}
 
 // `maxTopFromEnv` + `clampTopQueryParam` live in `./lib/graph-tools-pure.ts`
 // so other modules can consume them without transitively loading the 45 MB
@@ -291,6 +320,21 @@ function codeFromError(error: unknown): string {
   return error instanceof Error && error.name ? error.name : 'tool_error';
 }
 
+function retryAfterSecondsFromError(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('retryAfterMs' in error)) return undefined;
+  const retryAfterMs = (error as { retryAfterMs?: unknown }).retryAfterMs;
+  if (typeof retryAfterMs !== 'number' || !Number.isFinite(retryAfterMs)) return undefined;
+  return Math.max(1, Math.ceil(retryAfterMs / 1000));
+}
+
+function safeRequestIdFromError(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('requestId' in error)) return undefined;
+  const requestId = (error as { requestId?: unknown }).requestId;
+  return typeof requestId === 'string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(requestId)
+    ? requestId
+    : undefined;
+}
+
 function summarizeBodyValue(body: unknown): Record<string, unknown> {
   if (body === undefined || body === null) {
     return { present: false };
@@ -320,6 +364,8 @@ function summarizeSerializedBody(
 }
 
 const TRANSCRIPT_VTT_ACCEPT = 'text/vtt';
+const CONSISTENCY_LEVEL_HEADER = 'ConsistencyLevel';
+const CONSISTENCY_LEVEL_EVENTUAL = 'eventual';
 
 function normalizedToolAlias(alias: string): string {
   return alias.replace(/^__beta__/, '').toLowerCase();
@@ -372,6 +418,72 @@ function preserveRawTranscriptText(result: TextToolResult): TextToolResult {
       rawTextResponse: true,
     },
   };
+}
+
+function supportsConsistencyLevelHeader(
+  tool: Pick<(typeof api.endpoints)[0], 'parameters'>
+): boolean {
+  return (tool.parameters ?? []).some(
+    (param) =>
+      param.type === 'Header' && param.name.toLowerCase() === CONSISTENCY_LEVEL_HEADER.toLowerCase()
+  );
+}
+
+function hasHeaderCaseInsensitive(headers: Record<string, string>, name: string): boolean {
+  return Object.keys(headers).some((key) => key.toLowerCase() === name.toLowerCase());
+}
+
+function isTruthyGraphBoolean(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1';
+}
+
+function hasCountSegmentPath(requestPath: string): boolean {
+  return /\/\$count$/i.test(pathWithoutQuery(requestPath).replace(/\/+$/, ''));
+}
+
+function usesAdvancedDirectoryQuery(
+  requestPath: string,
+  queryParams: Record<string, string>
+): boolean {
+  return (
+    hasCountSegmentPath(requestPath) ||
+    (queryParams['$search']?.trim().length ?? 0) > 0 ||
+    isTruthyGraphBoolean(queryParams['$count']) ||
+    isTruthyGraphBoolean(queryParams.count)
+  );
+}
+
+function isUserMailboxPath(path: string): boolean {
+  return /^\/users\/[^/]+\/(messages|mailfolders|sendmail)(\/|$)/i.test(path);
+}
+
+function isAdvancedDirectoryQueryPath(requestPath: string): boolean {
+  const path = pathWithoutQuery(requestPath).toLowerCase();
+  if (isUserMailboxPath(path)) return false;
+  return [
+    '/users',
+    '/groups',
+    '/directoryobjects',
+    '/serviceprincipals',
+    '/applications',
+    '/devices',
+    '/contacts',
+    '/me/people',
+  ].some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+function applyAdvancedDirectoryQueryHeaders(
+  tool: Pick<(typeof api.endpoints)[0], 'parameters'>,
+  requestPath: string,
+  queryParams: Record<string, string>,
+  headers: Record<string, string>
+): void {
+  if (!supportsConsistencyLevelHeader(tool) && !isAdvancedDirectoryQueryPath(requestPath)) return;
+  if (!usesAdvancedDirectoryQuery(requestPath, queryParams)) return;
+  if (hasHeaderCaseInsensitive(headers, CONSISTENCY_LEVEL_HEADER)) return;
+  headers[CONSISTENCY_LEVEL_HEADER] = CONSISTENCY_LEVEL_EVENTUAL;
 }
 
 function transcriptTextFromResult(result: CallToolResult): string | undefined {
@@ -695,13 +807,28 @@ async function executeGraphToolInner(
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
       } catch (err) {
+        const errorCode = 'account_token_resolution_failed';
+        const sourceErrorCode = sanitizeErrorCode(
+          typeof err === 'object' && err !== null && 'code' in err
+            ? (err as { code?: unknown }).code
+            : undefined,
+          'unknown'
+        );
+        logger.error(
+          { alias: tool.alias, errorCode, sourceErrorCode },
+          'Account token resolution failed'
+        );
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ error: (err as Error).message }),
+              text: JSON.stringify({
+                error: 'account_token_resolution_failed',
+                code: errorCode,
+              }),
             },
           ],
+          _meta: { errorCode },
           isError: true,
         };
       }
@@ -846,6 +973,7 @@ async function executeGraphToolInner(
     }
 
     clampTopQueryParam(queryParams);
+    applyAdvancedDirectoryQueryHeaders(tool, path, queryParams, headers);
 
     const preferValues: string[] = [];
 
@@ -910,9 +1038,37 @@ async function executeGraphToolInner(
       headers,
     };
 
+    const shouldFetchAllPages = params.fetchAllPages === true;
+    const ctx = requestContext.getStore();
+    const meta =
+      typeof params._meta === 'object' && params._meta !== null
+        ? (params._meta as { progressToken?: unknown })
+        : undefined;
+    const progressToken = meta?.progressToken;
+    const token =
+      typeof progressToken === 'string' || typeof progressToken === 'number'
+        ? progressToken
+        : undefined;
+    const operationKey = {
+      tenantId: ctx?.tenantId ?? tenantInfo.id,
+      requestId: ctx?.requestId,
+      progressToken: token !== undefined ? String(token) : undefined,
+    };
+    const sendNotification =
+      typeof params._sendNotification === 'function'
+        ? (params._sendNotification as ProgressNotificationSender)
+        : undefined;
+    const operationWasRegistered = shouldFetchAllPages && token !== undefined;
+    const operationController = operationWasRegistered
+      ? registerOperation(operationKey)
+      : undefined;
     const requestSignal = params._signal instanceof AbortSignal ? params._signal : undefined;
-    if (requestSignal) {
-      options.signal = requestSignal;
+    const { signal: graphRequestSignal, cleanup: cleanupGraphRequestSignal } = composeAbortSignals(
+      requestSignal,
+      operationController?.signal
+    );
+    if (graphRequestSignal) {
+      options.signal = graphRequestSignal;
     }
 
     if (options.method !== 'GET' && body) {
@@ -968,86 +1124,90 @@ async function executeGraphToolInner(
       `Making graph request to ${path} with options: ${JSON.stringify(loggableOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
     );
 
-    let response = await graphClient.graphRequest(path, options);
-    if (isTranscriptContent) {
-      response = preserveRawTranscriptText(response);
-    }
-
-    // Plan 02-04 / MWARE-04: delegate pagination to src/lib/middleware/page-iterator.ts.
-    // The v1 inline loop at this site silently swallowed mid-stream errors
-    // (CONCERNS.md "fetchAllPages swallows pagination errors"); the new
-    // buffered wrapper throws on any mid-stream failure so the outer
-    // executeGraphTool catch-block surfaces them as typed `isError: true`
-    // MCP responses. D-06 caps at 20 pages by default (overridable via
-    // MS365_MCP_MAX_PAGES); _truncated + _nextLink surface in the envelope
-    // when the cap is hit. Dynamic import keeps page-iterator out of the
-    // module graph for callers that never opt-in to pagination.
-    const shouldFetchAllPages = params.fetchAllPages === true;
-    if (shouldFetchAllPages && response?.content?.[0]?.text) {
-      const { fetchAllPages } = await import('./lib/middleware/page-iterator.js');
-      // Seed the iterator with the already-fetched first page so we avoid
-      // a duplicate graphRequest call (preserves v1's "1 initial + N nextLinks"
-      // call-count contract that existing fetchAllPages tests rely on).
-      const firstPage = JSON.parse(response.content[0].text);
-      const ctx = requestContext.getStore();
-      const meta =
-        typeof params._meta === 'object' && params._meta !== null
-          ? (params._meta as { progressToken?: unknown })
-          : undefined;
-      const progressToken = meta?.progressToken;
-      const token =
-        typeof progressToken === 'string' || typeof progressToken === 'number'
-          ? progressToken
-          : undefined;
-      const operationKey = {
-        tenantId: ctx?.tenantId ?? tenantInfo.id,
-        requestId: ctx?.requestId,
-        progressToken: token !== undefined ? String(token) : undefined,
-      };
-      const sendNotification =
-        typeof params._sendNotification === 'function'
-          ? (params._sendNotification as ProgressNotificationSender)
-          : undefined;
-      if (token !== undefined) registerOperation(operationKey);
-      const combined = await fetchAllPages(path, options, graphClient, {
-        seedFirstPage: firstPage,
-        progressToken: token,
-        sendNotification,
-        capabilityProfile: ctx?.capabilityProfile,
-        operationKey,
-        signal: requestSignal,
-      });
-      unregisterOperation(operationKey);
-      firstPage.value = combined.value;
-      if (combined._cancelled) {
-        const payload = {
-          status: 'cancelled',
-          operation: tool.alias,
-          resourceUri: combined._partialResourceUri,
-          partial: { value: combined.value },
-        };
-        response.content[0].text = JSON.stringify(payload);
-        response._meta = {
-          ...response._meta,
-          cancelled: true,
-          partialResourceUri: combined._partialResourceUri,
-        };
-      } else if (combined._truncated) {
-        firstPage._truncated = true;
-        if (combined._nextLink !== undefined) {
-          firstPage._nextLink = combined._nextLink;
+    let response: Awaited<ReturnType<GraphClient['graphRequest']>> | undefined;
+    try {
+      try {
+        response = await graphClient.graphRequest(path, options);
+      } catch (error) {
+        if (operationWasRegistered && operationController?.signal.aborted) {
+          response = {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'cancelled',
+                  operation: tool.alias,
+                  partial: { value: [] },
+                }),
+              },
+            ],
+            _meta: { cancelled: true },
+          };
+        } else {
+          throw error;
         }
       }
-      if (!combined._cancelled && firstPage['@odata.count'] !== undefined) {
-        firstPage['@odata.count'] = combined.value.length;
+      if (isTranscriptContent) {
+        response = preserveRawTranscriptText(response);
       }
-      if (!combined._cancelled) {
-        delete firstPage['@odata.nextLink'];
-        response.content[0].text = JSON.stringify(firstPage);
+
+      // Plan 02-04 / MWARE-04: delegate pagination to src/lib/middleware/page-iterator.ts.
+      // The v1 inline loop at this site silently swallowed mid-stream errors
+      // (CONCERNS.md "fetchAllPages swallows pagination errors"); the new
+      // buffered wrapper throws on any mid-stream failure so the outer
+      // executeGraphTool catch-block surfaces them as typed `isError: true`
+      // MCP responses. D-06 caps at 20 pages by default (overridable via
+      // MS365_MCP_MAX_PAGES); _truncated + _nextLink surface in the envelope
+      // when the cap is hit. Dynamic import keeps page-iterator out of the
+      // module graph for callers that never opt-in to pagination.
+      if (shouldFetchAllPages && response?.content?.[0]?.text) {
+        const { fetchAllPages } = await import('./lib/middleware/page-iterator.js');
+        // Seed the iterator with the already-fetched first page so we avoid
+        // a duplicate graphRequest call (preserves v1's "1 initial + N nextLinks"
+        // call-count contract that existing fetchAllPages tests rely on).
+        const firstPage = JSON.parse(response.content[0].text);
+        const combined = await fetchAllPages(path, options, graphClient, {
+          seedFirstPage: firstPage,
+          progressToken: token,
+          sendNotification,
+          capabilityProfile: ctx?.capabilityProfile,
+          operationKey,
+          signal: graphRequestSignal,
+        });
+        firstPage.value = combined.value;
+        if (combined._cancelled) {
+          const payload = {
+            status: 'cancelled',
+            operation: tool.alias,
+            partial: { value: combined.value },
+          };
+          response.content[0].text = JSON.stringify(payload);
+          response._meta = {
+            ...response._meta,
+            cancelled: true,
+          };
+        } else if (combined._truncated) {
+          firstPage._truncated = true;
+          if (combined._nextLink !== undefined) {
+            firstPage._nextLink = combined._nextLink;
+          }
+        }
+        if (!combined._cancelled && firstPage['@odata.count'] !== undefined) {
+          firstPage['@odata.count'] = combined.value.length;
+        }
+        if (!combined._cancelled) {
+          delete firstPage['@odata.nextLink'];
+          response.content[0].text = JSON.stringify(firstPage);
+        }
+        logger.info(
+          `Pagination via page-iterator: items=${combined.value.length} truncated=${Boolean(combined._truncated)}`
+        );
       }
-      logger.info(
-        `Pagination via page-iterator: items=${combined.value.length} truncated=${Boolean(combined._truncated)}`
-      );
+    } finally {
+      cleanupGraphRequestSignal();
+      if (operationWasRegistered) {
+        unregisterOperation(operationKey);
+      }
     }
 
     if (response?.content?.[0]?.text) {
@@ -1060,11 +1220,15 @@ async function executeGraphToolInner(
           logger.info(`Response contains ${jsonResponse.value.length} items`);
         }
         if (jsonResponse['@odata.nextLink']) {
-          logger.info(`Response has pagination nextLink: ${jsonResponse['@odata.nextLink']}`);
+          logger.info('Response has pagination nextLink: true');
         }
       } catch {
         // Non-JSON response
       }
+    }
+
+    if (!response) {
+      throw new Error('Graph request did not return a response.');
     }
 
     // Convert McpResponse to CallToolResult with the correct structure
@@ -1079,17 +1243,34 @@ async function executeGraphToolInner(
       isError: response.isError,
     };
   } catch (error) {
-    logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    const errorCode = codeFromError(error);
+    const retryAfterSeconds = retryAfterSecondsFromError(error);
+    const requestId = safeRequestIdFromError(error);
+    logger.error(
+      {
+        alias: tool.alias,
+        errorCode,
+        retryAfterSeconds,
+        requestId,
+      },
+      'Graph tool execution failed'
+    );
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            error: `Error in tool ${tool.alias}: ${(error as Error).message}`,
+            error: `Error in tool ${tool.alias}: tool execution failed.`,
+            code: errorCode,
+            requestId,
           }),
         },
       ],
-      _meta: { errorCode: codeFromError(error) },
+      _meta: {
+        errorCode,
+        retryAfterSeconds,
+        requestId,
+      },
       isError: true,
     };
   }
@@ -1399,6 +1580,17 @@ export function registerGraphTools(
       failedCount++;
     }
   }
+
+  registeredCount += registerBulkActionTools(server, {
+    graphClient,
+    authManager,
+    readOnly,
+    orgMode,
+    executeToolAlias,
+    createToolAliasExecutor: () => createExecuteToolAliasForCurrentContext(readOnly, orgMode),
+    enabledToolsPattern: enabledToolsRegex,
+    enabledToolsSet,
+  });
 
   // Register graph-batch tool (Plan 02-05 / MWARE — $batch coalescing).
   // Combines up to 20 Graph sub-requests into one POST /$batch. Skipped in
@@ -1737,28 +1929,26 @@ export interface ExecuteToolAliasArgs {
   orgMode?: boolean;
 }
 
-export async function executeToolAlias({
-  toolName,
-  parameters = {},
-  graphClient,
-  authManager,
+export function createExecuteToolAliasForCurrentContext(
   readOnly = false,
-  orgMode = false,
-}: ExecuteToolAliasArgs): Promise<CallToolResult> {
+  orgMode = false
+): (args: ExecuteToolAliasArgs) => Promise<CallToolResult> {
   const tenant = resolveTenantForDiscovery();
   if (!tenant) {
-    logger.warn({}, 'executeToolAlias: no tenant context; refusing dispatch');
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            error: 'tenant context unavailable',
-            tip: 'Tenant context not seeded — contact operator.',
-          }),
-        },
-      ],
-      isError: true,
+    return async () => {
+      logger.warn({}, 'executeToolAlias: no tenant context; refusing dispatch');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: 'tenant context unavailable',
+              tip: 'Tenant context not seeded — contact operator.',
+            }),
+          },
+        ],
+        isError: true,
+      };
     };
   }
 
@@ -1770,67 +1960,74 @@ export async function executeToolAlias({
     registryAliases: toolsRegistry.keys(),
   });
 
-  if (!catalog.discoveryCatalogSet.has(toolName)) {
-    logger.info({ tool: toolName, tenantId: tenant.id }, 'executeToolAlias: tool not enabled');
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            error: `Tool not enabled for tenant: ${toolName}`,
-            tenantId: tenant.id,
-            tip: 'Use search-tools to discover tools available to this tenant.',
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
+  return async ({ toolName, parameters = {}, graphClient, authManager }: ExecuteToolAliasArgs) => {
+    if (!catalog.discoveryCatalogSet.has(toolName)) {
+      logger.info({ tool: toolName, tenantId: tenant.id }, 'executeToolAlias: tool not enabled');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not enabled for tenant: ${toolName}`,
+              tenantId: tenant.id,
+              tip: 'Use search-tools to discover tools available to this tenant.',
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
 
-  const toolData = toolsRegistry.get(toolName);
-  if (!toolData) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            error: `Tool not found: ${toolName}`,
-            tip: 'Use search-tools to find available tools.',
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
+    const toolData = toolsRegistry.get(toolName);
+    if (!toolData) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool not found: ${toolName}`,
+              tip: 'Use search-tools to find available tools.',
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
 
-  if (
-    catalog.isDiscoverySurface &&
-    !tenant.enabledToolsExplicit &&
-    !isReadSafeDiscoveryTool(toolData.tool, toolData.config)
-  ) {
-    logger.info(
-      { tool: toolName, tenantId: tenant.id, method: toolData.tool.method.toUpperCase() },
-      'executeToolAlias: write tool requires explicit tenant enablement'
+    if (
+      catalog.isDiscoverySurface &&
+      !tenant.enabledToolsExplicit &&
+      !isReadSafeDiscoveryTool(toolData.tool, toolData.config)
+    ) {
+      logger.info(
+        { tool: toolName, tenantId: tenant.id, method: toolData.tool.method.toUpperCase() },
+        'executeToolAlias: write tool requires explicit tenant enablement'
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `Tool requires explicit tenant enablement: ${toolName}`,
+              tenantId: tenant.id,
+              tip: 'Ask an admin to add this write-capable alias to enabled_tools before using execute-tool.',
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const ctx = requestContext.getStore() ?? {};
+    return requestContext.run({ ...ctx, enabledToolsSet: catalog.discoveryCatalogSet }, async () =>
+      executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager)
     );
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            error: `Tool requires explicit tenant enablement: ${toolName}`,
-            tenantId: tenant.id,
-            tip: 'Ask an admin to add this write-capable alias to enabled_tools before using execute-tool.',
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
+  };
+}
 
-  const ctx = requestContext.getStore() ?? {};
-  return requestContext.run({ ...ctx, enabledToolsSet: catalog.discoveryCatalogSet }, async () =>
-    executeGraphTool(toolData.tool, toolData.config, graphClient, parameters, authManager)
-  );
+export async function executeToolAlias(args: ExecuteToolAliasArgs): Promise<CallToolResult> {
+  const runner = createExecuteToolAliasForCurrentContext(args.readOnly, args.orgMode);
+  return runner(args);
 }
 
 // `buildDiscoverySearchIndex` + `scoreDiscoveryQuery` live in
@@ -2224,11 +2421,20 @@ export function registerDiscoveryTools(
         return createTranscriptStructuredResult(tool_name, result);
       }
       const data = graphResultData(result);
+      const context = getRequestTokens();
       const resources = graphResourceLinksForToolResult({
         toolName: tool_name,
         tenantId: getRequestTenant().id,
         data,
         parameters,
+        tenant: context?.tenantRow
+          ? {
+              enabled_tools: context.tenantRow.enabled_tools,
+              enabled_tools_set: context.enabledToolsSet,
+              preset_version: context.presetVersion,
+              allowed_scopes: context.tenantRow.allowed_scopes,
+            }
+          : undefined,
       });
       const envelope = createMcpResultEnvelope({
         toolName: 'execute-tool',
@@ -2249,6 +2455,15 @@ export function registerDiscoveryTools(
       };
     }
   );
+
+  registerBulkActionTools(server, {
+    graphClient,
+    authManager,
+    readOnly,
+    orgMode,
+    executeToolAlias,
+    createToolAliasExecutor: () => createExecuteToolAliasForCurrentContext(readOnly, orgMode),
+  });
 
   // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }

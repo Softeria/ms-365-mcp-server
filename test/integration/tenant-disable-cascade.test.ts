@@ -166,6 +166,7 @@ describe('Plan 03-10 — tenant disable cascade (SC#4)', () => {
           redirect_uri: 'http://localhost:3000/callback',
           code_challenge: challenge,
           state: 'a',
+          client_id: 'cid',
         }),
       { redirect: 'manual' }
     );
@@ -208,6 +209,7 @@ describe('Plan 03-10 — tenant disable cascade (SC#4)', () => {
           redirect_uri: 'http://localhost:3000/callback',
           code_challenge: crypto.randomBytes(32).toString('base64url'),
           state: 'a2',
+          client_id: 'cid',
         })
     );
     expect(next.status).toBe(404);

@@ -23,11 +23,24 @@ describe('OAuth and connector metadata identity projection', () => {
     expect(metadata.issuer).toBe(`${publicBaseUrl}/t/${tenantId}`);
     expect(metadata.authorization_endpoint).toBe(`${publicBaseUrl}/t/${tenantId}/authorize`);
     expect(metadata.token_endpoint).toBe(`${publicBaseUrl}/t/${tenantId}/token`);
-    expect(metadata.registration_endpoint).toBe(`${publicBaseUrl}/register`);
+    expect(metadata.registration_endpoint).toBe(`${publicBaseUrl}/t/${tenantId}/register`);
     expect(metadata.client_name).toBe('Microsoft 365 MCP Gateway');
     expect(metadata.display_name).toBe('Microsoft 365 MCP Gateway');
     expect(metadata.server_info).toEqual({ name: 'Microsoft365MCP', version: '1.2.3' });
+    expect(metadata.grant_types_supported).toEqual(['authorization_code', 'refresh_token']);
     expect(JSON.stringify(metadata)).not.toContain('ToolHub');
+  });
+
+  it('can omit refresh grant support for root legacy OAuth metadata', () => {
+    const metadata = buildOAuthAuthorizationServerMetadata({
+      publicBaseUrl,
+      scopes,
+      version: '1.2.3',
+      grantTypesSupported: ['authorization_code'],
+    });
+
+    expect(metadata.issuer).toBe(publicBaseUrl);
+    expect(metadata.grant_types_supported).toEqual(['authorization_code']);
   });
 
   it('builds protected-resource metadata with the canonical tenant MCP endpoint', () => {
@@ -57,6 +70,20 @@ describe('OAuth and connector metadata identity projection', () => {
     );
     expect(metadata.endpoints.oauthProtectedResource).toBe(
       `${publicBaseUrl}/t/${tenantId}/.well-known/oauth-protected-resource`
+    );
+    expect(metadata.endpoints.dynamicClientRegistration).toBeUndefined();
+  });
+
+  it('only advertises tenant connector DCR metadata when that route is mounted', () => {
+    const metadata = buildConnectorWellKnownMetadata({
+      publicBaseUrl,
+      tenantId,
+      version: '1.2.3',
+      dynamicRegistration: true,
+    });
+
+    expect(metadata.endpoints.dynamicClientRegistration).toBe(
+      `${publicBaseUrl}/t/${tenantId}/register`
     );
   });
 

@@ -53,7 +53,8 @@ describe('Tool Filtering', () => {
 
     // 5 mocked endpoints + 1 parse-teams-url utility tool + 1 graph-batch tool
     // (Plan 02-05) + 1 graph-upload-large-file tool (Plan 02-06)
-    expect(toolSpy).toHaveBeenCalledTimes(8);
+    // + 2 native bulk helper tools.
+    expect(toolSpy).toHaveBeenCalledTimes(10);
     expect(toolSpy).toHaveBeenCalledWith(
       'list-mail-messages',
       expect.any(String),
@@ -136,8 +137,8 @@ describe('Tool Filtering', () => {
 
     // 5 mocked endpoints + 1 parse-teams-url utility tool + 1 graph-batch tool
     // (Plan 02-05) + 1 graph-upload-large-file tool (Plan 02-06)
-    // (no filter applied on invalid regex)
-    expect(toolSpy).toHaveBeenCalledTimes(8);
+    // + 2 native bulk helper tools (no filter applied on invalid regex).
+    expect(toolSpy).toHaveBeenCalledTimes(10);
   });
 
   it('should combine read-only and filtering correctly', () => {

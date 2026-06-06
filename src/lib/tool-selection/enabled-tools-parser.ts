@@ -34,7 +34,7 @@
 import type { Request } from 'express';
 import { parseSelectorList, type Selector } from './selector-ast.js';
 import { presetFor } from './preset-loader.js';
-import { getRegistryAliases, getWorkloadPrefixes } from './registry-validator.js';
+import { getGraphRegistryAliases, getWorkloadPrefixes } from './registry-validator.js';
 
 const memo = new WeakMap<Request, ReadonlySet<string>>();
 
@@ -119,7 +119,7 @@ function expandSelectorInto(sel: Selector, out: Set<string>): void {
         // never hard-fails dispatch.
         return;
       }
-      for (const alias of getRegistryAliases()) {
+      for (const alias of getGraphRegistryAliases()) {
         if (extractWorkloadPrefix(alias) === sel.value) {
           out.add(alias);
         }

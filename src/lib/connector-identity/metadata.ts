@@ -15,11 +15,12 @@ export interface ConnectorMetadataInput {
   tenantId?: string | null;
   tenantDisplayName?: string | null;
   version: string;
+  dynamicRegistration?: boolean;
 }
 
 export interface OAuthMetadataInput extends ConnectorMetadataInput {
   scopes: readonly string[];
-  dynamicRegistration?: boolean;
+  grantTypesSupported?: readonly string[];
 }
 
 export interface WwwAuthenticateMetadataInput {
@@ -90,7 +91,9 @@ function buildUrls(input: { publicBaseUrl: string; tenantId?: string | null }): 
     oauthProtectedResource: `${tenantBaseUrl}/.well-known/oauth-protected-resource`,
     oauthProtectedResourceRfc8414: `${publicBaseUrl}/.well-known/oauth-protected-resource${tenantSuffix}`,
     connectorWellKnown: `${tenantBaseUrl}/.well-known/mcp-connector`,
-    dynamicClientRegistration: `${publicBaseUrl}/register`,
+    dynamicClientRegistration: input.tenantId
+      ? `${tenantBaseUrl}/register`
+      : `${publicBaseUrl}/register`,
   };
 }
 
@@ -130,7 +133,7 @@ export function buildOAuthAuthorizationServerMetadata(
     token_endpoint: `${urls.tenantBaseUrl}/token`,
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: input.grantTypesSupported ?? ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['none'],
     code_challenge_methods_supported: ['S256'],
     scopes_supported: input.scopes,
@@ -179,7 +182,9 @@ export function buildConnectorWellKnownMetadata(
       oauthAuthorizationServerRfc8414: urls.oauthAuthorizationServerRfc8414,
       oauthProtectedResource: urls.oauthProtectedResource,
       oauthProtectedResourceRfc8414: urls.oauthProtectedResourceRfc8414,
-      dynamicClientRegistration: urls.dynamicClientRegistration,
+      ...(input.dynamicRegistration
+        ? { dynamicClientRegistration: urls.dynamicClientRegistration }
+        : {}),
     },
   };
 }
@@ -212,7 +217,9 @@ export function connectorIdentityDiagnostics(
       oauthAuthorizationServer: urls.oauthAuthorizationServer,
       oauthProtectedResource: urls.oauthProtectedResource,
       connectorWellKnown: urls.connectorWellKnown,
-      dynamicClientRegistration: urls.dynamicClientRegistration,
+      ...(input.dynamicRegistration
+        ? { dynamicClientRegistration: urls.dynamicClientRegistration }
+        : {}),
     },
     oauthAuthorizationServer: buildOAuthAuthorizationServerMetadata({ ...input, scopes }),
     protectedResource: buildOAuthProtectedResourceMetadata({ ...input, scopes }),

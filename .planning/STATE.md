@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: completed
 stopped_at: context exhaustion at 75% (2026-05-09)
-last_updated: "2026-06-04T00:00:00.000Z"
-last_activity: "2026-06-04 -- Quick task 260604-bga complete; dashboard/resource scope prerequisites fixed"
+last_updated: "2026-06-04T11:58:43.000Z"
+last_activity: "2026-06-04 -- Quick task 260604-hro complete; dashboard required-tool alias compatibility implemented"
 progress:
   total_phases: 9
   completed_phases: 8
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-18)
 
 Phase: 08 (maximal-mcp-claude-connector-surface) — COMPLETE
 Plan: 14 of 14
-Status: Phase 08 complete; review fixes validated; final verifier passed; quick task 260604-bga completed
-Last activity: 2026-06-04 -- Quick task 260604-bga complete; dashboard/resource scope prerequisites fixed
+Status: Phase 08 complete; review fixes validated; final verifier passed; quick task 260604-hro completed
+Last activity: 2026-06-04 -- Quick task 260604-hro complete; dashboard required-tool alias compatibility implemented
 
 Progress: [██████████] 100% (86/86 tracked plans; 8/9 phases)
 
@@ -76,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Rich resources now use canonical `m365://` with `mcp://` compatibility aliases, bounded Graph-backed reads, tenant/scope/tool gates, and durable resource links from discovery `execute-tool` results.
 - [Phase 08]: Notification surface delivers `prompts/list_changed` and `resources/updated` (with `_meta.{source,reason,changeType}`) only to matching tenant + discovery sessions, optionally subscription-filtered, then coalesced 2s by tenant/session/uri/changeType. Mail-message Graph webhooks map to `m365://tenant/{id}/mail/messages/{id}.json` with `source='graph-webhook'` and zero PII in logs.
 - [Phase 08]: MCP completions are explicitly registered and now cover tenant-scoped aliases/accounts/skills/memory plus bounded Graph-backed object lookups with cache keys isolated by tenant, session, account, enabled tools, and capability profile.
+- [Quick 260604-prod-stability-hardening]: Tenant Streamable HTTP routes use a local Web-standard transport adapter instead of the SDK Node/Hono wrapper, bound discovery session lifecycle cleanup, directory advanced-query `ConsistencyLevel: eventual` injection, and safe scalar request log attribution.
+- [Quick 260604-hro]: Dashboard required-tool checks treat dashboard-local generated Graph aliases as equivalents to curated legacy aliases while keeping dashboard payloads on the curated alias names.
 
 ### Roadmap Evolution
 
@@ -111,6 +113,8 @@ Resume file: None
 | 260425-e5x | mcp-401-www-authenticate | 2026-04-25 | Emit `WWW-Authenticate: Bearer …resource_metadata=…` on every 401 from the MCP path (RFC 9728 / MCP 2025-06-18). Fixes Claude.ai-style connector failure "Couldn't reach the MCP server". 5 emit sites + new helper + 12 unit tests. Commits `f1f67d3`, `2c3bce6`. | complete ✓ |
 | 260425-gug | oauth-discovery-dcr | 2026-04-25 | RFC 8414 host-prefixed metadata routes + `registration_endpoint` in per-tenant auth-server metadata + `MS365_MCP_OAUTH_REDIRECT_HOSTS` env (default `claude.ai`) for DCR allowlist. Unblocks Claude.ai connector OAuth dance after /register stopped returning 400. Commit `a15eed8`. | complete ✓ |
 | 260604-bga | fix-false-positive-mail-read-prerequisit | 2026-06-04 | Fixed false-positive dashboard/resource prerequisites so stronger read scopes such as `Mail.ReadWrite` satisfy read requirements and discovery dashboards evaluate generated aliases against the effective discovery catalog. Commits `02249d1`, `a423a48`. | complete ✓ |
+| 260604-prod | prod-stability-hardening | 2026-06-04 | Hardened repo-owned production findings: local Web-standard Streamable HTTP adapter, bounded MCP session cleanup, Graph directory advanced-query consistency headers, scalar tenant log attribution, and immutable-image/Traefik deployment guidance. | complete ✓ |
+| 260604-hro | implement-dashboard-required-tool-alias | 2026-06-04 | Dashboard required-tool compatibility for explicit discovery allowlists: generated Graph aliases such as `me.ListMessages` satisfy curated dashboard prerequisites such as `list-mail-messages` without changing dashboard payload aliases. | complete ✓ |
 
 ## Deferred Items
 

@@ -218,6 +218,7 @@ describe('plan 03-08 — runtime tenant onboarding (SC#1)', () => {
       redirect_uri: 'http://localhost:3000/callback',
       code_challenge: challenge,
       state: 'sc1-state',
+      client_id: 'runtime-onboard-client',
     });
 
     // ── Step 1: request BEFORE the tenant exists → 404 ──────────────────
@@ -276,6 +277,7 @@ describe('plan 03-08 — runtime tenant onboarding (SC#1)', () => {
       redirect_uri: 'http://localhost:3000/callback',
       code_challenge: challenge,
       state: 'ok',
+      client_id: 'target-client',
     });
 
     // First request populates the LRU cache.

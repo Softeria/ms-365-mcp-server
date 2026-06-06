@@ -166,6 +166,7 @@ async function doTokenExchange(h: Harness): Promise<Response> {
     code: 'auth-code-xyz',
     code_verifier: clientVerifier,
     redirect_uri: 'http://localhost:3000/callback',
+    client_id: h.tenant.client_id,
   });
 
   return fetch(`${h.url}/token`, {
@@ -197,8 +198,9 @@ describe('plan 03-07 Task 2 — refresh-token server-side session migration', ()
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.access_token).toBe('access-AAA-initial');
     expect(body.token_type).toBe('Bearer');
-    // SECUR-02: refresh token must NOT be in response body
-    expect(body.refresh_token).toBeUndefined();
+    // Hosted connectors receive only an opaque gateway refresh handle, never the upstream token.
+    expect(body.refresh_token).toEqual(expect.stringMatching(/^mcp_rt_/));
+    expect(body.refresh_token).not.toBe('rt-initial-SECRET');
 
     // Session persists to Redis (envelope-encrypted under mcp:session:*)
     const sessionKeys = await harness.redis.keys('mcp:session:*');
@@ -208,7 +210,7 @@ describe('plan 03-07 Task 2 — refresh-token server-side session migration', ()
     expect(record?.refreshToken).toBe('rt-initial-SECRET');
     expect(record?.clientId).toBe(harness.tenant.client_id);
     expect(record?.accountHomeId).toBe('home-1');
-    expect(record?.scopes).toEqual(harness.tenant.allowed_scopes);
+    expect(record?.scopes).toEqual(['User.Read']);
     expect(record?.msalCache).toBe('serialized-msal-cache');
     expect(record?.graphAccessToken).toBe('access-AAA-initial');
   });

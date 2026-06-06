@@ -24,7 +24,16 @@ export type McpLogEventName =
   | 'tool-call.error'
   | 'bookmark.created'
   | 'recipe.saved'
-  | 'fact.recorded';
+  | 'fact.recorded'
+  | 'bulk-action.preview'
+  | 'bulk-action.execute.plan'
+  | 'bulk-action.confirmation_required'
+  | 'bulk-action.confirmation_mismatch'
+  | 'bulk-action.execute.start'
+  | 'bulk-action.execute.complete'
+  | 'bulk-action.result_stored'
+  | 'bulk-action.result_read'
+  | 'bulk-action.result_read_denied';
 
 export interface RegisterMcpLoggingDeps {
   registry?: McpSessionRegistry;
@@ -120,6 +129,28 @@ function redactLogData(
       return {
         event,
         scope: stringValue(data.scope),
+      };
+    case 'bulk-action.preview':
+    case 'bulk-action.execute.plan':
+    case 'bulk-action.confirmation_required':
+    case 'bulk-action.confirmation_mismatch':
+    case 'bulk-action.execute.start':
+    case 'bulk-action.execute.complete':
+    case 'bulk-action.result_stored':
+    case 'bulk-action.result_read':
+    case 'bulk-action.result_read_denied':
+      return {
+        event,
+        digestPrefix: stringValue(data.digestPrefix),
+        resultIdPrefix: stringValue(data.resultIdPrefix),
+        itemCount: numberValue(data.itemCount),
+        outputMode: stringValue(data.outputMode),
+        requiresConfirmation:
+          typeof data.requiresConfirmation === 'boolean' ? data.requiresConfirmation : undefined,
+        successCount: numberValue(data.successCount),
+        failureCount: numberValue(data.failureCount),
+        stored: typeof data.stored === 'boolean' ? data.stored : undefined,
+        code: stringValue(data.code),
       };
   }
 }

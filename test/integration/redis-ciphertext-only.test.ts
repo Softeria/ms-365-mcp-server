@@ -222,6 +222,7 @@ describe('plan 03-07 Task 2 — SC#5: no plaintext MSAL secrets in Redis', () =>
 
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
+      client_id: harness.tenant.client_id,
       code: 'auth-code-xyz',
       code_verifier: clientVerifier,
       redirect_uri: 'http://localhost:3000/callback',
@@ -234,9 +235,9 @@ describe('plan 03-07 Task 2 — SC#5: no plaintext MSAL secrets in Redis', () =>
     });
     expect(tokenRes.status).toBe(200);
     const tokenBody = (await tokenRes.json()) as Record<string, unknown>;
-    // Critical: response body never contains the refresh token
+    // Critical: response body never contains the upstream refresh token.
     expect(JSON.stringify(tokenBody)).not.toContain('rt-SC5-plaintext-never-leak');
-    expect(tokenBody.refresh_token).toBeUndefined();
+    expect(tokenBody.refresh_token).toEqual(expect.stringMatching(/^mcp_rt_/));
 
     // ── Step 2: drive msal-cache-plugin so mcp:cache:* populates ──────────
     await primeMsalCachePlugin(harness.redis, harness.tenant.id, harness.dek);

@@ -65,6 +65,28 @@ vi.mock('pg-mem', async (importOriginal) => {
         returns: actual.DataType.float,
         implementation: () => 0,
       });
+      db.public.registerFunction({
+        name: 'jsonb_typeof',
+        args: [actual.DataType.jsonb],
+        returns: actual.DataType.text,
+        implementation: (value: unknown) => {
+          if (value === null) return 'null';
+          if (Array.isArray(value)) return 'array';
+          if (typeof value === 'boolean') return 'boolean';
+          if (typeof value === 'number') return 'number';
+          if (typeof value === 'string') {
+            try {
+              const parsed = JSON.parse(value) as unknown;
+              if (parsed === null) return 'null';
+              if (Array.isArray(parsed)) return 'array';
+              return typeof parsed === 'object' ? 'object' : typeof parsed;
+            } catch {
+              return 'string';
+            }
+          }
+          return typeof value === 'object' ? 'object' : typeof value;
+        },
+      });
       db.registerLanguage('plpgsql', () => () => undefined);
       return db;
     },

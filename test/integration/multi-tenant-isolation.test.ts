@@ -239,6 +239,7 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3100/callback-a',
           code_challenge: challengeA,
           state: 'a',
+          client_id: 'client-A',
         }),
       { redirect: 'manual' }
     );
@@ -248,6 +249,8 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3200/callback-b',
           code_challenge: challengeB,
           state: 'b',
+          scope: 'Mail.Read',
+          client_id: 'client-B',
         }),
       { redirect: 'manual' }
     );
@@ -261,12 +264,12 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
     // tenant A's authorize URL forwards tenant A's client_id
     expect(locA.searchParams.get('client_id')).toBe('client-A');
     expect(locA.searchParams.get('redirect_uri')).toBe('http://localhost:3100/callback-a');
-    expect(locA.searchParams.get('scope')).toBe('User.Read');
+    expect(locA.searchParams.get('scope')).toBe('User.Read offline_access');
 
     // tenant B's authorize URL forwards tenant B's client_id
     expect(locB.searchParams.get('client_id')).toBe('client-B');
     expect(locB.searchParams.get('redirect_uri')).toBe('http://localhost:3200/callback-b');
-    expect(locB.searchParams.get('scope')).toBe('Mail.Read');
+    expect(locB.searchParams.get('scope')).toBe('Mail.Read offline_access');
 
     // And of course the paths were routed to different tenant GUIDs.
     expect(TENANT_A_ID).not.toBe(TENANT_B_ID);
@@ -280,6 +283,7 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3100/callback-a', // tenant A's URI
           code_challenge: challenge,
           state: 'cross',
+          client_id: 'client-B',
         })
     );
     expect(res.status).toBe(400);
@@ -297,6 +301,7 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3100/callback-a',
           code_challenge: challengeA,
           state: 'a',
+          client_id: 'client-A',
         }),
       { redirect: 'manual' }
     );
@@ -306,6 +311,8 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3200/callback-b',
           code_challenge: challengeB,
           state: 'b',
+          scope: 'Mail.Read',
+          client_id: 'client-B',
         }),
       { redirect: 'manual' }
     );
@@ -355,11 +362,14 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
       redirect_uri: 'http://localhost:3100/callback-a',
       code_challenge: challenge,
       state: 'a',
+      client_id: 'client-A',
     });
     const paramsB = new URLSearchParams({
       redirect_uri: 'http://localhost:3200/callback-b',
       code_challenge: challenge,
       state: 'b',
+      scope: 'Mail.Read',
+      client_id: 'client-B',
     });
 
     const r1 = await fetch(`${baseUrl}/t/${TENANT_A_ID}/authorize?${paramsA}`, {
@@ -383,6 +393,8 @@ describe('plan 03-08 — multi-tenant isolation (SC#2)', () => {
           redirect_uri: 'http://localhost:3200/callback-b',
           code_challenge: crypto.randomBytes(32).toString('base64url'),
           state: 'b2',
+          scope: 'Mail.Read',
+          client_id: 'client-B',
         }),
       { redirect: 'manual' }
     );

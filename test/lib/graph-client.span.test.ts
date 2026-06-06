@@ -12,13 +12,15 @@ import {
 } from '@opentelemetry/sdk-metrics';
 import { trace, metrics } from '@opentelemetry/api';
 
-const { loggerMock } = vi.hoisted(() => ({
+const { loggerMock, auditMock, postgresMock } = vi.hoisted(() => ({
   loggerMock: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
   },
+  auditMock: vi.fn(),
+  postgresMock: vi.fn(() => ({})),
 }));
 
 vi.mock('../../src/logger.js', () => ({
@@ -37,6 +39,8 @@ describe('plan 06-02 — GraphClient.makeRequest parent span + metrics', () => {
     trace.disable();
     metrics.disable();
     vi.resetModules();
+    auditMock.mockClear();
+    postgresMock.mockClear();
 
     spanExporter = new InMemorySpanExporter();
     const tracerProvider = new BasicTracerProvider({
@@ -203,6 +207,64 @@ describe('plan 06-02 — GraphClient.makeRequest parent span + metrics', () => {
     expect(parent!.status.code).toBe(2 /* SpanStatusCode.ERROR */);
     // Load-bearing operator-triage log line preserved:
     expect(loggerMock.error).toHaveBeenCalled();
+  });
+
+  it('sanitizes non-GraphError graphRequest fallback logs and MCP output', async () => {
+    const { client } = await setupGraphClient({
+      status: 0,
+      throwError: new Error('raw-token-123 private@example.com https://graph.microsoft.com/me'),
+    });
+
+    const result = await client.graphRequest('/users?skiptoken=raw-token-123');
+
+    const serializedResult = JSON.stringify(result);
+    expect(result.isError).toBe(true);
+    expect(serializedResult).toContain('Graph API request failed.');
+    expect(serializedResult).not.toContain('raw-token-123');
+    expect(serializedResult).not.toContain('private@example.com');
+    expect(serializedResult).not.toContain('graph.microsoft.com/me');
+    const serializedLogs = JSON.stringify(loggerMock.error.mock.calls);
+    expect(serializedLogs).not.toContain('raw-token-123');
+    expect(serializedLogs).not.toContain('private@example.com');
+    expect(serializedLogs).not.toContain('graph.microsoft.com/me');
+  });
+
+  it('sanitizes GraphError MCP output and audit metadata', async () => {
+    vi.doMock('../../src/lib/postgres.js', () => ({ getPool: postgresMock }));
+    vi.doMock('../../src/lib/audit.js', () => ({ writeAuditStandalone: auditMock }));
+    const { GraphValidationError } = await import('../../src/lib/graph-errors.js');
+    const { client, requestContext } = await setupGraphClient({
+      status: 400,
+      throwError: new GraphValidationError({
+        code: 'invalidRequest',
+        message: 'raw-token-123 private@example.com https://graph.microsoft.com/me/messages',
+        statusCode: 400,
+        requestId: 'graph-request-id',
+      }),
+    });
+
+    const result = await requestContext.run(
+      { tenantId: 'tenant-a', requestId: 'request-a', toolAlias: 'users.list' },
+      () => client.graphRequest('/users?skiptoken=raw-token-123')
+    );
+
+    const serializedResult = JSON.stringify(result);
+    expect(result.isError).toBe(true);
+    expect(serializedResult).toContain('Microsoft Graph request failed with status 400.');
+    expect(serializedResult).toContain('invalidRequest');
+    expect(serializedResult).toContain('graph-request-id');
+    expect(serializedResult).not.toContain('raw-token-123');
+    expect(serializedResult).not.toContain('private@example.com');
+    expect(serializedResult).not.toContain('graph.microsoft.com/me/messages');
+
+    await vi.waitFor(() => expect(auditMock).toHaveBeenCalled());
+    const serializedAudit = JSON.stringify(auditMock.mock.calls);
+    expect(serializedAudit).toContain('invalidRequest');
+    expect(serializedAudit).toContain('graph-request-id');
+    expect(serializedAudit).not.toContain('message');
+    expect(serializedAudit).not.toContain('raw-token-123');
+    expect(serializedAudit).not.toContain('private@example.com');
+    expect(serializedAudit).not.toContain('graph.microsoft.com/me/messages');
   });
 
   it('falls back to tenant=unknown + tool=unknown without RequestContext (stdio mode)', async () => {

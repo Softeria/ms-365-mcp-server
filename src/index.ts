@@ -28,6 +28,8 @@ import { MemoryPkceStore } from './lib/pkce-store/memory-store.js';
 import type { PkceStore } from './lib/pkce-store/pkce-store.js';
 import { version } from './version.js';
 import { connectorDoctor } from './lib/connector-identity/metadata.js';
+import { BULK_ACTION_TOOL, READ_BULK_RESULT_TOOL } from './lib/bulk-actions/schema.js';
+import { setBulkResultRuntimeTransportMode } from './lib/bulk-actions/result-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -315,6 +317,7 @@ async function main(): Promise<void> {
     // → tenant-pool. Only HTTP mode needs these substrates; stdio reuses the
     // file-backed token cache + in-memory PKCE per D-04.
     const isHttpMode = Boolean(args.http);
+    setBulkResultRuntimeTransportMode(isHttpMode ? 'http' : 'stdio');
     const readinessChecks: ReadinessCheck[] = [];
 
     // region:phase3-postgres  (filled by 03-01 Task 2 — THIS plan)
@@ -574,10 +577,8 @@ async function main(): Promise<void> {
             .map((e) => e.alias)
             .filter((a): a is string => typeof a === 'string' && a.length > 0)
         );
-        // Add the synthetic tools registered beyond api.endpoints (parse-
-        // teams-url, graph-batch, graph-upload-large-file, search-tools,
-        // get-tool-schema, execute-tool, list-accounts). These are also
-        // filtered by the v1 --enabled-tools regex at registration time;
+        // Add the synthetic tools registered beyond api.endpoints. These are
+        // also filtered by the v1 --enabled-tools regex at registration time;
         // the dispatch-guard must accept them when they DO register.
         for (const synthetic of [
           'parse-teams-url',
@@ -587,6 +588,8 @@ async function main(): Promise<void> {
           'get-tool-schema',
           'execute-tool',
           'list-accounts',
+          BULK_ACTION_TOOL,
+          READ_BULK_RESULT_TOOL,
         ]) {
           allAliases.add(synthetic);
         }

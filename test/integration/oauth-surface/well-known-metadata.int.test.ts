@@ -17,7 +17,8 @@
  * known contract is regression-guarded even if the inline handlers get
  * refactored. The D-10 coverage number is driven mainly by createRegister
  * + createToken + createAuthorize + createTenantToken tests; .well-known
- * handler lines are a small fraction of the OAuth surface.
+ * handler lines are covered by this contract test rather than by the numeric
+ * OAuth handler gate.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import express from 'express';
@@ -66,7 +67,7 @@ function mountWellKnown(
       token_endpoint: `${externalBase}/token`,
       response_types_supported: ['code'],
       response_modes_supported: ['query'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
+      grant_types_supported: ['authorization_code'],
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: config.supportedScopes,
@@ -102,7 +103,7 @@ function mountWellKnown(
       token_endpoint: `${tokenBase}/token`,
       response_types_supported: ['code'],
       response_modes_supported: ['query'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
+      grant_types_supported: ['authorization_code'],
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: config.supportedScopes,

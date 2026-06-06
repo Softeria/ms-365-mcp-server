@@ -1,14 +1,19 @@
 // ms-365-mcp-server — Azure Container Apps deployment (community example)
 //
-// Deploys a turnkey stack:
+// Deploys an Azure Container Apps scaffold:
 //   - Log Analytics workspace
 //   - User-Assigned Managed Identity (UAMI)
-//   - Key Vault (RBAC) with MCP secrets
+//   - Key Vault (RBAC) with Microsoft app registration secrets
 //   - Container Apps Environment (Consumption)
 //   - Container App running the server in Streamable HTTP mode
 //
-// The container uses DefaultAzureCredential (via the UAMI) to read secrets
-// from Key Vault at startup — credentials never appear in environment variables.
+// This template does not provision production Postgres or Redis. Supply external
+// connection strings and a base64 32-byte KEK via the secure parameters below
+// before using it for real tenants.
+//
+// The container uses DefaultAzureCredential (via the UAMI) to read Microsoft app
+// secrets from Key Vault at startup. Runtime state secrets are injected as
+// Container Apps secrets.
 
 @description('Base name prefix for all resources (lowercase, 3-20 chars, e.g. ms365mcpprod)')
 @minLength(3)
@@ -31,20 +36,42 @@ param mcpClientId string
 @description('Client secret for the MCP app registration. Leave empty for a public client.')
 param mcpClientSecret string = ''
 
-@description('Microsoft cloud type: global, gcc-high, dod, china. Defaults to global.')
+@description('Microsoft cloud type: global or china. Defaults to global.')
 @allowed([
   'global'
-  'gcc-high'
-  'dod'
   'china'
 ])
 param cloudType string = 'global'
 
-@description('CORS origin for the MCP HTTP endpoint. Set to your client URL (e.g. https://claude.ai).')
-param corsOrigin string = 'http://localhost:3000'
+@secure()
+@description('External Postgres connection string for tenant registry and audit data.')
+param databaseUrl string
+
+@secure()
+@description('External Redis connection string for PKCE, cache, and notification/session state.')
+param redisUrl string
+
+@secure()
+@description('Base64-encoded 32-byte key encryption key for tenant token wrapping.')
+param mcpKek string
+
+@description('Comma-separated CORS origins for the MCP HTTP endpoint. Include hosted connector origins and your public MCP origin.')
+param corsOrigins string = 'https://claude.ai,https://chatgpt.com'
+
+@description('Comma-separated HTTPS hosts allowed for hosted MCP OAuth callbacks in addition to the public server host. Tenant redirect_uri_allowlist entries still must match exactly.')
+param oauthRedirectHosts string = 'claude.ai,chatgpt.com'
 
 @description('Public base URL advertised in OAuth metadata. Derived from ingress FQDN after first deploy — leave empty initially, then redeploy with the assigned URL.')
 param publicBaseUrl string = ''
+
+@description('Admin Entra app client ID. Required, with adminGroupId, to mount /admin routes for first-tenant onboarding.')
+param adminAppClientId string = ''
+
+@description('Entra security group object ID allowed to call /admin routes. Required, with adminAppClientId, for first-tenant onboarding.')
+param adminGroupId string = ''
+
+@description('Comma-separated browser origins allowed to call /admin routes.')
+param adminOrigins string = ''
 
 @description('Object IDs of users/groups granted Key Vault Administrator role (for rotating secrets).')
 param kvAdminObjectIds array = []
@@ -55,8 +82,8 @@ param orgMode bool = true
 @description('Enable --read-only flag (disables write operations).')
 param readOnly bool = false
 
-@description('Min replicas for autoscale. Set to 0 for scale-to-zero (cold start ~2-5s).')
-param minReplicas int = 0
+@description('Min replicas for autoscale. Keep 1 for OAuth/session UX; set to 0 only for non-production scale-to-zero testing.')
+param minReplicas int = 1
 
 @description('Max replicas for autoscale.')
 param maxReplicas int = 3
@@ -184,7 +211,7 @@ resource cae 'Microsoft.App/managedEnvironments@2024-03-01' = {
 }
 
 // ---------- Container App ----------
-var containerArgs = concat(['--http', '3000'], orgMode ? ['--org-mode'] : [], readOnly ? ['--read-only'] : [])
+var containerArgs = concat(['--http', '0.0.0.0:3000'], orgMode ? ['--org-mode'] : [], readOnly ? ['--read-only'] : [])
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -200,6 +227,11 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: cae.id
     configuration: {
       activeRevisionsMode: 'Single'
+      secrets: [
+        { name: 'database-url', value: databaseUrl }
+        { name: 'redis-url', value: redisUrl }
+        { name: 'mcp-kek', value: mcpKek }
+      ]
       ingress: {
         external: true
         targetPort: 3000
@@ -220,8 +252,15 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'MS365_MCP_KEYVAULT_URL', value: kv.properties.vaultUri }
-            { name: 'MS365_MCP_CORS_ORIGIN', value: corsOrigin }
-            { name: 'MS365_MCP_BASE_URL', value: empty(publicBaseUrl) ? '' : publicBaseUrl }
+            { name: 'MS365_MCP_DATABASE_URL', secretRef: 'database-url' }
+            { name: 'MS365_MCP_REDIS_URL', secretRef: 'redis-url' }
+            { name: 'MS365_MCP_KEK', secretRef: 'mcp-kek' }
+            { name: 'MS365_MCP_CORS_ORIGINS', value: corsOrigins }
+            { name: 'MS365_MCP_OAUTH_REDIRECT_HOSTS', value: oauthRedirectHosts }
+            { name: 'MS365_MCP_PUBLIC_URL', value: empty(publicBaseUrl) ? '' : publicBaseUrl }
+            { name: 'MS365_MCP_ADMIN_APP_CLIENT_ID', value: adminAppClientId }
+            { name: 'MS365_MCP_ADMIN_GROUP_ID', value: adminGroupId }
+            { name: 'MS365_MCP_ADMIN_ORIGINS', value: adminOrigins }
             { name: 'AZURE_CLIENT_ID', value: uami.properties.clientId }
             { name: 'NODE_ENV', value: 'production' }
           ]
@@ -239,7 +278,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
   }
-  dependsOn: [ roleUami, secretClientId, secretTenantId, secretCloudType ]
+  dependsOn: [ roleUami, secretClientId, secretTenantId, secretCloudType, secretClientSecret ]
 }
 
 // ---------- Outputs ----------

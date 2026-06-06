@@ -48,9 +48,16 @@ vi.mock('../../../generated/client.js', () => ({
 
 vi.mock('../../../presets/generated-index.js', () => {
   const ESSENTIALS = Object.freeze(new Set<string>(['mail.messages.send']));
+  const DISCOVERY = Object.freeze(
+    new Set<string>(['search-tools', 'get-tool-schema', 'execute-tool'])
+  );
   return {
+    DISCOVERY_V1_OPS: DISCOVERY,
     ESSENTIALS_V1_OPS: ESSENTIALS,
-    PRESET_VERSIONS: new Map([['essentials-v1', ESSENTIALS]]),
+    PRESET_VERSIONS: new Map([
+      ['essentials-v1', ESSENTIALS],
+      ['discovery-v1', DISCOVERY],
+    ]),
   };
 });
 

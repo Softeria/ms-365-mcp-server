@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { requestContext } from '../../src/request-context.js';
 import { registerDiscoveryTools } from '../../src/graph-tools.js';
+import logger from '../../src/logger.js';
 import { registerBookmarkTools } from '../../src/lib/memory/bookmark-tools.js';
 import { registerRecipeTools } from '../../src/lib/memory/recipe-tools.js';
 import { registerFactTools } from '../../src/lib/memory/fact-tools.js';
@@ -251,12 +252,22 @@ describe('Phase 7 Plan 07-09 Task 1 - MCP logging', () => {
         },
       })
     );
-    await requestContext.run(discoveryContext(), () =>
+    const loggerError = vi.spyOn(logger, 'error');
+    const failedResult = await requestContext.run(discoveryContext(), () =>
       callTool(server, 'execute-tool', {
         tool_name: 'me.sendMail',
         parameters: { body: { content: 'private failure body' } },
       })
     );
+
+    const errorResponse = JSON.stringify(failedResult);
+    expect(errorResponse).not.toContain('raw-token-123');
+    expect(errorResponse).not.toContain('private failure body');
+    expect(errorResponse).toContain('GraphFailure');
+    const loggerCalls = JSON.stringify(loggerError.mock.calls);
+    expect(loggerCalls).not.toContain('raw-token-123');
+    expect(loggerCalls).not.toContain('private failure body');
+    loggerError.mockRestore();
 
     const eventsA = loggedPayloads(sendA).map((message) => message.data.event);
     expect(eventsA).toContain('tool-call.start');
@@ -334,6 +345,40 @@ describe('Phase 7 Plan 07-09 Task 1 - MCP logging', () => {
     expect(serialized).not.toContain('secret recipe note');
     expect(serialized).not.toContain('secret recipe body');
     expect(serialized).not.toContain('secret fact content');
+  });
+
+  it('bulk-action log events publish curated data without raw result handles', async () => {
+    const { registry, setLevel } = await createLoggingHarness();
+    const sendA = registerSession(registry, TENANT_A, SESSION_A);
+    await setLevel('info', SESSION_A);
+
+    await emitMcpLogEvent({
+      tenantId: TENANT_A,
+      event: 'bulk-action.result_read',
+      level: 'info',
+      data: {
+        resultId: 'bulk_raw-secret-handle',
+        resultIdPrefix: 'abc123def456',
+        itemCount: 2,
+        rawPayload: { body: 'private body' },
+      },
+    });
+
+    const payloads = loggedPayloads(sendA);
+    expect(payloads).toEqual([
+      {
+        data: {
+          event: 'bulk-action.result_read',
+          resultIdPrefix: 'abc123def456',
+          itemCount: 2,
+        },
+        level: 'info',
+        logger: 'ms365-mcp',
+      },
+    ]);
+    const serialized = JSON.stringify(payloads);
+    expect(serialized).not.toContain('bulk_raw-secret-handle');
+    expect(serialized).not.toContain('private body');
   });
 
   it('session log levels are cleared when unregisterSession removes a session', async () => {

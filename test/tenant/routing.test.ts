@@ -165,6 +165,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
         redirect_uri: 'http://localhost:3000/callback',
         code_challenge: challenge,
         state: 'test-state',
+        client_id: 'client-aaaa',
       });
       const res = await fetch(`${harness.url}/t/${TENANT_A}/authorize?${params}`, {
         redirect: 'manual',
@@ -193,6 +194,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
         redirect_uri: 'http://attacker.example.com/callback',
         code_challenge: challenge,
         state: 'test-state',
+        client_id: 'client-aaaa',
       });
       const res = await fetch(`${harness.url}/t/${TENANT_A}/authorize?${params}`);
       expect(res.status).toBe(400);
@@ -213,6 +215,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
         redirect_uri: 'http://localhost:3000/callback',
         code_challenge: clientChallenge,
         state: 'test-state',
+        client_id: 'client-aaaa',
       });
       const authorizeRes = await fetch(
         `${harness.url}/t/${TENANT_A}/authorize?${authorizeParams}`,
@@ -229,6 +232,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
           code: 'the-code',
           redirect_uri: 'http://localhost:3000/callback',
           code_verifier: clientVerifier,
+          client_id: 'client-aaaa',
         }),
       });
       expect(tokenRes.status).toBe(200);
@@ -245,6 +249,7 @@ describe('plan 03-08 — /t/:tenantId/* routing', () => {
         redirect_uri: 'http://localhost:3000/callback',
         code_challenge: challenge,
         state: 'key-check-state',
+        client_id: 'client-aaaa',
       });
       await fetch(`${harness.url}/t/${TENANT_A}/authorize?${params}`, {
         redirect: 'manual',

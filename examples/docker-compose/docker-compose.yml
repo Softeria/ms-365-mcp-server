@@ -42,7 +42,11 @@
 
 services:
   mcp:
+    # Production deployments should pin an immutable tag (`sha-<shortsha>`) or digest.
+    # If you intentionally track `latest`, keep pull_policy enabled so Compose/Coolify
+    # re-pulls the moving tag instead of reusing a stale local image.
     image: ghcr.io/softeria/ms-365-mcp-server:latest
+    pull_policy: always
     container_name: ms-365-mcp-server
     restart: unless-stopped
 

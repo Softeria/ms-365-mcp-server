@@ -14,7 +14,7 @@ const operations = new Map<string, RegisteredOperation>();
 
 export function operationKey(input: OperationKey): string | undefined {
   if (!input.tenantId || !input.requestId || !input.progressToken) return undefined;
-  return `${input.tenantId}:${input.requestId}:${input.progressToken}`;
+  return JSON.stringify([input.tenantId, input.requestId, input.progressToken]);
 }
 
 export function registerOperation(

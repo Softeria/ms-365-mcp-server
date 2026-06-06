@@ -3,8 +3,9 @@
  * OAuth-surface coverage gate for D-10 (plan 06-05).
  *
  * Reads coverage/coverage-final.json (V8 JSON format), counts statement hits
- * inside OAuth-handler regions, prints percentage, exits non-zero if below
- * 70%.
+ * inside exportable OAuth-handler regions, prints percentage, exits non-zero
+ * if below 70%. Inline .well-known routes in src/server.ts are contract-tested
+ * separately by test/integration/oauth-surface/well-known-metadata.int.test.ts.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,30 +18,6 @@ const HANDLER_REGIONS = [
   { file: 'src/lib/oauth/token-handler.ts', fn: 'createTokenHandler', kind: 'function' },
   { file: 'src/lib/oauth/tenant-handlers.ts', fn: 'createAuthorizeHandler', kind: 'function' },
   { file: 'src/lib/oauth/tenant-handlers.ts', fn: 'createTenantTokenHandler', kind: 'function' },
-  {
-    file: 'src/server.ts',
-    fn: 'wellKnownAuthServerTenant',
-    kind: 'route',
-    marker: "'/t/:tenantId/.well-known/oauth-authorization-server'",
-  },
-  {
-    file: 'src/server.ts',
-    fn: 'wellKnownProtectedResourceTenant',
-    kind: 'route',
-    marker: "'/t/:tenantId/.well-known/oauth-protected-resource'",
-  },
-  {
-    file: 'src/server.ts',
-    fn: 'wellKnownAuthServer',
-    kind: 'route',
-    marker: "'/.well-known/oauth-authorization-server'",
-  },
-  {
-    file: 'src/server.ts',
-    fn: 'wellKnownProtectedResource',
-    kind: 'route',
-    marker: "'/.well-known/oauth-protected-resource'",
-  },
 ];
 
 const COVERAGE_THRESHOLD_PERCENT = Number.parseFloat(

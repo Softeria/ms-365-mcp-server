@@ -15,6 +15,7 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     'When you need an organizational user or recipient address, resolve it with list-users (or another directory tool); do not invent SMTP addresses.',
     'Directory $search on collections such as /users or /groups requires ConsistencyLevel: eventual when the tool exposes that header.',
     'Teams chat and channel messages: prefer HTML contentType in the body; plain text is often mangled by Graph.',
+    'For repetitive Graph work, use bulk-action in preview mode first with catalog aliases and parameters; do not pass raw URLs, headers, or $batch shapes. Execute only with the returned planDigest confirmation when required, and use read-bulk-result for large sanitized details.',
   ];
   if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
   if (opts.multiAccount)

@@ -53,6 +53,8 @@ async function postJson(url: string, payload: unknown): Promise<{ status: number
 async function startMiniServer(opts: {
   mode: 'prod' | 'dev';
   publicUrlHost: string | null;
+  supportedGrantTypes?: readonly string[];
+  durableTenantId?: string;
 }): Promise<{ url: string; close: () => Promise<void> }> {
   // Dynamic import so module loading is lazy and picks up mocks correctly.
   const { createRegisterHandler } = await import('../src/lib/oauth/register-handler.js');
@@ -60,10 +62,16 @@ async function startMiniServer(opts: {
   app.use(express.json());
   app.post(
     '/register',
-    createRegisterHandler({
-      mode: opts.mode,
-      publicUrlHost: opts.publicUrlHost,
-    })
+    createRegisterHandler(
+      {
+        mode: opts.mode,
+        publicUrlHost: opts.publicUrlHost,
+      },
+      {
+        ...(opts.supportedGrantTypes ? { supportedGrantTypes: opts.supportedGrantTypes } : {}),
+        ...(opts.durableTenantId ? { pgPool: {} as never, tenantId: opts.durableTenantId } : {}),
+      }
+    )
   );
 
   return await new Promise((resolve) => {
@@ -115,7 +123,7 @@ describe('POST /register — redirect_uri allowlist (AUTH-06, T-01-06)', () => {
     });
     expect(res.status).toBe(201);
     const body = res.body as { client_id?: string; redirect_uris?: string[] };
-    expect(body.client_id).toMatch(/^mcp-client-[0-9a-f]{16}$/);
+    expect(body.client_id).toMatch(/^mcp-client-[A-Za-z0-9_-]{32}$/);
     expect(body.redirect_uris).toEqual(['http://localhost:3000/cb']);
   });
 
@@ -165,6 +173,104 @@ describe('POST /register — redirect_uri allowlist (AUTH-06, T-01-06)', () => {
     const res = await postJson(`${server.url}/register`, { redirect_uris: [] });
     expect(res.status).toBe(201);
   });
+
+  it('rejects durable authorization_code clients without redirect URIs', async () => {
+    server = await startMiniServer({
+      mode: 'prod',
+      publicUrlHost: null,
+      durableTenantId: 'tenant-a',
+    });
+
+    const res = await postJson(`${server.url}/register`, { redirect_uris: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('defaults and validates grant types against the mount policy', async () => {
+    server = await startMiniServer({
+      mode: 'prod',
+      publicUrlHost: null,
+      supportedGrantTypes: ['authorization_code'],
+    });
+
+    const defaultRes = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+    });
+    expect(defaultRes.status).toBe(201);
+    expect((defaultRes.body as { grant_types: string[] }).grant_types).toEqual([
+      'authorization_code',
+    ]);
+
+    const refreshRes = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+    expect(refreshRes.status).toBe(400);
+    expect(refreshRes.body).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('accepts refresh grants when the mount policy enables them', async () => {
+    server = await startMiniServer({
+      mode: 'prod',
+      publicUrlHost: null,
+      supportedGrantTypes: ['authorization_code', 'refresh_token'],
+    });
+
+    const res = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      grant_types: ['authorization_code', 'refresh_token'],
+    });
+
+    expect(res.status).toBe(201);
+    expect((res.body as { grant_types: string[] }).grant_types).toEqual([
+      'authorization_code',
+      'refresh_token',
+    ]);
+  });
+
+  it('rejects refresh-only registrations because they cannot authorize', async () => {
+    server = await startMiniServer({
+      mode: 'prod',
+      publicUrlHost: null,
+      supportedGrantTypes: ['authorization_code', 'refresh_token'],
+    });
+
+    const res = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      grant_types: ['refresh_token'],
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('rejects unsupported token endpoint authentication methods', async () => {
+    server = await startMiniServer({ mode: 'prod', publicUrlHost: null });
+    const res = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      token_endpoint_auth_method: 'client_secret_basic',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'invalid_client_metadata' });
+  });
+
+  it('rejects unsupported grant and response types instead of rewriting them', async () => {
+    server = await startMiniServer({ mode: 'prod', publicUrlHost: null });
+    const grantRes = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      grant_types: ['client_credentials'],
+    });
+    expect(grantRes.status).toBe(400);
+    expect(grantRes.body).toMatchObject({ error: 'invalid_client_metadata' });
+
+    const responseRes = await postJson(`${server.url}/register`, {
+      redirect_uris: ['http://localhost:3000/cb'],
+      response_types: ['token'],
+    });
+    expect(responseRes.status).toBe(400);
+    expect(responseRes.body).toMatchObject({ error: 'invalid_client_metadata' });
+  });
 });
 
 describe('POST /register — scrubbed info log (AUTH-06 T-01-06c)', () => {
@@ -189,13 +295,12 @@ describe('POST /register — scrubbed info log (AUTH-06 T-01-06c)', () => {
     await postJson(`${server.url}/register`, {
       redirect_uris: ['http://localhost:3000/cb', 'http://127.0.0.1:5000/cb'],
       client_name: 'Secret Internal App',
-      grant_types: ['authorization_code'],
+      grant_types: ['authorization_code', 'refresh_token'],
       token_endpoint_auth_method: 'none',
     });
 
-    // Find the /register info log — its meta object must NOT contain `body`,
-    // `redirect_uris`, `token_endpoint_auth_method`, and MUST contain
-    // `client_name`, `grant_types`, `redirect_uri_count`.
+    // Find the /register info log — its meta object must NOT contain raw request
+    // body or user-controlled names, and MUST contain bounded metadata.
     const registerCalls = (loggerMock.info as ReturnType<typeof vi.fn>).mock.calls.filter(
       (call: unknown[]) => {
         // Canonical pino order: (meta, message). Message is second arg.
@@ -207,10 +312,13 @@ describe('POST /register — scrubbed info log (AUTH-06 T-01-06c)', () => {
 
     const meta = registerCalls[0][0] as Record<string, unknown>;
     // Required scrubbed fields:
-    expect(meta).toHaveProperty('client_name', 'Secret Internal App');
-    expect(meta).toHaveProperty('grant_types');
+    expect(meta).toHaveProperty('clientNameHash');
+    expect(meta).toHaveProperty('clientNameLength', 'Secret Internal App'.length);
+    expect(meta).toHaveProperty('grantTypeCount', 2);
     expect(meta).toHaveProperty('redirect_uri_count', 2);
     // Forbidden leaks:
+    expect(meta).not.toHaveProperty('client_name');
+    expect(JSON.stringify(meta)).not.toContain('Secret Internal App');
     expect(meta).not.toHaveProperty('body');
     expect(meta).not.toHaveProperty('redirect_uris');
     expect(meta).not.toHaveProperty('token_endpoint_auth_method');

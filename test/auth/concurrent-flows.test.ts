@@ -227,6 +227,7 @@ describe('Concurrent flows integration (AUTH-05 / SC#3)', () => {
           code: 'the-code',
           redirect_uri: 'http://localhost:3000/callback',
           code_verifier: clientVerifier,
+          client_id: tenantA.client_id,
         }),
       });
       return tokenRes;

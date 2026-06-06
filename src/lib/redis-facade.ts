@@ -17,6 +17,7 @@
  *
  * Commands implemented (subset — Phase 3-4 needs only these):
  *   get / set (EX + PX + NX flags) / getdel / del(...) / keys(glob with * only)
+ *   eval (limited compare-and-del / compare-and-pexpire scripts) / pexpire
  *   incr / expire (Phase 4 04-07 — webhook 401 rate limit)
  *   ping / quit / disconnect / publish / subscribe / on('message' | 'error')
  *   status getter.
@@ -146,6 +147,43 @@ export class MemoryRedisFacade extends EventEmitter {
     }
     this.store.set(key, { value: existing.value, expiresAt: Date.now() + seconds * 1000 });
     return 1;
+  }
+
+  async pexpire(key: string, milliseconds: number | string): Promise<number> {
+    this.assertOpen();
+    const existing = this.store.get(key);
+    if (!existing || this.isExpired(existing)) {
+      this.store.delete(key);
+      return 0;
+    }
+    const ttlMs =
+      typeof milliseconds === 'number' ? milliseconds : Number.parseInt(milliseconds, 10);
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0) return 0;
+    this.store.set(key, { value: existing.value, expiresAt: Date.now() + ttlMs });
+    return 1;
+  }
+
+  async eval(
+    script: string,
+    keyCount: number,
+    ...args: Array<string | number>
+  ): Promise<number | string | null> {
+    this.assertOpen();
+    if (keyCount !== 1 || args.length < 2 || typeof args[0] !== 'string') {
+      throw new Error('MemoryRedisFacade eval supports one-key compare scripts only');
+    }
+    const key = args[0];
+    const lockId = String(args[1]);
+    const current = await this.get(key);
+    if (current !== lockId) return 0;
+    if (script.includes('pexpire')) {
+      if (args.length < 3) throw new Error('pexpire script requires ttl argument');
+      return await this.pexpire(key, args[2]);
+    }
+    if (script.includes('del')) {
+      return await this.del(key);
+    }
+    throw new Error('MemoryRedisFacade eval unsupported script');
   }
 
   async del(...keys: string[]): Promise<number> {

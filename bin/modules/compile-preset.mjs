@@ -16,7 +16,7 @@
  * presets remain strict when their product registry is present.
  *
  * Presets compiled:
- *   - discovery-v1         (28 meta/app aliases — Plan 07-02)
+ *   - discovery-v1         (30 meta/app aliases — Plan 07-02)
  *   - essentials-v1        (150 ops — Plan 05-03, cross-product Graph default)
  *   - powerbi-essentials    (plan 05.1-07, __powerbi__* subset)
  *   - pwrapps-essentials    (plan 05.1-07, __pwrapps__* subset)
@@ -28,7 +28,7 @@
  *   - preset.version MUST equal the preset-name literal (enforced here,
  *     and pinned at runtime by the PRESET_VERSIONS map key).
  *   - preset.ops MUST be a non-empty array of non-empty strings.
- *   - discovery-v1 MUST have exactly 28 ops and every op MUST be one of
+ *   - discovery-v1 MUST have exactly 30 ops and every op MUST be one of
  *     the bounded meta aliases in DISCOVERY_META_ALIAS_ALLOWLIST.
  *   - essentials-v1 MUST have exactly 150 ops (D-19 legacy invariant).
  *   - every per-product preset op MUST carry the product's `__<prefix>__`
@@ -58,6 +58,8 @@ const DISCOVERY_META_ALIAS_ALLOWLIST = Object.freeze(
     'search-tools',
     'get-tool-schema',
     'execute-tool',
+    'bulk-action',
+    'read-bulk-result',
     'bookmark-tool',
     'list-bookmarks',
     'unbookmark-tool',
@@ -102,7 +104,7 @@ const PRESET_SPECS = Object.freeze([
     version: 'discovery-v1',
     filename: 'discovery-v1.json',
     constName: 'DISCOVERY_V1_OPS',
-    exactCount: 28,
+    exactCount: 30,
     prefix: null,
     metaAllowlist: DISCOVERY_META_ALIAS_ALLOWLIST,
   }),

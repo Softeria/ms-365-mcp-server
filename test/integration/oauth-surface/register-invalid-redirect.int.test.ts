@@ -151,7 +151,7 @@ describe('plan 06-05 — dynamic /register redirect_uri validation (SC#4)', () =
       expect([200, 201]).toContain(res.status);
     });
 
-    it('filters unsupported refresh_token grant from dynamic registration metadata', async () => {
+    it('preserves supported hosted-connector grants in dynamic registration metadata', async () => {
       const res = await fetch(`${baseUrl}/register`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -164,7 +164,7 @@ describe('plan 06-05 — dynamic /register redirect_uri validation (SC#4)', () =
       });
       expect(res.status).toBe(201);
       const body = (await res.json()) as { grant_types: string[] };
-      expect(body.grant_types).toEqual(['authorization_code']);
+      expect(body.grant_types).toEqual(['authorization_code', 'refresh_token']);
     });
 
     it('accepts http://localhost:3000/callback in prod mode (loopback always OK)', async () => {

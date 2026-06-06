@@ -8,7 +8,7 @@
 
 Enterprise Microsoft 365 MCP gateway for AI assistants. The current runtime is a Docker-first, multi-tenant gateway with tenant-scoped OAuth, encrypted token storage, Redis-backed hot state, Postgres-backed tenant registry, per-tenant rate limits, observability, and a discovery-mode tool surface over a 42k+ generated Microsoft 365 catalog.
 
-Maintained at [ali205412/ms-365-mcp-server](https://github.com/ali205412/ms-365-mcp-server). The published container image is `ghcr.io/ali205412/ms-365-mcp-server:latest`.
+Maintained at [ali205412/ms-365-mcp-server](https://github.com/ali205412/ms-365-mcp-server). Container images are published to `ghcr.io/ali205412/ms-365-mcp-server`; use immutable `sha-<shortsha>` tags or digests for production, and reserve `:latest` for quickstarts or deployments that explicitly re-pull moving tags.
 
 ## What It Provides
 
@@ -46,9 +46,13 @@ Then run:
 docker compose up -d
 ```
 
-Or pull the image directly:
+Or pull an image directly:
 
 ```bash
+# Production: pin an immutable release from the docker-image workflow.
+docker pull ghcr.io/ali205412/ms-365-mcp-server:sha-<shortsha>
+
+# Quickstart only; moving tags require pull_policy: always in Compose/Coolify.
 docker pull ghcr.io/ali205412/ms-365-mcp-server:latest
 ```
 

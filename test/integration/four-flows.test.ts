@@ -228,6 +228,7 @@ describe('Plan 03-10 — four flows + audit rows (SC#3)', () => {
           redirect_uri: 'http://localhost:3000/callback',
           code_challenge: clientChallenge,
           state: 'delegated',
+          client_id: 'client-delegated',
         }),
       { redirect: 'manual' }
     );
@@ -241,6 +242,7 @@ describe('Plan 03-10 — four flows + audit rows (SC#3)', () => {
         code: 'the-code',
         redirect_uri: 'http://localhost:3000/callback',
         code_verifier: clientVerifier,
+        client_id: 'client-delegated',
       }),
     });
     expect(tokenRes.status).toBe(200);

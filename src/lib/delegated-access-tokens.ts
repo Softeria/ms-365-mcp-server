@@ -52,6 +52,14 @@ export async function rememberDelegatedAccessToken(args: {
   );
 }
 
+export async function forgetDelegatedAccessToken(args: {
+  redis: RedisClient;
+  tenantId: string;
+  accessToken: string;
+}): Promise<void> {
+  await args.redis.del(delegatedAccessTokenKey(args.tenantId, args.accessToken));
+}
+
 export async function hasDelegatedAccessToken(args: {
   redis: RedisClient;
   tenantId: string;

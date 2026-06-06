@@ -6,6 +6,8 @@ Deploys ms-365-mcp-server to Azure Container Apps using the colocated Bicep temp
 .DESCRIPTION
 Creates (or updates) the target Resource Group and runs the Bicep deployment.
 The Entra ID client secret is prompted interactively and stored in Key Vault.
+Production state is not provisioned by this example; provide external Postgres,
+Redis, and a base64 32-byte KEK when prompted or through secure parameters.
 
 .EXAMPLE
 ./deploy.ps1 -ResourceGroup rg-ms365mcp -BaseName ms365mcp `
@@ -18,8 +20,8 @@ Requirements:
   - PowerShell 7+
   - Azure subscription with Contributor + User Access Administrator roles
     (User Access Administrator is needed for the UAMI -> Key Vault RBAC assignment)
-  - Entra ID app registration created beforehand, with a redirect URI matching
-    the Container App FQDN (update it after the first deployment).
+  - Entra ID app registration created beforehand, with redirect URIs matching
+    the MCP client callback URIs you will exact-allowlist for each tenant.
 #>
 [CmdletBinding()]
 param(
@@ -34,14 +36,21 @@ param(
 
   [string]$Location = 'eastus',
   [string]$ContainerImage = 'ghcr.io/softeria/ms-365-mcp-server:latest',
-  [ValidateSet('global', 'gcc-high', 'dod', 'china')]
+  [ValidateSet('global', 'china')]
   [string]$CloudType = 'global',
-  [string]$CorsOrigin = 'http://localhost:3000',
+  [securestring]$DatabaseUrl,
+  [securestring]$RedisUrl,
+  [securestring]$McpKek,
+  [string]$CorsOrigins = 'https://claude.ai,https://chatgpt.com',
+  [string]$OAuthRedirectHosts = 'claude.ai,chatgpt.com',
   [string]$PublicBaseUrl = '',
+  [string]$AdminAppClientId = '',
+  [string]$AdminGroupId = '',
+  [string]$AdminOrigins = '',
   [string[]]$KvAdminObjectIds = @(),
   [bool]$OrgMode = $true,
   [bool]$ReadOnly = $false,
-  [int]$MinReplicas = 0,
+  [int]$MinReplicas = 1,
   [int]$MaxReplicas = 3,
   [switch]$SkipLogin,
   [switch]$WhatIf
@@ -52,6 +61,16 @@ $bicepFile = Join-Path $PSScriptRoot 'main.bicep'
 
 if (-not (Test-Path $bicepFile)) {
   throw "Bicep file not found: $bicepFile"
+}
+
+function Convert-SecureStringToPlainText([securestring]$Value) {
+  if (-not $Value -or $Value.Length -eq 0) { return '' }
+  $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
+  try {
+    return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  } finally {
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
 }
 
 # --- Prerequisites ---
@@ -80,17 +99,26 @@ if (-not $SkipLogin) {
   }
 }
 
-# --- Client secret (interactive, SecureString) ---
+# --- Secrets (interactive, SecureString) ---
 $secretSecure = Read-Host 'Entra ID client secret (leave empty for public client)' -AsSecureString
-$secretPlain = ''
-if ($secretSecure.Length -gt 0) {
-  $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secretSecure)
-  try {
-    $secretPlain = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-  } finally {
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-  }
+if (-not $DatabaseUrl) {
+  $DatabaseUrl = Read-Host 'External Postgres connection string (MS365_MCP_DATABASE_URL)' -AsSecureString
 }
+if (-not $RedisUrl) {
+  $RedisUrl = Read-Host 'External Redis connection string (MS365_MCP_REDIS_URL)' -AsSecureString
+}
+if (-not $McpKek) {
+  $McpKek = Read-Host 'Base64 32-byte KEK (MS365_MCP_KEK)' -AsSecureString
+}
+
+$secretPlain = Convert-SecureStringToPlainText $secretSecure
+$databaseUrlPlain = Convert-SecureStringToPlainText $DatabaseUrl
+$redisUrlPlain = Convert-SecureStringToPlainText $RedisUrl
+$mcpKekPlain = Convert-SecureStringToPlainText $McpKek
+
+if (-not $databaseUrlPlain) { throw 'External Postgres connection string is required.' }
+if (-not $redisUrlPlain) { throw 'External Redis connection string is required.' }
+if (-not $mcpKekPlain) { throw 'MS365_MCP_KEK is required.' }
 
 # --- Resource Group ---
 $rg = az group show -n $ResourceGroup --only-show-errors 2>$null | ConvertFrom-Json
@@ -110,8 +138,15 @@ $params = @{
   mcpClientSecret = @{ value = $secretPlain }
   cloudType      = @{ value = $CloudType }
   containerImage = @{ value = $ContainerImage }
-  corsOrigin     = @{ value = $CorsOrigin }
+  databaseUrl    = @{ value = $databaseUrlPlain }
+  redisUrl       = @{ value = $redisUrlPlain }
+  mcpKek         = @{ value = $mcpKekPlain }
+  corsOrigins    = @{ value = $CorsOrigins }
+  oauthRedirectHosts = @{ value = $OAuthRedirectHosts }
   publicBaseUrl  = @{ value = $PublicBaseUrl }
+  adminAppClientId = @{ value = $AdminAppClientId }
+  adminGroupId   = @{ value = $AdminGroupId }
+  adminOrigins   = @{ value = $AdminOrigins }
   orgMode        = @{ value = $OrgMode }
   readOnly       = @{ value = $ReadOnly }
   minReplicas    = @{ value = $MinReplicas }
@@ -158,13 +193,18 @@ try {
   Write-Host "  Log Analytics       : $($outputs.logAnalyticsName.value)"
   Write-Host ''
   Write-Host 'Next steps:' -ForegroundColor Cyan
-  Write-Host "  1. Add '$($outputs.appUrl.value)/oauth/callback' as a redirect URI in your Entra ID app."
-  Write-Host "  2. Re-run with -PublicBaseUrl '$($outputs.appUrl.value)' so OAuth metadata returns the public URL."
-  Write-Host "  3. Test : curl $($outputs.appUrl.value)/.well-known/oauth-authorization-server"
-  Write-Host "  4. Logs : az containerapp logs show -n '$BaseName-app' -g '$ResourceGroup' --follow"
+  Write-Host "  1. Re-run with -PublicBaseUrl '$($outputs.appUrl.value)' so OAuth metadata returns the public URL."
+  Write-Host '  2. Add the MCP client callback URI (for example https://claude.ai/api/mcp/auth_callback or a hosted connector callback) to the tenant redirect_uri_allowlist exactly.'
+  Write-Host '  3. If the callback host is not your public MCP host, include it in -OAuthRedirectHosts; this does not replace the exact tenant allowlist entry.'
+  Write-Host '  4. Configure -AdminAppClientId and -AdminGroupId, then onboard the first tenant through /admin/tenants.'
+  Write-Host "  5. Test : curl $($outputs.appUrl.value)/.well-known/oauth-authorization-server"
+  Write-Host "  6. Logs : az containerapp logs show -n '$BaseName-app' -g '$ResourceGroup' --follow"
 }
 finally {
   Remove-Item $paramsFile.FullName -ErrorAction SilentlyContinue
   $secretPlain = $null
+  $databaseUrlPlain = $null
+  $redisUrlPlain = $null
+  $mcpKekPlain = $null
   [GC]::Collect()
 }
