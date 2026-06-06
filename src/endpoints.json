@@ -490,12 +490,6 @@
     "scopes": ["Files.Read"]
   },
   {
-    "pathPattern": "/drives/{drive-id}/root",
-    "method": "get",
-    "toolName": "get-drive-root-item",
-    "scopes": ["Files.Read"]
-  },
-  {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
