@@ -280,7 +280,12 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = resolveAuthScopes(this.options);
+        // Mirror the protected-resource handler below: in OBO mode both discovery
+        // docs must advertise the GUID-form resource scope, else RFC 8414 clients
+        // request raw Graph scopes and get a token the OBO exchange rejects (#516).
+        const scopes = this.options.obo
+          ? [`${this.secrets!.clientId}/access_as_user`]
+          : resolveAuthScopes(this.options);
 
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
