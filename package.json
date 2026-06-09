@@ -39,6 +39,8 @@
     "commander": "^11.1.0",
     "dotenv": "^17.0.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.1.0",
     "js-yaml": "^4.1.0",
     "open": "^11.0.0",
     "winston": "^3.17.0",

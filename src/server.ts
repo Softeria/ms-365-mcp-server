@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
@@ -221,7 +223,32 @@ class MicrosoftGraphServer {
       const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
-      app.set('trust proxy', true);
+
+      // Trust-proxy configuration. `true` (trust every hop) is too permissive
+      // once per-IP rate limiting is in play: a client can spoof the leftmost
+      // X-Forwarded-For entry and bypass the limiter
+      // (express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY). Default to a single
+      // upstream hop, which fits the common reverse-proxy deployment. Override
+      // with MS365_MCP_TRUST_PROXY_HOPS=<n> for multi-hop chains, 0 to disable
+      // proxy trust, or a comma-separated subnet list for explicit ranges.
+      const trustProxyEnv = process.env.MS365_MCP_TRUST_PROXY_HOPS;
+      if (trustProxyEnv !== undefined && trustProxyEnv !== '') {
+        const asNum = Number(trustProxyEnv);
+        app.set('trust proxy', Number.isFinite(asNum) ? asNum : trustProxyEnv);
+      } else {
+        app.set('trust proxy', 1);
+      }
+
+      // Security headers. CSP is disabled because this server returns JSON and
+      // OAuth metadata, not HTML; HSTS assumes TLS is terminated upstream.
+      app.use(
+        helmet({
+          contentSecurityPolicy: false,
+          crossOriginEmbedderPolicy: false,
+          hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+        })
+      );
+
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
@@ -243,6 +270,32 @@ class MicrosoftGraphServer {
 
         next();
       });
+
+      // Per-IP rate limiting (opt out with MS365_MCP_RATE_LIMIT_DISABLED=true).
+      // Defense-in-depth for the OAuth surface (/authorize, /token, /register)
+      // and the MCP endpoint (/mcp). Limits are generous for normal usage and
+      // only fire on abuse patterns.
+      const rateLimitDisabled =
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED === 'true' ||
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED === '1';
+      if (!rateLimitDisabled) {
+        const authLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 30,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        const mcpLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 120,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        app.use('/authorize', authLimiter);
+        app.use('/token', authLimiter);
+        app.use('/register', authLimiter);
+        app.use('/mcp', mcpLimiter);
+      }
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
