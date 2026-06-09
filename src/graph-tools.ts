@@ -70,6 +70,31 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
+const DEFAULT_MAX_PAGES = 100;
+const DEFAULT_MAX_ITEMS = 10_000;
+
+/** Reads a positive-integer env var, falling back to `defaultValue` when unset or invalid. */
+function positiveIntFromEnv(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return defaultValue;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    logger.warn(`Ignoring invalid ${name}=${JSON.stringify(raw)} (use a positive integer)`);
+    return defaultValue;
+  }
+  return n;
+}
+
+/**
+ * Whether `fetchAllPages` is permitted. Defaults to true; set MS365_MCP_ALLOW_PAGINATION
+ * to 0/false/no to disable multi-page following entirely (returns the first page only).
+ */
+function paginationAllowed(): boolean {
+  const raw = process.env.MS365_MCP_ALLOW_PAGINATION;
+  if (raw === undefined || raw === '') return true;
+  return !/^(0|false|no)$/i.test(raw.trim());
+}
+
 type TextContent = {
   type: 'text';
   text: string;
@@ -612,14 +637,20 @@ async function executeGraphTool(
     let response = await graphClient.graphRequest(path, options);
 
     const fetchAllPages = params.fetchAllPages === true;
-    if (fetchAllPages && response?.content?.[0]?.text) {
+    const paginationEnabled = paginationAllowed();
+    if (fetchAllPages && !paginationEnabled) {
+      logger.info(
+        'fetchAllPages requested but MS365_MCP_ALLOW_PAGINATION is disabled; returning first page only'
+      );
+    }
+    if (fetchAllPages && paginationEnabled && response?.content?.[0]?.text) {
       try {
         let combinedResponse = JSON.parse(response.content[0].text);
         let allItems = combinedResponse.value || [];
         let nextLink = combinedResponse['@odata.nextLink'];
         let pageCount = 1;
-        const maxPages = 100;
-        const maxItems = 10_000;
+        const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
+        const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
 
         while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
