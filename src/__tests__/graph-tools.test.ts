@@ -341,6 +341,18 @@ describe('graph-tools', () => {
         expect(server.tools.get('test-tool')!.schema.fetchAllPages).toBeUndefined();
       });
 
+      it('should advertise fetchAllPages when pagination is enabled', async () => {
+        delete process.env.MS365_MCP_ALLOW_PAGINATION;
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, createMockGraphClient() as any);
+
+        expect(server.tools.get('test-tool')!.schema.fetchAllPages).toBeDefined();
+      });
+
       it('should reflect MS365_MCP_MAX_PAGES in the fetchAllPages description', async () => {
         process.env.MS365_MCP_MAX_PAGES = '7';
         mockEndpoints.push(makeEndpoint());
