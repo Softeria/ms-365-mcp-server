@@ -849,11 +849,12 @@ export function registerGraphTools(
       }
     }
 
-    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/')) {
+    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/') && paginationAllowed()) {
+      const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
       paramSchema['fetchAllPages'] = z
         .boolean()
         .describe(
-          'Follow @odata.nextLink and merge up to 100 pages into one response. ' +
+          `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
             'Can return enormous payloads—only when the user explicitly needs a full export. ' +
             'Prefer a small $top first, then paginate or narrow with $filter/$search.'
         )
