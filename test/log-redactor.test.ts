@@ -45,6 +45,22 @@ describe('redactSensitive', () => {
     expect(redactSensitive(msg)).toBe(msg);
   });
 
+  it('leaves HTTP status codes and error codes untouched', () => {
+    const statusMsg = 'Graph API request failed: statusCode: 401';
+    expect(redactSensitive(statusMsg)).toBe(statusMsg);
+
+    const errMsg = 'fetch failed { code: ENOTFOUND }';
+    expect(redactSensitive(errMsg)).toBe(errMsg);
+
+    const jsonErr = '{"statusCode":401,"code":"ECONNRESET"}';
+    expect(redactSensitive(jsonErr)).toBe(jsonErr);
+  });
+
+  it('still redacts authorization codes in query strings', () => {
+    const out = redactSensitive('redirect to /callback?code=AQABAAIAAAD.0.abc-123&state=xyz');
+    expect(out).toBe('redirect to /callback?code=[REDACTED]&state=xyz');
+  });
+
   it('handles multiple secrets in one message', () => {
     const out = redactSensitive(`Bearer ${'x'.repeat(20)} for user bob@example.org`);
     expect(out).toBe('Bearer [REDACTED] for user [REDACTED_EMAIL]');
