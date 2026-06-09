@@ -31,10 +31,18 @@ const REDACTIONS: RedactionPattern[] = [
     replacement: '$1[REDACTED]',
   },
   // OAuth token fields in query strings or JSON bodies:
-  // refresh_token=..., "access_token": "...", code=..., client_secret=...
+  // refresh_token=..., "access_token": "...", client_secret=...
+  // The \b keeps composite keys like `statusCode` from matching via a substring.
   {
     pattern:
-      /(["']?(?:refresh_token|access_token|id_token|client_secret|code|assertion)["']?\s*[=:]\s*["']?)[A-Za-z0-9._~+/-]+=*/gi,
+      /(["']?\b(?:refresh_token|access_token|id_token|client_secret|assertion)["']?\s*[=:]\s*["']?)[A-Za-z0-9._~+/-]+=*/gi,
+    replacement: '$1[REDACTED]',
+  },
+  // OAuth authorization codes, query-string form only (?code=... / &code=...).
+  // `code:` in JSON or prose is an error/status code (ECONNRESET, AADSTS...),
+  // which must stay readable for diagnostics.
+  {
+    pattern: /([?&]code=)[^&\s"']+/gi,
     replacement: '$1[REDACTED]',
   },
   // Email addresses / UPNs
