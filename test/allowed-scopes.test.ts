@@ -174,7 +174,21 @@ describe('allowed scope HTTP behavior', () => {
     await handler(mockRequest('/.well-known/oauth-protected-resource'), res);
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes_supported: ['api://test-client-id/access_as_user'] })
+      expect.objectContaining({ scopes_supported: ['test-client-id/access_as_user'] })
+    );
+  });
+
+  it('advertises OBO scope in authorization-server metadata', async () => {
+    process.env.MS365_MCP_CLIENT_SECRET = 'secret';
+    clearSecretsCache();
+    await startHttpServer({ allowedScopes: 'Mail.Read', obo: true });
+    const handler = expressMocks.routes.get('/.well-known/oauth-authorization-server')!;
+    const res = mockResponse();
+
+    await handler(mockRequest('/.well-known/oauth-authorization-server'), res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes_supported: ['test-client-id/access_as_user'] })
     );
   });
 

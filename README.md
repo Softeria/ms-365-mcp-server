@@ -504,7 +504,19 @@ npx @softeria/ms-365-mcp-server --preset mail
 npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 ```
 
-Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `all`
+Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `all`
+
+Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`).
+
+The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose exactly one Microsoft app. Use these for "expose exactly one app" deployments:
+
+```bash
+# Outlook only (mail + calendar + contacts; no shared mailboxes, no files)
+npx @softeria/ms-365-mcp-server --preset outlook
+
+# Teams only (requires --org-mode)
+npx @softeria/ms-365-mcp-server --org-mode --preset teams
+```
 
 ## Dynamic Tool Discovery
 
@@ -561,10 +573,16 @@ Environment variables:
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
+- `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
+- `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
+- `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
+- `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
+- `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
+- `MS365_MCP_REDACT_PII=true|1`: Scrub JWTs, Bearer headers, OAuth token fields, and email addresses from log messages before they are written (default: disabled). Useful when logs are shipped to a central store or shared host.
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)

@@ -145,6 +145,7 @@ describe('Multi-account support', () => {
         selectAccount: vi.fn(),
         removeAccount: vi.fn(),
         hasExpectedAccount: vi.fn().mockReturnValue(false),
+        isOAuthModeEnabled: vi.fn().mockReturnValue(false),
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads
@@ -195,6 +196,7 @@ describe('Multi-account support', () => {
         selectAccount: vi.fn(),
         removeAccount: vi.fn(),
         hasExpectedAccount: vi.fn().mockReturnValue(true),
+        isOAuthModeEnabled: vi.fn().mockReturnValue(false),
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads

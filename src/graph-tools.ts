@@ -40,6 +40,7 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
 
 const endpointsData = JSON.parse(
@@ -67,6 +68,31 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   if (!Number.isFinite(requested) || requested <= cap) return;
   logger.info(`Clamping $top from ${requested} to ${cap} (MS365_MCP_MAX_TOP)`);
   queryParams['$top'] = String(cap);
+}
+
+const DEFAULT_MAX_PAGES = 100;
+const DEFAULT_MAX_ITEMS = 10_000;
+
+/** Reads a positive-integer env var, falling back to `defaultValue` when unset or invalid. */
+function positiveIntFromEnv(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return defaultValue;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    logger.warn(`Ignoring invalid ${name}=${JSON.stringify(raw)} (use a positive integer)`);
+    return defaultValue;
+  }
+  return n;
+}
+
+/**
+ * Whether `fetchAllPages` is permitted. Defaults to true; set MS365_MCP_ALLOW_PAGINATION
+ * to 0/false/no to disable multi-page following entirely (returns the first page only).
+ */
+function paginationAllowed(): boolean {
+  const raw = process.env.MS365_MCP_ALLOW_PAGINATION;
+  if (raw === undefined || raw === '') return true;
+  return !/^(0|false|no)$/i.test(raw.trim());
 }
 
 type TextContent = {
@@ -155,6 +181,35 @@ function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   const suffix =
     disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
   return `${shown.join('; ')}${suffix}`;
+}
+
+/**
+ * In OAuth/HTTP bearer mode the `account` parameter cannot switch identities —
+ * every Graph call uses the connecting client's bearer token. Previously a
+ * provided `account` was silently ignored and the bearer user's data returned
+ * (discussion #467). Returns an error message when an `account` param is
+ * provided that the bearer identity cannot honor; a param matching the bearer's
+ * own identity passes through. Returns null when account routing via the MSAL
+ * cache is available (stdio mode, or HTTP with --trust-proxy-auth).
+ */
+async function checkAccountParamInBearerMode(
+  accountParam: string | undefined,
+  authManager?: AuthManager
+): Promise<string | null> {
+  if (!accountParam || !authManager) return null;
+  const contextToken = getRequestTokens()?.accessToken;
+  if (!contextToken && !authManager.isOAuthModeEnabled()) return null;
+  const bearerToken = contextToken ?? (await authManager.getToken().catch(() => null)) ?? undefined;
+  const bearerIdentity = getUserIdentityForAudit(bearerToken);
+  if (bearerIdentity && bearerIdentity.toLowerCase() === accountParam.toLowerCase()) return null;
+  return (
+    `The 'account' parameter is not supported in HTTP/OAuth mode: every request uses the identity ` +
+    `of the connecting client's bearer token` +
+    (bearerIdentity ? ` ('${bearerIdentity}')` : '') +
+    `, so account switching is not possible. To act as '${accountParam}', reconnect the MCP client ` +
+    `authenticated as that account, or run the server in stdio mode (or HTTP with --trust-proxy-auth) ` +
+    `where cached accounts are available.`
+  );
 }
 
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
@@ -249,6 +304,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         };
       }
       try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
         let accountAccessToken: string | undefined;
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
@@ -297,12 +359,23 @@ async function executeGraphTool(
   const httpMethod = tool.method.toUpperCase();
 
   try {
+    const accountParam = params.account as string | undefined;
+
+    // In OAuth/HTTP bearer mode, refuse an `account` param that doesn't match the bearer
+    // identity instead of silently returning the bearer user's data (discussion #467).
+    const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+    if (accountModeError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+        isError: true,
+      };
+    }
+
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
     // Also skip when a request-context token exists (HTTP/OAuth flow where token comes from middleware).
     let accountAccessToken: string | undefined;
     if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
-      const accountParam = params.account as string | undefined;
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
       } catch (err) {
@@ -564,14 +637,20 @@ async function executeGraphTool(
     let response = await graphClient.graphRequest(path, options);
 
     const fetchAllPages = params.fetchAllPages === true;
-    if (fetchAllPages && response?.content?.[0]?.text) {
+    const paginationEnabled = paginationAllowed();
+    if (fetchAllPages && !paginationEnabled) {
+      logger.info(
+        'fetchAllPages requested but MS365_MCP_ALLOW_PAGINATION is disabled; returning first page only'
+      );
+    }
+    if (fetchAllPages && paginationEnabled && response?.content?.[0]?.text) {
       try {
         let combinedResponse = JSON.parse(response.content[0].text);
         let allItems = combinedResponse.value || [];
         let nextLink = combinedResponse['@odata.nextLink'];
         let pageCount = 1;
-        const maxPages = 100;
-        const maxItems = 10_000;
+        const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
+        const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
 
         while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
@@ -770,11 +849,12 @@ export function registerGraphTools(
       }
     }
 
-    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/')) {
+    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/') && paginationAllowed()) {
+      const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
       paramSchema['fetchAllPages'] = z
         .boolean()
         .describe(
-          'Follow @odata.nextLink and merge up to 100 pages into one response. ' +
+          `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
             'Can return enormous payloads—only when the user explicitly needs a full export. ' +
             'Prefer a small $top first, then paginate or narrow with $filter/$search.'
         )

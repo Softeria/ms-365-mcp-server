@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Request, Response } from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
@@ -143,18 +145,31 @@ class MicrosoftGraphServer {
     this.secrets = await getSecrets();
     this.version = version;
 
-    // Detect multi-account mode and cache account names for schema enum
-    try {
-      this.multiAccount = await this.authManager.isMultiAccount();
-      if (this.multiAccount) {
-        const accounts = await this.authManager.listAccounts();
-        this.accountNames = accounts.map((a) => a.username).filter((u): u is string => !!u);
-        logger.info(
-          `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
-        );
+    // Detect multi-account mode and cache account names for schema enum.
+    // Skip in HTTP bearer mode and BYOT: those requests are authenticated by the
+    // client's OAuth bearer token, so MSAL-cached accounts can never serve them and
+    // advertising an `account` parameter would be misleading (discussion #467).
+    // HTTP with --trust-proxy-auth falls back to the MSAL cache, so account
+    // routing stays available there.
+    const accountRoutingAvailable =
+      (!this.options.http || this.options.trustProxyAuth) && !this.authManager.isOAuthModeEnabled();
+    if (accountRoutingAvailable) {
+      try {
+        this.multiAccount = await this.authManager.isMultiAccount();
+        if (this.multiAccount) {
+          const accounts = await this.authManager.listAccounts();
+          this.accountNames = accounts.map((a) => a.username).filter((u): u is string => !!u);
+          logger.info(
+            `Multi-account mode detected (${this.accountNames.length} accounts): "account" parameter will be injected into all tool schemas`
+          );
+        }
+      } catch (err) {
+        logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
       }
-    } catch (err) {
-      logger.warn(`Failed to detect multi-account mode: ${(err as Error).message}`);
+    } else {
+      logger.info(
+        'Account routing disabled: requests use the OAuth bearer identity, so the "account" parameter is not injected into tool schemas'
+      );
     }
 
     if (this.options.obo) {
@@ -210,7 +225,32 @@ class MicrosoftGraphServer {
       const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
-      app.set('trust proxy', true);
+
+      // Trust-proxy configuration. `true` (trust every hop) is too permissive
+      // once per-IP rate limiting is in play: a client can spoof the leftmost
+      // X-Forwarded-For entry and bypass the limiter
+      // (express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY). Default to a single
+      // upstream hop, which fits the common reverse-proxy deployment. Override
+      // with MS365_MCP_TRUST_PROXY_HOPS=<n> for multi-hop chains, 0 to disable
+      // proxy trust, or a comma-separated subnet list for explicit ranges.
+      const trustProxyEnv = process.env.MS365_MCP_TRUST_PROXY_HOPS;
+      if (trustProxyEnv !== undefined && trustProxyEnv !== '') {
+        const asNum = Number(trustProxyEnv);
+        app.set('trust proxy', Number.isFinite(asNum) ? asNum : trustProxyEnv);
+      } else {
+        app.set('trust proxy', 1);
+      }
+
+      // Security headers. CSP is disabled because this server returns JSON and
+      // OAuth metadata, not HTML; HSTS assumes TLS is terminated upstream.
+      app.use(
+        helmet({
+          contentSecurityPolicy: false,
+          crossOriginEmbedderPolicy: false,
+          hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+        })
+      );
+
       app.use(express.json());
       app.use(express.urlencoded({ extended: true }));
 
@@ -232,6 +272,32 @@ class MicrosoftGraphServer {
 
         next();
       });
+
+      // Per-IP rate limiting (opt out with MS365_MCP_RATE_LIMIT_DISABLED=true).
+      // Defense-in-depth for the OAuth surface (/authorize, /token, /register)
+      // and the MCP endpoint (/mcp). Limits are generous for normal usage and
+      // only fire on abuse patterns.
+      const rateLimitDisabled =
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED === 'true' ||
+        process.env.MS365_MCP_RATE_LIMIT_DISABLED === '1';
+      if (!rateLimitDisabled) {
+        const authLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 30,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        const mcpLimiter = rateLimit({
+          windowMs: 60_000,
+          max: 120,
+          standardHeaders: 'draft-7',
+          legacyHeaders: false,
+        });
+        app.use('/authorize', authLimiter);
+        app.use('/token', authLimiter);
+        app.use('/register', authLimiter);
+        app.use('/mcp', mcpLimiter);
+      }
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
@@ -269,7 +335,12 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
-        const scopes = resolveAuthScopes(this.options);
+        // Mirror the protected-resource handler below: in OBO mode both discovery
+        // docs must advertise the GUID-form resource scope, else RFC 8414 clients
+        // request raw Graph scopes and get a token the OBO exchange rejects (#516).
+        const scopes = this.options.obo
+          ? [`${this.secrets!.clientId}/access_as_user`]
+          : resolveAuthScopes(this.options);
 
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
@@ -296,8 +367,12 @@ class MicrosoftGraphServer {
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
 
+        // OBO advertises the GUID-form scope (not api://...) — with a single
+        // app as both API and OBO client, the user token's aud is the app
+        // itself, and Azure only allows refreshing such self-tokens when the
+        // resource is the GUID-based App Identifier (AADSTS90009 otherwise).
         const scopes = this.options.obo
-          ? [`api://${this.secrets!.clientId}/access_as_user`]
+          ? [`${this.secrets!.clientId}/access_as_user`]
           : resolveAuthScopes(this.options);
 
         res.json({

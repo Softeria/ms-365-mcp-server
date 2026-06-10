@@ -1,5 +1,5 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
-import { PublicClientApplication } from '@azure/msal-node';
+import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -25,6 +25,7 @@ interface EndpointConfig {
   workScopes?: string[];
   llmTip?: string;
   readOnly?: boolean;
+  presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -377,6 +378,20 @@ interface AuthManagerCreateOptions {
   storage?: TokenCacheStorage;
 }
 
+/**
+ * Summarises a silent-acquire failure for logging. MSAL throws AuthError subclasses
+ * (e.g. InteractionRequiredAuthError) whose errorCode, subError and correlationId pin
+ * the cause, such as invalid_grant from the token endpoint or interaction_required.
+ * The log formatter only emits `message`, so the codes are folded into the string here.
+ */
+export function describeAuthError(error: unknown): string {
+  if (error instanceof AuthError) {
+    const suberror = error.subError ? ` / ${error.subError}` : '';
+    return `${error.errorCode}${suberror} (correlationId: ${error.correlationId || 'none'}): ${error.errorMessage}`;
+  }
+  return (error as Error).message;
+}
+
 class AuthManager {
   private config: Configuration;
   private scopes: string[];
@@ -658,8 +673,8 @@ class AuthManager {
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
         await this.saveTokenCache();
         return this.accessToken;
-      } catch {
-        logger.error('Silent token acquisition failed');
+      } catch (error) {
+        logger.error(`Silent token acquisition failed: ${describeAuthError(error)}`);
         throw new Error('Silent token acquisition failed');
       }
     }
@@ -982,6 +997,16 @@ class AuthManager {
    */
   async getTokenForAccount(identifier?: string): Promise<string> {
     if (this.isOAuthMode && this.oauthToken) {
+      // Refuse instead of silently returning the bearer's identity (discussion #467):
+      // in OAuth mode the token comes from the connecting client and cannot be
+      // switched to a cached MSAL account.
+      if (identifier) {
+        throw new Error(
+          `Cannot switch to account '${identifier}': the server is in OAuth mode and always uses ` +
+            `the identity of the supplied bearer token. Account switching requires stdio mode ` +
+            `(or HTTP with --trust-proxy-auth).`
+        );
+      }
       return this.oauthToken;
     }
 
@@ -1039,7 +1064,8 @@ class AuthManager {
       const response = await this.msalApp.acquireTokenSilent(silentRequest);
       await this.saveTokenCache();
       return response.accessToken;
-    } catch {
+    } catch (error) {
+      logger.error(`Silent token acquisition failed: ${describeAuthError(error)}`);
       throw new Error(
         `Failed to acquire token for account '${targetAccount.username || targetAccount.name || 'unknown'}'. ` +
           `The token may have expired. Please re-login with: --login`
