@@ -2,50 +2,54 @@ name: Build
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NPM_CONFIG_REGISTRY: https://bts.artifactory.tio.systems/artifactory/api/npm/npm/
+  NPM_CONFIG_REPLACE_REGISTRY_HOST: always
+  NPM_CONFIG_LEGACY_PEER_DEPS: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [ 18.x, 20.x, 22.x ]
+    name: Validate
+    runs-on:
+      group: elsevier-small-runners
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: Install patch-package (if needed)
-        run: npm i -D patch-package
+          node-version: 22.x
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate
-        run: npm run generate
+      - name: Verify
+        run: npm run verify
 
-      - name: Lint code
-        run: npm run lint
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Build TypeScript
-        run: npm run build
-
-      # vitest 4 requires Node >= 20, so tests run on 20+ only
-      - name: Run tests
-        if: matrix.node-version != '18.x'
-        run: npm test
-
-      # On Node 18 we still verify the built artifact starts and loads its modules
-      - name: Smoke test (Node 18 runtime check)
-        if: matrix.node-version == '18.x'
+      - name: Smoke test runtime
         run: node dist/index.js --list-presets
+
+      - name: Generate coverage report
+        run: npm test -- --coverage --coverage.reporter=lcov
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error

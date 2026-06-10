@@ -1,0 +1,86 @@
+name: Container Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  JFROG_URL: https://bts.artifactory.tio.systems
+  JFROG_OIDC_PROVIDER: els-tech-tio-bts-coreeng
+  JFROG_DOCKER_REGISTRY: docker-tiocoreeng-apps-virtual.bts.artifactory.tio.systems
+  JFROG_DOCKER_REPOSITORY: ms-365-mcp-server
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish image
+    runs-on:
+      group: elsevier-standard-runners
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Compute image metadata
+        id: image
+        run: |
+          source_sha="${GITHUB_SHA}"
+          short_sha="${source_sha:0:12}"
+          image_tag="v$(date -u +'%Y.%m.%d')-${short_sha}"
+          registry="${JFROG_DOCKER_REGISTRY}"
+          repository="${JFROG_DOCKER_REPOSITORY}"
+
+          if [ "${JFROG_OIDC_PROVIDER}" = "TODO_REPLACE_WITH_TECHDESK_OIDC_PROVIDER" ]; then
+            echo "Replace JFROG_OIDC_PROVIDER with the provider name from the TechDesk OIDC integration before publishing." >&2
+            exit 1
+          fi
+
+          image_ref="${registry}/${repository}:${image_tag}"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JFrog CLI
+        uses: jfrog/setup-jfrog-cli@5a4fbe1e30dbb570cc62d2513421c4b9bc3c9959
+        env:
+          JF_URL: ${{ env.JFROG_URL }}
+        with:
+          oidc-provider-name: ${{ env.JFROG_OIDC_PROVIDER }}
+
+      - name: Log in to Artifactory Docker registry
+        run: jf docker login ${{ env.JFROG_DOCKER_REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Build candidate image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          load: true
+          tags: ${{ steps.image.outputs.image_ref }}
+          labels: |
+            org.opencontainers.image.title=ms-365-mcp-server
+            org.opencontainers.image.revision=${{ steps.image.outputs.source_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Scan image with JFrog Xray
+        run: jf docker scan "${{ steps.image.outputs.image_ref }}"
+
+      - name: Publish image
+        run: docker push "${{ steps.image.outputs.image_ref }}"
+
+      - name: Summarize image
+        run: |
+          {
+            echo "### Published image"
+            echo
+            echo "- Tag: \`${{ steps.image.outputs.image_ref }}\`"
+            echo "- Source: \`${{ steps.image.outputs.source_sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
