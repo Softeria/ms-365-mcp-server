@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { parseArgs, type CommandOptions } from './cli.js';
+import type { CommandOptions } from './cli.js';
 import logger from './logger.js';
 import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
 import MicrosoftGraphServer from './server.js';
@@ -14,9 +14,6 @@ import { createTokenCacheStorage } from './token-cache-storage.js';
 import { dumpError, getActiveResources } from './crash-logging.js';
 import { version } from './version.js';
 
-// Global crash handlers. Without these, an unhandled rejection from a dependency
-// (MSAL HTTP, keytar native, fetch in node) kills the stdio process silently
-// before winston can flush. Log to stderr synchronously so the dump survives.
 process.on('unhandledRejection', (reason) => {
   const dump = {
     kind: 'unhandledRejection',
@@ -38,15 +35,12 @@ process.on('uncaughtException', (err, origin) => {
   logger.error('uncaughtException', dump);
 });
 
-/**
- * Programmatic factory to create and initialize a server instance.
- * Used by Vercel serverless entry points.
- */
 export async function createServer(options: CommandOptions = {}): Promise<MicrosoftGraphServer> {
   const effectiveScopes = resolveAuthScopes(options);
+  const useLocalAuthStorage = shouldUseLocalAuthStorage(options);
   const storage = await createTokenCacheStorage({
-    allowCommandStorage: shouldUseLocalAuthStorage(options),
-    logProvider: shouldUseLocalAuthStorage(options),
+    allowCommandStorage: useLocalAuthStorage,
+    logProvider: useLocalAuthStorage,
   });
   const authManager = await AuthManager.create(
     effectiveScopes,
@@ -64,6 +58,7 @@ export async function createServer(options: CommandOptions = {}): Promise<Micros
 
 async function main(): Promise<void> {
   try {
+    const { parseArgs } = await import('./cli.js');
     const args = parseArgs();
 
     if (args.listPermissions) {
@@ -97,8 +92,6 @@ async function main(): Promise<void> {
       logProvider: useLocalAuthStorage,
     });
 
-    // We re-resolve scopes here for the CLI branch to maintain existing behavior
-    // but we could also just call createServer(args) and then handle CLI-specifics.
     const effectiveScopes = resolveAuthScopes(args);
     const authManager = await AuthManager.create(
       effectiveScopes,
@@ -125,21 +118,16 @@ async function main(): Promise<void> {
     }
 
     if (args.login) {
-      if (args.authBrowser) {
-        await authManager.acquireTokenInteractive();
-      } else {
-        await authManager.acquireTokenByDeviceCode();
-      }
+      if (args.authBrowser) await authManager.acquireTokenInteractive();
+      else await authManager.acquireTokenByDeviceCode();
       logger.info('Login completed, testing connection with Graph API...');
-      const result = await authManager.testLogin();
-      console.log(JSON.stringify(result));
+      console.log(JSON.stringify(await authManager.testLogin()));
       process.exit(0);
     }
 
     if (args.verifyLogin) {
       logger.info('Verifying login...');
-      const result = await authManager.testLogin();
-      console.log(JSON.stringify(result));
+      console.log(JSON.stringify(await authManager.testLogin()));
       process.exit(0);
     }
 
@@ -164,24 +152,26 @@ async function main(): Promise<void> {
 
     if (args.selectAccount) {
       const success = await authManager.selectAccount(args.selectAccount);
-      if (success) {
-        console.log(JSON.stringify({ message: `Selected account: ${args.selectAccount}` }));
-      } else {
-        console.log(JSON.stringify({ error: `Account not found: ${args.selectAccount}` }));
-        process.exit(1);
-      }
-      process.exit(0);
+      console.log(
+        JSON.stringify(
+          success
+            ? { message: `Selected account: ${args.selectAccount}` }
+            : { error: `Account not found: ${args.selectAccount}` }
+        )
+      );
+      process.exit(success ? 0 : 1);
     }
 
     if (args.removeAccount) {
       const success = await authManager.removeAccount(args.removeAccount);
-      if (success) {
-        console.log(JSON.stringify({ message: `Removed account: ${args.removeAccount}` }));
-      } else {
-        console.log(JSON.stringify({ error: `Account not found: ${args.removeAccount}` }));
-        process.exit(1);
-      }
-      process.exit(0);
+      console.log(
+        JSON.stringify(
+          success
+            ? { message: `Removed account: ${args.removeAccount}` }
+            : { error: `Account not found: ${args.removeAccount}` }
+        )
+      );
+      process.exit(success ? 0 : 1);
     }
 
     if (shouldAssertExpectedAccountAtStartup(args, authManager)) {
@@ -199,12 +189,9 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run main if this file is being executed directly as a CLI
 const isCli = import.meta.url === `file://${process.argv[1]}` || process.env.TSUP_CLI;
 if (isCli) {
   main();
 }
 
-// Keep the default export lazy. Exporting createServer(...) here starts server
-// initialization at import time, which breaks health checks and Vercel builds.
 export default createServer;
