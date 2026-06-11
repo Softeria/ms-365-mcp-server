@@ -1,39 +1,68 @@
 import 'dotenv/config';
-// On Vercel, we import the bundled output produced by tsup.
-// This ensures all generated code and dependencies are resolved.
-import serverInstancePromise from '../dist/index.js';
+import createServer from '../src/index.js';
+
+let serverInstance: Awaited<ReturnType<typeof createServer>> | null = null;
+let serverInitPromise: ReturnType<typeof createServer> | null = null;
+
+function getPathname(req: any): string {
+  const host = req.headers?.host || 'localhost';
+  return new URL(req.url || '/', `https://${host}`).pathname;
+}
+
+function sendText(res: any, statusCode: number, body: string) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  return res.end(body);
+}
+
+function sendNoContent(res: any) {
+  res.statusCode = 204;
+  return res.end();
+}
+
+async function getServer() {
+  if (serverInstance) {
+    return serverInstance;
+  }
+
+  if (!serverInitPromise) {
+    serverInitPromise = createServer({
+      http: true,
+      obo: process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1',
+      trustProxyAuth:
+        process.env.MS365_MCP_TRUST_PROXY_AUTH === 'true' ||
+        process.env.MS365_MCP_TRUST_PROXY_AUTH === '1',
+    }).then((server) => {
+      serverInstance = server;
+      return server;
+    }).catch((error) => {
+      serverInitPromise = null;
+      throw error;
+    });
+  }
+
+  return serverInitPromise;
+}
 
 export default async function handler(req: any, res: any) {
-  const host = req.headers?.host || 'localhost';
-  const url = new URL(req.url || '/', `https://${host}`);
-  const pathname = url.pathname;
+  const pathname = getPathname(req);
 
-  // Simple health checks or root bypass
   if (pathname === '/' || pathname === '/health' || pathname === '/healthz') {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.end('Microsoft 365 MCP Server is running');
+    return sendText(res, 200, 'Microsoft 365 MCP Server is running');
   }
 
   if (pathname === '/favicon.ico' || pathname === '/favicon.png' || pathname === '/robots.txt') {
-    res.statusCode = 204;
-    return res.end();
+    return sendNoContent(res);
   }
 
   try {
-    // The bundled index.js default exports the createServer promise
-    const server = await serverInstancePromise;
-    
-    // Access the express app from the server instance
-    if (server && (server as any).app) {
-      return (server as any).app(req, res);
+    const server = await getServer();
+    if (server.app) {
+      return server.app(req, res);
     }
-
-    res.statusCode = 500;
-    return res.end('Server failed to initialize handler');
+    return sendText(res, 500, 'Server failed to initialize handler');
   } catch (error) {
     console.error('Failed to initialize Microsoft 365 MCP Server:', error);
-    res.statusCode = 500;
-    return res.end('Server failed to initialize');
+    return sendText(res, 500, 'Server failed to initialize');
   }
 }
