@@ -31,6 +31,14 @@ function getScopes() {
   ];
 }
 
+function setOAuthChallenge(req, res) {
+  const origin = getOrigin(req);
+  res.setHeader(
+    'WWW-Authenticate',
+    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", authorization_uri="${origin}/.well-known/oauth-authorization-server"`
+  );
+}
+
 function sendText(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -46,6 +54,22 @@ function sendJson(res, statusCode, body) {
 function sendNoContent(res) {
   res.statusCode = 204;
   return res.end();
+}
+
+function sendMcpDiscovery(req, res) {
+  const origin = getOrigin(req);
+  setOAuthChallenge(req, res);
+  res.setHeader('Allow', 'GET, HEAD, OPTIONS, POST');
+  res.setHeader('MCP-Protocol-Version', '2024-11-05');
+  return sendJson(res, 401, {
+    error: 'authorization_required',
+    message: 'OAuth bearer token required for MCP JSON-RPC calls. Use POST with JSON-RPC after OAuth.',
+    protocol: 'mcp',
+    transport: 'streamable-http',
+    endpoint: `${origin}/mcp`,
+    authorization_server: `${origin}/.well-known/oauth-authorization-server`,
+    protected_resource: `${origin}/.well-known/oauth-protected-resource`,
+  });
 }
 
 function sendSseHandshake(req, res) {
@@ -138,6 +162,18 @@ export default async function handler(req, res) {
       console.error('Failed to forward root MCP POST:', error);
       return sendText(res, 500, 'Server failed to initialize');
     }
+  }
+
+  if (pathname === '/mcp' && (req.method === 'GET' || req.method === 'HEAD')) {
+    return sendMcpDiscovery(req, res);
+  }
+
+  if (pathname === '/mcp' && req.method === 'OPTIONS') {
+    setOAuthChallenge(req, res);
+    res.setHeader('Allow', 'GET, HEAD, OPTIONS, POST');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, MCP-Protocol-Version');
+    return sendNoContent(res);
   }
 
   if (pathname === '/' || pathname === '/health' || pathname === '/healthz') {
