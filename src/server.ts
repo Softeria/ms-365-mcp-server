@@ -314,7 +314,8 @@ class MicrosoftGraphServer {
       }
 
       // 3. Bypass for JSON-RPC 'initialize' method (POST)
-      if (req.method === 'POST' && req.body?.method === 'initialize') {
+      // We explicitly check for both the root body and the standard JSON-RPC envelope
+      if (req.method === 'POST' && (req.body?.method === 'initialize' || req.body?.params?.method === 'initialize')) {
         return next();
       }
 
