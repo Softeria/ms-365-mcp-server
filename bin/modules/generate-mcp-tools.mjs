@@ -17,22 +17,25 @@ export function generateMcpTools(openApiSpec, outputDir) {
 
     const clientFilePath = path.join(outputDir, 'client.ts');
     execSync(
-      `npx -y openapi-zod-client "\${openapiTrimmedFile}" -o "\${clientFilePath}" --with-description --strict-objects --additional-props-default-value=false`,
+      `npx -y openapi-zod-client "${openapiTrimmedFile}" -o "${clientFilePath}" --with-description --strict-objects --additional-props-default-value=false`,
       {
         stdio: 'inherit',
       }
     );
 
-    console.log(`Generated client code at: \${clientFilePath}`);
+    console.log(`Generated client code at: ${clientFilePath}`);
 
     let clientCode = fs.readFileSync(clientFilePath, 'utf-8');
-    // Change @zodios/core to ./hack.js to satisfy NodeNext ESM import resolution
-    clientCode = clientCode.replace(/'@zodios\\/core';/, "'./hack.js';");
+    
+    // Fixed regex: explicitly target the import from '@zodios/core'
+    // This is safer than the previously broken escaped regex.
+    clientCode = clientCode.replace(/import \{.*?\} from '@zodios\/core';/, "import { makeApi, Zodios } from './hack.js';");
 
-    clientCode = clientCode.replace(/\\.strict\\(\\)/g, '.passthrough()');
+    clientCode = clientCode.replace(/\.strict\(\)/g, '.passthrough()');
 
     console.log('Stripping unused errors arrays from endpoint definitions...');
-    clientCode = clientCode.replace(/,?(\\s*errors:\\s*\\[[\\s\\S]*?],?)(?=\\s*})/g, '');
+    // Fixed regex: ensure backslashes are handled correctly in the replacement string
+    clientCode = clientCode.replace(/,?\s*errors:\s*\[[\s\S]*?],?(?=\s*})/g, '');
 
     console.log('Decoding HTML entities in path patterns...');
     clientCode = clientCode.replace(/&#x3D;/g, '=');
@@ -42,10 +45,12 @@ export function generateMcpTools(openApiSpec, outputDir) {
     clientCode = clientCode.replace(/&#x3A;/g, ':');
 
     console.log('Fixing function-style API paths with template literals...');
-    clientCode = clientCode.replace(/(path:\\s*)'(\\/[^']*\\([^)]*=':[\\w]+'\\)[^']*)'/g, '$1`$2`');
+    clientCode = clientCode.replace(/(path:\s*)'(\/[^']*\([^)]*=':[\w]+'\)[^']*)'/g, '$1`$2`');
 
+    // openapi-zod-client emits z.instanceof(File) for `format: binary` bodies; MCP
+    // transports JSON so no caller produces File. Body marshaller decodes the string.
     clientCode = clientCode.replace(
-      /z\\.instanceof\\(File\\)/g,
+      /z\.instanceof\(File\)/g,
       "z.string().describe('Base64-encoded file content. The server decodes it and PUTs the raw bytes to Microsoft Graph.')"
     );
 
@@ -53,6 +58,6 @@ export function generateMcpTools(openApiSpec, outputDir) {
 
     return true;
   } catch (error) {
-    throw new Error(`Error generating client code: \${error.message}`);
+    throw new Error(`Error generating client code: ${error.message}`);
   }
 }
