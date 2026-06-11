@@ -119,8 +119,26 @@ async function getServer() {
   return serverInitPromise;
 }
 
+async function forwardToMcp(req, res) {
+  req.url = '/mcp';
+  const server = await getServer();
+  if (server?.app) {
+    return server.app(req, res);
+  }
+  return sendText(res, 500, 'Server failed to initialize handler');
+}
+
 export default async function handler(req, res) {
   const pathname = getPathname(req);
+
+  if ((pathname === '/' || pathname === '') && req.method === 'POST') {
+    try {
+      return await forwardToMcp(req, res);
+    } catch (error) {
+      console.error('Failed to forward root MCP POST:', error);
+      return sendText(res, 500, 'Server failed to initialize');
+    }
+  }
 
   if (pathname === '/' || pathname === '/health' || pathname === '/healthz') {
     return sendText(res, 200, 'Microsoft 365 MCP Server is running');
@@ -140,6 +158,10 @@ export default async function handler(req, res) {
       message: 'Use the Streamable HTTP MCP endpoint at /mcp for authenticated tool calls.',
       mcp_endpoint: `${getOrigin(req)}/mcp`,
     });
+  }
+
+  if (pathname.startsWith('/.well-known/openid-configuration')) {
+    return sendAuthorizationServerMetadata(req, res);
   }
 
   if (pathname.startsWith('/.well-known/oauth-authorization-server')) {
