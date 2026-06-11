@@ -9,10 +9,51 @@ function getPathname(req) {
   return new URL(req.url || '/', `https://${host}`).pathname;
 }
 
+function getOrigin(req) {
+  const host = req.headers?.['x-forwarded-host'] || req.headers?.host || 'localhost';
+  const proto = req.headers?.['x-forwarded-proto'] || 'https';
+  return `${proto}://${host}`;
+}
+
+function normalizeBaseUrl(req) {
+  const raw =
+    process.env.MS365_MCP_PUBLIC_URL ||
+    process.env.MS365_MCP_BASE_URL ||
+    getOrigin(req);
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(withProtocol).href.replace(/\/$/, '');
+  } catch {
+    return getOrigin(req);
+  }
+}
+
+function getScopes() {
+  const raw = process.env.MS365_MCP_ALLOWED_SCOPES;
+  if (raw && raw.trim()) {
+    return Array.from(new Set(raw.split(/[\s,]+/).map((scope) => scope.trim()).filter(Boolean)));
+  }
+  return [
+    'User.Read',
+    'offline_access',
+    'Files.ReadWrite.All',
+    'Mail.ReadWrite',
+    'Mail.Send',
+    'Calendars.ReadWrite',
+    'Contacts.ReadWrite',
+  ];
+}
+
 function sendText(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.end(body);
+}
+
+function sendJson(res, statusCode, body) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.end(JSON.stringify(body));
 }
 
 function sendNoContent(res) {
@@ -55,6 +96,36 @@ export default async function handler(req, res) {
 
   if (pathname === '/favicon.ico' || pathname === '/favicon.png' || pathname === '/robots.txt') {
     return sendNoContent(res);
+  }
+
+  if (pathname === '/.well-known/oauth-authorization-server') {
+    const origin = getOrigin(req);
+    const browserBase = normalizeBaseUrl(req);
+    const scopes = getScopes();
+    return sendJson(res, 200, {
+      issuer: browserBase,
+      authorization_endpoint: `${browserBase}/authorize`,
+      token_endpoint: `${origin}/token`,
+      response_types_supported: ['code'],
+      response_modes_supported: ['query'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_methods_supported: ['none'],
+      code_challenge_methods_supported: ['S256'],
+      scopes_supported: scopes,
+    });
+  }
+
+  if (pathname === '/.well-known/oauth-protected-resource') {
+    const origin = getOrigin(req);
+    const browserBase = normalizeBaseUrl(req);
+    const scopes = getScopes();
+    return sendJson(res, 200, {
+      resource: `${origin}/mcp`,
+      authorization_servers: [browserBase],
+      scopes_supported: scopes,
+      bearer_methods_supported: ['header'],
+      resource_documentation: browserBase,
+    });
   }
 
   try {
