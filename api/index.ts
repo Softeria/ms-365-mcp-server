@@ -1,8 +1,9 @@
 import 'dotenv/config';
-import createServer from '../src/index.js';
+import { createServer } from '../src/index.js';
+import type MicrosoftGraphServer from '../src/server.js';
 
-let serverInstance: Awaited<ReturnType<typeof createServer>> | null = null;
-let serverInitPromise: ReturnType<typeof createServer> | null = null;
+let serverInstance: MicrosoftGraphServer | null = null;
+let serverInitPromise: Promise<MicrosoftGraphServer> | null = null;
 
 function getPathname(req: any): string {
   const host = req.headers?.host || 'localhost';
@@ -20,7 +21,7 @@ function sendNoContent(res: any) {
   return res.end();
 }
 
-async function getServer() {
+async function getServer(): Promise<MicrosoftGraphServer> {
   if (serverInstance) {
     return serverInstance;
   }
