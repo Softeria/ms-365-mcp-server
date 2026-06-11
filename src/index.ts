@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       allowCommandStorage: useLocalAuthStorage,
       logProvider: useLocalAuthStorage,
     });
-    
+
     // We re-resolve scopes here for the CLI branch to maintain existing behavior
     // but we could also just call createServer(args) and then handle CLI-specifics.
     const effectiveScopes = resolveAuthScopes(args);
@@ -205,9 +205,6 @@ if (isCli) {
   main();
 }
 
-// Default export for Vercel/programmatic use
-export default createServer({
-  http: true,
-  obo: process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1',
-  trustProxyAuth: process.env.MS365_MCP_TRUST_PROXY_AUTH === 'true' || process.env.MS365_MCP_TRUST_PROXY_AUTH === '1',
-});
+// Keep the default export lazy. Exporting createServer(...) here starts server
+// initialization at import time, which breaks health checks and Vercel builds.
+export default createServer;
