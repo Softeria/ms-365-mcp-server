@@ -118,8 +118,7 @@ class AuthManager {
     this.expectedHomeAccountId = options.expectedHomeAccountId;
 
     if (process.env.MS365_MCP_OAUTH_TOKEN) {
-      this.oauthToken = process.env.MS365_MCP_OAUTH_TOKEN;
-      this.isOAuthMode = true;
+      this.setOAuthToken(process.env.MS365_MCP_OAUTH_TOKEN);
     }
   }
 
@@ -133,6 +132,11 @@ class AuthManager {
     const effectiveStorage =
       storage ?? (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
     return new AuthManager(config, scopes, effectiveStorage, options);
+  }
+
+  setOAuthToken(token: string): void {
+    this.oauthToken = token;
+    this.isOAuthMode = true;
   }
 
   setUseInteractiveAuth(value: boolean): void {
@@ -194,6 +198,7 @@ class AuthManager {
     this.accessToken = null;
     this.tokenExpiry = null;
     this.oauthToken = null;
+    this.isOAuthMode = false;
     await this.storage.delete('token-cache');
     await this.storage.delete('selected-account');
   }
