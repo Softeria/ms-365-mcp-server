@@ -26,6 +26,10 @@ import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const endpointsData = JSON.parse(
+  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
+) as EndpointConfig[];
+
 interface EndpointConfig {
   pathPattern: string;
   method: string;
@@ -42,10 +46,6 @@ interface EndpointConfig {
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
   presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
-
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
 
 /** When set to a positive integer, caps Graph `$top` on list requests (see README). */
 function maxTopFromEnv(): number | undefined {
@@ -582,9 +582,15 @@ async function executeGraphTool(
     };
 
     if (options.method !== 'GET' && body) {
-      if (tool.requestFormat === 'binary' && typeof body === 'string') {
-        options.body = Buffer.from(body, 'base64');
-        if (!config?.contentType) {
+      if (tool.requestFormat === 'binary') {
+        if (body instanceof Buffer || body instanceof Uint8Array) {
+          options.body = body;
+        } else if (typeof body === 'string') {
+          options.body = Buffer.from(body, 'base64');
+        } else {
+          options.body = Buffer.from(JSON.stringify(body));
+        }
+        if (!headers['Content-Type']) {
           headers['Content-Type'] = 'application/octet-stream';
         }
       } else if (config?.contentType === 'text/html') {
@@ -1209,7 +1215,7 @@ export function registerDiscoveryTools(
   const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
   const totalCount = toolsRegistry.size + utilityTools.length;
   logger.info(
-    `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} utility)`
+    `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} server utilities like download-bytes).`
   );
 
   const utilityCtx: UtilityToolContext = {
