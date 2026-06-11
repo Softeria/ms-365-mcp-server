@@ -21,16 +21,10 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // The bundled index.js exports the server app or a promise of it
-    // depending on how tsup wraps the src/index.ts.
+    // The bundled index.js default exports the createServer promise
     const server = await serverInstancePromise;
     
-    // If the server exports an express app or similar handler
-    if (typeof server === 'function') {
-        return server(req, res);
-    }
-    
-    // Access the express app from the server instance if initialized
+    // Access the express app from the server instance
     if (server && (server as any).app) {
       return (server as any).app(req, res);
     }
