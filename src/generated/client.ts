@@ -1,4 +1,4 @@
-import { makeApi, Zodios, type ZodiosOptions } from './hack.js';
+import { makeApi, Zodios } from './hack.js';
 import { z } from 'zod';
 
 type microsoft_graph_channel = {
