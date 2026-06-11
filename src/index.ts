@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
-import { parseArgs } from './cli.js';
+import { parseArgs, type CommandOptions } from './cli.js';
 import logger from './logger.js';
 import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
 import MicrosoftGraphServer from './server.js';
@@ -38,19 +38,36 @@ process.on('uncaughtException', (err, origin) => {
   logger.error('uncaughtException', dump);
 });
 
+/**
+ * Programmatic factory to create and initialize a server instance.
+ * Used by Vercel serverless entry points.
+ */
+export async function createServer(options: CommandOptions = {}): Promise<MicrosoftGraphServer> {
+  const effectiveScopes = resolveAuthScopes(options);
+  const storage = await createTokenCacheStorage({
+    allowCommandStorage: shouldUseLocalAuthStorage(options),
+    logProvider: shouldUseLocalAuthStorage(options),
+  });
+  const authManager = await AuthManager.create(
+    effectiveScopes,
+    {
+      expectedUsername: options.expectedUsername,
+      expectedHomeAccountId: options.expectedHomeAccountId,
+    },
+    { storage }
+  );
+
+  const server = new MicrosoftGraphServer(authManager, options);
+  await server.initialize(version);
+  return server;
+}
+
 async function main(): Promise<void> {
   try {
     const args = parseArgs();
 
-    const includeWorkScopes = args.orgMode || false;
-    if (includeWorkScopes) {
-      logger.info('Organization mode enabled - including work account scopes');
-    }
-
-    const readOnly = args.readOnly || false;
-    const effectiveScopes = resolveAuthScopes(args);
-
     if (args.listPermissions) {
+      const includeWorkScopes = args.orgMode || false;
       const diagnostics = buildAllowedScopeDiagnostics(args);
       const mode = includeWorkScopes ? 'org' : 'personal';
       const filter = args.enabledTools ? args.enabledTools : undefined;
@@ -63,7 +80,7 @@ async function main(): Promise<void> {
         JSON.stringify(
           {
             mode,
-            readOnly,
+            readOnly: args.readOnly || false,
             filter,
             ...diagnostics,
           },
@@ -79,6 +96,10 @@ async function main(): Promise<void> {
       allowCommandStorage: useLocalAuthStorage,
       logProvider: useLocalAuthStorage,
     });
+    
+    // We re-resolve scopes here for the CLI branch to maintain existing behavior
+    // but we could also just call createServer(args) and then handle CLI-specifics.
+    const effectiveScopes = resolveAuthScopes(args);
     const authManager = await AuthManager.create(
       effectiveScopes,
       {
@@ -87,6 +108,7 @@ async function main(): Promise<void> {
       },
       { storage }
     );
+
     if (useLocalAuthStorage) {
       await authManager.loadTokenCache();
     }
@@ -177,4 +199,15 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// Only run main if this file is being executed directly as a CLI
+const isCli = import.meta.url === `file://${process.argv[1]}` || process.env.TSUP_CLI;
+if (isCli) {
+  main();
+}
+
+// Default export for Vercel/programmatic use
+export default createServer({
+  http: true,
+  obo: process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1',
+  trustProxyAuth: process.env.MS365_MCP_TRUST_PROXY_AUTH === 'true' || process.env.MS365_MCP_TRUST_PROXY_AUTH === '1',
+});
