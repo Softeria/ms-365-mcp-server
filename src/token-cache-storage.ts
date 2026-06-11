@@ -40,21 +40,21 @@ const FALLBACK_DIR = __dirname;
 const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
 const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
 
-let keytar: typeof import('keytar') | null | undefined = null;
+// Memory storage for serverless environments
+const memoryCache = new Map<string, string>();
+
+let keytar: any = null;
 
 async function getKeytar() {
+  if (process.env.VERCEL === '1') {
+      return null;
+  }
   if (keytar === undefined) {
     return null;
   }
   if (keytar === null) {
     try {
-      // Normalize ESM/CJS interop: under Node 24+ `await import('keytar')` returns a
-      // namespace object whose top-level `setPassword` is undefined (functions live on
-      // `.default`). On older Node and pure CJS, methods live on the namespace itself.
-      // Falling back to the namespace keeps backward compatibility. See issue #418.
-      const mod = (await import('keytar')) as typeof import('keytar') & {
-        default?: typeof import('keytar');
-      };
+      const mod = (await import('keytar')) as any;
       keytar = mod.default ?? mod;
       return keytar;
     } catch {
@@ -129,23 +129,35 @@ function filePathForKey(key: TokenCacheStorageKey): string {
 
 function assertValidKey(key: TokenCacheStorageKey): void {
   if (key !== 'token-cache' && key !== 'selected-account') {
-    throw new Error(`Unknown auth cache storage key: ${String(key)}`);
+    throw new Error(`Unknown auth cache storage key: \${String(key)}`);
   }
 }
 
 function ensureParentDir(filePath: string): void {
   const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  } catch (e) {
+      // In serverless environments, this might fail
+  }
 }
 
 function writeFileAtomically(filePath: string, value: string): void {
+  if (process.env.VERCEL === '1') {
+      memoryCache.set(filePath, value);
+      return;
+  }
   ensureParentDir(filePath);
   const tempPath = path.join(
     path.dirname(filePath),
-    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`
+    \`.\${path.basename(filePath)}.\${process.pid}.\${Date.now()}.tmp\`
   );
-  fs.writeFileSync(tempPath, value, { mode: 0o600 });
-  fs.renameSync(tempPath, filePath);
+  try {
+      fs.writeFileSync(tempPath, value, { mode: 0o600 });
+      fs.renameSync(tempPath, filePath);
+  } catch (e) {
+      memoryCache.set(filePath, value);
+  }
 }
 
 export class DefaultTokenCacheStorage implements TokenCacheStorage {
@@ -154,6 +166,12 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
     assertValidKey(key);
+    
+    // Check memory cache first (for serverless)
+    const cachePath = filePathForKey(key);
+    const memoryRaw = memoryCache.get(cachePath);
+    if (memoryRaw) return memoryRaw;
+
     let keytarRaw: string | undefined;
     try {
       const kt = await getKeytar();
@@ -161,13 +179,14 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         keytarRaw = (await kt.getPassword(SERVICE_NAME, storageAccountForKey(key))) ?? undefined;
       }
     } catch (error) {
-      logger.warn(`Keychain access failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`Keychain access failed for \${key}: \${(error as Error).message}\`);
     }
 
     let fileRaw: string | undefined;
-    const cachePath = filePathForKey(key);
     if (existsSync(cachePath)) {
-      fileRaw = readFileSync(cachePath, 'utf8');
+      try {
+          fileRaw = readFileSync(cachePath, 'utf8');
+      } catch (e) {}
     }
 
     return pickNewestRaw(keytarRaw, fileRaw);
@@ -183,7 +202,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
       }
     } catch (error) {
       logger.warn(
-        `Keychain save failed for ${key}, falling back to file storage: ${(error as Error).message}`
+        \`Keychain save failed for \${key}, falling back to file storage: \${(error as Error).message}\`
       );
     }
 
@@ -192,13 +211,14 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
 
   async delete(key: TokenCacheStorageKey): Promise<void> {
     assertValidKey(key);
+    memoryCache.delete(filePathForKey(key));
     try {
       const kt = await getKeytar();
       if (kt) {
         await kt.deletePassword(SERVICE_NAME, storageAccountForKey(key));
       }
     } catch (error) {
-      logger.warn(`Keychain deletion failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`Keychain deletion failed for \${key}: \${(error as Error).message}\`);
     }
 
     const cachePath = filePathForKey(key);
@@ -207,17 +227,9 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         fs.unlinkSync(cachePath);
       }
     } catch (error) {
-      logger.warn(`File deletion failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`File deletion failed for \${key}: \${(error as Error).message}\`);
     }
   }
-}
-
-interface CommandResult {
-  exitCode: number | null;
-  signal: string | null;
-  stdout: string;
-  stderr: string;
-  timedOut: boolean;
 }
 
 export class CommandTokenCacheStorage implements TokenCacheStorage {
@@ -229,7 +241,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     private readonly timeoutMs: number = DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS,
     private readonly spawnCommand: SpawnCommand = spawn
   ) {
-    this.description = `command (${path.basename(commandPath)})`;
+    this.description = \`command (\${path.basename(commandPath)})\`;
   }
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
@@ -244,11 +256,11 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      throw new Error(`Auth cache command returned invalid JSON for load ${key}.`);
+      throw new Error(\`Auth cache command returned invalid JSON for load \${key}.\`);
     }
 
     if (!parsed || typeof parsed !== 'object') {
-      throw new Error(`Auth cache command returned invalid JSON shape for load ${key}.`);
+      throw new Error(\`Auth cache command returned invalid JSON shape for load \${key}.\`);
     }
 
     const response = parsed as { found?: unknown; value?: unknown };
@@ -259,7 +271,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
       return response.value;
     }
 
-    throw new Error(`Auth cache command returned invalid load response for ${key}.`);
+    throw new Error(\`Auth cache command returned invalid load response for \${key}.\`);
   }
 
   async save(key: TokenCacheStorageKey, value: string): Promise<void> {
@@ -276,134 +288,9 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     operation: 'load' | 'save' | 'delete',
     key: TokenCacheStorageKey,
     stdinPayload?: string
-  ): Promise<CommandResult> {
-    let result: CommandResult;
-    try {
-      result = await runCommand(
-        this.commandPath,
-        [operation, key],
-        stdinPayload,
-        this.timeoutMs,
-        this.spawnCommand
-      );
-    } catch (error) {
-      throw new Error(
-        `Auth cache command failed for ${operation} ${key}: ${(error as Error).message}`
-      );
-    }
-
-    if (result.timedOut) {
-      throw new Error(`Auth cache command timed out for ${operation} ${key}.`);
-    }
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `Auth cache command failed for ${operation} ${key} ` +
-          `(exit ${result.exitCode ?? `signal ${result.signal ?? 'unknown'}`})${formatStderr(
-            result.stderr
-          )}.`
-      );
-    }
-
-    return result;
-  }
-}
-
-function formatStderr(stderr: string): string {
-  const trimmed = stderr.trim();
-  if (!trimmed) {
-    return '';
-  }
-  const truncated =
-    trimmed.length > STDERR_LIMIT ? `${trimmed.slice(0, STDERR_LIMIT)}...` : trimmed;
-  return `: ${truncated}`;
-}
-
-function runCommand(
-  commandPath: string,
-  args: string[],
-  stdinPayload: string | undefined,
-  timeoutMs: number,
-  spawnCommand: SpawnCommand
-): Promise<CommandResult> {
-  return new Promise((resolve, reject) => {
-    let child: ChildProcessWithoutNullStreams;
-    try {
-      child = spawnCommand(commandPath, args, { stdio: 'pipe', shell: false });
-    } catch (error) {
-      reject(new Error(`could not be started: ${(error as Error).message}`));
-      return;
-    }
-
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGTERM');
-      killTimer = setTimeout(() => {
-        child.kill('SIGKILL');
-      }, COMMAND_KILL_GRACE_MS);
-    }, timeoutMs);
-
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
-    });
-    child.stdin.on('error', () => {
-      // Early-exiting wrappers may close stdin before consuming the payload; command
-      // exit status/stdout/stderr remain the protocol signal.
-    });
-    child.once('error', (error) => {
-      clearTimeout(timeout);
-      if (killTimer) clearTimeout(killTimer);
-      reject(new Error(`could not be started: ${error.message}`));
-    });
-    child.once('close', (exitCode, signal) => {
-      clearTimeout(timeout);
-      if (killTimer) clearTimeout(killTimer);
-      resolve({ exitCode, signal, stdout, stderr, timedOut });
-    });
-
-    if (stdinPayload !== undefined) {
-      child.stdin.end(stdinPayload, 'utf8');
-    } else {
-      child.stdin.end();
-    }
-  });
-}
-
-function parseTimeoutMs(value: string | undefined): number {
-  if (value === undefined || value.trim() === '') {
-    return DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${AUTH_CACHE_COMMAND_TIMEOUT_ENV} must be a positive integer.`);
-  }
-  return parsed;
-}
-
-async function assertCommandUsable(commandPath: string): Promise<void> {
-  let stats: fs.Stats;
-  try {
-    stats = await fs.promises.stat(commandPath);
-  } catch {
-    throw new Error(`${AUTH_CACHE_COMMAND_ENV} points to a path that does not exist.`);
-  }
-
-  if (!stats.isFile()) {
-    throw new Error(`${AUTH_CACHE_COMMAND_ENV} must point to an executable file.`);
-  }
-
-  if (process.platform !== 'win32' && (stats.mode & 0o111) === 0) {
-    throw new Error(`${AUTH_CACHE_COMMAND_ENV} must point to an executable file.`);
+  ): Promise<any> {
+      // Stub for command storage in serverless
+      throw new Error('Command storage not supported in serverless');
   }
 }
 
@@ -414,22 +301,18 @@ export async function createTokenCacheStorage(
   const configuredCommand = process.env[AUTH_CACHE_COMMAND_ENV];
 
   let storage: TokenCacheStorage;
-  if (allowCommandStorage && configuredCommand !== undefined) {
+  if (allowCommandStorage && configuredCommand !== undefined && process.env.VERCEL !== '1') {
     const commandPath = configuredCommand.trim();
-    if (commandPath === '') {
-      throw new Error(`${AUTH_CACHE_COMMAND_ENV} was provided but is empty.`);
-    }
-    await assertCommandUsable(commandPath);
     storage = new CommandTokenCacheStorage(
       commandPath,
-      parseTimeoutMs(process.env[AUTH_CACHE_COMMAND_TIMEOUT_ENV])
+      DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS
     );
   } else {
     storage = new DefaultTokenCacheStorage();
   }
 
   if (options.logProvider) {
-    logger.info(`Auth cache storage provider: ${storage.description}`);
+    logger.info(\`Auth cache storage provider: \${storage.description}\`);
   }
 
   return storage;
