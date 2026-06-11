@@ -86,6 +86,10 @@ program
     '--trust-proxy-auth',
     'In HTTP mode, skip the built-in Bearer-token check on /mcp and ignore any forwarded Authorization header. All callers share the locally cached MSAL identity (same path stdio mode uses). Use only when an upstream reverse proxy has already authenticated the caller.'
   )
+  .option(
+    '--allow-unauthenticated-discovery',
+    'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
+  )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
     // MS365_MCP_BASE_URL do not crash at startup. Use --public-url /
@@ -122,6 +126,7 @@ export interface CommandOptions {
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
+  allowUnauthenticatedDiscovery?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
@@ -266,6 +271,13 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_TRUST_PROXY_AUTH === '1'
   ) {
     options.trustProxyAuth = true;
+  }
+
+  if (
+    process.env.MS365_MCP_ALLOW_UNAUTHENTICATED_DISCOVERY === 'true' ||
+    process.env.MS365_MCP_ALLOW_UNAUTHENTICATED_DISCOVERY === '1'
+  ) {
+    options.allowUnauthenticatedDiscovery = true;
   }
 
   // Handle cloud type - CLI option takes precedence over environment variable
