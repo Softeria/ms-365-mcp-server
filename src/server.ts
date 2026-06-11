@@ -291,7 +291,15 @@ class MicrosoftGraphServer {
       }
     };
 
-    app.get('/mcp', mcpAuth, handleMcp);
+    // We allow GET /mcp to bypass auth if it's a simple health check or validation probe
+    const mcpValidationBypass = (req: Request, res: Response, next: NextFunction) => {
+      if (req.method === 'GET' && !req.headers.authorization && !req.headers.accept?.includes('text/event-stream')) {
+        return res.status(200).send('MCP Endpoint Reachable (Auth Required for Tools)');
+      }
+      return mcpAuth(req, res, next);
+    };
+
+    app.get('/mcp', mcpValidationBypass, handleMcp);
     app.post('/mcp', mcpAuth, handleMcp);
   }
 
