@@ -10,9 +10,14 @@ export class Zodios {
 
   constructor(baseUrlOrEndpoints: Endpoint[] | string, endpoints?: any, options?: any) {
     if (typeof baseUrlOrEndpoints === 'string') {
-      throw new Error('No such hack');
+      // In a real Zodios instance, the first arg can be a base URL.
+      // In our hack, we expect the endpoints array directly.
+      this.endpoints = Array.isArray(endpoints) ? endpoints : [];
+    } else {
+      this.endpoints = baseUrlOrEndpoints;
     }
-    this.endpoints = baseUrlOrEndpoints.map((endpoint) => {
+
+    this.endpoints = this.endpoints.map((endpoint) => {
       endpoint.parameters = endpoint.parameters || [];
       for (const parameter of endpoint.parameters) {
         parameter.name = parameter.name.replace(/[$_]+/g, '');
