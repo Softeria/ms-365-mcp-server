@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "installCommand": "npm install",
+  "buildCommand": "npm run generate",
   "builds": [
     {
       "src": "api/index.ts",

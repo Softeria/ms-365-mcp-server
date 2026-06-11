@@ -11,6 +11,7 @@
     "generate": "node bin/generate-graph-client.mjs",
     "prebuild": "npm run generate",
     "build": "tsup",
+    "vercel-build": "npm run generate",
     "start": "node dist/index.js --http 0.0.0.0:${PORT:-3000} -v",
     "test": "vitest run",
     "test:watch": "vitest",
