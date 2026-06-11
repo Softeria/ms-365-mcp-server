@@ -34,10 +34,7 @@ export function isBinaryContentType(contentType: string): boolean {
   if (lower.startsWith('application/zip') || lower.startsWith('application/x-zip')) {
     return true;
   }
-  // Office document MIME types and other vendor-specific binary formats.
   if (lower.startsWith('application/vnd.') || lower.startsWith('application/x-')) {
-    // Be conservative: exclude MIME types that use the structured-syntax suffix
-    // to declare a text serialization (e.g. application/vnd.api+json).
     if (lower.endsWith('+json') || lower.endsWith('+xml') || lower.endsWith('+text')) {
       return false;
     }
@@ -64,8 +61,14 @@ function normalizeOneDriveEndpoint(endpoint: string): string {
     '/drives/$1/root'
   );
 
+  // Personal OneDrive's canonical default drive is /me/drive. Some generated
+  // list-drives flows return a b! SharePoint-style handle that can fail for the
+  // user's personal root with "ObjectHandle is Invalid". If the caller is clearly
+  // addressing root on a b! drive handle, use the canonical /me/drive/root path.
+  normalizedPath = normalizedPath.replace(/^\/drives\/(b![^/]+)\/root(?=\/|$)/i, '/me/drive/root');
+
   if (normalizedPath !== pathPart) {
-    logger.info(`[GRAPH CLIENT] Normalized OneDrive root endpoint from ${pathPart} to ${normalizedPath}`);
+    logger.info(`[GRAPH CLIENT] Normalized OneDrive endpoint from ${pathPart} to ${normalizedPath}`);
   }
 
   return `${normalizedPath}${queryAndHash}`;
