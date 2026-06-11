@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 /**
@@ -101,7 +101,7 @@ function createMockGraphClient(responses?: any[]) {
 async function loadModule() {
   // Clear cached module so mocks take effect
   vi.resetModules();
-  const mod = await import('../graph-tools.js');
+  const mod = (await import('../graph-tools.js')) as any;
   return mod;
 }
 
@@ -117,7 +117,7 @@ function createMockServer() {
         name: string,
         description: string,
         schema: any,
-        annotations: any,
+        _annotations: any,
         handler: (...args: any[]) => any
       ) => {
         tools.set(name, { description, schema, handler });
