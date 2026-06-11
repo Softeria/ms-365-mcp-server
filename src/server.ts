@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
@@ -291,16 +291,39 @@ class MicrosoftGraphServer {
       }
     };
 
-    // We allow GET /mcp to bypass auth if it's a simple health check or validation probe
+    /**
+     * MCP Validation Bypass Middleware
+     *
+     * Allows the Model Context Protocol initialization handshake to proceed without a Bearer token.
+     * This is required for Poke and other MCP-aware dashboards to validate the server URL.
+     *
+     * Bypasses auth for:
+     * 1. GET requests establishing the SSE event-stream.
+     * 2. POST requests for the JSON-RPC 'initialize' method.
+     * 3. Simple GET health-check probes.
+     */
     const mcpValidationBypass = (req: Request, res: Response, next: NextFunction) => {
+      // 1. Bypass for simple GET probes (health checks)
       if (req.method === 'GET' && !req.headers.authorization && !req.headers.accept?.includes('text/event-stream')) {
         return res.status(200).send('MCP Endpoint Reachable (Auth Required for Tools)');
       }
+
+      // 2. Bypass for SSE connection establishment
+      if (req.method === 'GET' && req.headers.accept?.includes('text/event-stream')) {
+        return next();
+      }
+
+      // 3. Bypass for JSON-RPC 'initialize' method (POST)
+      if (req.method === 'POST' && req.body?.method === 'initialize') {
+        return next();
+      }
+
+      // Otherwise, enforce Microsoft Bearer Token authentication
       return mcpAuth(req, res, next);
     };
 
     app.get('/mcp', mcpValidationBypass, handleMcp);
-    app.post('/mcp', mcpAuth, handleMcp);
+    app.post('/mcp', mcpValidationBypass, handleMcp);
   }
 
   async start(): Promise<void> {
