@@ -182,9 +182,13 @@ class GraphClient {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    // Only set default Content-Type if it's not already provided in options.headers
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     return fetchWithResilience(
       url,
