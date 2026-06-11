@@ -3,9 +3,6 @@ import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
 
-// Opt-in PII/secret redaction (MS365_MCP_REDACT_PII). Runs before the printf
-// so both file and console transports emit scrubbed messages. No-op unless
-// enabled, so default behaviour is unchanged.
 const redactFormat = winston.format((info) => {
   if (!redactionEnabled()) return info;
   if (typeof info.message === 'string') {
@@ -16,8 +13,6 @@ const redactFormat = winston.format((info) => {
 
 const isVercel = process.env.VERCEL === '1';
 
-// In Vercel, we avoid writing to the filesystem as it's read-only and
-// logs should go to the console for Vercel's log aggregator.
 const logsDir = isVercel
   ? null
   : process.env.MS365_MCP_LOG_DIR || (os.homedir() ? os.homedir() + '/.ms-365-mcp-server/logs' : null);
@@ -25,20 +20,13 @@ const logsDir = isVercel
 if (logsDir && !fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 } else if (logsDir) {
-  // Tighten permissions on a pre-existing log directory in case it was created
-  // with a more permissive umask.
   try {
     fs.chmodSync(logsDir, 0o700);
   } catch {
-    // Best-effort — on platforms that don't support chmod (e.g. Windows) this
-    // is a no-op.
+    // ignore
   }
 }
 
-// Restrict log file mode to owner-only (0o600). Log files may contain error
-// messages from upstream libraries (MSAL, fetch, etc.) which can incidentally
-// include token fragments or other sensitive material; on shared/multi-user
-// systems the default umask may otherwise leave them world-readable.
 const FILE_MODE = 0o600;
 
 function ensureFileMode(filePath: string): void {
@@ -47,7 +35,7 @@ function ensureFileMode(filePath: string): void {
       fs.chmodSync(filePath, FILE_MODE);
     }
   } catch {
-    // Best-effort — chmod is unsupported on some platforms (e.g. Windows).
+    // ignore
   }
 }
 
@@ -72,7 +60,6 @@ if (logsDir) {
   );
 }
 
-// Always add Console transport in Vercel, otherwise only if enabled
 if (isVercel) {
   transports.push(
     new winston.transports.Console({
@@ -99,7 +86,6 @@ const logger = winston.createLogger({
 });
 
 export const enableConsoleLogging = (): void => {
-  // Only add if not already present (e.g. added by Vercel check above)
   const hasConsole = logger.transports.some(t => t instanceof winston.transports.Console);
   if (!hasConsole) {
     logger.add(
