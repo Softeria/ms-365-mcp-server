@@ -5,18 +5,18 @@ import type MicrosoftGraphServer from '../src/server.js';
 let serverInstance: MicrosoftGraphServer | null = null;
 let serverInitPromise: Promise<MicrosoftGraphServer> | null = null;
 
-function getPathname(req: any): string {
+function getPathname(req: { headers?: { host?: string }; url?: string }): string {
   const host = req.headers?.host || 'localhost';
   return new URL(req.url || '/', `https://${host}`).pathname;
 }
 
-function sendText(res: any, statusCode: number, body: string) {
+function sendText(res: { statusCode: number; setHeader: (k: string, v: string) => void; end: (b?: string) => void }, statusCode: number, body: string) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.end(body);
 }
 
-function sendNoContent(res: any) {
+function sendNoContent(res: { statusCode: number; end: () => void }) {
   res.statusCode = 204;
   return res.end();
 }
