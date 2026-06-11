@@ -1,5 +1,4 @@
 import winston from 'winston';
-import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
@@ -21,7 +20,7 @@ const isVercel = process.env.VERCEL === '1';
 // logs should go to the console for Vercel's log aggregator.
 const logsDir = isVercel
   ? null
-  : process.env.MS365_MCP_LOG_DIR || path.join(os.homedir(), '.ms-365-mcp-server', 'logs');
+  : process.env.MS365_MCP_LOG_DIR || (os.homedir() ? os.homedir() + '/.ms-365-mcp-server/logs' : null);
 
 if (logsDir && !fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true, mode: 0o700 });
@@ -55,8 +54,8 @@ function ensureFileMode(filePath: string): void {
 const transports: winston.transport[] = [];
 
 if (logsDir) {
-  const errorLogPath = path.join(logsDir, 'error.log');
-  const serverLogPath = path.join(logsDir, 'mcp-server.log');
+  const errorLogPath = logsDir + '/error.log';
+  const serverLogPath = logsDir + '/mcp-server.log';
   ensureFileMode(errorLogPath);
   ensureFileMode(serverLogPath);
 

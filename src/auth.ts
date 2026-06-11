@@ -1,9 +1,6 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
 import {
@@ -28,14 +25,8 @@ interface EndpointConfig {
   presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const endpointsData = JSON.parse(
-  readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
-) as EndpointConfig[];
-
 const endpoints = {
-  default: endpointsData,
+  default: [] as EndpointConfig[],
 };
 
 /**
