@@ -46,6 +46,31 @@ export function isBinaryContentType(contentType: string): boolean {
   return false;
 }
 
+function normalizeOneDriveEndpoint(endpoint: string): string {
+  const [pathPart, queryAndHash = ''] = endpoint.split(/(?=[?#])/, 2);
+  let normalizedPath = pathPart;
+
+  // Microsoft Graph treats root as a special driveItem segment, not as an item id.
+  // Generated tools and LLMs sometimes build /items/root(/children), which Graph
+  // rejects with "ObjectHandle is Invalid". Rewrite those common bad paths to the
+  // canonical Graph forms while preserving query strings.
+  normalizedPath = normalizedPath.replace(/^\/me\/drive\/items\/root(?=\/|$)/i, '/me/drive/root');
+  normalizedPath = normalizedPath.replace(
+    /^\/users\/([^/]+)\/drive\/items\/root(?=\/|$)/i,
+    '/users/$1/drive/root'
+  );
+  normalizedPath = normalizedPath.replace(
+    /^\/drives\/([^/]+)\/items\/root(?=\/|$)/i,
+    '/drives/$1/root'
+  );
+
+  if (normalizedPath !== pathPart) {
+    logger.info(`[GRAPH CLIENT] Normalized OneDrive root endpoint from ${pathPart} to ${normalizedPath}`);
+  }
+
+  return `${normalizedPath}${queryAndHash}`;
+}
+
 interface GraphRequestOptions {
   headers?: Record<string, string>;
   method?: string;
@@ -124,10 +149,6 @@ class GraphClient {
       let result: any;
 
       if (isBinaryResponse) {
-        // Binary payloads (images, video, pdf, octet-stream, etc.) must not be
-        // decoded with response.text() — that performs a lossy UTF-8 decode and
-        // replaces every high byte with U+FFFD, destroying the file. Read the
-        // raw bytes and return them as base64 so callers can reconstruct them.
         const buffer = Buffer.from(await response.arrayBuffer());
         result = {
           message: 'OK!',
@@ -150,11 +171,9 @@ class GraphClient {
         }
       }
 
-      // If includeHeaders is requested, add response headers to the result
       if (options.includeHeaders) {
         const etag = response.headers.get('ETag') || response.headers.get('etag');
 
-        // Simple approach: just add ETag to the result if it's an object
         if (result && typeof result === 'object' && !Array.isArray(result)) {
           return {
             ...result,
@@ -176,7 +195,8 @@ class GraphClient {
     options: GraphRequestOptions
   ): Promise<Response> {
     const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
-    const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
+    const normalizedEndpoint = normalizeOneDriveEndpoint(endpoint);
+    const url = `${cloudEndpoints.graphApi}/v1.0${normalizedEndpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
@@ -185,7 +205,6 @@ class GraphClient {
       ...options.headers,
     };
 
-    // Only set default Content-Type if it's not already provided in options.headers
     if (!headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
@@ -195,7 +214,6 @@ class GraphClient {
       {
         method: options.method || 'GET',
         headers,
-        // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
         body: options.body as unknown as string,
       },
       loadResilienceConfig(),
@@ -219,7 +237,6 @@ class GraphClient {
     try {
       logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
 
-      // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
 
       return this.formatJsonResponse(result, options.rawResponse, options.excludeResponse);
@@ -233,21 +250,18 @@ class GraphClient {
   }
 
   formatJsonResponse(data: unknown, rawResponse = false, excludeResponse = false): McpResponse {
-    // If excludeResponse is true, only return success indication
     if (excludeResponse) {
       return {
         content: [{ type: 'text', text: this.serializeData({ success: true }, this.outputFormat) }],
       };
     }
 
-    // Handle the case where data includes headers metadata
     if (data && typeof data === 'object' && '_headers' in data) {
       const responseData = data as {
         data: unknown;
         _headers: Record<string, string>;
         _etag?: string;
       };
-
       const meta: Record<string, unknown> = {};
       if (responseData._etag) {
         meta.etag = responseData._etag;
@@ -274,7 +288,6 @@ class GraphClient {
         };
       }
 
-      // Remove OData properties
       const removeODataProps = (obj: Record<string, unknown>): void => {
         if (typeof obj === 'object' && obj !== null) {
           Object.keys(obj).forEach((key) => {
@@ -297,7 +310,6 @@ class GraphClient {
       };
     }
 
-    // Original handling for backward compatibility
     if (rawResponse) {
       return {
         content: [{ type: 'text', text: this.serializeData(data, this.outputFormat) }],
@@ -310,7 +322,6 @@ class GraphClient {
       };
     }
 
-    // Remove OData properties
     const removeODataProps = (obj: Record<string, unknown>): void => {
       if (typeof obj === 'object' && obj !== null) {
         Object.keys(obj).forEach((key) => {
