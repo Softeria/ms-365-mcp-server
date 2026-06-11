@@ -10,7 +10,7 @@
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
     "build": "tsup",
-    "start": "node dist/index.js --http 0.0.0.0:${PORT:-3000} -v",
+    "start": "node dist/index.js --http 0.0.0.0:\${PORT:-3000} -v",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx src/index.ts",
@@ -50,8 +50,7 @@
   },
   "optionalDependencies": {
     "@azure/identity": "^4.5.0",
-    "@azure/keyvault-secrets": "^4.9.0",
-    "keytar": "^7.9.0"
+    "@azure/keyvault-secrets": "^4.9.0"
   },
   "devDependencies": {
     "@redocly/cli": "^2.11.1",
