@@ -65,6 +65,34 @@ function sendSseHandshake(req, res) {
   }, 15000);
 }
 
+function sendAuthorizationServerMetadata(req, res) {
+  const origin = getOrigin(req);
+  const scopes = getScopes();
+  return sendJson(res, 200, {
+    issuer: origin,
+    authorization_endpoint: `${origin}/authorize`,
+    token_endpoint: `${origin}/token`,
+    response_types_supported: ['code'],
+    response_modes_supported: ['query'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    token_endpoint_auth_methods_supported: ['none'],
+    code_challenge_methods_supported: ['S256'],
+    scopes_supported: scopes,
+  });
+}
+
+function sendProtectedResourceMetadata(req, res) {
+  const origin = getOrigin(req);
+  const scopes = getScopes();
+  return sendJson(res, 200, {
+    resource: `${origin}/mcp`,
+    authorization_servers: [origin],
+    scopes_supported: scopes,
+    bearer_methods_supported: ['header'],
+    resource_documentation: origin,
+  });
+}
+
 async function getServer() {
   if (serverInstance) {
     return serverInstance;
@@ -114,32 +142,12 @@ export default async function handler(req, res) {
     });
   }
 
-  if (pathname === '/.well-known/oauth-authorization-server') {
-    const origin = getOrigin(req);
-    const scopes = getScopes();
-    return sendJson(res, 200, {
-      issuer: origin,
-      authorization_endpoint: `${origin}/authorize`,
-      token_endpoint: `${origin}/token`,
-      response_types_supported: ['code'],
-      response_modes_supported: ['query'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['none'],
-      code_challenge_methods_supported: ['S256'],
-      scopes_supported: scopes,
-    });
+  if (pathname.startsWith('/.well-known/oauth-authorization-server')) {
+    return sendAuthorizationServerMetadata(req, res);
   }
 
-  if (pathname === '/.well-known/oauth-protected-resource') {
-    const origin = getOrigin(req);
-    const scopes = getScopes();
-    return sendJson(res, 200, {
-      resource: `${origin}/mcp`,
-      authorization_servers: [origin],
-      scopes_supported: scopes,
-      bearer_methods_supported: ['header'],
-      resource_documentation: origin,
-    });
+  if (pathname.startsWith('/.well-known/oauth-protected-resource')) {
+    return sendProtectedResourceMetadata(req, res);
   }
 
   try {
