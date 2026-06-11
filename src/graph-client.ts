@@ -63,9 +63,11 @@ function normalizeOneDriveEndpoint(endpoint: string): string {
 
   // Personal OneDrive's canonical default drive is /me/drive. Some generated
   // list-drives flows return a b! SharePoint-style handle that can fail for the
-  // user's personal root with "ObjectHandle is Invalid". If the caller is clearly
-  // addressing root on a b! drive handle, use the canonical /me/drive/root path.
+  // user's personal drive with "ObjectHandle is Invalid" or "item does not reside
+  // in the drive". If a b! drive handle is used for root or drive items, route it
+  // through the canonical /me/drive endpoint instead.
   normalizedPath = normalizedPath.replace(/^\/drives\/(b![^/]+)\/root(?=\/|$)/i, '/me/drive/root');
+  normalizedPath = normalizedPath.replace(/^\/drives\/(b![^/]+)\/items(?=\/|$)/i, '/me/drive/items');
 
   if (normalizedPath !== pathPart) {
     logger.info(`[GRAPH CLIENT] Normalized OneDrive endpoint from ${pathPart} to ${normalizedPath}`);
