@@ -1,6 +1,5 @@
 import winston from 'winston';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
