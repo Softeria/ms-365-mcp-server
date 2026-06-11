@@ -23,7 +23,6 @@ export default defineConfig({
     'dotenv',
     'express',
     'js-yaml',
-    'keytar',
     'winston',
     'zod',
   ],

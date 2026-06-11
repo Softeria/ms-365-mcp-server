@@ -135,7 +135,7 @@ function filePathForKey(key: TokenCacheStorageKey): string {
 
 function assertValidKey(key: TokenCacheStorageKey): void {
   if (key !== 'token-cache' && key !== 'selected-account') {
-    throw new Error(`Unknown auth cache storage key: ${String(key)}`);
+    throw new Error(`Unknown auth cache storage key: \${String(key)}`);
   }
 }
 
@@ -156,7 +156,7 @@ function writeFileAtomically(filePath: string, value: string): void {
   ensureParentDir(filePath);
   const tempPath = path.join(
     path.dirname(filePath),
-    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`
+    \`.\${path.basename(filePath)}.\${process.pid}.\${Date.now()}.tmp\`
   );
   try {
     fs.writeFileSync(tempPath, value, { mode: 0o600 });
@@ -185,7 +185,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         keytarRaw = (await kt.getPassword(SERVICE_NAME, storageAccountForKey(key))) ?? undefined;
       }
     } catch (error) {
-      logger.warn(`Keychain access failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`Keychain access failed for \${key}: \${(error as Error).message}\`);
     }
 
     let fileRaw: string | undefined;
@@ -210,7 +210,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
       }
     } catch (error) {
       logger.warn(
-        `Keychain save failed for ${key}, falling back to file storage: ${(error as Error).message}`
+        \`Keychain save failed for \${key}, falling back to file storage: \${(error as Error).message}\`
       );
     }
 
@@ -226,7 +226,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         await kt.deletePassword(SERVICE_NAME, storageAccountForKey(key));
       }
     } catch (error) {
-      logger.warn(`Keychain deletion failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`Keychain deletion failed for \${key}: \${(error as Error).message}\`);
     }
 
     const cachePath = filePathForKey(key);
@@ -235,7 +235,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         fs.unlinkSync(cachePath);
       }
     } catch (error) {
-      logger.warn(`File deletion failed for ${key}: ${(error as Error).message}`);
+      logger.warn(\`File deletion failed for \${key}: \${(error as Error).message}\`);
     }
   }
 }
@@ -249,7 +249,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     private readonly timeoutMs: number = DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS,
     private readonly spawnCommand: SpawnCommand = spawn
   ) {
-    this.description = `command (${path.basename(commandPath)})`;
+    this.description = \`command (\${path.basename(commandPath)})\`;
   }
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
@@ -264,11 +264,11 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      throw new Error(`Auth cache command returned invalid JSON for load ${key}.`);
+      throw new Error(\`Auth cache command returned invalid JSON for load \${key}.\`);
     }
 
     if (!parsed || typeof parsed !== 'object') {
-      throw new Error(`Auth cache command returned invalid JSON shape for load ${key}.`);
+      throw new Error(\`Auth cache command returned invalid JSON shape for load \${key}.\`);
     }
 
     const response = parsed as { found?: unknown; value?: unknown };
@@ -279,7 +279,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
       return response.value;
     }
 
-    throw new Error(`Auth cache command returned invalid load response for ${key}.`);
+    throw new Error(\`Auth cache command returned invalid load response for \${key}.\`);
   }
 
   async save(key: TokenCacheStorageKey, value: string): Promise<void> {
@@ -317,7 +317,7 @@ export async function createTokenCacheStorage(
   }
 
   if (options.logProvider) {
-    logger.info(`Auth cache storage provider: ${storage.description}`);
+    logger.info(\`Auth cache storage provider: \${storage.description}\`);
   }
 
   return storage;

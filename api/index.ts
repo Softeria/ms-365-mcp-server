@@ -20,7 +20,7 @@ function sendNoContent(res: any) {
 
 function getPath(req: any): string {
   const host = req.headers?.host || 'localhost';
-  return new URL(req.url || '/', `https://${host}`).pathname;
+  return new URL(req.url || '/', \`https://\${host}\`).pathname;
 }
 
 function shouldBypassServer(pathname: string): boolean {

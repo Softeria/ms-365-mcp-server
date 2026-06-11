@@ -9,7 +9,7 @@
   },
   "scripts": {
     "generate": "node bin/generate-graph-client.mjs",
-    "build": "tsup",
+    "build": "npm run generate && tsup",
     "start": "node dist/index.js --http 0.0.0.0:\${PORT:-3000} -v",
     "test": "vitest run",
     "test:watch": "vitest",
