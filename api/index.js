@@ -48,6 +48,23 @@ function sendNoContent(res) {
   return res.end();
 }
 
+function sendSseHandshake(req, res) {
+  const origin = getOrigin(req);
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.write(`event: endpoint\ndata: ${origin}/messages\n\n`);
+  res.write(`event: message\ndata: ${JSON.stringify({ type: 'ready', server: 'Microsoft 365 MCP Server' })}\n\n`);
+  setTimeout(() => {
+    try {
+      res.end();
+    } catch {
+      // ignore client disconnects
+    }
+  }, 15000);
+}
+
 async function getServer() {
   if (serverInstance) {
     return serverInstance;
@@ -83,6 +100,18 @@ export default async function handler(req, res) {
 
   if (pathname === '/favicon.ico' || pathname === '/favicon.png' || pathname === '/robots.txt') {
     return sendNoContent(res);
+  }
+
+  if (pathname === '/sse') {
+    return sendSseHandshake(req, res);
+  }
+
+  if (pathname === '/messages') {
+    return sendJson(res, 426, {
+      error: 'legacy_sse_not_supported',
+      message: 'Use the Streamable HTTP MCP endpoint at /mcp for authenticated tool calls.',
+      mcp_endpoint: `${getOrigin(req)}/mcp`,
+    });
   }
 
   if (pathname === '/.well-known/oauth-authorization-server') {
