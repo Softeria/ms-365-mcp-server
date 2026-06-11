@@ -15,17 +15,42 @@ function getOrigin(req) {
   return `${proto}://${host}`;
 }
 
-function normalizeBaseUrl(req) {
-  const raw =
-    process.env.MS365_MCP_PUBLIC_URL ||
-    process.env.MS365_MCP_BASE_URL ||
-    getOrigin(req);
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  try {
-    return new URL(withProtocol).href.replace(/\/$/, '');
-  } catch {
-    return getOrigin(req);
+function cleanEnvUrl(rawValue) {
+  if (!rawValue || typeof rawValue !== 'string') return null;
+  let value = rawValue.trim();
+
+  // Common bad Vercel env values seen in this project:
+  // MS365_MCP_PUBLIC_URL=MS365_MCP_PUBLIC_URL=https//example.vercel.app
+  // ms365_mcp_public_url=https//example.vercel.app
+  const assignmentMatch = value.match(/(?:^|\s)(?:MS365_MCP_PUBLIC_URL|MS365_MCP_BASE_URL)\s*=\s*(.+)$/i);
+  if (assignmentMatch) {
+    value = assignmentMatch[1].trim();
   }
+
+  value = value.replace(/^https\/\//i, 'https://').replace(/^http\/\//i, 'http://');
+  return value;
+}
+
+function normalizeBaseUrl(req) {
+  const candidates = [
+    cleanEnvUrl(process.env.MS365_MCP_PUBLIC_URL),
+    cleanEnvUrl(process.env.MS365_MCP_BASE_URL),
+    getOrigin(req),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const withProtocol = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+    try {
+      const parsed = new URL(withProtocol);
+      if (parsed.hostname && !parsed.hostname.includes('=')) {
+        return parsed.href.replace(/\/$/, '');
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return getOrigin(req);
 }
 
 function getScopes() {
