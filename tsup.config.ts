@@ -1,12 +1,12 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/endpoints.json'],
+  entry: ['src/**/*.ts', 'src/endpoints.json'],
   format: ['esm'],
   target: 'es2020',
   outDir: 'dist',
   clean: true,
-  bundle: true,
+  bundle: false,
   splitting: false,
   sourcemap: false,
   dts: false,
@@ -15,17 +15,22 @@ export default defineConfig({
   loader: {
     '.json': 'copy',
   },
-  noExternal: [
+  noExternal: [],
+  external: [
     '@azure/msal-node',
     '@modelcontextprotocol/sdk',
+    '@toon-format/toon',
+    '@zodios/core',
     'commander',
     'dotenv',
     'express',
+    'express-rate-limit',
+    'helmet',
     'js-yaml',
+    'open',
     'winston',
     'zod',
-    '@zodios/core',
-    '@toon-format/toon'
+    'zod-to-json-schema',
+    'keytar',
   ],
-  external: [],
 });
