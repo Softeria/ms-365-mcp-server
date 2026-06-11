@@ -47,14 +47,20 @@ let keytar: any = null;
 
 async function getKeytar() {
   if (process.env.VERCEL === '1') {
-      return null;
+    return null;
   }
   if (keytar === undefined) {
     return null;
   }
   if (keytar === null) {
     try {
-      const mod = (await import('keytar')) as any;
+      // Keep keytar fully optional. A plain dynamic import('keytar') can still be
+      // statically resolved by TypeScript/bundlers and break Vercel builds when
+      // the native package is intentionally not installed.
+      const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+        specifier: string
+      ) => Promise<any>;
+      const mod = await dynamicImport('keytar');
       keytar = mod.default ?? mod;
       return keytar;
     } catch {
@@ -129,34 +135,34 @@ function filePathForKey(key: TokenCacheStorageKey): string {
 
 function assertValidKey(key: TokenCacheStorageKey): void {
   if (key !== 'token-cache' && key !== 'selected-account') {
-    throw new Error(`Unknown auth cache storage key: \${String(key)}`);
+    throw new Error(`Unknown auth cache storage key: ${String(key)}`);
   }
 }
 
 function ensureParentDir(filePath: string): void {
   const dir = path.dirname(filePath);
   try {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  } catch (e) {
-      // In serverless environments, this might fail
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  } catch {
+    // In serverless environments, this might fail.
   }
 }
 
 function writeFileAtomically(filePath: string, value: string): void {
   if (process.env.VERCEL === '1') {
-      memoryCache.set(filePath, value);
-      return;
+    memoryCache.set(filePath, value);
+    return;
   }
   ensureParentDir(filePath);
   const tempPath = path.join(
     path.dirname(filePath),
-    \`.\${path.basename(filePath)}.\${process.pid}.\${Date.now()}.tmp\`
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`
   );
   try {
-      fs.writeFileSync(tempPath, value, { mode: 0o600 });
-      fs.renameSync(tempPath, filePath);
-  } catch (e) {
-      memoryCache.set(filePath, value);
+    fs.writeFileSync(tempPath, value, { mode: 0o600 });
+    fs.renameSync(tempPath, filePath);
+  } catch {
+    memoryCache.set(filePath, value);
   }
 }
 
@@ -166,7 +172,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
     assertValidKey(key);
-    
+
     // Check memory cache first (for serverless)
     const cachePath = filePathForKey(key);
     const memoryRaw = memoryCache.get(cachePath);
@@ -179,14 +185,16 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         keytarRaw = (await kt.getPassword(SERVICE_NAME, storageAccountForKey(key))) ?? undefined;
       }
     } catch (error) {
-      logger.warn(\`Keychain access failed for \${key}: \${(error as Error).message}\`);
+      logger.warn(`Keychain access failed for ${key}: ${(error as Error).message}`);
     }
 
     let fileRaw: string | undefined;
     if (existsSync(cachePath)) {
       try {
-          fileRaw = readFileSync(cachePath, 'utf8');
-      } catch (e) {}
+        fileRaw = readFileSync(cachePath, 'utf8');
+      } catch {
+        // Ignore unreadable local cache and behave as cache miss.
+      }
     }
 
     return pickNewestRaw(keytarRaw, fileRaw);
@@ -202,7 +210,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
       }
     } catch (error) {
       logger.warn(
-        \`Keychain save failed for \${key}, falling back to file storage: \${(error as Error).message}\`
+        `Keychain save failed for ${key}, falling back to file storage: ${(error as Error).message}`
       );
     }
 
@@ -218,7 +226,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         await kt.deletePassword(SERVICE_NAME, storageAccountForKey(key));
       }
     } catch (error) {
-      logger.warn(\`Keychain deletion failed for \${key}: \${(error as Error).message}\`);
+      logger.warn(`Keychain deletion failed for ${key}: ${(error as Error).message}`);
     }
 
     const cachePath = filePathForKey(key);
@@ -227,7 +235,7 @@ export class DefaultTokenCacheStorage implements TokenCacheStorage {
         fs.unlinkSync(cachePath);
       }
     } catch (error) {
-      logger.warn(\`File deletion failed for \${key}: \${(error as Error).message}\`);
+      logger.warn(`File deletion failed for ${key}: ${(error as Error).message}`);
     }
   }
 }
@@ -241,7 +249,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     private readonly timeoutMs: number = DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS,
     private readonly spawnCommand: SpawnCommand = spawn
   ) {
-    this.description = \`command (\${path.basename(commandPath)})\`;
+    this.description = `command (${path.basename(commandPath)})`;
   }
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
@@ -256,11 +264,11 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      throw new Error(\`Auth cache command returned invalid JSON for load \${key}.\`);
+      throw new Error(`Auth cache command returned invalid JSON for load ${key}.`);
     }
 
     if (!parsed || typeof parsed !== 'object') {
-      throw new Error(\`Auth cache command returned invalid JSON shape for load \${key}.\`);
+      throw new Error(`Auth cache command returned invalid JSON shape for load ${key}.`);
     }
 
     const response = parsed as { found?: unknown; value?: unknown };
@@ -271,7 +279,7 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
       return response.value;
     }
 
-    throw new Error(\`Auth cache command returned invalid load response for \${key}.\`);
+    throw new Error(`Auth cache command returned invalid load response for ${key}.`);
   }
 
   async save(key: TokenCacheStorageKey, value: string): Promise<void> {
@@ -289,8 +297,8 @@ export class CommandTokenCacheStorage implements TokenCacheStorage {
     key: TokenCacheStorageKey,
     stdinPayload?: string
   ): Promise<any> {
-      // Stub for command storage in serverless
-      throw new Error('Command storage not supported in serverless');
+    // Stub for command storage in serverless.
+    throw new Error('Command storage not supported in serverless');
   }
 }
 
@@ -303,16 +311,13 @@ export async function createTokenCacheStorage(
   let storage: TokenCacheStorage;
   if (allowCommandStorage && configuredCommand !== undefined && process.env.VERCEL !== '1') {
     const commandPath = configuredCommand.trim();
-    storage = new CommandTokenCacheStorage(
-      commandPath,
-      DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS
-    );
+    storage = new CommandTokenCacheStorage(commandPath, DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS);
   } else {
     storage = new DefaultTokenCacheStorage();
   }
 
   if (options.logProvider) {
-    logger.info(\`Auth cache storage provider: \${storage.description}\`);
+    logger.info(`Auth cache storage provider: ${storage.description}`);
   }
 
   return storage;
