@@ -15,44 +15,6 @@ function getOrigin(req) {
   return `${proto}://${host}`;
 }
 
-function cleanEnvUrl(rawValue) {
-  if (!rawValue || typeof rawValue !== 'string') return null;
-  let value = rawValue.trim();
-
-  // Common bad Vercel env values seen in this project:
-  // MS365_MCP_PUBLIC_URL=MS365_MCP_PUBLIC_URL=https//example.vercel.app
-  // ms365_mcp_public_url=https//example.vercel.app
-  const assignmentMatch = value.match(/(?:^|\s)(?:MS365_MCP_PUBLIC_URL|MS365_MCP_BASE_URL)\s*=\s*(.+)$/i);
-  if (assignmentMatch) {
-    value = assignmentMatch[1].trim();
-  }
-
-  value = value.replace(/^https\/\//i, 'https://').replace(/^http\/\//i, 'http://');
-  return value;
-}
-
-function normalizeBaseUrl(req) {
-  const candidates = [
-    cleanEnvUrl(process.env.MS365_MCP_PUBLIC_URL),
-    cleanEnvUrl(process.env.MS365_MCP_BASE_URL),
-    getOrigin(req),
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    const withProtocol = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
-    try {
-      const parsed = new URL(withProtocol);
-      if (parsed.hostname && !parsed.hostname.includes('=')) {
-        return parsed.href.replace(/\/$/, '');
-      }
-    } catch {
-      // Try next candidate.
-    }
-  }
-
-  return getOrigin(req);
-}
-
 function getScopes() {
   const raw = process.env.MS365_MCP_ALLOWED_SCOPES;
   if (raw && raw.trim()) {
@@ -125,11 +87,10 @@ export default async function handler(req, res) {
 
   if (pathname === '/.well-known/oauth-authorization-server') {
     const origin = getOrigin(req);
-    const browserBase = normalizeBaseUrl(req);
     const scopes = getScopes();
     return sendJson(res, 200, {
-      issuer: browserBase,
-      authorization_endpoint: `${browserBase}/authorize`,
+      issuer: origin,
+      authorization_endpoint: `${origin}/authorize`,
       token_endpoint: `${origin}/token`,
       response_types_supported: ['code'],
       response_modes_supported: ['query'],
@@ -142,14 +103,13 @@ export default async function handler(req, res) {
 
   if (pathname === '/.well-known/oauth-protected-resource') {
     const origin = getOrigin(req);
-    const browserBase = normalizeBaseUrl(req);
     const scopes = getScopes();
     return sendJson(res, 200, {
       resource: `${origin}/mcp`,
-      authorization_servers: [browserBase],
+      authorization_servers: [origin],
       scopes_supported: scopes,
       bearer_methods_supported: ['header'],
-      resource_documentation: browserBase,
+      resource_documentation: origin,
     });
   }
 
