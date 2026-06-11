@@ -1,4 +1,4 @@
-import type { AccountInfo, Configuration, DeviceCodeRequest } from '@azure/msal-node';
+import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
@@ -160,14 +160,16 @@ class AuthManager {
     throw new Error('Interactive browser authentication is not available in this runtime.');
   }
 
-  async acquireTokenByDeviceCode(callback?: DeviceCodeRequest['deviceCodeCallback']): Promise<void> {
+  async acquireTokenByDeviceCode(onMessage?: (message: string) => void): Promise<void> {
     const result = await this.msalApp.acquireTokenByDeviceCode({
       scopes: this.scopes,
-      deviceCodeCallback:
-        callback ??
-        ((response) => {
+      deviceCodeCallback: (response) => {
+        if (onMessage) {
+          onMessage(response.message);
+        } else {
           console.error(response.message);
-        }),
+        }
+      },
     });
 
     if (!result?.accessToken) {
