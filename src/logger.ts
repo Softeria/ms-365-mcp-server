@@ -16,13 +16,17 @@ const redactFormat = winston.format((info) => {
   return info;
 });
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const logsDir =
-  process.env.MS365_MCP_LOG_DIR || path.join(os.homedir(), '.ms-365-mcp-server', 'logs');
+const isVercel = process.env.VERCEL === '1';
 
-if (!fs.existsSync(logsDir)) {
+// In Vercel, we avoid writing to the filesystem as it's read-only and
+// logs should go to the console for Vercel's log aggregator.
+const logsDir = isVercel
+  ? null
+  : process.env.MS365_MCP_LOG_DIR || path.join(os.homedir(), '.ms-365-mcp-server', 'logs');
+
+if (logsDir && !fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true, mode: 0o700 });
-} else {
+} else if (logsDir) {
   // Tighten permissions on a pre-existing log directory in case it was created
   // with a more permissive umask.
   try {
@@ -49,10 +53,38 @@ function ensureFileMode(filePath: string): void {
   }
 }
 
-const errorLogPath = path.join(logsDir, 'error.log');
-const serverLogPath = path.join(logsDir, 'mcp-server.log');
-ensureFileMode(errorLogPath);
-ensureFileMode(serverLogPath);
+const transports: winston.transport[] = [];
+
+if (logsDir) {
+  const errorLogPath = path.join(logsDir, 'error.log');
+  const serverLogPath = path.join(logsDir, 'mcp-server.log');
+  ensureFileMode(errorLogPath);
+  ensureFileMode(serverLogPath);
+
+  transports.push(
+    new winston.transports.File({
+      filename: errorLogPath,
+      level: 'error',
+      options: { flags: 'a', mode: FILE_MODE },
+    }),
+    new winston.transports.File({
+      filename: serverLogPath,
+      options: { flags: 'a', mode: FILE_MODE },
+    })
+  );
+}
+
+// Always add Console transport in Vercel, otherwise only if enabled
+if (isVercel) {
+  transports.push(
+    new winston.transports.Console({
+      format: winston.format.combine(
+        redactFormat(),
+        winston.format.simple()
+      ),
+    })
+  );
+}
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -65,30 +97,24 @@ const logger = winston.createLogger({
       return `${timestamp} ${level.toUpperCase()}: ${message}`;
     })
   ),
-  transports: [
-    new winston.transports.File({
-      filename: errorLogPath,
-      level: 'error',
-      options: { flags: 'a', mode: FILE_MODE },
-    }),
-    new winston.transports.File({
-      filename: serverLogPath,
-      options: { flags: 'a', mode: FILE_MODE },
-    }),
-  ],
+  transports,
 });
 
 export const enableConsoleLogging = (): void => {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        redactFormat(),
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-      silent: process.env.SILENT === 'true' || process.env.SILENT === '1',
-    })
-  );
+  // Only add if not already present (e.g. added by Vercel check above)
+  const hasConsole = logger.transports.some(t => t instanceof winston.transports.Console);
+  if (!hasConsole) {
+    logger.add(
+      new winston.transports.Console({
+        format: winston.format.combine(
+          redactFormat(),
+          winston.format.colorize(),
+          winston.format.simple()
+        ),
+        silent: process.env.SILENT === 'true' || process.env.SILENT === '1',
+      })
+    );
+  }
 };
 
 export default logger;
