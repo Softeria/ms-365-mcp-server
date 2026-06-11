@@ -83,8 +83,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 1 GET endpoint + parse-teams-url + download-bytes utility tools
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    // 1 GET endpoint + parse-teams-url + download-bytes + copilot-retrieve utility tools
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -100,8 +100,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + parse-teams-url + download-bytes
-    expect(mockServer.tool).toHaveBeenCalledTimes(6);
+    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + parse-teams-url + download-bytes + copilot-retrieve
+    expect(mockServer.tool).toHaveBeenCalledTimes(7);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -132,8 +132,8 @@ describe('Read-Only Mode', () => {
     // PATCH endpoint should still be skipped (readOnly bypass is POST-only)
     expect(toolCalls).not.toContain('update-mail-folder');
 
-    // 2 graph tools (list-mail-messages + get-schedule) + parse-teams-url + download-bytes
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    // 2 graph tools (list-mail-messages + get-schedule) + parse-teams-url + download-bytes + copilot-retrieve
+    expect(mockServer.tool).toHaveBeenCalledTimes(5);
   });
 
   it('should block PATCH and DELETE endpoints in read-only mode regardless of readOnly flag', () => {
