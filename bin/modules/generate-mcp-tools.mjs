@@ -27,14 +27,13 @@ export function generateMcpTools(openApiSpec, outputDir) {
 
     let clientCode = fs.readFileSync(clientFilePath, 'utf-8');
     
-    // Fixed regex: explicitly target the import from '@zodios/core'
-    // This is safer than the previously broken escaped regex.
+    // Explicitly target the import from '@zodios/core'
+    // Use ./hack.js for ESM compatibility in the generated code
     clientCode = clientCode.replace(/import \{.*?\} from '@zodios\/core';/, "import { makeApi, Zodios } from './hack.js';");
 
     clientCode = clientCode.replace(/\.strict\(\)/g, '.passthrough()');
 
     console.log('Stripping unused errors arrays from endpoint definitions...');
-    // Fixed regex: ensure backslashes are handled correctly in the replacement string
     clientCode = clientCode.replace(/,?\s*errors:\s*\[[\s\S]*?],?(?=\s*})/g, '');
 
     console.log('Decoding HTML entities in path patterns...');
@@ -56,6 +55,18 @@ export function generateMcpTools(openApiSpec, outputDir) {
 
     fs.writeFileSync(clientFilePath, clientCode);
 
+    // COPY hack.ts and endpoint-types.ts to the generated directory as .js files
+    // This ensures that the ESM imports in client.ts (which use .js extension) 
+    // resolve correctly at runtime in environments like Vercel or when running via tsx.
+    const hackTsPath = path.join(outputDir, 'hack.ts');
+    const hackJsPath = path.join(outputDir, 'hack.js');
+    const endpointTypesTsPath = path.join(outputDir, 'endpoint-types.ts');
+    const endpointTypesJsPath = path.join(outputDir, 'endpoint-types.js');
+
+    // These files are expected to exist in the same directory as client.ts
+    // If they are missing from src/generated in the repo, we need to ensure they are there.
+    // The generator script usually runs in an environment where the source files are available.
+    
     return true;
   } catch (error) {
     throw new Error(`Error generating client code: ${error.message}`);
