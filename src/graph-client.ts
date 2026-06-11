@@ -31,6 +31,45 @@ export function isBinaryContentType(contentType: string): boolean {
   return false;
 }
 
+function splitQueryAndHash(suffix: string): { query: string; hash: string } {
+  const hashIndex = suffix.indexOf('#');
+  if (hashIndex === -1) return { query: suffix, hash: '' };
+  return { query: suffix.slice(0, hashIndex), hash: suffix.slice(hashIndex) };
+}
+
+function sanitizeQueryString(pathPart: string, suffix: string): string {
+  if (!suffix.startsWith('?')) return suffix;
+  const { query, hash } = splitQueryAndHash(suffix);
+  const searchParams = new URLSearchParams(query.slice(1));
+
+  const getFirst = (...names: string[]): string | null => {
+    for (const name of names) {
+      const value = searchParams.get(name);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const deleteAll = (...names: string[]): void => {
+    for (const name of names) searchParams.delete(name);
+  };
+
+  if (getFirst('$count', 'count')?.toLowerCase() === 'false') {
+    deleteAll('$count', 'count');
+  }
+
+  const isDriveChildren = /\/(?:me\/drive|users\/[^/]+\/drive|drives\/[^/]+)\/(?:root|items\/[^/]+)\/children$/i.test(
+    pathPart
+  );
+
+  if (isDriveChildren) {
+    deleteAll('$skip', 'skip', '$count', 'count', '$search', 'search');
+  }
+
+  const serialized = searchParams.toString();
+  return serialized ? `?${serialized}${hash}` : hash;
+}
+
 function normalizeOneDriveEndpoint(endpoint: string): string {
   const [pathPart, queryAndHash = ''] = endpoint.split(/(?=[?#])/, 2);
   let normalizedPath = pathPart;
@@ -49,11 +88,14 @@ function normalizeOneDriveEndpoint(endpoint: string): string {
   normalizedPath = normalizedPath.replace(/^\/drives\/(b![^/]+)\/items(?=\/|$|:)/i, '/me/drive/items');
   normalizedPath = normalizedPath.replace(/^\/drives\/(b![^/]+)\/search(?=\(|\/|$)/i, '/me/drive/search');
 
-  if (normalizedPath !== pathPart) {
-    logger.info(`[GRAPH CLIENT] Normalized OneDrive endpoint from ${pathPart} to ${normalizedPath}`);
+  const normalizedSuffix = sanitizeQueryString(normalizedPath, queryAndHash);
+  const normalizedEndpoint = `${normalizedPath}${normalizedSuffix}`;
+
+  if (normalizedEndpoint !== endpoint) {
+    logger.info(`[GRAPH CLIENT] Normalized OneDrive endpoint from ${endpoint} to ${normalizedEndpoint}`);
   }
 
-  return `${normalizedPath}${queryAndHash}`;
+  return normalizedEndpoint;
 }
 
 interface GraphRequestOptions {
