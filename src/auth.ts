@@ -384,6 +384,38 @@ export function describeAuthError(error: unknown): string {
   return (error as Error).message;
 }
 
+/** Home tenant id shared by all personal Microsoft accounts (MSA). */
+const MSA_HOME_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
+/**
+ * Builds a remediation hint when a personal Microsoft account's refresh token is
+ * rejected on the default 'common' authority. As of June 2026 the token endpoint
+ * returns invalid_grant for MSA refresh tokens issued via /common, while the
+ * same login via /consumers refreshes fine - so the fix is a config change plus
+ * one re-login, which a generic "token may have expired" message does not
+ * convey. Returns null when the failure does not match that signature.
+ */
+export function consumersAuthorityHint(
+  error: unknown,
+  account: AccountInfo | null | undefined,
+  authority: string | undefined
+): string | null {
+  if (
+    error instanceof AuthError &&
+    error.errorCode === 'invalid_grant' &&
+    account?.tenantId === MSA_HOME_TENANT_ID &&
+    (!authority || /\/common\/?$/i.test(authority))
+  ) {
+    return (
+      `This looks like a known issue (June 2026) where Microsoft rejects refresh tokens ` +
+      `issued to personal accounts via the default 'common' authority. If this server is ` +
+      `used only with personal accounts, set MS365_MCP_TENANT_ID=consumers and re-login ` +
+      `with: --login`
+    );
+  }
+  return null;
+}
+
 class AuthManager {
   private config: Configuration;
   private scopes: string[];
@@ -666,8 +698,13 @@ class AuthManager {
         await this.saveTokenCache();
         return this.accessToken;
       } catch (error) {
-        logger.error(`Silent token acquisition failed: ${describeAuthError(error)}`);
-        throw new Error('Silent token acquisition failed');
+        const hint = consumersAuthorityHint(error, currentAccount, this.config.auth.authority);
+        logger.error(
+          `Silent token acquisition failed: ${describeAuthError(error)}${hint ? ` ${hint}` : ''}`
+        );
+        throw new Error(
+          hint ? `Silent token acquisition failed. ${hint}` : 'Silent token acquisition failed'
+        );
       }
     }
 
@@ -1057,10 +1094,13 @@ class AuthManager {
       await this.saveTokenCache();
       return response.accessToken;
     } catch (error) {
-      logger.error(`Silent token acquisition failed: ${describeAuthError(error)}`);
+      const hint = consumersAuthorityHint(error, targetAccount, this.config.auth.authority);
+      logger.error(
+        `Silent token acquisition failed: ${describeAuthError(error)}${hint ? ` ${hint}` : ''}`
+      );
       throw new Error(
         `Failed to acquire token for account '${targetAccount.username || targetAccount.name || 'unknown'}'. ` +
-          `The token may have expired. Please re-login with: --login`
+          (hint ?? 'The token may have expired. Please re-login with: --login')
       );
     }
   }

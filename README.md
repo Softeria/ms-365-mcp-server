@@ -584,7 +584,7 @@ Environment variables:
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_REDACT_PII=true|1`: Scrub JWTs, Bearer headers, OAuth token fields, and email addresses from log messages before they are written (default: disabled). Useful when logs are shipped to a central store or shared host.
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
-- `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant)
+- `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant). **Personal Microsoft accounts should set this to `consumers`** - as of June 2026, refresh tokens issued via the default 'common' authority are rejected at the first refresh, so sessions die roughly an hour after login
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
 - `MS365_MCP_KEYVAULT_URL`: Azure Key Vault URL for secrets management (see Azure Key Vault section)
 - `MS365_MCP_TOKEN_CACHE_PATH`: Custom file path for MSAL token cache (see Token Storage below)
