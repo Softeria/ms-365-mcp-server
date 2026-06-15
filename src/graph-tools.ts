@@ -4,8 +4,8 @@ import logger from './logger.js';
 import { auditLog, getUserIdentityForAudit } from './audit-log.js';
 import GraphClient from './graph-client.js';
 import AuthManager, {
-  getEndpointRequiredScopes,
-  getMissingAllowedScopes,
+  getEndpointScopeGroups,
+  getMissingAllowedScopesForGroups,
   parseAllowedScopes,
 } from './auth.js';
 import { api } from './generated/client.js';
@@ -30,8 +30,8 @@ interface EndpointConfig {
   pathPattern: string;
   method: string;
   toolName: string;
-  scopes?: string[];
-  workScopes?: string[];
+  scopes?: string[] | string[][];
+  workScopes?: string[] | string[][];
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
@@ -826,11 +826,13 @@ export function registerGraphTools(
       continue;
     }
 
-    const requiredScopes = getEndpointRequiredScopes(endpointConfig, orgMode);
     const missingScopes =
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
-        : getMissingAllowedScopes(requiredScopes, allowedScopes);
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, orgMode),
+            allowedScopes
+          );
     if (missingScopes.length > 0) {
       disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
       skippedCount++;
@@ -1079,8 +1081,8 @@ export function buildToolsRegistry(
     const missingScopes =
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
-        : getMissingAllowedScopes(
-            getEndpointRequiredScopes(endpointConfig, orgMode),
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, orgMode),
             allowedScopes
           );
     if (missingScopes.length > 0) {

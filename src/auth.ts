@@ -21,8 +21,11 @@ interface EndpointConfig {
   pathPattern: string;
   method: string;
   toolName: string;
-  scopes?: string[];
-  workScopes?: string[];
+  // A flat string[] is a single AND-group (all scopes required). A nested string[][]
+  // expresses alternatives: the endpoint is satisfied if ALL scopes in ANY one group are
+  // held (e.g. copilot-retrieve needs Files.Read.All + Sites.Read.All, OR ExternalItem.Read.All).
+  scopes?: string[] | string[][];
+  workScopes?: string[] | string[][];
   llmTip?: string;
   readOnly?: boolean;
   presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
@@ -105,13 +108,80 @@ function getEndpointRequiredScopes(
   }
 
   const scopes = new Set<string>();
-  if (endpoint.scopes && Array.isArray(endpoint.scopes)) {
-    endpoint.scopes.forEach((scope) => scopes.add(scope));
-  }
-  if (includeWorkAccountScopes && endpoint.workScopes && Array.isArray(endpoint.workScopes)) {
-    endpoint.workScopes.forEach((scope) => scopes.add(scope));
-  }
+  getEndpointScopeGroups(endpoint, includeWorkAccountScopes).forEach((group) =>
+    group.forEach((scope) => scopes.add(scope))
+  );
   return Array.from(scopes);
+}
+
+/**
+ * Normalizes a scopes/workScopes value into a list of alternative AND-groups.
+ * A flat string[] becomes a single group; a nested string[][] is already groups.
+ */
+function toScopeGroups(value?: string[] | string[][]): string[][] {
+  if (!value || value.length === 0) {
+    return [];
+  }
+  return Array.isArray(value[0]) ? (value as string[][]) : [value as string[]];
+}
+
+/**
+ * Returns the alternative scope groups for an endpoint. The endpoint is satisfied if ALL
+ * scopes in ANY single group are held. scopes and workScopes are mutually exclusive per
+ * endpoints.json validation, so in practice only one side contributes groups.
+ */
+function getEndpointScopeGroups(
+  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
+  includeWorkAccountScopes: boolean = false
+): string[][] {
+  if (!endpoint) {
+    return [];
+  }
+  const groups = [...toScopeGroups(endpoint.scopes)];
+  if (includeWorkAccountScopes) {
+    groups.push(...toScopeGroups(endpoint.workScopes));
+  }
+  return groups;
+}
+
+/**
+ * The scopes to request at login for an endpoint: the primary (first) group only.
+ * Microsoft's guidance is to consent to least-privileged scopes and add higher-privileged
+ * ones on demand, so for OR-group endpoints we request the first group and leave the rest
+ * to --extra-scopes. Flat (single-group) endpoints are unaffected.
+ */
+function getEndpointLoginScopes(
+  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
+  includeWorkAccountScopes: boolean = false
+): string[] {
+  const groups = getEndpointScopeGroups(endpoint, includeWorkAccountScopes);
+  return groups.length > 0 ? groups[0] : [];
+}
+
+/**
+ * Gate check for OR-group endpoints. Returns [] (allowed) if any group is fully covered by
+ * allowedScopes; otherwise the missing scopes of the closest group (fewest missing), for
+ * diagnostics. With a single group this matches getMissingAllowedScopes.
+ */
+function getMissingAllowedScopesForGroups(
+  scopeGroups: string[][],
+  allowedScopes?: string[]
+): string[] {
+  if (allowedScopes === undefined || scopeGroups.length === 0) {
+    return [];
+  }
+  const coveredAllowedScopes = new Set(collapseScopeHierarchy(allowedScopes));
+  let closest: string[] | undefined;
+  for (const group of scopeGroups) {
+    const missing = group.filter((scope) => !coveredAllowedScopes.has(scope));
+    if (missing.length === 0) {
+      return [];
+    }
+    if (!closest || missing.length < closest.length) {
+      closest = missing;
+    }
+  }
+  return closest ?? [];
 }
 
 function collapseRedundantScopes(scopes: string[]): string[] {
@@ -167,7 +237,7 @@ function buildScopesFromEndpoints(
       return;
     }
 
-    getEndpointRequiredScopes(endpoint, includeWorkAccountScopes).forEach((scope) =>
+    getEndpointLoginScopes(endpoint, includeWorkAccountScopes).forEach((scope) =>
       scopesSet.add(scope)
     );
   });
@@ -270,6 +340,9 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
 
   const normalToolScopes = new Set<string>();
   const effectiveToolScopes = new Set<string>();
+  // Union of every group's scopes for passing tools, used only to judge whether an
+  // allowed scope is used by some tool (an OR-group's non-primary scopes still count).
+  const effectiveToolScopesAllGroups = new Set<string>();
   const disabledTools: DisabledToolScope[] = [];
 
   for (const endpoint of endpoints.default) {
@@ -284,20 +357,23 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
       continue;
     }
 
-    const requiredScopes = getEndpointRequiredScopes(endpoint, Boolean(options.orgMode));
-    requiredScopes.forEach((scope) => normalToolScopes.add(scope));
+    const scopeGroups = getEndpointScopeGroups(endpoint, Boolean(options.orgMode));
+    const loginScopes = getEndpointLoginScopes(endpoint, Boolean(options.orgMode));
+    const allScopes = getEndpointRequiredScopes(endpoint, Boolean(options.orgMode));
+    loginScopes.forEach((scope) => normalToolScopes.add(scope));
 
-    const missingScopes = getMissingAllowedScopes(requiredScopes, allowedScopes);
+    const missingScopes = getMissingAllowedScopesForGroups(scopeGroups, allowedScopes);
     if (missingScopes.length > 0) {
       disabledTools.push({
         toolName: endpoint.toolName,
-        requiredScopes: requiredScopes.sort((a, b) => a.localeCompare(b)),
+        requiredScopes: allScopes.sort((a, b) => a.localeCompare(b)),
         missingScopes: missingScopes.sort((a, b) => a.localeCompare(b)),
       });
       continue;
     }
 
-    requiredScopes.forEach((scope) => effectiveToolScopes.add(scope));
+    loginScopes.forEach((scope) => effectiveToolScopes.add(scope));
+    allScopes.forEach((scope) => effectiveToolScopesAllGroups.add(scope));
   }
 
   const toolPermissions = collapseRedundantScopes(Array.from(normalToolScopes)).sort((a, b) =>
@@ -312,8 +388,10 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
   const missingAllowedScopesForTools = Array.from(
     new Set(disabledTools.flatMap((tool) => tool.missingScopes))
   ).sort((a, b) => a.localeCompare(b));
+  const allEffectiveToolScopes = Array.from(effectiveToolScopesAllGroups);
   const extraAllowedScopesNotUsedByTools =
-    sortedAllowedScopes?.filter((scope) => !isScopeUsedByTools(scope, effectivePermissions)) ?? [];
+    sortedAllowedScopes?.filter((scope) => !isScopeUsedByTools(scope, allEffectiveToolScopes)) ??
+    [];
 
   return {
     permissions: effectivePermissions,
@@ -1125,7 +1203,9 @@ export {
   buildScopeDiagnostics,
   collapseScopeHierarchy,
   getEndpointRequiredScopes,
+  getEndpointScopeGroups,
   getMissingAllowedScopes,
+  getMissingAllowedScopesForGroups,
   getTokenCachePath,
   getSelectedAccountPath,
   parseAllowedScopes,
