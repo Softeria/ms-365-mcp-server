@@ -324,6 +324,123 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       }
     },
   },
+  {
+    name: 'copilot-retrieve',
+    method: 'POST',
+    path: 'tool:copilot-retrieve',
+    description:
+      'Semantic search over Microsoft 365 content via the Copilot Retrieval API (POST /copilot/retrieval). Grounds a natural-language query against the same hybrid index that powers Microsoft 365 Copilot and returns relevant, permission-trimmed text extracts with their source URLs — unlike search-query/search-onedrive-files/search-sharepoint-sites, which are lexical KQL. Prefer this for paraphrase/intent queries (e.g. resolving an informal project nickname, or matching "packaging requirements" against text that never uses that phrase). Returns { retrievalHits: [{ webUrl, extracts: [{ text, relevanceScore }], resourceType, resourceMetadata, sensitivityLabel? }] }. Read-only. Requires delegated Files.Read.All + Sites.Read.All (SharePoint/OneDrive) or ExternalItem.Read.All (Copilot connectors); application-only auth is not supported.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        queryString: z
+          .string()
+          .min(1)
+          .max(1500)
+          .describe(
+            'Natural-language query (a single sentence works best; max 1500 characters). Avoid spelling errors in context-rich keywords.'
+          ),
+        dataSource: z
+          .enum(['sharePoint', 'oneDriveBusiness', 'externalItem'])
+          .describe(
+            'Which source to retrieve from — one at a time (interleaved results are not supported). "sharePoint", "oneDriveBusiness", or "externalItem" (Copilot connectors).'
+          ),
+        filterExpression: z
+          .string()
+          .optional()
+          .describe(
+            'Optional KQL expression to scope the retrieval before the query runs. Supported SharePoint/OneDrive properties: Author, FileExtension, Filename, FileType, InformationProtectionLabelId, LastModifiedTime, ModifiedBy, Path, SiteID, Title. Example: Author:"Megan Bowen" OR Path:"https://contoso.sharepoint.com/sites/HR/". Invalid KQL is ignored (query runs unscoped).'
+          ),
+        resourceMetadata: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Optional list of retrievable metadata fields to return per hit (e.g. ["title", "author"]). By default no metadata is returned.'
+          ),
+        maximumNumberOfResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe(
+            'Optional cap on the number of results (1-25). Best practice: leave unset unless your LLM has strict token limits — results are unordered.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const err = (message: string): CallToolResult => ({
+        content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+        isError: true,
+      });
+
+      const queryString = typeof params.queryString === 'string' ? params.queryString : '';
+      if (queryString.trim().length === 0) {
+        return err('queryString is required and must be a non-empty string.');
+      }
+      if (queryString.length > 1500) {
+        return err('queryString must be 1500 characters or fewer.');
+      }
+
+      const dataSource = params.dataSource;
+      const allowedSources = ['sharePoint', 'oneDriveBusiness', 'externalItem'];
+      if (typeof dataSource !== 'string' || !allowedSources.includes(dataSource)) {
+        return err(`dataSource is required and must be one of: ${allowedSources.join(', ')}.`);
+      }
+
+      const body: Record<string, unknown> = { queryString, dataSource };
+
+      if (params.filterExpression !== undefined) {
+        if (typeof params.filterExpression !== 'string') {
+          return err('filterExpression must be a string (KQL expression).');
+        }
+        body.filterExpression = params.filterExpression;
+      }
+
+      if (params.resourceMetadata !== undefined) {
+        const rm = params.resourceMetadata;
+        if (!Array.isArray(rm) || rm.some((x) => typeof x !== 'string')) {
+          return err('resourceMetadata must be an array of strings.');
+        }
+        body.resourceMetadata = rm;
+      }
+
+      if (params.maximumNumberOfResults !== undefined) {
+        const n = params.maximumNumberOfResults;
+        if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 25) {
+          return err('maximumNumberOfResults must be an integer between 1 and 25.');
+        }
+        body.maximumNumberOfResults = n;
+      }
+
+      try {
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(
+            params.account as string | undefined
+          );
+        }
+        // The Retrieval API is GA on v1.0; leave apiVersion at its default.
+        return await graphClient.graphRequest('/copilot/retrieval', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          accessToken: accountAccessToken,
+        });
+      } catch (error) {
+        return err((error as Error).message);
+      }
+    },
+  },
 ];
 
 function registerUtilityToolWithMcp(
