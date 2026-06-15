@@ -519,6 +519,14 @@ function findUsedSchemas(openApiSpec) {
             );
             schemasToProcess.push(schemaName);
           }
+          // Trace refs nested anywhere in an inline request body (e.g. a property's
+          // anyOf: [{$ref}, {nullable object}]). Without this they're pruned as unused,
+          // then stripped as a "broken reference", degrading the body to a bare object.
+          if (content.schema) {
+            findRefsInObject(content.schema, (ref) =>
+              schemasToProcess.push(ref.replace('#/components/schemas/', ''))
+            );
+          }
         });
       }
 
@@ -557,6 +565,12 @@ function findUsedSchemas(openApiSpec) {
                     schemasToProcess.push(schemaName);
                   }
                 });
+              }
+              // Trace refs nested anywhere in an inline response schema.
+              if (content.schema) {
+                findRefsInObject(content.schema, (ref) =>
+                  schemasToProcess.push(ref.replace('#/components/schemas/', ''))
+                );
               }
             });
           }
