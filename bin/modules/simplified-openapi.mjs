@@ -1,9 +1,18 @@
 import fs from 'fs';
 import yaml from 'js-yaml';
 
-export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, openapiTrimmedFile) {
+export function createAndSaveSimplifiedOpenAPI(
+  endpointsFile,
+  openapiFile,
+  openapiTrimmedFile,
+  apiVersion = 'v1.0'
+) {
   const allEndpoints = JSON.parse(fs.readFileSync(endpointsFile, 'utf8'));
-  const endpoints = allEndpoints.filter((endpoint) => !endpoint.disabled);
+  // Each spec is trimmed against only the endpoints targeting its version. Entries
+  // without an explicit apiVersion default to v1.0, so existing endpoints are unchanged.
+  const endpoints = allEndpoints.filter(
+    (endpoint) => !endpoint.disabled && (endpoint.apiVersion ?? 'v1.0') === apiVersion
+  );
 
   const spec = fs.readFileSync(openapiFile, 'utf8');
   const openApiSpec = yaml.load(spec);

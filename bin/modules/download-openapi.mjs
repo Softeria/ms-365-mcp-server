@@ -3,6 +3,11 @@ import fs from 'fs';
 const DEFAULT_OPENAPI_URL =
   'https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/refs/heads/master/openapi/v1.0/openapi.yaml';
 
+// Microsoft publishes a parallel /beta OpenAPI spec at the same path root. Endpoints
+// flagged "apiVersion": "beta" in endpoints.json are generated from this spec instead.
+export const BETA_OPENAPI_URL =
+  'https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/refs/heads/master/openapi/beta/openapi.yaml';
+
 export async function downloadGraphOpenAPI(
   targetDir,
   targetFile,

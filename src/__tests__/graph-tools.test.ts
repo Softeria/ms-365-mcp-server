@@ -18,6 +18,7 @@ vi.mock('../logger.js', () => ({
 
 // Mock the generated client — we supply our own endpoint definitions per test
 const mockEndpoints: any[] = [];
+vi.mock('../generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../generated/client.js', () => ({
   api: {
     get endpoints() {

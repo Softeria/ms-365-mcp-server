@@ -11,6 +11,7 @@ vi.mock('../src/logger.js', () => ({
   },
 }));
 
+vi.mock('../src/generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../src/generated/client.js', () => ({
   api: {
     endpoints: [

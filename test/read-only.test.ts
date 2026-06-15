@@ -10,6 +10,7 @@ vi.mock('../src/cli.js', () => {
   };
 });
 
+vi.mock('../src/generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../src/generated/client.js', () => {
   return {
     api: {
