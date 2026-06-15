@@ -110,6 +110,39 @@ describe('allowed scope helpers', () => {
 
       expect(scopes).toEqual(['Mail.Read']);
     });
+
+    it('appends extra scopes to the tool-derived scopes', () => {
+      const base = resolveAuthScopes({ enabledTools: 'list-mail-messages', readOnly: true });
+      const withExtra = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        readOnly: true,
+        extraScopes: 'CopilotPackages.ReadWrite.All',
+      });
+
+      expect(withExtra).toEqual([...base, 'CopilotPackages.ReadWrite.All']);
+    });
+
+    it('appends extra scopes even when an allowed-scopes filter is applied', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        allowedScopes: 'Mail.Read',
+        readOnly: true,
+        extraScopes: 'CopilotPackages.ReadWrite.All',
+      });
+
+      expect(scopes).toContain('Mail.Read');
+      expect(scopes).toContain('CopilotPackages.ReadWrite.All');
+    });
+
+    it('deduplicates an extra scope already derived from a tool', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        readOnly: true,
+        extraScopes: 'Mail.Read Mail.Read',
+      });
+
+      expect(scopes.filter((s) => s === 'Mail.Read')).toHaveLength(1);
+    });
   });
 
   describe('collapseScopeHierarchy', () => {

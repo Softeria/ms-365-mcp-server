@@ -69,6 +69,7 @@ interface AllowedScopeOptions {
   enabledTools?: string;
   readOnly?: boolean;
   allowedScopes?: string;
+  extraScopes?: string;
 }
 
 interface DisabledToolScope {
@@ -326,7 +327,16 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
 }
 
 function resolveAuthScopes(options: AllowedScopeOptions = {}): string[] {
-  return buildAllowedScopeDiagnostics(options).effectivePermissions;
+  const toolScopes = buildAllowedScopeDiagnostics(options).effectivePermissions;
+  // Extra scopes are appended verbatim to the token request, independent of the tool
+  // surface and the allowed-scopes filter. They let a user on their own app registration
+  // request scopes no bundled tool needs (e.g. CopilotPackages.ReadWrite.All) and then
+  // drive the matching endpoints via graph-batch.
+  const extraScopes = parseAllowedScopes(options.extraScopes);
+  if (!extraScopes || extraScopes.length === 0) {
+    return toolScopes;
+  }
+  return Array.from(new Set([...toolScopes, ...extraScopes]));
 }
 
 function buildScopeDiagnostics(

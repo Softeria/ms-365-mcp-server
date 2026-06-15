@@ -48,6 +48,10 @@ program
     'Limit exposed tools to Graph scopes covered by this whitespace-separated allowlist'
   )
   .option(
+    '--extra-scopes <scopes>',
+    'Append additional Graph scopes (whitespace-separated) to the token request, beyond those derived from enabled tools. Use with your own app registration (MS365_MCP_CLIENT_ID/SECRET) to request scopes the default app does not declare, then call the endpoints via graph-batch.'
+  )
+  .option(
     '--preset <names>',
     'Use preset tool categories (comma-separated). Available: mail, calendar, files, personal, work, excel, contacts, tasks, onenote, search, users, all'
   )
@@ -112,6 +116,7 @@ export interface CommandOptions {
   enableAuthTools?: boolean;
   enabledTools?: string;
   allowedScopes?: string;
+  extraScopes?: string;
   preset?: string;
   listPresets?: boolean;
   listPermissions?: boolean;
@@ -177,6 +182,18 @@ export function parseArgs(): CommandOptions {
     console.error(
       'Error: --allowed-scopes / MS365_MCP_ALLOWED_SCOPES was provided but is empty. ' +
         'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
+    );
+    process.exit(1);
+  }
+
+  if (options.extraScopes === undefined && process.env.MS365_MCP_EXTRA_SCOPES !== undefined) {
+    options.extraScopes = process.env.MS365_MCP_EXTRA_SCOPES;
+  }
+
+  if (options.extraScopes !== undefined && options.extraScopes.trim() === '') {
+    console.error(
+      'Error: --extra-scopes / MS365_MCP_EXTRA_SCOPES was provided but is empty. ' +
+        'Provide one or more whitespace-separated scopes, or omit it.'
     );
     process.exit(1);
   }
