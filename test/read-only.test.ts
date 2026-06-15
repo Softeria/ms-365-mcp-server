@@ -136,6 +136,27 @@ describe('Read-Only Mode', () => {
     expect(mockServer.tool).toHaveBeenCalledTimes(4);
   });
 
+  it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {
+    // get-schedule is a POST with readOnly: true; its hints should reflect that it
+    // is a read-only query rather than being derived from the POST verb alone.
+    registerGraphTools(mockServer, {} as GraphClient, false, undefined, true);
+
+    const annotationsFor = (alias: string) => {
+      const call = mockServer.tool.mock.calls.find((c: unknown[]) => c[0] === alias);
+      expect(call, `${alias} should be registered`).toBeDefined();
+      return call![3] as { readOnlyHint: boolean; destructiveHint: boolean };
+    };
+
+    const getSchedule = annotationsFor('get-schedule');
+    expect(getSchedule.readOnlyHint).toBe(true);
+    expect(getSchedule.destructiveHint).toBe(false);
+
+    // A regular POST (no readOnly flag) stays destructive.
+    const sendMail = annotationsFor('send-mail');
+    expect(sendMail.readOnlyHint).toBe(false);
+    expect(sendMail.destructiveHint).toBe(true);
+  });
+
   it('should block PATCH and DELETE endpoints in read-only mode regardless of readOnly flag', () => {
     // The readOnly: true bypass in endpoints.json only applies to POST methods.
     // PATCH and DELETE must always be blocked in read-only mode.

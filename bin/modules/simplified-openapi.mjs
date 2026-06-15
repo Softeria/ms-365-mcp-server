@@ -17,15 +17,27 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
     }
   }
 
-  // Synthesize operations on existing paths when the method is missing, OR when the
-  // endpoint declares its own requestBodySchema — in which case we override whatever
-  // Microsoft published (often a deprecated/malformed/private-preview shape) with the
-  // schema the maintainer vouches for. requestBodySchema is explicit opt-in per endpoint,
-  // so this override only touches endpoints we've deliberately chosen to self-describe.
+  // Two cases handled here:
+  //  1. The method is missing entirely (Microsoft never published this operation):
+  //     synthesize the whole operation from endpoints.json.
+  //  2. The method exists but the endpoint declares its own requestBodySchema
+  //     (Microsoft published a deprecated/malformed/private-preview body our generator
+  //     can't consume): override ONLY the request body and keep Microsoft's published
+  //     responses/parameters intact, so we don't silently drop upstream fields or mask
+  //     a future upstream fix. requestBodySchema is explicit opt-in per endpoint.
   for (const endpoint of endpoints) {
     const pathSpec = openApiSpec.paths[endpoint.pathPattern];
     const methodLower = endpoint.method.toLowerCase();
-    if (pathSpec && (!pathSpec[methodLower] || endpoint.requestBodySchema)) {
+    if (!pathSpec) continue;
+
+    const operationMissing = !pathSpec[methodLower];
+    const overrideBodyOnly =
+      !operationMissing &&
+      endpoint.requestBodySchema &&
+      methodLower !== 'get' &&
+      methodLower !== 'delete';
+
+    if (operationMissing) {
       const pathParamMatches = [...endpoint.pathPattern.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
       const synthesizedParameters = pathParamMatches.map((paramName) => ({
         name: paramName,
@@ -72,6 +84,24 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
           '5XX': { $ref: '#/components/responses/error' },
         },
       };
+    } else if (overrideBodyOnly) {
+      // Surgical override: replace only the request body, leaving Microsoft's
+      // published responses and parameters for this operation untouched.
+      pathSpec[methodLower].requestBody = {
+        description: pathSpec[methodLower].requestBody?.description || 'Operation payload',
+        required: true,
+        content: {
+          'application/json': {
+            schema: endpoint.requestBodySchema,
+          },
+        },
+      };
+      // These operations are often published as deprecated/private-preview, which
+      // openapi-zod-client skips by default. Declaring a requestBodySchema means we
+      // deliberately vouch for the endpoint, so clear the deprecation markers to keep
+      // it in the generated client.
+      delete pathSpec[methodLower].deprecated;
+      delete pathSpec[methodLower]['x-ms-deprecation'];
     }
   }
 

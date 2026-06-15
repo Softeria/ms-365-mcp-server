@@ -981,6 +981,12 @@ export function registerGraphTools(
       toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
     }
 
+    // An endpoint marked readOnly in endpoints.json (e.g. a POST query like
+    // copilot-retrieve) is a read-only operation despite its write verb, so derive
+    // the hints from that flag rather than the HTTP method alone — otherwise a
+    // read-only query lands as destructiveHint:true and clients mis-rank it.
+    const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
+
     try {
       server.tool(
         tool.alias,
@@ -988,8 +994,9 @@ export function registerGraphTools(
         paramSchema,
         {
           title: tool.alias,
-          readOnlyHint: tool.method.toUpperCase() === 'GET',
-          destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
+          readOnlyHint: isReadOnlyTool,
+          destructiveHint:
+            !isReadOnlyTool && ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
           openWorldHint: true, // All tools call Microsoft Graph API
         },
         async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)

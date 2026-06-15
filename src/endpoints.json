@@ -1736,7 +1736,8 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1500,
-          "description": "Natural-language query (a single sentence works best; max 1500 characters). Avoid spelling errors in context-rich keywords."
+          "pattern": "\\S",
+          "description": "Natural-language query (a single sentence works best; max 1500 characters; must contain a non-whitespace character). Avoid spelling errors in context-rich keywords."
         },
         "dataSource": {
           "type": "string",
