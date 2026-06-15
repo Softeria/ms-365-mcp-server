@@ -1722,6 +1722,47 @@
     ]
   },
   {
+    "pathPattern": "/copilot/retrieval",
+    "method": "post",
+    "toolName": "copilot-retrieve",
+    "presets": ["search", "work"],
+    "readOnly": true,
+    "workScopes": ["Files.Read.All", "Sites.Read.All", "ExternalItem.Read.All"],
+    "requestBodySchema": {
+      "type": "object",
+      "required": ["queryString", "dataSource"],
+      "properties": {
+        "queryString": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500,
+          "description": "Natural-language query (a single sentence works best; max 1500 characters). Avoid spelling errors in context-rich keywords."
+        },
+        "dataSource": {
+          "type": "string",
+          "enum": ["sharePoint", "oneDriveBusiness", "externalItem"],
+          "description": "Which source to retrieve from — one at a time (interleaved results are not supported). 'sharePoint', 'oneDriveBusiness', or 'externalItem' (Copilot connectors)."
+        },
+        "filterExpression": {
+          "type": "string",
+          "description": "Optional KQL expression to scope the retrieval before the query runs. Supported SharePoint/OneDrive properties: Author, FileExtension, Filename, FileType, InformationProtectionLabelId, LastModifiedTime, ModifiedBy, Path, SiteID, Title. Invalid KQL is ignored (query runs unscoped)."
+        },
+        "resourceMetadata": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional list of retrievable metadata fields to return per hit (e.g. ['title', 'author']). By default no metadata is returned."
+        },
+        "maximumNumberOfResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25,
+          "description": "Optional cap on the number of results (1-25). Best practice: leave unset unless your LLM has strict token limits — results are unordered."
+        }
+      }
+    },
+    "llmTip": "Semantic/hybrid search over Microsoft 365 content via the Copilot Retrieval API. Grounds a natural-language query against the same hybrid index that powers Microsoft 365 Copilot and returns permission-trimmed text extracts with their source URLs — unlike search-query/search-onedrive-files/search-sharepoint-sites, which are lexical KQL. Prefer this for paraphrase/intent queries (e.g. resolving an informal project nickname, or matching 'packaging requirements' against text that never uses that phrase). Pass the request fields nested under a 'body' object: { queryString, dataSource, filterExpression?, resourceMetadata?, maximumNumberOfResults? }. Returns { retrievalHits: [{ webUrl, extracts: [{ text, relevanceScore }], resourceType, resourceMetadata, sensitivityLabel? }] }. Work/school accounts only (personal accounts are not supported); needs delegated Files.Read.All + Sites.Read.All (SharePoint/OneDrive) or ExternalItem.Read.All (Copilot connectors)."
+  },
+  {
     "pathPattern": "/me/onlineMeetings",
     "method": "get",
     "toolName": "list-online-meetings",

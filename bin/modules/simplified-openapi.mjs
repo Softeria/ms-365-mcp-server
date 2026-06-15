@@ -17,11 +17,15 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
     }
   }
 
-  // Synthesize operations on existing paths when the method is missing.
+  // Synthesize operations on existing paths when the method is missing, OR when the
+  // endpoint declares its own requestBodySchema — in which case we override whatever
+  // Microsoft published (often a deprecated/malformed/private-preview shape) with the
+  // schema the maintainer vouches for. requestBodySchema is explicit opt-in per endpoint,
+  // so this override only touches endpoints we've deliberately chosen to self-describe.
   for (const endpoint of endpoints) {
     const pathSpec = openApiSpec.paths[endpoint.pathPattern];
     const methodLower = endpoint.method.toLowerCase();
-    if (pathSpec && !pathSpec[methodLower]) {
+    if (pathSpec && (!pathSpec[methodLower] || endpoint.requestBodySchema)) {
       const pathParamMatches = [...endpoint.pathPattern.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
       const synthesizedParameters = pathParamMatches.map((paramName) => ({
         name: paramName,
@@ -44,7 +48,14 @@ export function createAndSaveSimplifiedOpenAPI(endpointsFile, openapiFile, opena
                 required: true,
                 content: {
                   'application/json': {
-                    schema: { type: 'object', additionalProperties: true },
+                    // When an endpoint declares a typed body schema in endpoints.json
+                    // (for APIs Microsoft hasn't published in its OpenAPI metadata),
+                    // use it so the generated client gets a validated `body` param.
+                    // Otherwise fall back to a permissive object.
+                    schema: endpoint.requestBodySchema ?? {
+                      type: 'object',
+                      additionalProperties: true,
+                    },
                   },
                 },
               },
