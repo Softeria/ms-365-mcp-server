@@ -1748,7 +1748,7 @@
     "toolName": "copilot-retrieve",
     "presets": ["search", "work"],
     "readOnly": true,
-    "workScopes": ["Files.Read.All", "Sites.Read.All", "ExternalItem.Read.All"],
+    "workScopes": [["Files.Read.All", "Sites.Read.All"], ["ExternalItem.Read.All"]],
     "requestBodySchema": {
       "type": "object",
       "required": ["queryString", "dataSource"],
@@ -1782,7 +1782,7 @@
         }
       }
     },
-    "llmTip": "Semantic/hybrid search over Microsoft 365 content via the Copilot Retrieval API. Grounds a natural-language query against the same hybrid index that powers Microsoft 365 Copilot and returns permission-trimmed text extracts with their source URLs — unlike search-query/search-onedrive-files/search-sharepoint-sites, which are lexical KQL. Prefer this for paraphrase/intent queries (e.g. resolving an informal project nickname, or matching 'packaging requirements' against text that never uses that phrase). Pass the request fields nested under a 'body' object: { queryString, dataSource, filterExpression?, resourceMetadata?, maximumNumberOfResults? }. Returns { retrievalHits: [{ webUrl, extracts: [{ text, relevanceScore }], resourceType, resourceMetadata, sensitivityLabel? }] }. Work/school accounts only (personal accounts are not supported); needs delegated Files.Read.All + Sites.Read.All (SharePoint/OneDrive) or ExternalItem.Read.All (Copilot connectors)."
+    "llmTip": "Semantic/hybrid search over Microsoft 365 content via the Copilot Retrieval API. Grounds a natural-language query against the same hybrid index that powers Microsoft 365 Copilot and returns permission-trimmed text extracts with their source URLs — unlike search-query/search-onedrive-files/search-sharepoint-sites, which are lexical KQL. Prefer this for paraphrase/intent queries (e.g. resolving an informal project nickname, or matching 'packaging requirements' against text that never uses that phrase). Pass the request fields nested under a 'body' object: { queryString, dataSource, filterExpression?, resourceMetadata?, maximumNumberOfResults? }. Returns { retrievalHits: [{ webUrl, extracts: [{ text, relevanceScore }], resourceType, resourceMetadata, sensitivityLabel? }] }. Work/school accounts only (personal accounts are not supported). dataSource 'sharePoint'/'oneDriveBusiness' need delegated Files.Read.All + Sites.Read.All (requested by default); dataSource 'externalItem' (Copilot connectors) needs ExternalItem.Read.All, which is not requested by default - add it with --extra-scopes ExternalItem.Read.All."
   },
   {
     "pathPattern": "/me/onlineMeetings",
