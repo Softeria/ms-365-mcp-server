@@ -83,8 +83,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 1 GET endpoint + parse-teams-url + download-bytes + copilot-retrieve utility tools
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    // 1 GET endpoint + parse-teams-url + download-bytes utility tools
+    expect(mockServer.tool).toHaveBeenCalledTimes(3);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -100,8 +100,8 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
-    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + parse-teams-url + download-bytes + copilot-retrieve
-    expect(mockServer.tool).toHaveBeenCalledTimes(7);
+    // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + parse-teams-url + download-bytes
+    expect(mockServer.tool).toHaveBeenCalledTimes(6);
 
     const toolCalls = mockServer.tool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -132,8 +132,29 @@ describe('Read-Only Mode', () => {
     // PATCH endpoint should still be skipped (readOnly bypass is POST-only)
     expect(toolCalls).not.toContain('update-mail-folder');
 
-    // 2 graph tools (list-mail-messages + get-schedule) + parse-teams-url + download-bytes + copilot-retrieve
-    expect(mockServer.tool).toHaveBeenCalledTimes(5);
+    // 2 graph tools (list-mail-messages + get-schedule) + parse-teams-url + download-bytes
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+  });
+
+  it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {
+    // get-schedule is a POST with readOnly: true; its hints should reflect that it
+    // is a read-only query rather than being derived from the POST verb alone.
+    registerGraphTools(mockServer, {} as GraphClient, false, undefined, true);
+
+    const annotationsFor = (alias: string) => {
+      const call = mockServer.tool.mock.calls.find((c: unknown[]) => c[0] === alias);
+      expect(call, `${alias} should be registered`).toBeDefined();
+      return call![3] as { readOnlyHint: boolean; destructiveHint: boolean };
+    };
+
+    const getSchedule = annotationsFor('get-schedule');
+    expect(getSchedule.readOnlyHint).toBe(true);
+    expect(getSchedule.destructiveHint).toBe(false);
+
+    // A regular POST (no readOnly flag) stays destructive.
+    const sendMail = annotationsFor('send-mail');
+    expect(sendMail.readOnlyHint).toBe(false);
+    expect(sendMail.destructiveHint).toBe(true);
   });
 
   it('should block PATCH and DELETE endpoints in read-only mode regardless of readOnly flag', () => {
