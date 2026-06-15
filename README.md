@@ -150,6 +150,18 @@ Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools th
 
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
+### Requesting extra scopes
+
+`--allowed-scopes` only ever _narrows_ the token request. To request a Graph scope that no bundled tool needs — for example to drive an endpoint via `graph-batch` — use `--extra-scopes` (or `MS365_MCP_EXTRA_SCOPES`). These scopes are appended verbatim to the token request, on top of the tool-derived scopes.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --extra-scopes 'CopilotPackages.ReadWrite.All'
+```
+
+This is for use with your own Azure app registration (`MS365_MCP_CLIENT_ID` / `MS365_MCP_CLIENT_SECRET`): the default Softeria app only declares a lean, fixed permission set, so request additional scopes against an app you control (your tenant admin consents to them there). CLI value takes precedence over the env var; an empty value fails at startup.
+
 ## Organization/Work Mode
 
 To access work/school features (Teams, SharePoint, etc.), enable organization mode using any of these flags:
@@ -542,6 +554,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
 --cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
 --allowed-scopes <scopes> Limit exposed tools to Graph scopes covered by this allowlist
+--extra-scopes <scopes> Append additional Graph scopes to the token request (for use with your own app registration + graph-batch)
 --expected-username <username> Require local MSAL auth to use this account username
 --expected-home-account-id <id> Require local MSAL auth to use this exact homeAccountId
 ```
