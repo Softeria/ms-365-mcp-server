@@ -444,6 +444,11 @@ async function executeGraphTool(
           .replace(`{${camelCaseParamName}}`, encodedValue)
           .replace(`:${camelCaseParamName}`, encodedValue);
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
+      } else if (isOdataParam) {
+        // Fallback: OData param recognised by name but absent from generated client's parameter
+        // list — forward it as a query param rather than silently dropping it.
+        queryParams[fixedParamName] = `${paramValue}`;
+        logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
       }
     }
 
