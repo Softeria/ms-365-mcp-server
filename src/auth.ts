@@ -184,6 +184,33 @@ function getMissingAllowedScopesForGroups(
   return closest ?? [];
 }
 
+/**
+ * The scopes actually requested at login for an endpoint, honoring an optional allowlist.
+ *
+ * Without an allowlist this is the primary (first) group, per least-privilege (matches
+ * getEndpointLoginScopes). With an allowlist it is the first group fully covered by the
+ * allowlist, so an OR-group endpoint enabled via a non-primary alternative requests that
+ * alternative's scopes and never scopes outside the allowlist. Returns [] when no group is
+ * satisfied - the same allowlist disables the endpoint in that case (see
+ * getMissingAllowedScopesForGroups), so it contributes no scopes.
+ */
+function getEndpointEffectiveLoginScopes(
+  scopeGroups: string[][],
+  allowedScopes?: string[]
+): string[] {
+  if (scopeGroups.length === 0) {
+    return [];
+  }
+  if (allowedScopes === undefined) {
+    return scopeGroups[0];
+  }
+  const coveredAllowedScopes = new Set(collapseScopeHierarchy(allowedScopes));
+  const satisfied = scopeGroups.find((group) =>
+    group.every((scope) => coveredAllowedScopes.has(scope))
+  );
+  return satisfied ?? [];
+}
+
 function collapseRedundantScopes(scopes: string[]): string[] {
   const scopesSet = new Set(scopes);
 
@@ -372,7 +399,13 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
       continue;
     }
 
-    loginScopes.forEach((scope) => effectiveToolScopes.add(scope));
+    // Request the group that actually satisfied the allowlist, not unconditionally the
+    // primary group. For an OR-group endpoint enabled via a non-primary alternative, requesting
+    // the primary group would both leak scopes outside the allowlist and omit the scope the
+    // tool was enabled for. Without an allowlist this is the primary group, unchanged.
+    getEndpointEffectiveLoginScopes(scopeGroups, allowedScopes).forEach((scope) =>
+      effectiveToolScopes.add(scope)
+    );
     allScopes.forEach((scope) => effectiveToolScopesAllGroups.add(scope));
   }
 
