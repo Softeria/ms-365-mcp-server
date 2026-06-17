@@ -9,6 +9,12 @@ import AuthManager, {
   parseAllowedScopes,
 } from './auth.js';
 import { api } from './generated/client.js';
+import { api as betaApi } from './generated/client-beta.js';
+
+// Tools from every Graph API version share one registry. Each tool's version is carried
+// by its endpoints.json config (apiVersion), so the generated clients stay version-agnostic
+// and the runtime picks the URL prefix per request. v1.0 endpoints are unchanged.
+const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -32,6 +38,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  apiVersion?: string; // Graph API version ('v1.0' default, or 'beta'). Selects spec + URL prefix.
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
@@ -51,6 +58,15 @@ interface EndpointConfig {
 const endpointsData = JSON.parse(
   readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
 ) as EndpointConfig[];
+
+/**
+ * Prefix beta-version tools with a [beta] marker so the instability is visible in the
+ * tool description itself, regardless of what (if anything) the llmTip says. Tools on
+ * v1.0 (the default) are returned unchanged.
+ */
+function withApiVersionPrefix(description: string, config?: EndpointConfig): string {
+  return config?.apiVersion === 'beta' ? `[beta] ${description}` : description;
+}
 
 /** When set to a positive integer, caps Graph `$top` on list requests (see README). */
 function maxTopFromEnv(): number | undefined {
@@ -586,10 +602,16 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      apiVersion?: string;
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    // Route beta-flagged endpoints to the /beta surface; everything else stays on v1.0.
+    if (config?.apiVersion) {
+      options.apiVersion = config.apiVersion;
+    }
 
     if (options.method !== 'GET' && body) {
       if (tool.requestFormat === 'binary' && typeof body === 'string') {
@@ -671,7 +693,9 @@ async function executeGraphTool(
           // Previously, query params were extracted into nextOptions.queryParams
           // but graphRequest/performRequest never read that field — they were lost.
           const url = new URL(nextLink);
-          const nextPath = url.pathname.replace('/v1.0', '') + url.search;
+          // nextLink is absolute and version-qualified (/v1.0/... or /beta/...). Strip the
+          // version segment so performRequest can re-apply the request's own apiVersion.
+          const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
           const nextOptions = { ...options };
 
           const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
@@ -805,7 +829,7 @@ export function registerGraphTools(
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
   const disabledByAllowedScopes: DisabledToolScope[] = [];
 
-  for (const tool of api.endpoints) {
+  for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
       logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
@@ -982,8 +1006,10 @@ export function registerGraphTools(
     }
 
     // Build the tool description, optionally appending LLM tips
-    let toolDescription =
-      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`;
+    let toolDescription = withApiVersionPrefix(
+      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
+      endpointConfig
+    );
     if (endpointConfig?.llmTip) {
       toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
     }
@@ -1065,7 +1091,7 @@ export function buildToolsRegistry(
   >();
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
 
-  for (const tool of api.endpoints) {
+  for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
@@ -1249,7 +1275,10 @@ export function registerDiscoveryTools(
         name,
         method: tool.method.toUpperCase(),
         path: tool.path,
-        description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+        description: withApiVersionPrefix(
+          tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+          config
+        ),
         ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
       };
     }

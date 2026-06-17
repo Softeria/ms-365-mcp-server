@@ -4,6 +4,7 @@ import {
   getMissingAllowedScopesForGroups,
   buildScopesFromEndpoints,
   buildAllowedScopeDiagnostics,
+  resolveAuthScopes,
 } from '../src/auth.js';
 
 /**
@@ -82,5 +83,28 @@ describe('copilot-retrieve login + gate (real endpoints.json)', () => {
     const disabled = isDisabled('Mail.Read');
     expect(disabled).toBeDefined();
     expect(disabled?.missingScopes).toEqual(['ExternalItem.Read.All']);
+  });
+
+  // The allowlist gates which group enables the tool; the requested scopes must match that
+  // group. Otherwise an endpoint enabled via a non-primary alternative would request the
+  // primary group - leaking scopes outside the allowlist and omitting the one it needs.
+  const effective = (allowedScopes?: string) =>
+    resolveAuthScopes({ orgMode: true, enabledTools: '^copilot-retrieve$', allowedScopes });
+
+  it('requests the satisfied alternative group, not the primary group', () => {
+    expect(effective('ExternalItem.Read.All')).toEqual(['ExternalItem.Read.All']);
+  });
+
+  it('requests the primary group when the allowlist satisfies it', () => {
+    expect(effective('Files.Read.All Sites.Read.All').sort()).toEqual([
+      'Files.Read.All',
+      'Sites.Read.All',
+    ]);
+  });
+
+  it('defaults to the primary group with no allowlist (least-privilege)', () => {
+    const scopes = effective();
+    expect(scopes.sort()).toEqual(['Files.Read.All', 'Sites.Read.All']);
+    expect(scopes).not.toContain('ExternalItem.Read.All');
   });
 });

@@ -1212,6 +1212,15 @@
     "scopes": ["User.Read"]
   },
   {
+    "pathPattern": "/me/profile",
+    "method": "get",
+    "toolName": "get-my-profile",
+    "apiVersion": "beta",
+    "presets": ["personal", "users", "work"],
+    "scopes": ["User.Read"],
+    "llmTip": "Retrieves the signed-in user's rich profile - a richer object than get-current-user, exposing relationships like skills, projects, languages, education and work positions. Use $expand to pull related collections (e.g. $expand=skills,projects)."
+  },
+  {
     "pathPattern": "/me/mailboxSettings",
     "method": "get",
     "toolName": "get-mailbox-settings",

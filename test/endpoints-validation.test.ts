@@ -9,6 +9,7 @@ import path from 'path';
 if (!globalThis.File) (globalThis as any).File = Blob;
 
 const { api } = await import('../src/generated/client.js');
+const { api: betaApi } = await import('../src/generated/client-beta.js');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,7 +97,7 @@ describe('endpoints.json validation', () => {
   });
 
   it('should have a matching generated client endpoint for every entry', () => {
-    const generatedTools = new Set(api.endpoints.map((e) => e.alias));
+    const generatedTools = new Set([...api.endpoints, ...betaApi.endpoints].map((e) => e.alias));
     const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));
 
     if (orphans.length > 0) {

@@ -54,6 +54,9 @@ interface GraphRequestOptions {
   includeHeaders?: boolean;
   excludeResponse?: boolean;
   accessToken?: string;
+  // Graph API version segment for the request path. Defaults to 'v1.0'; endpoints
+  // declaring "apiVersion": "beta" in endpoints.json route to the /beta surface.
+  apiVersion?: string;
 
   [key: string]: unknown;
 }
@@ -176,7 +179,8 @@ class GraphClient {
     options: GraphRequestOptions
   ): Promise<Response> {
     const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
-    const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
+    const apiVersion = options.apiVersion || 'v1.0';
+    const url = `${cloudEndpoints.graphApi}/${apiVersion}${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
