@@ -110,4 +110,17 @@ describe('endpoints.json validation', () => {
       );
     }
   });
+
+  it('should generate non-void response schemas for Planner task chat read/create tools', () => {
+    const plannerChatTools = ['list-planner-task-messages', 'create-planner-task-message'];
+
+    for (const toolName of plannerChatTools) {
+      const endpoint = betaApi.endpoints.find((e) => e.alias === toolName);
+      expect(endpoint, `${toolName} should exist in the beta generated client`).toBeDefined();
+      expect(
+        endpoint?.response.safeParse(undefined).success,
+        `${toolName} should parse the Graph response body instead of z.void()`
+      ).toBe(false);
+    }
+  });
 });

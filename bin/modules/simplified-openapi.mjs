@@ -145,6 +145,10 @@ export function createAndSaveSimplifiedOpenAPI(
     }
   }
 
+  if (apiVersion === 'beta') {
+    normalizeWildcardSuccessResponses(openApiSpec.paths);
+  }
+
   if (openApiSpec.components && openApiSpec.components.schemas) {
     removeODataTypeRecursively(openApiSpec.components.schemas);
     flattenComplexSchemasRecursively(openApiSpec.components.schemas);
@@ -160,6 +164,29 @@ export function createAndSaveSimplifiedOpenAPI(
   pruneUnusedSchemas(openApiSpec, usedSchemas);
 
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
+}
+
+function normalizeWildcardSuccessResponses(paths) {
+  Object.values(paths || {}).forEach((pathItem) => {
+    if (!pathItem || typeof pathItem !== 'object') return;
+
+    Object.entries(pathItem).forEach(([method, operation]) => {
+      if (!operation || typeof operation !== 'object') return;
+      if (!operation.responses || !operation.responses['2XX']) return;
+
+      const hasConcreteSuccess = Object.keys(operation.responses).some((statusCode) =>
+        /^2\d\d$/.test(statusCode)
+      );
+      if (hasConcreteSuccess) {
+        delete operation.responses['2XX'];
+        return;
+      }
+
+      const successStatus = method === 'post' ? '201' : method === 'delete' ? '204' : '200';
+      operation.responses[successStatus] = operation.responses['2XX'];
+      delete operation.responses['2XX'];
+    });
+  });
 }
 
 function removeODataTypeRecursively(obj) {
