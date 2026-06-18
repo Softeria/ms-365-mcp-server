@@ -60,6 +60,18 @@ const endpointsData = JSON.parse(
 ) as EndpointConfig[];
 
 /**
+ * Delta tools where Graph does NOT support `$top`. The calendarView delta function
+ * lists `$top` neither as supported nor among its rejected params; page size is
+ * controlled via `Prefer: odata.maxpagesize` instead. By contrast message/driveItem/site
+ * delta explicitly document `$top` support, so it must be preserved for those.
+ * See https://learn.microsoft.com/en-us/graph/api/event-delta
+ */
+const TOP_UNSUPPORTED_DELTA_TOOLS = new Set([
+  'list-calendar-events-delta',
+  'list-calendar-view-delta',
+]);
+
+/**
  * Prefix beta-version tools with a [beta] marker so the instability is visible in the
  * tool description itself, regardless of what (if anything) the llmTip says. Tools on
  * v1.0 (the default) are returned unchanged.
@@ -546,6 +558,14 @@ async function executeGraphTool(
       }
     }
 
+    // Defense-in-depth: the calendar delta tools don't support $top (see
+    // TOP_UNSUPPORTED_DELTA_TOOLS). Their user-facing schema strips top/$top, so
+    // freshly-connected clients can't send it. Cached/stale clients (and ad-hoc
+    // callers) might still try — drop it server-side before clamping or sending.
+    if (TOP_UNSUPPORTED_DELTA_TOOLS.has(tool.alias)) {
+      delete queryParams['$top'];
+    }
+
     clampTopQueryParam(queryParams);
 
     const preferValues: string[] = [];
@@ -683,6 +703,11 @@ async function executeGraphTool(
         let pageCount = 1;
         const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
         const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
+        // Graph only emits @odata.deltaLink on the final page of a /delta query.
+        // Track it across the pagination loop so we can stamp it on the combined
+        // response — otherwise fetchAllPages on a /delta endpoint silently drops
+        // the resume token and forces callers to re-list from scratch.
+        let deltaLink: string | undefined = combinedResponse['@odata.deltaLink'];
 
         while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
           logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
@@ -705,6 +730,9 @@ async function executeGraphTool(
               allItems = allItems.concat(nextJsonResponse.value);
             }
             nextLink = nextJsonResponse['@odata.nextLink'];
+            if (nextJsonResponse['@odata.deltaLink']) {
+              deltaLink = nextJsonResponse['@odata.deltaLink'];
+            }
             pageCount++;
           } else {
             break;
@@ -725,6 +753,9 @@ async function executeGraphTool(
           combinedResponse['@odata.count'] = allItems.length;
         }
         delete combinedResponse['@odata.nextLink'];
+        if (deltaLink) {
+          combinedResponse['@odata.deltaLink'] = deltaLink;
+        }
 
         response.content[0].text = JSON.stringify(combinedResponse);
 
@@ -928,7 +959,15 @@ export function registerGraphTools(
         .describe('Sort expression, e.g. receivedDateTime desc')
         .optional();
     }
-    if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
+    // The calendar delta tools don't support $top (see TOP_UNSUPPORTED_DELTA_TOOLS) —
+    // page size is controlled via Prefer: odata.maxpagesize. Strip top/$top from
+    // their schemas so callers can't reach for a parameter that won't work. Other
+    // delta tools (message/driveItem/site) do support $top, so leave them alone.
+    // Server-side defense-in-depth in executeGraphTool handles stale clients.
+    if (TOP_UNSUPPORTED_DELTA_TOOLS.has(tool.alias)) {
+      delete paramSchema['top'];
+      delete paramSchema['$top'];
+    } else if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
       const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
       paramSchema[key] = z
         .number()
