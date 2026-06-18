@@ -374,7 +374,7 @@ class MicrosoftGraphServer {
           : resolveAuthScopes(this.options);
 
         res.json({
-          resource: `${requestOrigin}/mcp`,
+          resource: `${browserBase}/mcp`,
           authorization_servers: [browserBase],
           scopes_supported: scopes,
           bearer_methods_supported: ['header'],
