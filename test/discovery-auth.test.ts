@@ -90,3 +90,72 @@ describe('trustProxyAuth', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 });
+
+describe('WWW-Authenticate resource_metadata uses publicUrl when configured', () => {
+  // Helper to extract the resource_metadata value from a WWW-Authenticate header
+  function resourceMetadata(res: ReturnType<typeof makeRes>): string {
+    const wwwAuth: string = res.set.mock.calls[0][1];
+    const match = wwwAuth.match(/resource_metadata="([^"]+)"/);
+    if (!match) throw new Error(`No resource_metadata in: ${wwwAuth}`);
+    return match[1];
+  }
+
+  it('uses publicUrl origin in resource_metadata on missing token (no path)', () => {
+    const mw = microsoftBearerTokenAuthMiddleware({ publicUrl: 'https://mcp.example.com' });
+    const res = makeRes();
+    mw(makeReq('tools/call'), res, vi.fn());
+    expect(res.statusCode).toBe(401);
+    expect(resourceMetadata(res)).toBe(
+      'https://mcp.example.com/.well-known/oauth-protected-resource'
+    );
+  });
+
+  it('inserts /.well-known/ between host and path per RFC 9728 §3.1 (path component)', () => {
+    const mw = microsoftBearerTokenAuthMiddleware({
+      publicUrl: 'https://mcp.example.com/tenant/mcp',
+    });
+    const res = makeRes();
+    mw(makeReq('tools/call'), res, vi.fn());
+    expect(res.statusCode).toBe(401);
+    // Spec: insert /.well-known/oauth-protected-resource between host and path
+    expect(resourceMetadata(res)).toBe(
+      'https://mcp.example.com/.well-known/oauth-protected-resource/tenant/mcp'
+    );
+  });
+
+  it('strips a trailing slash from publicUrl path before constructing the metadata URL', () => {
+    const mw = microsoftBearerTokenAuthMiddleware({ publicUrl: 'https://mcp.example.com/tenant/' });
+    const res = makeRes();
+    mw(makeReq('tools/call'), res, vi.fn());
+    expect(res.statusCode).toBe(401);
+    expect(resourceMetadata(res)).toBe(
+      'https://mcp.example.com/.well-known/oauth-protected-resource/tenant'
+    );
+  });
+
+  it('uses publicUrl in resource_metadata on expired JWT token', () => {
+    const mw = microsoftBearerTokenAuthMiddleware({ publicUrl: 'https://mcp.example.com' });
+    // Build a JWT whose exp is in the past
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })
+    ).toString('base64url');
+    const expiredJwt = `${header}.${payload}.signature`;
+    const res = makeRes();
+    mw(makeReq('tools/call', { authorization: `Bearer ${expiredJwt}` }), res, vi.fn());
+    expect(res.statusCode).toBe(401);
+    expect(resourceMetadata(res)).toBe(
+      'https://mcp.example.com/.well-known/oauth-protected-resource'
+    );
+  });
+
+  it('falls back to request host when publicUrl is not set', () => {
+    const mw = microsoftBearerTokenAuthMiddleware();
+    const res = makeRes();
+    mw(makeReq('tools/call'), res, vi.fn());
+    expect(res.statusCode).toBe(401);
+    expect(resourceMetadata(res)).toBe(
+      'http://localhost:3000/.well-known/oauth-protected-resource'
+    );
+  });
+});

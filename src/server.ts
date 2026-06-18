@@ -687,6 +687,7 @@ class MicrosoftGraphServer {
       const mcpAuth = microsoftBearerTokenAuthMiddleware({
         trustProxyAuth: this.options.trustProxyAuth,
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
+        publicUrl: publicBase,
       });
       app.get(
         '/mcp',
