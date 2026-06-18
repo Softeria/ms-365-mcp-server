@@ -4,6 +4,11 @@ import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
+import {
+  fetchWithResilience,
+  getSharedBreaker,
+  loadResilienceConfig,
+} from './lib/graph-resilience.js';
 
 /**
  * Returns true if the given HTTP Content-Type header indicates a binary
@@ -49,6 +54,9 @@ interface GraphRequestOptions {
   includeHeaders?: boolean;
   excludeResponse?: boolean;
   accessToken?: string;
+  // Graph API version segment for the request path. Defaults to 'v1.0'; endpoints
+  // declaring "apiVersion": "beta" in endpoints.json route to the /beta surface.
+  apiVersion?: string;
 
   [key: string]: unknown;
 }
@@ -171,7 +179,8 @@ class GraphClient {
     options: GraphRequestOptions
   ): Promise<Response> {
     const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
-    const url = `${cloudEndpoints.graphApi}/v1.0${endpoint}`;
+    const apiVersion = options.apiVersion || 'v1.0';
+    const url = `${cloudEndpoints.graphApi}/${apiVersion}${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
@@ -181,12 +190,17 @@ class GraphClient {
       ...options.headers,
     };
 
-    return fetch(url, {
-      method: options.method || 'GET',
-      headers,
-      // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
-      body: options.body as unknown as string,
-    });
+    return fetchWithResilience(
+      url,
+      {
+        method: options.method || 'GET',
+        headers,
+        // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
+        body: options.body as unknown as string,
+      },
+      loadResilienceConfig(),
+      getSharedBreaker()
+    );
   }
 
   private serializeData(data: unknown, outputFormat: 'json' | 'toon', pretty = false): string {

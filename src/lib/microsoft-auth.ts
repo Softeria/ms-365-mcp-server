@@ -24,49 +24,150 @@ function isJwtExpired(token: string): boolean {
   }
 }
 
+const DISCOVERY_METHODS = new Set([
+  'initialize',
+  'notifications/initialized',
+  'tools/list',
+  'prompts/list',
+  'resources/list',
+  'ping',
+]);
+
+function isDiscoveryRequest(req: Request): boolean {
+  if (req.method !== 'POST' || !req.body) return false;
+  const body = req.body;
+  if (Array.isArray(body)) {
+    return body.every((item) => DISCOVERY_METHODS.has(item?.method));
+  }
+  return DISCOVERY_METHODS.has(body?.method);
+}
+
 /**
  * Microsoft Bearer Token Auth Middleware validates that the request has a valid Microsoft access token.
  * Returns HTTP 401 + WWW-Authenticate on missing or expired tokens so spec-compliant MCP clients
  * refresh via the /token endpoint. Opaque tokens fall through and are validated by Graph.
+ *
+ * When `trustProxyAuth` is true the bearer check is skipped — an upstream
+ * reverse proxy is presumed to have authenticated the caller, and Microsoft
+ * Graph access falls back to the locally cached MSAL refresh token via
+ * AuthManager (the same path stdio mode uses).
+ *
+ * When `allowUnauthenticatedDiscovery` is true, discovery requests (initialize,
+ * tools/list, etc.) are allowed without a token so that MCP gateways can
+ * register the available tools before any user has authenticated. It is off by
+ * default; non-discovery requests (e.g. tools/call) always still require a token.
  */
-export const microsoftBearerTokenAuthMiddleware = (
-  req: Request & { microsoftAuth?: { accessToken: string } },
-  res: Response,
-  next: NextFunction
-): void => {
-  const authHeader = req.headers.authorization;
+export const microsoftBearerTokenAuthMiddleware =
+  (opts: { trustProxyAuth?: boolean; allowUnauthenticatedDiscovery?: boolean } = {}) =>
+  (
+    req: Request & { microsoftAuth?: { accessToken: string } },
+    res: Response,
+    next: NextFunction
+  ): void => {
+    if (opts.trustProxyAuth) {
+      next();
+      return;
+    }
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res
-      .status(401)
-      .set(
-        'WWW-Authenticate',
-        buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
-      )
-      .json({
-        error: 'invalid_token',
-        error_description: 'Missing or malformed Authorization header',
-      });
-    return;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      if (opts.allowUnauthenticatedDiscovery && isDiscoveryRequest(req)) {
+        next();
+        return;
+      }
+      res
+        .status(401)
+        .set(
+          'WWW-Authenticate',
+          buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
+        )
+        .json({
+          error: 'invalid_token',
+          error_description: 'Missing or malformed Authorization header',
+        });
+      return;
+    }
+
+    const accessToken = authHeader.substring(7);
+
+    if (isJwtExpired(accessToken)) {
+      res
+        .status(401)
+        .set(
+          'WWW-Authenticate',
+          buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
+        )
+        .json({ error: 'invalid_token', error_description: 'The access token has expired' });
+      return;
+    }
+
+    req.microsoftAuth = { accessToken };
+
+    next();
+  };
+
+export interface UpstreamOAuthErrorBody {
+  error: string;
+  error_description?: string;
+  error_codes?: number[];
+  suberror?: string;
+  trace_id?: string;
+  correlation_id?: string;
+  timestamp?: string;
+}
+
+export class OAuthUpstreamError extends Error {
+  readonly status: number;
+  readonly body: UpstreamOAuthErrorBody;
+  readonly raw: string;
+
+  constructor(status: number, raw: string, body: UpstreamOAuthErrorBody) {
+    const suffix = body.error_description ? ` - ${body.error_description}` : '';
+    super(`OAuth upstream error: ${body.error}${suffix}`);
+    this.name = 'OAuthUpstreamError';
+    this.status = status;
+    this.body = body;
+    this.raw = raw;
   }
+}
 
-  const accessToken = authHeader.substring(7);
-
-  if (isJwtExpired(accessToken)) {
-    res
-      .status(401)
-      .set(
-        'WWW-Authenticate',
-        buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
-      )
-      .json({ error: 'invalid_token', error_description: 'The access token has expired' });
-    return;
+function parseUpstreamOAuthError(raw: string): UpstreamOAuthErrorBody | null {
+  try {
+    const json = JSON.parse(raw) as unknown;
+    if (
+      json !== null &&
+      typeof json === 'object' &&
+      typeof (json as { error?: unknown }).error === 'string'
+    ) {
+      return json as UpstreamOAuthErrorBody;
+    }
+  } catch {
+    /* not JSON */
   }
+  return null;
+}
 
-  req.microsoftAuth = { accessToken };
-
-  next();
-};
+export function toOAuthErrorResponse(error: unknown): {
+  status: number;
+  body: { error: string; error_description?: string; suberror?: string };
+} {
+  if (error instanceof OAuthUpstreamError) {
+    const body: { error: string; error_description?: string; suberror?: string } = {
+      error: error.body.error,
+    };
+    if (error.body.error_description) body.error_description = error.body.error_description;
+    if (error.body.suberror) body.suberror = error.body.suberror;
+    return { status: 400, body };
+  }
+  return {
+    status: 500,
+    body: {
+      error: 'server_error',
+      error_description: 'Internal server error during token exchange',
+    },
+  };
+}
 
 /**
  * Exchange authorization code for access token
@@ -113,9 +214,20 @@ export async function exchangeCodeForToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    logger.error(`Failed to exchange code for token: ${error}`);
-    throw new Error(`Failed to exchange code for token: ${error}`);
+    const raw = await response.text();
+    const parsed = parseUpstreamOAuthError(raw);
+    if (parsed) {
+      logger.warn(`Token endpoint upstream OAuth error: ${parsed.error}`, {
+        status: response.status,
+        error: parsed.error,
+        suberror: parsed.suberror,
+        error_codes: parsed.error_codes,
+        correlation_id: parsed.correlation_id,
+      });
+      throw new OAuthUpstreamError(response.status, raw, parsed);
+    }
+    logger.error(`Failed to exchange code for token: ${raw}`);
+    throw new Error(`Failed to exchange code for token: ${raw}`);
   }
 
   return response.json();
@@ -157,9 +269,20 @@ export async function refreshAccessToken(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    logger.error(`Failed to refresh token: ${error}`);
-    throw new Error(`Failed to refresh token: ${error}`);
+    const raw = await response.text();
+    const parsed = parseUpstreamOAuthError(raw);
+    if (parsed) {
+      logger.warn(`Token endpoint upstream OAuth error: ${parsed.error}`, {
+        status: response.status,
+        error: parsed.error,
+        suberror: parsed.suberror,
+        error_codes: parsed.error_codes,
+        correlation_id: parsed.correlation_id,
+      });
+      throw new OAuthUpstreamError(response.status, raw, parsed);
+    }
+    logger.error(`Failed to refresh token: ${raw}`);
+    throw new Error(`Failed to refresh token: ${raw}`);
   }
 
   return response.json();

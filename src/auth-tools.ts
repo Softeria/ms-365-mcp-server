@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import AuthManager from './auth.js';
+import { getRequestTokens } from './request-context.js';
 
 export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
   server.tool(
@@ -96,7 +97,15 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
   });
 
   server.tool('verify-login', 'Check current Microsoft authentication status', {}, async () => {
-    const testResult = await authManager.testLogin();
+    let testResult: Awaited<ReturnType<AuthManager['testLogin']>>;
+    try {
+      testResult = await authManager.testLogin();
+    } catch (error) {
+      testResult = {
+        success: false,
+        message: `Login failed: ${(error as Error).message}`,
+      };
+    }
 
     return {
       content: [
@@ -121,6 +130,10 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
       try {
         const accounts = await authManager.listAccounts();
         const selectedAccountId = authManager.getSelectedAccountId();
+        const pinnedMode = authManager.hasExpectedAccount();
+        // OAuth bearer requests always use the connecting client's identity, so
+        // cached accounts are not reachable via the account parameter (discussion #467).
+        const oauthBearerMode = authManager.isOAuthModeEnabled() || Boolean(getRequestTokens());
         const result = accounts.map((account) => ({
           email: account.username || 'unknown',
           name: account.name,
@@ -134,7 +147,11 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
               text: JSON.stringify({
                 accounts: result,
                 count: result.length,
-                tip: "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
+                tip: pinnedMode
+                  ? 'Expected account pinning is configured; account parameters are disabled.'
+                  : oauthBearerMode
+                    ? "This server is in HTTP/OAuth mode: every request uses the identity of the connecting client's bearer token. The cached accounts listed here cannot be targeted via the 'account' parameter; reconnect the MCP client as the desired account instead."
+                    : "Pass the 'email' value as the 'account' parameter in any tool call to target a specific account.",
               }),
             },
           ],

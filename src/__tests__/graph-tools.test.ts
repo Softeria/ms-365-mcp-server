@@ -18,6 +18,7 @@ vi.mock('../logger.js', () => ({
 
 // Mock the generated client — we supply our own endpoint definitions per test
 const mockEndpoints: any[] = [];
+vi.mock('../generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../generated/client.js', () => ({
   api: {
     get endpoints() {
@@ -247,6 +248,124 @@ describe('graph-tools', () => {
 
       // 1 initial + 99 pagination = 100 total requests (stops at pageCount=100)
       expect(graphClient.graphRequest).toHaveBeenCalledTimes(100);
+    });
+
+    describe('pagination env caps', () => {
+      const prev = {
+        pages: process.env.MS365_MCP_MAX_PAGES,
+        items: process.env.MS365_MCP_MAX_ITEMS,
+        allow: process.env.MS365_MCP_ALLOW_PAGINATION,
+      };
+
+      afterEach(() => {
+        const restore = (name: string, value: string | undefined) =>
+          value === undefined ? delete process.env[name] : (process.env[name] = value);
+        restore('MS365_MCP_MAX_PAGES', prev.pages);
+        restore('MS365_MCP_MAX_ITEMS', prev.items);
+        restore('MS365_MCP_ALLOW_PAGINATION', prev.allow);
+      });
+
+      const paginatingResponses = (count: number) =>
+        Array.from({ length: count }, (_, i) => ({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: `item-${i}` }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=' + (i + 1),
+              }),
+            },
+          ],
+        }));
+
+      it('should honor MS365_MCP_MAX_PAGES below the default', async () => {
+        process.env.MS365_MCP_MAX_PAGES = '2';
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        const graphClient = createMockGraphClient(paginatingResponses(5));
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+        // 1 initial + 1 pagination = 2 total requests (stops at pageCount=2)
+        expect(graphClient.graphRequest).toHaveBeenCalledTimes(2);
+      });
+
+      it('should honor MS365_MCP_MAX_ITEMS below the default', async () => {
+        process.env.MS365_MCP_MAX_ITEMS = '2';
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        // First page already carries 2 items → the while-loop guard stops it.
+        const graphClient = createMockGraphClient([
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1' }, { id: '2' }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+                }),
+              },
+            ],
+          },
+          ...paginatingResponses(3),
+        ]);
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+        expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(result.content[0].text).value).toHaveLength(2);
+      });
+
+      it('should not follow nextLink when MS365_MCP_ALLOW_PAGINATION is disabled', async () => {
+        process.env.MS365_MCP_ALLOW_PAGINATION = '0';
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        const graphClient = createMockGraphClient(paginatingResponses(5));
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+        // Disabled → first page only, no nextLink following
+        expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+        // Disabled → the parameter is not advertised to the model at all
+        expect(server.tools.get('test-tool')!.schema.fetchAllPages).toBeUndefined();
+      });
+
+      it('should advertise fetchAllPages when pagination is enabled', async () => {
+        delete process.env.MS365_MCP_ALLOW_PAGINATION;
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, createMockGraphClient() as any);
+
+        expect(server.tools.get('test-tool')!.schema.fetchAllPages).toBeDefined();
+      });
+
+      it('should reflect MS365_MCP_MAX_PAGES in the fetchAllPages description', async () => {
+        process.env.MS365_MCP_MAX_PAGES = '7';
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, createMockGraphClient() as any);
+
+        const schema = server.tools.get('test-tool')!.schema.fetchAllPages;
+        expect(schema.description).toContain('up to 7 pages');
+      });
     });
   });
 
@@ -743,6 +862,111 @@ describe('graph-tools', () => {
   });
 
   // ---- 10. Utility tools surface in --discovery mode ----
+  describe('allowed scopes filtering', () => {
+    it('registerGraphTools hides Graph tools outside the allowed scopes', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'list-mail-messages',
+          method: 'get',
+          pathPattern: '/me/messages',
+          scopes: ['Mail.Read'],
+        },
+        {
+          toolName: 'list-calendar-events',
+          method: 'get',
+          pathPattern: '/me/events',
+          scopes: ['Calendars.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        createMockGraphClient() as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        'Mail.Read'
+      );
+
+      expect(server.tools.has('list-mail-messages')).toBe(true);
+      expect(server.tools.has('list-calendar-events')).toBe(false);
+    });
+
+    it('discovery hides Graph tools outside the allowed scopes', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        },
+        {
+          alias: 'list-calendar-events',
+          method: 'get',
+          path: '/me/events',
+          description: 'List events',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'list-mail-messages',
+          method: 'get',
+          pathPattern: '/me/messages',
+          scopes: ['Mail.Read'],
+        },
+        {
+          toolName: 'list-calendar-events',
+          method: 'get',
+          pathPattern: '/me/events',
+          scopes: ['Calendars.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+
+      const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
+      const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
+      expect(found).toContain('list-mail-messages');
+      expect(found).not.toContain('list-calendar-events');
+    });
+  });
+
+  // ---- 11. Utility tools surface in --discovery mode ----
   describe('discovery mode: utility tools', () => {
     it('search-tools surfaces download-bytes for "download" queries', async () => {
       mockEndpoints.length = 0;

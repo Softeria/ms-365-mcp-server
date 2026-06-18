@@ -1,8 +1,20 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { randomUUID } from 'crypto';
 import logger from './logger.js';
+import { auditLog, getUserIdentityForAudit } from './audit-log.js';
 import GraphClient from './graph-client.js';
-import AuthManager from './auth.js';
+import AuthManager, {
+  getEndpointScopeGroups,
+  getMissingAllowedScopesForGroups,
+  parseAllowedScopes,
+} from './auth.js';
 import { api } from './generated/client.js';
+import { api as betaApi } from './generated/client-beta.js';
+
+// Tools from every Graph API version share one registry. Each tool's version is carried
+// by its endpoints.json config (apiVersion), so the generated clients stay version-agnostic
+// and the runtime picks the URL prefix per request. v1.0 endpoints are unchanged.
+const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 import { z } from 'zod';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -24,8 +36,9 @@ interface EndpointConfig {
   pathPattern: string;
   method: string;
   toolName: string;
-  scopes?: string[];
-  workScopes?: string[];
+  scopes?: string[] | string[][];
+  workScopes?: string[] | string[][];
+  apiVersion?: string; // Graph API version ('v1.0' default, or 'beta'). Selects spec + URL prefix.
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
@@ -34,6 +47,12 @@ interface EndpointConfig {
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
+  presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
+  // JSON Schema for the request body of an endpoint that Microsoft has NOT published
+  // in its OpenAPI metadata. Consumed at generate time by bin/modules/simplified-openapi.mjs
+  // to synthesize a typed requestBody (instead of a generic object), so the generated client
+  // exposes a validated `body` param. Ignored for endpoints already present in the spec.
+  requestBodySchema?: Record<string, unknown>;
 }
 
 const endpointsData = JSON.parse(
@@ -51,6 +70,15 @@ const TOP_UNSUPPORTED_DELTA_TOOLS = new Set([
   'list-calendar-events-delta',
   'list-calendar-view-delta',
 ]);
+
+/**
+ * Prefix beta-version tools with a [beta] marker so the instability is visible in the
+ * tool description itself, regardless of what (if anything) the llmTip says. Tools on
+ * v1.0 (the default) are returned unchanged.
+ */
+function withApiVersionPrefix(description: string, config?: EndpointConfig): string {
+  return config?.apiVersion === 'beta' ? `[beta] ${description}` : description;
+}
 
 /** When set to a positive integer, caps Graph `$top` on list requests (see README). */
 function maxTopFromEnv(): number | undefined {
@@ -73,6 +101,31 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   if (!Number.isFinite(requested) || requested <= cap) return;
   logger.info(`Clamping $top from ${requested} to ${cap} (MS365_MCP_MAX_TOP)`);
   queryParams['$top'] = String(cap);
+}
+
+const DEFAULT_MAX_PAGES = 100;
+const DEFAULT_MAX_ITEMS = 10_000;
+
+/** Reads a positive-integer env var, falling back to `defaultValue` when unset or invalid. */
+function positiveIntFromEnv(name: string, defaultValue: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return defaultValue;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) {
+    logger.warn(`Ignoring invalid ${name}=${JSON.stringify(raw)} (use a positive integer)`);
+    return defaultValue;
+  }
+  return n;
+}
+
+/**
+ * Whether `fetchAllPages` is permitted. Defaults to true; set MS365_MCP_ALLOW_PAGINATION
+ * to 0/false/no to disable multi-page following entirely (returns the first page only).
+ */
+function paginationAllowed(): boolean {
+  const raw = process.env.MS365_MCP_ALLOW_PAGINATION;
+  if (raw === undefined || raw === '') return true;
+  return !/^(0|false|no)$/i.test(raw.trim());
 }
 
 type TextContent = {
@@ -147,6 +200,49 @@ interface UtilityTool {
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
   openWorldHint?: boolean;
+}
+
+interface DisabledToolScope {
+  toolName: string;
+  missingScopes: string[];
+}
+
+function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
+  const shown = disabledTools
+    .slice(0, 20)
+    .map((tool) => `${tool.toolName} (missing: ${tool.missingScopes.join(', ')})`);
+  const suffix =
+    disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
+  return `${shown.join('; ')}${suffix}`;
+}
+
+/**
+ * In OAuth/HTTP bearer mode the `account` parameter cannot switch identities —
+ * every Graph call uses the connecting client's bearer token. Previously a
+ * provided `account` was silently ignored and the bearer user's data returned
+ * (discussion #467). Returns an error message when an `account` param is
+ * provided that the bearer identity cannot honor; a param matching the bearer's
+ * own identity passes through. Returns null when account routing via the MSAL
+ * cache is available (stdio mode, or HTTP with --trust-proxy-auth).
+ */
+async function checkAccountParamInBearerMode(
+  accountParam: string | undefined,
+  authManager?: AuthManager
+): Promise<string | null> {
+  if (!accountParam || !authManager) return null;
+  const contextToken = getRequestTokens()?.accessToken;
+  if (!contextToken && !authManager.isOAuthModeEnabled()) return null;
+  const bearerToken = contextToken ?? (await authManager.getToken().catch(() => null)) ?? undefined;
+  const bearerIdentity = getUserIdentityForAudit(bearerToken);
+  if (bearerIdentity && bearerIdentity.toLowerCase() === accountParam.toLowerCase()) return null;
+  return (
+    `The 'account' parameter is not supported in HTTP/OAuth mode: every request uses the identity ` +
+    `of the connecting client's bearer token` +
+    (bearerIdentity ? ` ('${bearerIdentity}')` : '') +
+    `, so account switching is not possible. To act as '${accountParam}', reconnect the MCP client ` +
+    `authenticated as that account, or run the server in stdio mode (or HTTP with --trust-proxy-auth) ` +
+    `where cached accounts are available.`
+  );
 }
 
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
@@ -241,6 +337,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         };
       }
       try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
         let accountAccessToken: string | undefined;
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
@@ -282,13 +385,30 @@ async function executeGraphTool(
   authManager?: AuthManager
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+
+  const requestId = randomUUID();
+  const startTime = Date.now();
+  const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
+  const httpMethod = tool.method.toUpperCase();
+
   try {
+    const accountParam = params.account as string | undefined;
+
+    // In OAuth/HTTP bearer mode, refuse an `account` param that doesn't match the bearer
+    // identity instead of silently returning the bearer user's data (discussion #467).
+    const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+    if (accountModeError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+        isError: true,
+      };
+    }
+
     // Resolve account-specific token if `account` parameter is provided (or auto-resolve for single account).
     // Skip in OAuth/HTTP mode — let the request context drive token selection via GraphClient.
     // Also skip when a request-context token exists (HTTP/OAuth flow where token comes from middleware).
     let accountAccessToken: string | undefined;
     if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
-      const accountParam = params.account as string | undefined;
       try {
         accountAccessToken = await authManager.getTokenForAccount(accountParam);
       } catch (err) {
@@ -430,6 +550,11 @@ async function executeGraphTool(
           .replace(`{${camelCaseParamName}}`, encodedValue)
           .replace(`:${camelCaseParamName}`, encodedValue);
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
+      } else if (isOdataParam) {
+        // Fallback: OData param recognised by name but absent from generated client's parameter
+        // list — forward it as a query param rather than silently dropping it.
+        queryParams[fixedParamName] = `${paramValue}`;
+        logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
       }
     }
 
@@ -497,10 +622,16 @@ async function executeGraphTool(
       excludeResponse?: boolean;
       queryParams?: Record<string, string>;
       accessToken?: string;
+      apiVersion?: string;
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    // Route beta-flagged endpoints to the /beta surface; everything else stays on v1.0.
+    if (config?.apiVersion) {
+      options.apiVersion = config.apiVersion;
+    }
 
     if (options.method !== 'GET' && body) {
       if (tool.requestFormat === 'binary' && typeof body === 'string') {
@@ -558,14 +689,20 @@ async function executeGraphTool(
     let response = await graphClient.graphRequest(path, options);
 
     const fetchAllPages = params.fetchAllPages === true;
-    if (fetchAllPages && response?.content?.[0]?.text) {
+    const paginationEnabled = paginationAllowed();
+    if (fetchAllPages && !paginationEnabled) {
+      logger.info(
+        'fetchAllPages requested but MS365_MCP_ALLOW_PAGINATION is disabled; returning first page only'
+      );
+    }
+    if (fetchAllPages && paginationEnabled && response?.content?.[0]?.text) {
       try {
         let combinedResponse = JSON.parse(response.content[0].text);
         let allItems = combinedResponse.value || [];
         let nextLink = combinedResponse['@odata.nextLink'];
         let pageCount = 1;
-        const maxPages = 100;
-        const maxItems = 10_000;
+        const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
+        const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
         // Graph only emits @odata.deltaLink on the final page of a /delta query.
         // Track it across the pagination loop so we can stamp it on the combined
         // response — otherwise fetchAllPages on a /delta endpoint silently drops
@@ -581,7 +718,9 @@ async function executeGraphTool(
           // Previously, query params were extracted into nextOptions.queryParams
           // but graphRequest/performRequest never read that field — they were lost.
           const url = new URL(nextLink);
-          const nextPath = url.pathname.replace('/v1.0', '') + url.search;
+          // nextLink is absolute and version-qualified (/v1.0/... or /beta/...). Strip the
+          // version segment so performRequest can re-apply the request's own apiVersion.
+          const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
           const nextOptions = { ...options };
 
           const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
@@ -651,13 +790,35 @@ async function executeGraphTool(
       text: item.text,
     }));
 
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: tool.alias,
+      http_method: httpMethod,
+      status: response.isError ? 'error' : 'success',
+      duration_ms: Date.now() - startTime,
+    });
+
     return {
       content,
       _meta: response._meta,
       isError: response.isError,
     };
   } catch (error) {
+    const err = error as { name?: string; code?: string | number; status?: string | number };
     logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: tool.alias,
+      http_method: httpMethod,
+      status: 'error',
+      duration_ms: Date.now() - startTime,
+      error_type: err?.name || 'Error',
+      error_code: err?.status ?? err?.code,
+    });
     return {
       content: [
         {
@@ -680,7 +841,8 @@ export function registerGraphTools(
   orgMode: boolean = false,
   authManager?: AuthManager,
   multiAccount: boolean = false,
-  accountNames: string[] = []
+  accountNames: string[] = [],
+  allowedScopesValue?: string
 ): number {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -695,8 +857,10 @@ export function registerGraphTools(
   let registeredCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
+  const allowedScopes = parseAllowedScopes(allowedScopesValue);
+  const disabledByAllowedScopes: DisabledToolScope[] = [];
 
-  for (const tool of api.endpoints) {
+  for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
       logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
@@ -722,6 +886,19 @@ export function registerGraphTools(
       continue;
     }
 
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
+      skippedCount++;
+      continue;
+    }
+
     const paramSchema: Record<string, z.ZodTypeAny> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
@@ -739,11 +916,12 @@ export function registerGraphTools(
       }
     }
 
-    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/')) {
+    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/') && paginationAllowed()) {
+      const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
       paramSchema['fetchAllPages'] = z
         .boolean()
         .describe(
-          'Follow @odata.nextLink and merge up to 100 pages into one response. ' +
+          `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
             'Can return enormous payloads—only when the user explicitly needs a full export. ' +
             'Prefer a small $top first, then paginate or narrow with $filter/$search.'
         )
@@ -867,11 +1045,19 @@ export function registerGraphTools(
     }
 
     // Build the tool description, optionally appending LLM tips
-    let toolDescription =
-      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`;
+    let toolDescription = withApiVersionPrefix(
+      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
+      endpointConfig
+    );
     if (endpointConfig?.llmTip) {
       toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
     }
+
+    // An endpoint marked readOnly in endpoints.json (e.g. a POST query like
+    // copilot-retrieve) is a read-only operation despite its write verb, so derive
+    // the hints from that flag rather than the HTTP method alone — otherwise a
+    // read-only query lands as destructiveHint:true and clients mis-rank it.
+    const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
     try {
       server.tool(
@@ -880,8 +1066,9 @@ export function registerGraphTools(
         paramSchema,
         {
           title: tool.alias,
-          readOnlyHint: tool.method.toUpperCase() === 'GET',
-          destructiveHint: ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
+          readOnlyHint: isReadOnlyTool,
+          destructiveHint:
+            !isReadOnlyTool && ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
           openWorldHint: true, // All tools call Microsoft Graph API
         },
         async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
@@ -895,6 +1082,12 @@ export function registerGraphTools(
 
   if (multiAccount) {
     logger.info('Multi-account mode: "account" parameter injected into all tool schemas');
+  }
+
+  if (disabledByAllowedScopes.length > 0) {
+    logger.info(
+      `Allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
+    );
   }
 
   const utilityCtx: UtilityToolContext = {
@@ -927,14 +1120,17 @@ export function registerGraphTools(
 export function buildToolsRegistry(
   readOnly: boolean,
   orgMode: boolean,
-  enabledToolsRegex?: RegExp
+  enabledToolsRegex?: RegExp,
+  allowedScopesValue?: string,
+  disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
 ): Map<string, { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }> {
   const toolsMap = new Map<
     string,
     { tool: (typeof api.endpoints)[0]; config: EndpointConfig | undefined }
   >();
+  const allowedScopes = parseAllowedScopes(allowedScopesValue);
 
-  for (const tool of api.endpoints) {
+  for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
     if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
@@ -949,6 +1145,18 @@ export function buildToolsRegistry(
     }
 
     if (enabledToolsRegex && !enabledToolsRegex.test(tool.alias)) {
+      continue;
+    }
+
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      disabledByAllowedScopes.push({ toolName: tool.alias, missingScopes });
       continue;
     }
 
@@ -1049,7 +1257,8 @@ export function registerDiscoveryTools(
   authManager?: AuthManager,
   multiAccount: boolean = false,
   accountNames: string[] = [],
-  enabledTools?: string
+  enabledTools?: string,
+  allowedScopesValue?: string
 ): void {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
@@ -1063,7 +1272,19 @@ export function registerDiscoveryTools(
     }
   }
 
-  const toolsRegistry = buildToolsRegistry(readOnly, orgMode, enabledToolsRegex);
+  const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const toolsRegistry = buildToolsRegistry(
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    disabledByAllowedScopes
+  );
+  if (disabledByAllowedScopes.length > 0) {
+    logger.info(
+      `Discovery mode: allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
+    );
+  }
   const utilityTools = UTILITY_TOOLS.filter((u) => {
     if (readOnly && !u.readOnlyHint) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
@@ -1093,7 +1314,10 @@ export function registerDiscoveryTools(
         name,
         method: tool.method.toUpperCase(),
         path: tool.path,
-        description: tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+        description: withApiVersionPrefix(
+          tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+          config
+        ),
         ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
       };
     }

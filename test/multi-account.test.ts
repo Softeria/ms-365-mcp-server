@@ -13,6 +13,7 @@ vi.mock('../src/logger.js', () => ({
   },
 }));
 
+vi.mock('../src/generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../src/generated/client.js', () => ({
   api: {
     endpoints: [
@@ -110,6 +111,7 @@ describe('Multi-account support', () => {
         logout: vi.fn(),
         selectAccount: vi.fn(),
         removeAccount: vi.fn(),
+        hasExpectedAccount: vi.fn().mockReturnValue(false),
       };
 
       // Simulate server boot: auth-tools first, then graph-tools
@@ -143,6 +145,8 @@ describe('Multi-account support', () => {
         logout: vi.fn(),
         selectAccount: vi.fn(),
         removeAccount: vi.fn(),
+        hasExpectedAccount: vi.fn().mockReturnValue(false),
+        isOAuthModeEnabled: vi.fn().mockReturnValue(false),
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads
@@ -177,6 +181,42 @@ describe('Multi-account support', () => {
       expect(parsed).toHaveProperty('tip');
 
       captureSpy.mockRestore();
+    });
+
+    it('should describe pinned mode instead of account switching when configured', async () => {
+      const mockAuthManager = {
+        listAccounts: vi
+          .fn()
+          .mockResolvedValue([
+            { username: 'work@company.com', name: 'Work', homeAccountId: 'secret-id-456' },
+          ]),
+        getSelectedAccountId: vi.fn().mockReturnValue('secret-id-456'),
+        testLogin: vi.fn(),
+        acquireTokenByDeviceCode: vi.fn(),
+        logout: vi.fn(),
+        selectAccount: vi.fn(),
+        removeAccount: vi.fn(),
+        hasExpectedAccount: vi.fn().mockReturnValue(true),
+        isOAuthModeEnabled: vi.fn().mockReturnValue(false),
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads
+      let listAccountsHandler: ((...args: any[]) => any) | undefined;
+      vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
+        const name = args[0];
+        const handler = args[args.length - 1];
+        if (name === 'list-accounts' && typeof handler === 'function') {
+          listAccountsHandler = handler;
+        }
+      }) as any);
+
+      registerAuthTools(server as any, mockAuthManager as any);
+
+      const result = await listAccountsHandler!({});
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.tip).toContain('Expected account pinning');
+      expect(parsed.tip).not.toContain('account parameter in any tool call');
     });
   });
 
@@ -243,6 +283,40 @@ describe('Multi-account support', () => {
         expect(message).not.toContain('secret-tenant-id');
         expect(message).toContain('Service Account');
       }
+    });
+
+    describe('pinned mode', () => {
+      it('should collapse multi-account schema injection', async () => {
+        const mockMsalApp = {
+          getTokenCache: () => ({
+            getAllAccounts: vi.fn().mockResolvedValue([
+              { username: 'user@outlook.com', name: 'User', homeAccountId: 'id-1' },
+              { username: 'work@company.com', name: 'Work', homeAccountId: 'id-2' },
+            ]),
+          }),
+        };
+        const authManager = Object.create(AuthManager.prototype) as AuthManager;
+        Object.assign(authManager as unknown as Record<string, unknown>, {
+          msalApp: mockMsalApp,
+          expectedUsername: 'work@company.com',
+          expectedHomeAccountId: null,
+        });
+
+        registerGraphTools(
+          server,
+          graphClient,
+          false,
+          undefined,
+          false,
+          authManager,
+          await authManager.isMultiAccount(),
+          ['user@outlook.com', 'work@company.com']
+        );
+
+        const toolCall = toolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
+        const schema = toolCall![2] as Record<string, unknown>;
+        expect(schema).not.toHaveProperty('account');
+      });
     });
   });
 });

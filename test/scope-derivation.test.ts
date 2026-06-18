@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildScopesFromEndpoints } from '../src/auth.js';
+import {
+  buildScopesFromEndpoints,
+  collapseScopeHierarchy,
+  parseAllowedScopes,
+  resolveAuthScopes,
+} from '../src/auth.js';
 
 describe('buildScopesFromEndpoints', () => {
   it('returns a non-empty scope set with default arguments', () => {
@@ -56,6 +61,108 @@ describe('buildScopesFromEndpoints', () => {
     it('includes Files.Read and Sites.Read.All for read-only search tools', () => {
       expect(scopes).toContain('Files.Read');
       expect(scopes).toContain('Sites.Read.All');
+    });
+  });
+});
+
+describe('allowed scope helpers', () => {
+  describe('parseAllowedScopes', () => {
+    it('returns undefined when no value is provided', () => {
+      expect(parseAllowedScopes()).toBeUndefined();
+    });
+
+    it('splits on whitespace, trims, and deduplicates scopes', () => {
+      expect(parseAllowedScopes('  Mail.Read   Files.Read\nMail.Read\tUser.Read  ')).toEqual([
+        'Mail.Read',
+        'Files.Read',
+        'User.Read',
+      ]);
+    });
+
+    it('returns an empty array for supplied empty input', () => {
+      expect(parseAllowedScopes('   ')).toEqual([]);
+    });
+  });
+
+  describe('resolveAuthScopes', () => {
+    it('uses tool-derived scopes when allowed scopes are not supplied', () => {
+      expect(
+        resolveAuthScopes({ orgMode: true, enabledTools: 'search|query', readOnly: true })
+      ).toEqual(buildScopesFromEndpoints(true, 'search|query', true));
+    });
+
+    it('filters tool-derived scopes when allowed scopes are supplied', () => {
+      expect(
+        resolveAuthScopes({
+          orgMode: true,
+          enabledTools: 'mail|drive',
+          allowedScopes: 'Mail.Read Files.Read',
+        })
+      ).toEqual(expect.arrayContaining(['Files.Read', 'Mail.Read']));
+    });
+
+    it('treats broader allowed scopes as covering narrower tool scopes', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        allowedScopes: 'Mail.ReadWrite',
+        readOnly: true,
+      });
+
+      expect(scopes).toEqual(['Mail.Read']);
+    });
+
+    it('appends extra scopes to the tool-derived scopes', () => {
+      const base = resolveAuthScopes({ enabledTools: 'list-mail-messages', readOnly: true });
+      const withExtra = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        readOnly: true,
+        extraScopes: 'CopilotPackages.ReadWrite.All',
+      });
+
+      expect(withExtra).toEqual([...base, 'CopilotPackages.ReadWrite.All']);
+    });
+
+    it('appends extra scopes even when an allowed-scopes filter is applied', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        allowedScopes: 'Mail.Read',
+        readOnly: true,
+        extraScopes: 'CopilotPackages.ReadWrite.All',
+      });
+
+      expect(scopes).toContain('Mail.Read');
+      expect(scopes).toContain('CopilotPackages.ReadWrite.All');
+    });
+
+    it('deduplicates an extra scope already derived from a tool', () => {
+      const scopes = resolveAuthScopes({
+        enabledTools: 'list-mail-messages',
+        readOnly: true,
+        extraScopes: 'Mail.Read Mail.Read',
+      });
+
+      expect(scopes.filter((s) => s === 'Mail.Read')).toHaveLength(1);
+    });
+  });
+
+  describe('collapseScopeHierarchy', () => {
+    it('expands existing ReadWrite hierarchy for diagnostics', () => {
+      expect(collapseScopeHierarchy(['Mail.ReadWrite'])).toEqual(
+        expect.arrayContaining(['Mail.ReadWrite', 'Mail.Read'])
+      );
+    });
+
+    it('treats broad .All Graph scopes as covering narrower read scopes', () => {
+      expect(collapseScopeHierarchy(['Files.ReadWrite.All', 'Sites.ReadWrite.All'])).toEqual(
+        expect.arrayContaining([
+          'Files.ReadWrite.All',
+          'Files.Read.All',
+          'Files.ReadWrite',
+          'Files.Read',
+          'Sites.ReadWrite.All',
+          'Sites.Read.All',
+        ])
+      );
     });
   });
 });
