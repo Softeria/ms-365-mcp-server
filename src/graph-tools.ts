@@ -196,6 +196,7 @@ interface UtilityTool {
   method: string;
   path: string;
   description: string;
+  searchKeywords?: string;
   buildSchema: (ctx: UtilityToolContext) => Record<string, z.ZodTypeAny>;
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
@@ -281,7 +282,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'GET',
     path: 'tool:download-bytes',
     description:
-      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }.',
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For large drive/SharePoint file content, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -295,7 +296,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               '/me/photo/$value or /users/{user-id}/photo/$value (profile photo); ' +
               '/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams chat hosted content, list-chat-message-hosted-contents returns the IDs); ' +
               '/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams channel hosted content). ' +
-              'For meeting recordings (often large), use get-meeting-recording-content which returns a URL for out-of-band download by the client.'
+              'For meeting recordings, use get-meeting-recording-content where available; Microsoft Graph returns authenticated recording bytes, not a pre-authenticated download URL.'
           ),
       };
       if (ctx.multiAccount) {
@@ -349,6 +350,246 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
         }
         return await graphClient.graphRequest(target, { accessToken: accountAccessToken });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+  {
+    name: 'get-download-url',
+    method: 'GET',
+    path: 'tool:get-download-url',
+    searchKeywords:
+      'download file download drive file download onedrive file sharepoint file download large drive file large sharepoint file large file out-of-band download pre-authenticated url',
+    description:
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. NOTE: mail file attachments (/messages/{id}/attachments/{id}/$value) and meeting recordings do NOT expose a pre-authenticated URL — Graph offers no such link for them; use download-bytes for small ones.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Relative Microsoft Graph path starting with "/". Either a driveItem content path or the item path itself, e.g. ' +
+              '/drives/{drive-id}/items/{driveItem-id}/content, /me/drive/items/{driveItem-id}/content, ' +
+              'or /sites/{site-id}/drive/items/{driveItem-id}. ' +
+              'A trailing /content is optional and is stripped automatically for drive items. Mail attachment $value paths and meeting recordings are not supported (Graph exposes no pre-authenticated URL for them).'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'target is required and must be a non-empty string.' }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!target.startsWith('/')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a relative Microsoft Graph path starting with "/", e.g. /drives/{drive-id}/items/{driveItem-id}/content.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Normalize: separate any query string and strip trailing slashes so the /content and
+      // /$value suffix checks are robust to e.g. "/content/" or "/content?select=id".
+      const queryIdx = target.indexOf('?');
+      if (queryIdx >= 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must not include query parameters. Pass the drive item /content path or item metadata path without $select, $expand, or other query options.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      const pathPart = target.replace(/\/+$/, '');
+      // Mail/event attachments expose no pre-authenticated download URL in Graph; bytes come
+      // only from base64 contentBytes or the authenticated /$value endpoint (use download-bytes).
+      // Match only real Graph mail/calendar attachment resources so driveItem path addressing
+      // with folders named messages/events/attachments is not falsely rejected.
+      if (
+        /^(\/me|\/users\/[^/]+)\/messages\/[^/]+\/attachments\//.test(pathPart) ||
+        /^(\/me|\/users\/[^/]+)\/events\/[^/]+\/attachments\//.test(pathPart) ||
+        /^\/groups\/[^/]+\/messages\/[^/]+\/attachments\//.test(pathPart) ||
+        /^\/groups\/[^/]+\/events\/[^/]+\/attachments\//.test(pathPart)
+      ) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'Mail and calendar event attachments do not expose a pre-authenticated download URL. Use download-bytes for small attachments.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Recording content endpoints return authenticated bytes, not a pre-authenticated URL.
+      if (
+        /^(\/me|\/users\/[^/]+)\/onlineMeetings\/[^/]+\/recordings\/[^/]+(?:\/content)?$/.test(
+          pathPart
+        ) ||
+        /^\/communications\/calls\/[^/]+\/recordings\/[^/]+(?:\/content)?$/.test(pathPart)
+      ) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'Meeting recordings do not expose a pre-authenticated download URL. Use download-bytes for small recordings or get-meeting-recording-content where available.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Other /$value byte endpoints (profile photo, Teams hosted content) likewise have no URL.
+      if (pathPart.endsWith('/$value')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  '$value byte endpoints do not expose a pre-authenticated download URL. Use download-bytes to read these bytes.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      const isDriveItemById =
+        /^\/drives\/[^/]+\/items\/[^/]+(?:\/content)?$/.test(pathPart) ||
+        /^\/(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/drive\/items\/[^/]+(?:\/content)?$/.test(
+          pathPart
+        ) ||
+        /^\/(?:groups\/[^/]+|sites\/[^/]+)\/drives\/[^/]+\/items\/[^/]+(?:\/content)?$/.test(
+          pathPart
+        );
+      const isDriveItemByPath =
+        /^\/drives\/[^/]+\/root:\/.+:(?:\/content)?$/.test(pathPart) ||
+        /^\/(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/drive\/root:\/.+:(?:\/content)?$/.test(
+          pathPart
+        ) ||
+        /^\/(?:groups\/[^/]+|sites\/[^/]+)\/drives\/[^/]+\/root:\/.+:(?:\/content)?$/.test(
+          pathPart
+        );
+      if (!isDriveItemById && !isDriveItemByPath) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must identify a driveItem in OneDrive or SharePoint. Use a drive item metadata path or /content path, such as /drives/{drive-id}/items/{driveItem-id}/content, /me/drive/items/{driveItem-id}, /sites/{site-id}/drive/items/{driveItem-id}, or /me/drive/root:/path/file.ext:/content. Other Graph byte resources must use download-bytes.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // The downloadUrl lives on driveItem metadata, not the /content sub-resource.
+      // Only strip true Graph content endpoints: ID-addressed /items/{id}/content
+      // and path-addressed root:/path/file:/content. A drive item can itself be
+      // named "content", so a plain trailing /content is not enough.
+      const isDriveContentEndpoint =
+        /\/items\/[^/]+\/content$/.test(pathPart) || pathPart.endsWith(':/content');
+      const itemPath = isDriveContentEndpoint ? pathPart.slice(0, -'/content'.length) : pathPart;
+      try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
+
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        const response = await graphClient.graphRequest(itemPath, {
+          accessToken: accountAccessToken,
+        });
+        // graphRequest swallows Graph HTTP errors and returns { isError: true } (see
+        // graph-client.ts); surface the real error (401/403/404/429/...) instead of masking
+        // it as "no download URL available".
+        if (response?.isError) {
+          return response;
+        }
+        const text = response?.content?.[0]?.text;
+        let item: Record<string, unknown> | undefined;
+        if (typeof text === 'string') {
+          try {
+            item = JSON.parse(text);
+          } catch {
+            item = undefined;
+          }
+        }
+        const downloadUrl = item?.['@microsoft.graph.downloadUrl'] as string | undefined;
+        if (!downloadUrl) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error:
+                    'No pre-authenticated download URL is available for this resource. It may not be a drive item, or it exposes bytes only via download-bytes.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        const file = item?.file as { mimeType?: string } | undefined;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                downloadUrl,
+                name: item?.name,
+                size: item?.size,
+                contentType: file?.mimeType,
+              }),
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
@@ -1208,8 +1449,20 @@ export function buildDiscoverySearchIndex(
     const nt = tokenize(utility.name);
     nameTokens.set(utility.name, new Set(nt));
     const pathTokens = tokenize(utility.path);
+    const keywordTokens = tokenize(utility.searchKeywords);
     const descTokens = tokenize(utility.description).slice(0, DESC_CAP_TOKENS);
-    const tokens = [...nt, ...nt, ...nt, ...nt, ...nt, ...pathTokens, ...pathTokens, ...descTokens];
+    const tokens = [
+      ...nt,
+      ...nt,
+      ...nt,
+      ...nt,
+      ...nt,
+      ...pathTokens,
+      ...pathTokens,
+      ...keywordTokens,
+      ...keywordTokens,
+      ...descTokens,
+    ];
     docs.push({ id: utility.name, tokens });
   }
   return { bm25: buildBM25Index(docs), nameTokens };

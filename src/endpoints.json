@@ -594,7 +594,7 @@
     "toolName": "get-drive-item",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
-    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For the bytes, call download-bytes with target=/drives/{drive-id}/items/{driveItem-id}/content (Graph redirects to the same downloadUrl)."
+    "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For large drive/SharePoint files, call get-download-url with target=/drives/{drive-id}/items/{driveItem-id}/content to fetch out-of-band with no Authorization header. For small files where base64 in the tool response is acceptable, call download-bytes with the same /content target."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -1904,8 +1904,7 @@
     "toolName": "get-meeting-recording-content",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetingRecording.Read.All"],
-    "returnDownloadUrl": true,
-    "llmTip": "Returns a temporary download URL for the meeting recording in MP4 format. Use the download URL to access the video file. The recording may be large — do not attempt to stream it inline."
+    "llmTip": "Returns the authenticated meeting recording video bytes in MP4 format. The recording may be large; prefer out-of-band handling by the client when possible, but Microsoft Graph does not expose a pre-authenticated download URL for this resource."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/attendanceReports",
