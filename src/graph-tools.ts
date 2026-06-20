@@ -43,6 +43,10 @@ interface EndpointConfig {
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
   llmTip?: string;
+  // Replaces the Microsoft-supplied base description everywhere it is surfaced (tool
+  // registration, BM25 discovery index, search-tools, get-tool-schema). Use when the
+  // generated description leads with the wrong Graph operation. llmTip is still appended after.
+  descriptionOverride?: string;
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
@@ -1046,7 +1050,8 @@ export function registerGraphTools(
 
     // Build the tool description, optionally appending LLM tips
     let toolDescription = withApiVersionPrefix(
-      tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
+      (endpointConfig?.descriptionOverride ?? tool.description) ||
+        `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
       endpointConfig
     );
     if (endpointConfig?.llmTip) {
@@ -1189,7 +1194,10 @@ export function buildDiscoverySearchIndex(
     const nt = tokenize(name);
     nameTokens.set(name, new Set(nt));
     const pathTokens = tokenize(tool.path);
-    const descTokens = tokenize(tool.description).slice(0, DESC_CAP_TOKENS);
+    const descTokens = tokenize(config?.descriptionOverride ?? tool.description).slice(
+      0,
+      DESC_CAP_TOKENS
+    );
     const tipTokens = tokenize(config?.llmTip).slice(0, TIP_EXCERPT_TOKENS);
     const tokens = [
       ...nt,
@@ -1315,7 +1323,8 @@ export function registerDiscoveryTools(
         method: tool.method.toUpperCase(),
         path: tool.path,
         description: withApiVersionPrefix(
-          tool.description || `${tool.method.toUpperCase()} ${tool.path}`,
+          (config?.descriptionOverride ?? tool.description) ||
+            `${tool.method.toUpperCase()} ${tool.path}`,
           config
         ),
         ...(config?.llmTip ? { llmTip: config.llmTip } : {}),
@@ -1402,7 +1411,11 @@ export function registerDiscoveryTools(
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
       if (entry) {
-        const schema = describeToolSchema(entry.tool, entry.config?.llmTip);
+        const schema = describeToolSchema(
+          entry.tool,
+          entry.config?.llmTip,
+          entry.config?.descriptionOverride
+        );
         return {
           content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };

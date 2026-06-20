@@ -19,7 +19,8 @@ function unwrapOptional(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: 
  */
 export function describeToolSchema(
   tool: ToolEndpoint,
-  llmTip: string | undefined
+  llmTip: string | undefined,
+  descriptionOverride?: string
 ): {
   name: string;
   method: string;
@@ -52,7 +53,7 @@ export function describeToolSchema(
     name: tool.alias,
     method: tool.method.toUpperCase(),
     path: tool.path,
-    description: tool.description ?? '',
+    description: descriptionOverride ?? tool.description ?? '',
     ...(llmTip ? { llmTip } : {}),
     parameters: params,
   };

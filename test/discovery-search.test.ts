@@ -36,6 +36,10 @@ const cases: Case[] = [
   // Calendar
   { query: 'create calendar event', expect: 'create-calendar-event', inTop: 5 },
   { query: 'create event', expect: 'create-calendar-event', inTop: 5 },
+  // Semantic queries that don't contain the tool name — these rely on the description
+  // override (the Microsoft-supplied base description leads with unrelated boilerplate).
+  { query: 'schedule a meeting', expect: 'create-calendar-event', inTop: 5 },
+  { query: 'add appointment to calendar', expect: 'create-calendar-event', inTop: 5 },
   { query: 'list calendars', expect: 'list-calendars', inTop: 3 },
   { query: 'list calendar events', expect: 'list-calendar-events', inTop: 5 },
   { query: 'accept event', expect: 'accept-calendar-event', inTop: 5 },
