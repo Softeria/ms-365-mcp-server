@@ -22,6 +22,10 @@ function topN(query: string, n: number): string[] {
     .map((r) => r.id);
 }
 
+function top1(query: string): string | undefined {
+  return topN(query, 1)[0];
+}
+
 type Case = { query: string; expect: string; inTop?: number };
 
 const cases: Case[] = [
@@ -51,6 +55,9 @@ const cases: Case[] = [
   { query: 'onedrive folder', expect: 'create-onedrive-folder', inTop: 10 },
   { query: 'upload file', expect: 'upload-file-content', inTop: 5 },
   { query: 'download file', expect: 'download-bytes', inTop: 5 },
+  { query: 'download drive file', expect: 'get-download-url', inTop: 1 },
+  { query: 'sharepoint file download', expect: 'get-download-url', inTop: 1 },
+  { query: 'large drive file', expect: 'get-download-url', inTop: 1 },
   { query: 'download bytes', expect: 'download-bytes', inTop: 5 },
   { query: 'profile photo', expect: 'download-bytes', inTop: 10 },
   { query: 'parse teams url', expect: 'parse-teams-url', inTop: 5 },
@@ -79,6 +86,12 @@ describe('discovery search (golden queries)', () => {
 
   it('returns empty for gibberish queries', () => {
     expect(scoreDiscoveryQuery('zzzqqqxxxfoobarbaz', index)).toEqual([]);
+  });
+
+  it('prefers out-of-band URLs for drive and SharePoint file download queries', () => {
+    expect(top1('download drive file')).toBe('get-download-url');
+    expect(top1('sharepoint file download')).toBe('get-download-url');
+    expect(top1('large drive file')).toBe('get-download-url');
   });
 
   it('covers at least 80% of golden queries in top 5', () => {
