@@ -343,7 +343,7 @@ class MicrosoftGraphServer {
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
           authorization_endpoint: `${browserBase}/authorize`,
-          token_endpoint: `${requestOrigin}/token`,
+          token_endpoint: `${browserBase}/token`,
           response_types_supported: ['code'],
           response_modes_supported: ['query'],
           grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -353,7 +353,7 @@ class MicrosoftGraphServer {
         };
 
         if (this.options.enableDynamicRegistration) {
-          metadata.registration_endpoint = `${requestOrigin}/register`;
+          metadata.registration_endpoint = `${browserBase}/register`;
         }
 
         res.json(metadata);
