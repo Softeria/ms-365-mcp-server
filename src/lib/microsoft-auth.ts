@@ -2,10 +2,41 @@ import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
 import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
-function buildWwwAuthenticate(req: Request, error: string, description: string): string {
+/**
+ * Build the resource_metadata URL per RFC 9728 §3.1.
+ * (https://www.rfc-editor.org/rfc/rfc9728.html#name-protected-resource-metadata-)
+ *
+ * When the resource identifier has a path component that should be seen as the resource path.
+ * And thus be inserted in the end of the well-known URI.
+ *
+ *   https://example.com                   → https://example.com/.well-known/oauth-protected-resource
+ *   https://example.com/tenant/ms-365-mcp → https://example.com/.well-known/oauth-protected-resource/tenant/ms-365-mcp
+ *
+ * When publicUrl is absent the request Host
+ * header is used as the origin and no additional path component is appended.
+ */
+function buildResourceMetadataUrl(req: Request, publicUrl?: string | null): string {
+  if (publicUrl) {
+    const parsed = new URL(publicUrl);
+    // If the resource identifier value contains a path or query component,
+    // any terminating slash (/) following the host component MUST be removed
+    // before inserting /.well-known/ and the well-known URI path suffix
+    // between the host component and the path and/or query components
+    const path = parsed.pathname.replace(/\/$/, '');
+    return `${parsed.origin}/.well-known/oauth-protected-resource${path}`;
+  }
   const protocol = req.secure ? 'https' : 'http';
   const origin = `${protocol}://${req.get('host')}`;
-  const resourceMetadata = `${origin}/.well-known/oauth-protected-resource`;
+  return `${origin}/.well-known/oauth-protected-resource`;
+}
+
+function buildWwwAuthenticate(
+  req: Request,
+  error: string,
+  description: string,
+  publicUrl?: string | null
+): string {
+  const resourceMetadata = buildResourceMetadataUrl(req, publicUrl);
   return `Bearer resource_metadata="${resourceMetadata}", error="${error}", error_description="${description}"`;
 }
 
@@ -58,7 +89,13 @@ function isDiscoveryRequest(req: Request): boolean {
  * default; non-discovery requests (e.g. tools/call) always still require a token.
  */
 export const microsoftBearerTokenAuthMiddleware =
-  (opts: { trustProxyAuth?: boolean; allowUnauthenticatedDiscovery?: boolean } = {}) =>
+  (
+    opts: {
+      trustProxyAuth?: boolean;
+      allowUnauthenticatedDiscovery?: boolean;
+      publicUrl?: string | null;
+    } = {}
+  ) =>
   (
     req: Request & { microsoftAuth?: { accessToken: string } },
     res: Response,
@@ -80,7 +117,12 @@ export const microsoftBearerTokenAuthMiddleware =
         .status(401)
         .set(
           'WWW-Authenticate',
-          buildWwwAuthenticate(req, 'invalid_token', 'Missing or malformed Authorization header')
+          buildWwwAuthenticate(
+            req,
+            'invalid_token',
+            'Missing or malformed Authorization header',
+            opts.publicUrl
+          )
         )
         .json({
           error: 'invalid_token',
@@ -96,7 +138,7 @@ export const microsoftBearerTokenAuthMiddleware =
         .status(401)
         .set(
           'WWW-Authenticate',
-          buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired')
+          buildWwwAuthenticate(req, 'invalid_token', 'The access token has expired', opts.publicUrl)
         )
         .json({ error: 'invalid_token', error_description: 'The access token has expired' });
       return;

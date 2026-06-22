@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
-import express, { Request, Response } from 'express';
+import express, { Handler, Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import logger, { enableConsoleLogging } from './logger.js';
@@ -343,7 +343,7 @@ class MicrosoftGraphServer {
         const metadata: Record<string, unknown> = {
           issuer: browserBase,
           authorization_endpoint: `${browserBase}/authorize`,
-          token_endpoint: `${requestOrigin}/token`,
+          token_endpoint: `${browserBase}/token`,
           response_types_supported: ['code'],
           response_modes_supported: ['query'],
           grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -353,14 +353,14 @@ class MicrosoftGraphServer {
         };
 
         if (this.options.enableDynamicRegistration) {
-          metadata.registration_endpoint = `${requestOrigin}/register`;
+          metadata.registration_endpoint = `${browserBase}/register`;
         }
 
         res.json(metadata);
       });
 
       // OAuth Protected Resource Discovery
-      app.get('/.well-known/oauth-protected-resource', async (req, res) => {
+      const protectedResourcesHandler: Handler = async (req, res) => {
         const protocol = req.secure ? 'https' : 'http';
         const requestOrigin = `${protocol}://${req.get('host')}`;
         const browserBase = publicBase ?? requestOrigin;
@@ -374,13 +374,16 @@ class MicrosoftGraphServer {
           : resolveAuthScopes(this.options);
 
         res.json({
-          resource: `${requestOrigin}/mcp`,
+          resource: `${browserBase}/mcp`,
           authorization_servers: [browserBase],
           scopes_supported: scopes,
           bearer_methods_supported: ['header'],
           resource_documentation: browserBase,
         });
-      });
+      };
+
+      app.get('/.well-known/oauth-protected-resource', protectedResourcesHandler);
+      app.get('/.well-known/oauth-protected-resource/*path', protectedResourcesHandler);
 
       if (this.options.enableDynamicRegistration) {
         app.post('/register', async (req, res) => {
@@ -687,6 +690,7 @@ class MicrosoftGraphServer {
       const mcpAuth = microsoftBearerTokenAuthMiddleware({
         trustProxyAuth: this.options.trustProxyAuth,
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
+        publicUrl: publicBase,
       });
       app.get(
         '/mcp',
