@@ -81,7 +81,11 @@
     "toolName": "send-mail",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Send"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. To use a local .html/.txt file as the message body, set 'bodyFilePath' to its path (stdio mode only); the server writes the file contents into the message's body. Keep passing recipients/subject under the normal Message wrapper, e.g. body = { \"Message\": { \"subject\": \"...\", \"toRecipients\": [...] } }. Do NOT also set Message.body.content yourself — the file overrides it.",
+    "bodyFile": {
+      "contentTarget": "Message.body.content",
+      "contentTypeTarget": "Message.body.contentType"
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages",
@@ -112,14 +116,20 @@
     "toolName": "send-shared-mailbox-mail",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
-    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
+    "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. To use a local .html/.txt file as the message body, set 'bodyFilePath' to its path (stdio mode only); the server writes the file contents into the message's body. Keep passing recipients/subject under the normal Message wrapper, e.g. body = { \"Message\": { \"subject\": \"...\", \"toRecipients\": [...] } }. Do NOT also set Message.body.content yourself — the file overrides it.",
+    "bodyFile": {
+      "contentTarget": "Message.body.content",
+      "contentTypeTarget": "Message.body.contentType"
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages",
     "method": "post",
     "toolName": "create-shared-mailbox-draft",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "To use a local .html/.txt file as the draft body, set 'bodyFilePath' to its path (stdio mode only) and still pass recipients/subject in 'body'; the file contents override any inline body content.",
+    "bodyFile": { "contentTarget": "body.content", "contentTypeTarget": "body.contentType" }
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
@@ -158,7 +168,9 @@
     "method": "post",
     "toolName": "create-draft-email",
     "presets": ["mail", "outlook", "personal"],
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "To use a local .html/.txt file as the draft body, set 'bodyFilePath' to its path (stdio mode only) and still pass recipients/subject in 'body'; the file contents override any inline body content.",
+    "bodyFile": { "contentTarget": "body.content", "contentTypeTarget": "body.contentType" }
   },
   {
     "pathPattern": "/me/messages/{message-id}",

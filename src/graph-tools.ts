@@ -22,6 +22,12 @@ import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import {
+  applyBodyFile,
+  inferContentType,
+  type BodyFileConfig,
+  type BodyFileContentType,
+} from './lib/body-file.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
@@ -53,6 +59,10 @@ interface EndpointConfig {
   // to synthesize a typed requestBody (instead of a generic object), so the generated client
   // exposes a validated `body` param. Ignored for endpoints already present in the spec.
   requestBodySchema?: Record<string, unknown>;
+  // When set, a `bodyFilePath` parameter is offered (stdio mode only) that reads a
+  // local file and writes its contents into the request body at `contentTarget`
+  // (and the inferred/explicit content type at `contentTypeTarget`).
+  bodyFile?: BodyFileConfig;
 }
 
 const endpointsData = JSON.parse(
@@ -382,7 +392,8 @@ async function executeGraphTool(
   config: EndpointConfig | undefined,
   graphClient: GraphClient,
   params: Record<string, unknown>,
-  authManager?: AuthManager
+  authManager?: AuthManager,
+  allowFileBody: boolean = false
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
 
@@ -426,6 +437,33 @@ async function executeGraphTool(
 
     const parameterDefinitions = tool.parameters || [];
 
+    // When a local file is supplied as the email body, read it and merge its
+    // contents into the caller-provided `body` at the endpoint's configured path.
+    // Gated on stdio mode (allowFileBody) so it is never reachable in HTTP/OBO.
+    if (allowFileBody && config?.bodyFile && typeof params.bodyFilePath === 'string') {
+      const bodyFilePath = params.bodyFilePath;
+      let fileContent: string;
+      try {
+        fileContent = readFileSync(bodyFilePath, 'utf8');
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `Failed to read body file '${bodyFilePath}': ${(err as Error).message}`,
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      const contentType: BodyFileContentType =
+        (params.bodyContentType as BodyFileContentType | undefined) ??
+        inferContentType(bodyFilePath);
+      params.body = applyBodyFile(params.body, config.bodyFile, fileContent, contentType);
+    }
+
     let path = tool.path;
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
@@ -441,6 +479,8 @@ async function executeGraphTool(
           'excludeResponse',
           'timezone',
           'expandExtendedProperties',
+          'bodyFilePath',
+          'bodyContentType',
         ].includes(paramName)
       ) {
         continue;
@@ -842,7 +882,8 @@ export function registerGraphTools(
   authManager?: AuthManager,
   multiAccount: boolean = false,
   accountNames: string[] = [],
-  allowedScopesValue?: string
+  allowedScopesValue?: string,
+  allowFileBody: boolean = false
 ): number {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -1044,6 +1085,28 @@ export function registerGraphTools(
         .optional();
     }
 
+    // Add bodyFilePath parameter for mail endpoints that support reading the body
+    // from a local file. Only offered in stdio mode (allowFileBody) — in HTTP/OBO
+    // mode the filesystem belongs to the server host, not the caller, so exposing a
+    // path parameter would be a local-file-read vector.
+    if (allowFileBody && endpointConfig?.bodyFile) {
+      paramSchema['bodyFilePath'] = z
+        .string()
+        .describe(
+          'Path to a local .html/.txt file (absolute, or relative to the server working directory) whose contents become the email body. ' +
+            'Still pass recipients/subject in "body"; the file contents override any inline body content.'
+        )
+        .optional();
+      if (endpointConfig.bodyFile.contentTypeTarget) {
+        paramSchema['bodyContentType'] = z
+          .enum(['html', 'text'])
+          .describe(
+            'Content type for the file body. Inferred from the file extension (.html/.htm → html, else text) when omitted.'
+          )
+          .optional();
+      }
+    }
+
     // Build the tool description, optionally appending LLM tips
     let toolDescription = withApiVersionPrefix(
       tool.description || `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
@@ -1071,7 +1134,8 @@ export function registerGraphTools(
             !isReadOnlyTool && ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
           openWorldHint: true, // All tools call Microsoft Graph API
         },
-        async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
+        async (params) =>
+          executeGraphTool(tool, endpointConfig, graphClient, params, authManager, allowFileBody)
       );
       registeredCount++;
     } catch (error) {

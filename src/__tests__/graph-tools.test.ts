@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
+import os from 'os';
+import path from 'path';
+import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 
 /**
  * We test executeGraphTool logic by importing it indirectly through registerGraphTools.
@@ -1148,6 +1151,263 @@ describe('graph-tools', () => {
       // readOnlyHint: true so they should be present.
       expect(server.tools.has('download-bytes')).toBe(true);
       expect(server.tools.has('parse-teams-url')).toBe(true);
+    });
+  });
+
+  // ---- email body from a local file (bodyFilePath) ----
+  describe('email body from file', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(path.join(os.tmpdir(), 'ms365-body-file-'));
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function sendMailSetup() {
+      const endpoint = makeEndpoint({
+        alias: 'send-mail',
+        method: 'post',
+        path: '/me/sendMail',
+        parameters: [{ name: 'body', type: 'Body', schema: z.any() }],
+      });
+      const config = makeConfig({
+        toolName: 'send-mail',
+        method: 'post',
+        pathPattern: '/me/sendMail',
+        scopes: ['Mail.Send'],
+        // Graph's sendMail action wraps the message in capital `Message`.
+        bodyFile: {
+          contentTarget: 'Message.body.content',
+          contentTypeTarget: 'Message.body.contentType',
+        },
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+    }
+
+    function draftSetup() {
+      const endpoint = makeEndpoint({
+        alias: 'create-draft-email',
+        method: 'post',
+        path: '/me/messages',
+        parameters: [{ name: 'body', type: 'Body', schema: z.any() }],
+      });
+      const config = makeConfig({
+        toolName: 'create-draft-email',
+        method: 'post',
+        pathPattern: '/me/messages',
+        scopes: ['Mail.ReadWrite'],
+        bodyFile: { contentTarget: 'body.content', contentTypeTarget: 'body.contentType' },
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+    }
+
+    // allowFileBody is the 10th positional arg to registerGraphTools.
+    async function register(graphClient: any, allowFileBody = true) {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        allowFileBody
+      );
+      return server;
+    }
+
+    it('reads an .html file into Message.body.content and infers contentType=html', async () => {
+      sendMailSetup();
+      const htmlPath = path.join(tmpDir, 'newsletter.html');
+      writeFileSync(htmlPath, '<h1>Hello</h1><p>From a file</p>');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({
+        body: {
+          Message: { subject: 'Hi', toRecipients: [{ emailAddress: { address: 'a@b.com' } }] },
+        },
+        bodyFilePath: htmlPath,
+      });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      expect(sent.Message.body.content).toBe('<h1>Hello</h1><p>From a file</p>');
+      expect(sent.Message.body.contentType).toBe('html');
+      // Caller-provided fields are preserved.
+      expect(sent.Message.subject).toBe('Hi');
+      expect(sent.Message.toRecipients).toEqual([{ emailAddress: { address: 'a@b.com' } }]);
+    });
+
+    it('writes into the caller Message wrapper without creating a duplicate key (issue: duplicate Message property)', async () => {
+      // Reproduces the Graph 500 "Property with the same name already exists":
+      // the caller (correctly) wraps recipients under `Message`; the merge must
+      // land inside it, not add a lowercase `message`.
+      sendMailSetup();
+      const htmlPath = path.join(tmpDir, 'briefing.html');
+      writeFileSync(htmlPath, '<h1>Briefing</h1>');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({
+        body: {
+          Message: { subject: 'Test', toRecipients: [{ emailAddress: { address: 'romeo@x.io' } }] },
+          SaveToSentItems: true,
+        },
+        bodyFilePath: htmlPath,
+        bodyContentType: 'html',
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      // Exactly one message wrapper — no lowercase `message` duplicate.
+      expect(Object.keys(sent).sort()).toEqual(['Message', 'SaveToSentItems']);
+      expect(sent.message).toBeUndefined();
+      expect(sent.Message.body).toEqual({ content: '<h1>Briefing</h1>', contentType: 'html' });
+      expect(sent.Message.toRecipients).toEqual([{ emailAddress: { address: 'romeo@x.io' } }]);
+      expect(sent.Message.subject).toBe('Test');
+      expect(sent.SaveToSentItems).toBe(true);
+    });
+
+    it('reuses a lowercase `message` wrapper case-insensitively', async () => {
+      // Even if a caller uses lowercase `message`, the configured `Message.*`
+      // target must reuse it rather than add a second key.
+      sendMailSetup();
+      const htmlPath = path.join(tmpDir, 'lower.html');
+      writeFileSync(htmlPath, 'hi');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({
+        body: { message: { toRecipients: [{ emailAddress: { address: 'a@b.com' } }] } },
+        bodyFilePath: htmlPath,
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      expect(Object.keys(sent)).toEqual(['message']);
+      expect(sent.Message).toBeUndefined();
+      expect(sent.message.body.content).toBe('hi');
+      expect(sent.message.toRecipients).toEqual([{ emailAddress: { address: 'a@b.com' } }]);
+    });
+
+    it('reads a .txt file into a draft body and infers contentType=text', async () => {
+      draftSetup();
+      const txtPath = path.join(tmpDir, 'body.txt');
+      writeFileSync(txtPath, 'plain text body');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('create-draft-email')!.handler({
+        body: { subject: 'Draft', toRecipients: [{ emailAddress: { address: 'a@b.com' } }] },
+        bodyFilePath: txtPath,
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      expect(sent.body.content).toBe('plain text body');
+      expect(sent.body.contentType).toBe('text');
+      expect(sent.subject).toBe('Draft');
+    });
+
+    it('lets an explicit bodyContentType override extension inference', async () => {
+      sendMailSetup();
+      const txtPath = path.join(tmpDir, 'body.txt');
+      writeFileSync(txtPath, '<b>actually html</b>');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({
+        body: { Message: { subject: 'Hi' } },
+        bodyFilePath: txtPath,
+        bodyContentType: 'html',
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      expect(sent.Message.body.contentType).toBe('html');
+      expect(sent.Message.body.content).toBe('<b>actually html</b>');
+    });
+
+    it('returns an error and skips the Graph call when the file is missing', async () => {
+      sendMailSetup();
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      const result = await server.tools.get('send-mail')!.handler({
+        body: { message: { subject: 'Hi' } },
+        bodyFilePath: path.join(tmpDir, 'does-not-exist.html'),
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Failed to read body file');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('overrides inline content already present in the body', async () => {
+      sendMailSetup();
+      const htmlPath = path.join(tmpDir, 'override.html');
+      writeFileSync(htmlPath, 'FROM FILE');
+
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({
+        body: { Message: { body: { content: 'INLINE', contentType: 'text' } } },
+        bodyFilePath: htmlPath,
+      });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      const sent = JSON.parse(options.body);
+      expect(sent.Message.body.content).toBe('FROM FILE');
+      expect(sent.Message.body.contentType).toBe('html');
+    });
+
+    it('leaves the request unchanged when no bodyFilePath is given (regression)', async () => {
+      sendMailSetup();
+      const inline = {
+        Message: {
+          subject: 'Inline',
+          body: { contentType: 'html', content: '<p>inline</p>' },
+          toRecipients: [{ emailAddress: { address: 'a@b.com' } }],
+        },
+      };
+      const graphClient = createMockGraphClient([{ content: [{ type: 'text', text: '{}' }] }]);
+      const server = await register(graphClient);
+
+      await server.tools.get('send-mail')!.handler({ body: inline });
+
+      const [, options] = graphClient.graphRequest.mock.calls[0];
+      expect(JSON.parse(options.body)).toEqual(inline);
+    });
+
+    it('does not expose bodyFilePath in the schema when file body is disallowed (HTTP mode)', async () => {
+      sendMailSetup();
+      const serverOff = await register({}, false);
+      expect(serverOff.tools.get('send-mail')!.schema.bodyFilePath).toBeUndefined();
+      expect(serverOff.tools.get('send-mail')!.schema.bodyContentType).toBeUndefined();
+
+      // Sanity: the param IS offered when allowed.
+      mockEndpoints.length = 0;
+      sendMailSetup();
+      const serverOn = await register({}, true);
+      expect(serverOn.tools.get('send-mail')!.schema.bodyFilePath).toBeDefined();
+      expect(serverOn.tools.get('send-mail')!.schema.bodyContentType).toBeDefined();
     });
   });
 });
