@@ -1,6 +1,6 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AuthManager from '../src/auth.js';
+import AuthManager, { buildDiskCoherencyCachePlugin } from '../src/auth.js';
 import { clearSecretsCache } from '../src/secrets.js';
 import { shouldUseLocalAuthStorage } from '../src/startup-pinning.js';
 import type { TokenCacheStorage } from '../src/token-cache-storage.js';
@@ -148,6 +148,98 @@ describe('AuthManager token cache storage', () => {
 
     const storage = (auth as unknown as { storage: TokenCacheStorage }).storage;
     expect(storage.description).toBe('default (keytar+file)');
+  });
+});
+
+interface FakeTokenCacheContext {
+  cacheHasChanged: boolean;
+  tokenCache: {
+    serialize: () => string;
+    deserialize: (data: string) => void;
+  };
+}
+
+function fakeContext(
+  serialized: string,
+  cacheHasChanged: boolean
+): { context: FakeTokenCacheContext; deserialized: string[] } {
+  const deserialized: string[] = [];
+  return {
+    deserialized,
+    context: {
+      cacheHasChanged,
+      tokenCache: {
+        serialize: () => serialized,
+        deserialize: (data: string) => {
+          deserialized.push(data);
+        },
+      },
+    },
+  };
+}
+
+describe('disk coherency cache plugin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps sibling processes coherent: A persists a rotation, B reloads it', async () => {
+    // One shared cache "file" backing two independent processes.
+    let diskRaw: string | undefined;
+    const storage = createStorage({
+      load: vi.fn(async () => diskRaw),
+      save: vi.fn(async (_key: string, value: string) => {
+        diskRaw = value;
+      }),
+    });
+
+    // Process A refreshes and rotates the refresh token, MSAL marks the cache changed.
+    const pluginA = buildDiskCoherencyCachePlugin(storage);
+    const a = fakeContext('rotated-cache', true);
+    await pluginA.afterCacheAccess!(a.context as never);
+    expect(storage.save).toHaveBeenCalledWith('token-cache', expect.any(String));
+    expect(unwrapCache(diskRaw!).data).toBe('rotated-cache');
+
+    // Process B accesses its cache later and must pick up A's rotation from disk.
+    const pluginB = buildDiskCoherencyCachePlugin(storage);
+    const b = fakeContext('stale-cache', false);
+    await pluginB.beforeCacheAccess!(b.context as never);
+    expect(b.deserialized).toEqual(['rotated-cache']);
+  });
+
+  it('does not persist when MSAL reports the cache is unchanged', async () => {
+    const storage = createStorage();
+    const plugin = buildDiskCoherencyCachePlugin(storage);
+    const { context } = fakeContext('unchanged-cache', false);
+
+    await plugin.afterCacheAccess!(context as never);
+
+    expect(storage.save).not.toHaveBeenCalled();
+  });
+
+  it('rethrows fail-closed reload errors', async () => {
+    const storage = createStorage({
+      failClosed: true,
+      load: vi.fn().mockRejectedValue(new Error('storage unavailable')),
+    });
+    const plugin = buildDiskCoherencyCachePlugin(storage);
+    const { context } = fakeContext('cache', false);
+
+    await expect(plugin.beforeCacheAccess!(context as never)).rejects.toThrow(
+      /storage unavailable/
+    );
+  });
+
+  it('swallows best-effort reload errors for non-strict storage', async () => {
+    const storage = createStorage({
+      failClosed: false,
+      load: vi.fn().mockRejectedValue(new Error('best-effort miss')),
+    });
+    const plugin = buildDiskCoherencyCachePlugin(storage);
+    const { context, deserialized } = fakeContext('cache', false);
+
+    await expect(plugin.beforeCacheAccess!(context as never)).resolves.toBeUndefined();
+    expect(deserialized).toEqual([]);
   });
 });
 

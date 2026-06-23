@@ -1,4 +1,4 @@
-import type { AccountInfo, Configuration } from '@azure/msal-node';
+import type { AccountInfo, Configuration, ICachePlugin, TokenCacheContext } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
 import { readFileSync } from 'fs';
@@ -51,6 +51,55 @@ function createMsalConfig(secrets: AppSecrets): Configuration {
     auth: {
       clientId: secrets.clientId || getDefaultClientId(secrets.cloudType),
       authority: `${cloudEndpoints.authority}/${secrets.tenantId || 'common'}`,
+    },
+  };
+}
+
+/**
+ * Builds an MSAL cache plugin that keeps the file-backed token cache coherent across
+ * concurrent processes. In the common stdio deployment several MCP server processes share
+ * one token cache file. Microsoft rotates refresh tokens on silent refresh, so without this
+ * plugin a process holds whatever it loaded at startup and fails once a sibling rotates the
+ * refresh token on disk (invalid_grant / no_tokens_found). See issue #545.
+ *
+ * MSAL invokes beforeCacheAccess/afterCacheAccess around every cache operation, so:
+ *  - beforeCacheAccess reloads the newest persisted cache into MSAL right before each access
+ *  - afterCacheAccess persists (atomically, via storage) only when MSAL changed the cache
+ * This preserves the existing cache envelope (wrapCache) and the storage provider's
+ * fail-closed semantics.
+ *
+ * This is best-effort, last-writer-wins reconciliation (the storage layer breaks ties via
+ * the savedAt stamp), not a cross-process lock. It closes the dominant #545 window - a
+ * long-lived sibling refreshing against a token another process already rotated on disk -
+ * but two processes refreshing the very same refresh token at the same instant can still race.
+ */
+export function buildDiskCoherencyCachePlugin(storage: TokenCacheStorage): ICachePlugin {
+  return {
+    beforeCacheAccess: async (context: TokenCacheContext) => {
+      try {
+        const cacheRaw = await storage.load('token-cache');
+        if (cacheRaw) {
+          context.tokenCache.deserialize(unwrapCache(cacheRaw).data);
+        }
+      } catch (error) {
+        logger.error(`Error reloading token cache: ${(error as Error).message}`);
+        if (storage.failClosed) {
+          throw error;
+        }
+      }
+    },
+    afterCacheAccess: async (context: TokenCacheContext) => {
+      if (!context.cacheHasChanged) {
+        return;
+      }
+      try {
+        await storage.save('token-cache', wrapCache(context.tokenCache.serialize()));
+      } catch (error) {
+        logger.error(`Error saving token cache: ${(error as Error).message}`);
+        if (storage.failClosed) {
+          throw error;
+        }
+      }
     },
   };
 }
@@ -558,8 +607,17 @@ class AuthManager {
     storage?: TokenCacheStorage
   ) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
-    this.config = config;
     this.scopes = scopes;
+    this.storage = storage ?? new DefaultTokenCacheStorage();
+    // Register a cache plugin so MSAL reloads the newest persisted cache before every access
+    // and persists rotations, keeping concurrent stdio processes coherent (issue #545).
+    this.config = {
+      ...config,
+      cache: {
+        ...config.cache,
+        cachePlugin: buildDiskCoherencyCachePlugin(this.storage),
+      },
+    };
     this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
@@ -569,7 +627,6 @@ class AuthManager {
     this.expectedHomeAccountId = this.normalizeExpectedHomeAccountId(
       expectedAccount?.expectedHomeAccountId
     );
-    this.storage = storage ?? new DefaultTokenCacheStorage();
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
