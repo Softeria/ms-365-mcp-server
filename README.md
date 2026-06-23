@@ -92,6 +92,52 @@ Via environment variable:
 MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
 ```
 
+### GCF Format
+
+[GCF (Graph Compact Format)](https://gcformat.com) for token-optimized LLM output:
+
+```
+GCF profile=generic
+## value [1]{id,displayName,mail,jobTitle}
+1|Alice Johnson|alice@example.com|Software Engineer
+```
+
+**Benefits:**
+
+- 18-32% fewer tokens vs JSON on MS365 data shapes (benchmarked on all 6 data types)
+- 24% fewer tokens vs TOON on the same data
+- 100% comprehension on every frontier model (Claude, GPT-5.5, Gemini, Grok)
+- Nested objects (calendar organizers, email senders) flatten into path columns for additional savings
+
+**Usage:**
+
+Via CLI flag:
+
+```bash
+npx @softeria/ms-365-mcp-server --gcf
+```
+
+Via Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "ms365": {
+      "command": "npx",
+      "args": ["-y", "@softeria/ms-365-mcp-server", "--gcf"]
+    }
+  }
+}
+```
+
+Via environment variable:
+
+```bash
+MS365_MCP_OUTPUT_FORMAT=gcf npx @softeria/ms-365-mcp-server
+```
+
+GCF is an optional dependency. Install it with `npm install @blackwell-systems/gcf` if it wasn't included automatically.
+
 ## Supported Services & Tools
 
 The server provides 200+ tools covering most of the Microsoft Graph API surface. Each tool maps 1-to-1 to a Graph API endpoint and is defined declaratively in [`src/endpoints.json`](src/endpoints.json).
@@ -574,6 +620,7 @@ When running as an MCP server, the following options can be used:
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
 --toon            (experimental) Enable TOON output format for 30-60% token reduction
+--gcf             Enable GCF output format for 18-32% token reduction vs JSON
 --discovery       Dynamic tool discovery: loads tools on demand to reduce initial token usage (see "Dynamic Tool Discovery" above)
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```

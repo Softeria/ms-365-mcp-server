@@ -50,6 +50,7 @@
   "optionalDependencies": {
     "@azure/identity": "^4.5.0",
     "@azure/keyvault-secrets": "^4.9.0",
+    "@blackwell-systems/gcf": "^2.2.1",
     "keytar": "^7.9.0"
   },
   "devDependencies": {

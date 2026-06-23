@@ -1,6 +1,14 @@
 import logger from './logger.js';
 import AuthManager from './auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
+
+let encodeGeneric: ((data: unknown) => string) | null = null;
+try {
+  const gcf = await import('@blackwell-systems/gcf');
+  encodeGeneric = gcf.encodeGeneric;
+} catch {
+  // GCF is an optional dependency
+}
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
@@ -79,12 +87,12 @@ interface McpResponse {
 class GraphClient {
   private authManager: AuthManager;
   private secrets: AppSecrets;
-  private readonly outputFormat: 'json' | 'toon' = 'json';
+  private readonly outputFormat: 'json' | 'toon' | 'gcf' = 'json';
 
   constructor(
     authManager: AuthManager,
     secrets: AppSecrets,
-    outputFormat: 'json' | 'toon' = 'json'
+    outputFormat: 'json' | 'toon' | 'gcf' = 'json'
   ) {
     this.authManager = authManager;
     this.secrets = secrets;
@@ -209,7 +217,15 @@ class GraphClient {
     );
   }
 
-  private serializeData(data: unknown, outputFormat: 'json' | 'toon', pretty = false): string {
+  private serializeData(data: unknown, outputFormat: 'json' | 'toon' | 'gcf', pretty = false): string {
+    if (outputFormat === 'gcf' && encodeGeneric) {
+      try {
+        return encodeGeneric(data);
+      } catch (error) {
+        logger.warn(`Failed to encode as GCF, falling back to JSON: ${error}`);
+        return JSON.stringify(data, null, pretty ? 2 : undefined);
+      }
+    }
     if (outputFormat === 'toon') {
       try {
         return toonEncode(data);

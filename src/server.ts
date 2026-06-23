@@ -188,7 +188,7 @@ class MicrosoftGraphServer {
       logger.info('On-Behalf-Of (OBO) flow enabled');
     }
 
-    const outputFormat = this.options.toon ? 'toon' : 'json';
+    const outputFormat = this.options.gcf ? 'gcf' : this.options.toon ? 'toon' : 'json';
     this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
 
     if (!this.options.http) {
