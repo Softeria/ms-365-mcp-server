@@ -353,7 +353,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
         }
-        return await graphClient.graphRequest(target, { accessToken: accountAccessToken });
+        // rawResponse keeps the body byte-faithful: binary stays base64 and a
+        // JSON body is returned verbatim instead of being re-serialized lossily
+        // through JSON.parse -> JSON.stringify (issue #546).
+        return await graphClient.graphRequest(target, {
+          accessToken: accountAccessToken,
+          rawResponse: true,
+        });
       } catch (error) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
