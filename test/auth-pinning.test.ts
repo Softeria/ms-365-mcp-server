@@ -51,7 +51,6 @@ function createAuth(accounts: AccountInfo[], expectedAccount?: ExpectedAccountOp
 
   Object.assign(auth as unknown as Record<string, unknown>, {
     msalApp,
-    saveTokenCache: vi.fn(),
     saveSelectedAccount: vi.fn(),
   });
 
@@ -154,11 +153,29 @@ describe('strict expected account pinning', () => {
 
     expect(tokenCache.removeAccount).toHaveBeenCalledWith(personal);
     expect(
-      (auth as unknown as { saveTokenCache: ReturnType<typeof vi.fn> }).saveTokenCache
-    ).not.toHaveBeenCalled();
-    expect(
       (auth as unknown as { saveSelectedAccount: ReturnType<typeof vi.fn> }).saveSelectedAccount
     ).not.toHaveBeenCalled();
+    expect((auth as unknown as { accessToken: string | null }).accessToken).toBeNull();
+  });
+
+  it('reports an actionable error when a mismatched account cannot be removed', async () => {
+    // The cache plugin persists the mismatched account during the acquire call; if removeAccount
+    // then fails, the rejected account remains on disk, so the error must say so (not the plain
+    // "Login was not persisted") and point the user at --logout (issue #545 hardening).
+    const { auth, msalApp, tokenCache } = createAuth([personal], {
+      expectedUsername: 'work@example.com',
+    });
+    msalApp.acquireTokenByDeviceCode.mockResolvedValue({
+      accessToken: 'bad-token',
+      expiresOn: new Date(Date.now() + 60_000),
+      account: personal,
+      scopes: ['User.Read'],
+    });
+    tokenCache.removeAccount.mockRejectedValue(new Error('keychain locked'));
+
+    await expect(auth.acquireTokenByDeviceCode()).rejects.toThrow(
+      /could not be removed from the token cache \(keychain locked\).*may remain persisted.*--logout/s
+    );
     expect((auth as unknown as { accessToken: string | null }).accessToken).toBeNull();
   });
 
@@ -176,9 +193,7 @@ describe('strict expected account pinning', () => {
     await expect(auth.acquireTokenByDeviceCode()).rejects.toThrow(/did not return an account/);
 
     expect(tokenCache.removeAccount).not.toHaveBeenCalled();
-    expect(
-      (auth as unknown as { saveTokenCache: ReturnType<typeof vi.fn> }).saveTokenCache
-    ).not.toHaveBeenCalled();
+    expect((auth as unknown as { accessToken: string | null }).accessToken).toBeNull();
   });
 
   it('collapses effective multi-account mode when a pin is configured', async () => {

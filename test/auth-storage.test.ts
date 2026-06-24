@@ -90,15 +90,17 @@ describe('AuthManager token cache storage', () => {
     expect(auth.getSelectedAccountId()).toBe('account.home');
   });
 
-  it('saves the MSAL cache after silent token refresh', async () => {
+  it('delegates token-cache persistence to the cache plugin, not a manual save', async () => {
+    // Persistence after a silent refresh is owned by the MSAL cache plugin (afterCacheAccess),
+    // which reloads-then-saves under the coherency protocol. getToken must NOT blind-save the
+    // token-cache key itself, or it could clobber a newer sibling rotation (issue #545).
     const storage = createStorage();
     const { auth } = createAuth(storage);
 
-    await auth.getToken();
+    const token = await auth.getToken();
 
-    expect(storage.save).toHaveBeenCalledWith('token-cache', expect.any(String));
-    const saved = vi.mocked(storage.save).mock.calls[0][1];
-    expect(unwrapCache(saved).data).toBe('serialized-cache');
+    expect(token).toBe('silent-token');
+    expect(storage.save).not.toHaveBeenCalledWith('token-cache', expect.any(String));
   });
 
   it('saves selected-account metadata on account selection', async () => {
@@ -240,6 +242,110 @@ describe('disk coherency cache plugin', () => {
 
     await expect(plugin.beforeCacheAccess!(context as never)).resolves.toBeUndefined();
     expect(deserialized).toEqual([]);
+  });
+
+  it('rethrows fail-closed persist errors', async () => {
+    const storage = createStorage({
+      failClosed: true,
+      save: vi.fn().mockRejectedValue(new Error('persist unavailable')),
+    });
+    const plugin = buildDiskCoherencyCachePlugin(storage);
+    const { context } = fakeContext('rotated-cache', true);
+
+    await expect(plugin.afterCacheAccess!(context as never)).rejects.toThrow(/persist unavailable/);
+  });
+
+  it('swallows best-effort persist errors for non-strict storage', async () => {
+    const storage = createStorage({
+      failClosed: false,
+      save: vi.fn().mockRejectedValue(new Error('best-effort persist miss')),
+    });
+    const plugin = buildDiskCoherencyCachePlugin(storage);
+    const { context } = fakeContext('rotated-cache', true);
+
+    await expect(plugin.afterCacheAccess!(context as never)).resolves.toBeUndefined();
+    expect(storage.save).toHaveBeenCalledWith('token-cache', expect.any(String));
+  });
+});
+
+describe('rejected login leaves no account persisted (integration)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const personal = {
+    username: 'personal@example.com',
+    name: 'Personal',
+    homeAccountId: 'personal.home',
+  } as AccountInfo;
+
+  // Drives the REAL cache plugin built by the AuthManager constructor through a simulated MSAL
+  // client, the way the actual @azure/msal-node client would: the plugin persists during the
+  // acquire call (afterCacheAccess), and again when removeAccount mutates the cache. This proves
+  // a mismatched pinned login does not remain on disk once it is rejected (issue #545 hardening).
+  it('persists then removes a mismatched device-code login via the cache plugin', async () => {
+    let diskRaw: string | undefined;
+    const storage: TokenCacheStorage = {
+      description: 'integration',
+      failClosed: false,
+      load: vi.fn(async () => diskRaw),
+      save: vi.fn(async (_key, value: string) => {
+        diskRaw = value;
+      }),
+      delete: vi.fn(async () => {
+        diskRaw = undefined;
+      }),
+    };
+
+    const auth = new AuthManager(
+      msalConfig,
+      ['User.Read'],
+      { expectedUsername: 'work@example.com' },
+      storage
+    );
+    const plugin = (
+      auth as unknown as {
+        config: { cache: { cachePlugin: ReturnType<typeof buildDiskCoherencyCachePlugin> } };
+      }
+    ).config.cache.cachePlugin;
+
+    // Simulated MSAL in-memory account store, mutated only through the plugin like the real client.
+    let accounts: Record<string, AccountInfo> = {};
+    const tokenCache = {
+      serialize: () => JSON.stringify({ accounts }),
+      deserialize: (data: string) => {
+        accounts = (JSON.parse(data).accounts as Record<string, AccountInfo>) ?? {};
+      },
+      getAllAccounts: vi.fn(async () => Object.values(accounts)),
+      removeAccount: vi.fn(async (account: AccountInfo) => {
+        await plugin.beforeCacheAccess!({ cacheHasChanged: false, tokenCache } as never);
+        delete accounts[account.homeAccountId];
+        await plugin.afterCacheAccess!({ cacheHasChanged: true, tokenCache } as never);
+      }),
+    };
+    const msalApp = {
+      getTokenCache: vi.fn(() => tokenCache),
+      acquireTokenByDeviceCode: vi.fn(async () => {
+        // MSAL authenticates the (mismatched) account and persists it via the plugin.
+        await plugin.beforeCacheAccess!({ cacheHasChanged: false, tokenCache } as never);
+        accounts[personal.homeAccountId] = personal;
+        await plugin.afterCacheAccess!({ cacheHasChanged: true, tokenCache } as never);
+        return {
+          accessToken: 'bad-token',
+          expiresOn: new Date(Date.now() + 60_000),
+          account: personal,
+          scopes: ['User.Read'],
+        };
+      }),
+    };
+    Object.assign(auth as unknown as Record<string, unknown>, { msalApp });
+
+    await expect(auth.acquireTokenByDeviceCode()).rejects.toThrow(/does not match expected/);
+
+    // The mismatched account was written to disk during the acquire, then removed; the net
+    // persisted state must contain no accounts.
+    expect(diskRaw).toBeDefined();
+    expect(JSON.parse(unwrapCache(diskRaw!).data).accounts).toEqual({});
   });
 });
 

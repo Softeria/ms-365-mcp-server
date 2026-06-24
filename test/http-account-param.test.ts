@@ -227,7 +227,6 @@ describe('Discussion #467: AuthManager.getTokenForAccount in OAuth mode', () => 
     const auth = new AuthManager(msalConfig, ['User.Read']);
     Object.assign(auth as unknown as Record<string, unknown>, {
       msalApp,
-      saveTokenCache: vi.fn(),
     });
     return auth;
   }
