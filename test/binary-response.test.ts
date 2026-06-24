@@ -104,4 +104,118 @@ describe('GraphClient binary response handling', () => {
       global.fetch = originalFetch;
     }
   });
+
+  it('returns a JSON /content body verbatim when rawResponse is set (issue #546)', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+
+    // Pretty-printed JSON that JSON.parse->JSON.stringify would not preserve
+    // (indentation and trailing newline get dropped).
+    const prettyJson = '{\n  "a": 1,\n  "b": 2\n}\n';
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(prettyJson, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = {
+        getToken: async () => 'fake-token',
+      };
+      const mockSecrets = {
+        clientId: 'x',
+        tenantId: 'common',
+        cloudType: 'global',
+      };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const result = (await client.makeRequest('/me/drive/items/x/content', {
+        rawResponse: true,
+      })) as Record<string, unknown>;
+
+      expect(result.rawResponse).toBe(prettyJson);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('preserves a JSON /content body byte-for-byte through graphRequest (issue #546)', async () => {
+    // End-to-end through graphRequest -> formatJsonResponse, the path the
+    // download-bytes tool actually uses. The body must survive verbatim in the
+    // serialized MCP content, not just at the makeRequest layer.
+    const { default: GraphClient } = await import('../src/graph-client.js');
+
+    const prettyJson = '{\n  "a": 1,\n  "b": 2\n}\n';
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(prettyJson, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = {
+        getToken: async () => 'fake-token',
+      };
+      const mockSecrets = {
+        clientId: 'x',
+        tenantId: 'common',
+        cloudType: 'global',
+      };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const response = await client.graphRequest('/me/drive/items/x/content', {
+        rawResponse: true,
+      });
+      const payload = JSON.parse(response.content[0].text as string);
+
+      expect(payload.rawResponse).toBe(prettyJson);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('still parses JSON bodies when rawResponse is not set', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response('{"value":42}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = {
+        getToken: async () => 'fake-token',
+      };
+      const mockSecrets = {
+        clientId: 'x',
+        tenantId: 'common',
+        cloudType: 'global',
+      };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const result = (await client.makeRequest('/me/messages')) as Record<string, unknown>;
+
+      expect(result.value).toBe(42);
+      expect(result.rawResponse).toBeUndefined();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });
