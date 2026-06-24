@@ -1,4 +1,4 @@
-import type { AccountInfo, Configuration } from '@azure/msal-node';
+import type { AccountInfo, Configuration, ICachePlugin, TokenCacheContext } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
 import { readFileSync } from 'fs';
@@ -51,6 +51,59 @@ function createMsalConfig(secrets: AppSecrets): Configuration {
     auth: {
       clientId: secrets.clientId || getDefaultClientId(secrets.cloudType),
       authority: `${cloudEndpoints.authority}/${secrets.tenantId || 'common'}`,
+    },
+  };
+}
+
+/**
+ * Builds an MSAL cache plugin that keeps the file-backed token cache coherent across
+ * concurrent processes. In the common stdio deployment several MCP server processes share
+ * one token cache file. Microsoft rotates refresh tokens on silent refresh, so without this
+ * plugin a process holds whatever it loaded at startup and fails once a sibling rotates the
+ * refresh token on disk (invalid_grant / no_tokens_found). See issue #545.
+ *
+ * MSAL invokes beforeCacheAccess/afterCacheAccess around every cache operation, so:
+ *  - beforeCacheAccess reloads the newest persisted cache into MSAL right before each access
+ *  - afterCacheAccess persists (atomically, via storage) only when MSAL changed the cache
+ * This preserves the existing cache envelope (wrapCache) and the storage provider's
+ * fail-closed semantics.
+ *
+ * This is best-effort, last-writer-wins reconciliation (the storage layer breaks ties via
+ * the savedAt stamp), not a cross-process lock. It closes the dominant #545 window - a
+ * long-lived sibling refreshing against a token another process already rotated on disk.
+ * Two known limits remain, both accepted as out of scope in the #545 discussion:
+ *  - Two processes refreshing the very same refresh token at the same instant can still race.
+ *  - A sibling logout is not reflected in an already-running process: load() returns nothing
+ *    so the deletion is not picked up (the deserialize is guarded on a present cache), and a
+ *    later successful silent acquire here persists the in-memory cache, recreating the file.
+ */
+export function buildDiskCoherencyCachePlugin(storage: TokenCacheStorage): ICachePlugin {
+  return {
+    beforeCacheAccess: async (context: TokenCacheContext) => {
+      try {
+        const cacheRaw = await storage.load('token-cache');
+        if (cacheRaw) {
+          context.tokenCache.deserialize(unwrapCache(cacheRaw).data);
+        }
+      } catch (error) {
+        logger.error(`Error reloading token cache: ${(error as Error).message}`);
+        if (storage.failClosed) {
+          throw error;
+        }
+      }
+    },
+    afterCacheAccess: async (context: TokenCacheContext) => {
+      if (!context.cacheHasChanged) {
+        return;
+      }
+      try {
+        await storage.save('token-cache', wrapCache(context.tokenCache.serialize()));
+      } catch (error) {
+        logger.error(`Error saving token cache: ${(error as Error).message}`);
+        if (storage.failClosed) {
+          throw error;
+        }
+      }
     },
   };
 }
@@ -558,8 +611,17 @@ class AuthManager {
     storage?: TokenCacheStorage
   ) {
     logger.info(`And scopes are ${scopes.join(', ')}`, scopes);
-    this.config = config;
     this.scopes = scopes;
+    this.storage = storage ?? new DefaultTokenCacheStorage();
+    // Register a cache plugin so MSAL reloads the newest persisted cache before every access
+    // and persists rotations, keeping concurrent stdio processes coherent (issue #545).
+    this.config = {
+      ...config,
+      cache: {
+        ...config.cache,
+        cachePlugin: buildDiskCoherencyCachePlugin(this.storage),
+      },
+    };
     this.msalApp = new PublicClientApplication(this.config);
     this.accessToken = null;
     this.tokenExpiry = null;
@@ -569,7 +631,6 @@ class AuthManager {
     this.expectedHomeAccountId = this.normalizeExpectedHomeAccountId(
       expectedAccount?.expectedHomeAccountId
     );
-    this.storage = storage ?? new DefaultTokenCacheStorage();
 
     const oauthTokenFromEnv = process.env.MS365_MCP_OAUTH_TOKEN;
     this.oauthToken = oauthTokenFromEnv ?? null;
@@ -620,18 +681,6 @@ class AuthManager {
       }
     } catch (error) {
       logger.error(`Error loading selected account: ${(error as Error).message}`);
-      if (this.storage.failClosed) {
-        throw error;
-      }
-    }
-  }
-
-  async saveTokenCache(): Promise<void> {
-    try {
-      const stamped = wrapCache(this.msalApp.getTokenCache().serialize());
-      await this.storage.save('token-cache', stamped);
-    } catch (error) {
-      logger.error(`Error saving token cache: ${(error as Error).message}`);
       if (this.storage.failClosed) {
         throw error;
       }
@@ -775,10 +824,21 @@ class AuthManager {
     this.tokenExpiry = null;
 
     if (account) {
+      // The cache plugin (afterCacheAccess) persists during the acquire call, so a mismatched
+      // account's tokens are already on disk by the time we get here. removeAccount triggers the
+      // plugin again to persist the removal - but if it fails we must NOT claim the login was not
+      // persisted, because the rejected account's tokens remain in the shared cache. Surface that
+      // loudly and actionably instead of swallowing it (issue #545 hardening).
       try {
         await this.msalApp.getTokenCache().removeAccount(account);
       } catch (error) {
-        logger.warn(`Failed to remove unexpected account from cache: ${(error as Error).message}`);
+        logger.error(`Failed to remove unexpected account from cache: ${(error as Error).message}`);
+        throw new Error(
+          `Authenticated Microsoft account '${this.describeAccount(account)}' does not match expected ` +
+            `Microsoft account '${this.expectedAccountLabel()}', and it could not be removed from the ` +
+            `token cache (${(error as Error).message}). Its tokens may remain persisted - run --logout ` +
+            `to clear the cache, then re-login.`
+        );
       }
       throw new Error(
         `Authenticated Microsoft account '${this.describeAccount(account)}' does not match expected Microsoft account '${this.expectedAccountLabel()}'. Login was not persisted.`
@@ -816,7 +876,10 @@ class AuthManager {
         const response = await this.msalApp.acquireTokenSilent(silentRequest);
         this.accessToken = response.accessToken;
         this.tokenExpiry = response.expiresOn ? new Date(response.expiresOn).getTime() : null;
-        await this.saveTokenCache();
+        // Persistence is owned by the cache plugin (afterCacheAccess): when MSAL rotates the
+        // refresh token it reloads-then-saves under the coherency protocol. A manual save here
+        // would serialize the in-memory cache without the reload-before-write step and could
+        // clobber a newer rotation a sibling process wrote in the meantime (issue #545).
         return this.accessToken;
       } catch (error) {
         const hint = consumersAuthorityHint(error, currentAccount, this.config.auth.authority);
@@ -891,7 +954,8 @@ class AuthManager {
         logger.info(`Auto-selected new account: ${response.account.username}`);
       }
 
-      await this.saveTokenCache();
+      // MSAL persisted the new tokens via the cache plugin (afterCacheAccess) during the
+      // acquire call; no manual save needed (issue #545).
       return this.accessToken;
     } catch (error) {
       logger.error(`Error in device code flow: ${(error as Error).message}`);
@@ -942,7 +1006,8 @@ class AuthManager {
         logger.info(`Auto-selected new account: ${response.account.username}`);
       }
 
-      await this.saveTokenCache();
+      // MSAL persisted the new tokens via the cache plugin (afterCacheAccess) during the
+      // acquire call; no manual save needed (issue #545).
       return this.accessToken;
     } catch (error) {
       logger.error(`Error in interactive browser flow: ${(error as Error).message}`);
@@ -1212,7 +1277,7 @@ class AuthManager {
 
     try {
       const response = await this.msalApp.acquireTokenSilent(silentRequest);
-      await this.saveTokenCache();
+      // Persistence is owned by the cache plugin (afterCacheAccess); see getToken (issue #545).
       return response.accessToken;
     } catch (error) {
       const hint = consumersAuthorityHint(error, targetAccount, this.config.auth.authority);

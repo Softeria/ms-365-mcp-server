@@ -138,7 +138,6 @@ describe('silent failure hints at the call sites', () => {
 
     Object.assign(auth as unknown as Record<string, unknown>, {
       msalApp,
-      saveTokenCache: vi.fn(),
       saveSelectedAccount: vi.fn(),
     });
 
