@@ -132,7 +132,11 @@ class MicrosoftGraphServer {
         this.authManager,
         this.multiAccount,
         this.accountNames,
-        this.options.allowedScopes
+        this.options.allowedScopes,
+        // Reading the email body from a local file is only safe in stdio mode, where the
+        // server runs on the caller's own machine. HTTP, OBO and trust-proxy-auth all set
+        // options.http, so the bodyFilePath parameter is not exposed in those deployments.
+        !this.options.http
       );
     }
 

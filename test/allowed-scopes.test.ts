@@ -211,7 +211,9 @@ describe('allowed scope HTTP behavior', () => {
       expect.anything(),
       false,
       [],
-      'Mail.Read'
+      'Mail.Read',
+      // allowFileBody — false here because http: true (stdio-only feature)
+      false
     );
   });
 });
