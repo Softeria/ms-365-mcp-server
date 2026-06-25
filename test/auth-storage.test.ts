@@ -1,6 +1,12 @@
 import type { AccountInfo, Configuration } from '@azure/msal-node';
+import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AuthManager, { buildDiskCoherencyCachePlugin } from '../src/auth.js';
+import AuthManager, {
+  buildDiskCoherencyCachePlugin,
+  type ExpectedAccountOptions,
+} from '../src/auth.js';
 import { clearSecretsCache } from '../src/secrets.js';
 import { shouldUseLocalAuthStorage } from '../src/startup-pinning.js';
 import type { TokenCacheStorage } from '../src/token-cache-storage.js';
@@ -38,7 +44,11 @@ function createStorage(overrides: Partial<TokenCacheStorage> = {}): TokenCacheSt
   };
 }
 
-function createAuth(storage: TokenCacheStorage, accounts: AccountInfo[] = [account]) {
+function createAuth(
+  storage: TokenCacheStorage,
+  accounts: AccountInfo[] = [account],
+  expectedAccount?: ExpectedAccountOptions
+) {
   const tokenCache = {
     serialize: vi.fn().mockReturnValue('serialized-cache'),
     deserialize: vi.fn(),
@@ -54,11 +64,23 @@ function createAuth(storage: TokenCacheStorage, accounts: AccountInfo[] = [accou
     acquireTokenByDeviceCode: vi.fn(),
     acquireTokenInteractive: vi.fn(),
   };
-  const auth = new AuthManager(msalConfig, ['User.Read'], undefined, storage);
+  const auth = new AuthManager(msalConfig, ['User.Read'], expectedAccount, storage);
 
   Object.assign(auth as unknown as Record<string, unknown>, { msalApp });
 
   return { auth, msalApp, tokenCache };
+}
+
+let tempDirs: string[] = [];
+
+function writeTokenFile(token: string, expiresIn: number, mtimeMs: number): string {
+  const dir = mkdtempSync(join(tmpdir(), 'ms365-token-'));
+  tempDirs.push(dir);
+  const tokenFile = join(dir, 'token.json');
+  writeFileSync(tokenFile, JSON.stringify({ access_token: token, expires_in: expiresIn }));
+  const mtime = new Date(mtimeMs);
+  utimesSync(tokenFile, mtime, mtime);
+  return tokenFile;
 }
 
 describe('AuthManager token cache storage', () => {
@@ -66,11 +88,16 @@ describe('AuthManager token cache storage', () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     clearSecretsCache();
+    tempDirs = [];
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
     clearSecretsCache();
+    for (const dir of tempDirs) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+    tempDirs = [];
   });
 
   it('loads token cache and selected-account metadata through storage', async () => {
@@ -150,6 +177,38 @@ describe('AuthManager token cache storage', () => {
 
     const storage = (auth as unknown as { storage: TokenCacheStorage }).storage;
     expect(storage.description).toBe('default (keytar+file)');
+  });
+
+  it('expires token-file credentials relative to file mtime and falls back to MSAL', async () => {
+    const tokenFile = writeTokenFile('file-token', 60, Date.now() - 120_000);
+    vi.stubEnv('MS365_MCP_TOKEN_FILE', tokenFile);
+    const storage = createStorage();
+    const { auth, msalApp } = createAuth(storage);
+
+    const token = await auth.getToken();
+
+    expect(token).toBe('silent-token');
+    expect(msalApp.acquireTokenSilent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account,
+      })
+    );
+    expect((auth as unknown as { accessToken: string | null }).accessToken).toBe('silent-token');
+  });
+
+  it('rejects token-file mode when expected-account pinning is configured', async () => {
+    const tokenFile = writeTokenFile('file-token', 3600, Date.now());
+    vi.stubEnv('MS365_MCP_TOKEN_FILE', tokenFile);
+    const storage = createStorage();
+    const { auth, msalApp } = createAuth(storage, [account], {
+      expectedUsername: 'user@example.com',
+    });
+
+    await expect(auth.getToken()).rejects.toThrow(
+      /MS365_MCP_TOKEN_FILE cannot be used when an expected Microsoft account is configured/
+    );
+    expect(msalApp.acquireTokenSilent).not.toHaveBeenCalled();
+    expect((auth as unknown as { accessToken: string | null }).accessToken).toBeNull();
   });
 });
 

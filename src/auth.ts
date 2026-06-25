@@ -1,7 +1,7 @@
 import type { AccountInfo, Configuration, ICachePlugin, TokenCacheContext } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
@@ -651,7 +651,11 @@ class AuthManager {
     const storage =
       options.storage ??
       (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
-    return new AuthManager(config, scopes, expectedAccount, storage);
+    const instance = new AuthManager(config, scopes, expectedAccount, storage);
+    if (process.env.MS365_MCP_TOKEN_FILE) {
+      await instance.loadTokenFromFile();
+    }
+    return instance;
   }
 
   async loadTokenCache(): Promise<void> {
@@ -684,6 +688,60 @@ class AuthManager {
       if (this.storage.failClosed) {
         throw error;
       }
+    }
+  }
+
+  private async loadTokenFromFile(): Promise<boolean> {
+    const tokenFile = process.env.MS365_MCP_TOKEN_FILE;
+    if (!tokenFile) {
+      return false;
+    }
+
+    if (this.hasExpectedAccount()) {
+      this.accessToken = null;
+      this.tokenExpiry = null;
+      throw new Error(
+        `MS365_MCP_TOKEN_FILE cannot be used when an expected Microsoft account is configured (${this.expectedAccountLabel()}). ` +
+          'Use the MSAL token cache for pinned-account deployments.'
+      );
+    }
+
+    try {
+      if (!existsSync(tokenFile)) {
+        logger.warn(`MS365_MCP_TOKEN_FILE does not exist: ${tokenFile}`);
+        return false;
+      }
+
+      const tokenFileStats = statSync(tokenFile);
+      const parsed = JSON.parse(readFileSync(tokenFile, 'utf8')) as {
+        access_token?: unknown;
+        expires_in?: unknown;
+      };
+
+      if (typeof parsed.access_token !== 'string' || parsed.access_token.length === 0) {
+        logger.warn('MS365_MCP_TOKEN_FILE does not contain a valid access_token');
+        return false;
+      }
+
+      const tokenExpiry =
+        typeof parsed.expires_in === 'number'
+          ? tokenFileStats.mtimeMs + parsed.expires_in * 1000 - 30_000
+          : null;
+
+      if (tokenExpiry !== null && tokenExpiry <= Date.now()) {
+        this.accessToken = null;
+        this.tokenExpiry = null;
+        logger.warn('MS365_MCP_TOKEN_FILE token is expired');
+        return false;
+      }
+
+      this.accessToken = parsed.access_token;
+      this.tokenExpiry = tokenExpiry;
+      logger.info('Token loaded from MS365_MCP_TOKEN_FILE');
+      return true;
+    } catch (error) {
+      logger.error(`Error loading token from MS365_MCP_TOKEN_FILE: ${(error as Error).message}`);
+      return false;
     }
   }
 
@@ -860,6 +918,13 @@ class AuthManager {
       return this.oauthToken;
     }
 
+    if (
+      process.env.MS365_MCP_TOKEN_FILE &&
+      (!this.accessToken || !this.tokenExpiry || this.tokenExpiry <= Date.now() || forceRefresh)
+    ) {
+      await this.loadTokenFromFile();
+    }
+
     if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now() && !forceRefresh) {
       return this.accessToken;
     }
@@ -931,7 +996,7 @@ class AuthManager {
         if (hack) {
           hack(text + 'After login run the "verify login" command');
         } else {
-          console.log(text);
+          process.stderr.write(text + '\n');
         }
         logger.info('Device code login initiated');
       },
