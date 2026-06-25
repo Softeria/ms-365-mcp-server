@@ -8,6 +8,7 @@ import {
   CommandTokenCacheStorage,
   DefaultTokenCacheStorage,
   createTokenCacheStorage,
+  getTokenCachePath,
   type TokenCacheStorageKey,
   wrapCache,
 } from '../src/token-cache-storage.js';
@@ -118,6 +119,33 @@ describe('token cache storage', () => {
       vi.stubEnv('MS365_MCP_AUTH_CACHE_COMMAND', commandPath);
 
       await expect(createTokenCacheStorage()).rejects.toThrow(/executable file/);
+    });
+  });
+
+  describe('path resolution', () => {
+    it('uses the token cache override path when configured', () => {
+      vi.stubEnv('MS365_MCP_TOKEN_CACHE_PATH', '/tmp/test-cache/.token-cache.json');
+
+      const result = getTokenCachePath();
+
+      expect(result).toBe('/tmp/test-cache/.token-cache.json');
+    });
+
+    it('trims whitespace from the token cache override path', () => {
+      vi.stubEnv('MS365_MCP_TOKEN_CACHE_PATH', '  /tmp/test-cache/.token-cache.json  ');
+
+      const result = getTokenCachePath();
+
+      expect(result).toBe('/tmp/test-cache/.token-cache.json');
+    });
+
+    it('uses XDG_DATA_HOME when the token cache override path is unset', () => {
+      vi.stubEnv('MS365_MCP_TOKEN_CACHE_PATH', '');
+      vi.stubEnv('XDG_DATA_HOME', '/custom/xdg');
+
+      const result = getTokenCachePath();
+
+      expect(result).toBe('/custom/xdg/ms-365-mcp-server/.token-cache.json');
     });
   });
 

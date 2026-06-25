@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs, { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import logger from './logger.js';
 
 export type TokenCacheStorageKey = 'token-cache' | 'selected-account';
@@ -33,12 +33,6 @@ const AUTH_CACHE_COMMAND_TIMEOUT_ENV = 'MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS'
 const DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS = 10_000;
 const STDERR_LIMIT = 2048;
 const COMMAND_KILL_GRACE_MS = 1000;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const FALLBACK_DIR = __dirname;
-const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
-const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
 
 let keytar: typeof import('keytar') | null | undefined = null;
 
@@ -109,12 +103,14 @@ function pickNewestRaw(
 
 export function getTokenCachePath(): string {
   const envPath = process.env.MS365_MCP_TOKEN_CACHE_PATH?.trim();
-  return envPath || DEFAULT_TOKEN_CACHE_PATH;
+  const xdgDataHome = process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), '.local', 'share');
+  return envPath || path.join(xdgDataHome, 'ms-365-mcp-server', '.token-cache.json');
 }
 
 export function getSelectedAccountPath(): string {
   const envPath = process.env.MS365_MCP_SELECTED_ACCOUNT_PATH?.trim();
-  return envPath || DEFAULT_SELECTED_ACCOUNT_PATH;
+  const xdgDataHome = process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), '.local', 'share');
+  return envPath || path.join(xdgDataHome, 'ms-365-mcp-server', '.selected-account.json');
 }
 
 function storageAccountForKey(key: TokenCacheStorageKey): string {
