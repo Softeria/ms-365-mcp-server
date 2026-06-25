@@ -18,8 +18,8 @@ This server supports multiple Microsoft cloud environments:
 
 ## Prerequisites
 
-- Node.js >= 20 (recommended)
-- Node.js 14+ may work with dependency warnings
+- Node.js v24.18.0 (recommended)
+- Node.js 20+ may work with dependency warnings
 
 ## Features
 
@@ -318,26 +318,65 @@ Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
 
 ### Hermes Agent
 
-Hermes uses the MCP `stdio` transport. The repository root includes `hermes-config.yaml` as a ready-to-use template for launching the built server.
+Hermes uses the MCP `stdio` transport; the server process is spawned by Hermes and communicates via JSON-RPC 2.0 over stdin/stdout (backed by `StdioServerTransport` in `src/server.ts`).
 
-Example `~/.hermes/config.yaml` entry:
+#### Installation
 
-```yaml
-mcp_servers:
-  ms365:
-    command: "node"
-    args:
-      - "/absolute/path/to/ms-365-mcp-server/dist/index.js"
-    env:
-      MS365_MCP_CLIENT_ID: "your-azure-ad-client-id"
-      MS365_MCP_TENANT_ID: "common"
-      MS365_MCP_TOKEN_CACHE_PATH: "/home/user/.local/share/ms-365-mcp-server/.token-cache.json"
-      MS365_MCP_SELECTED_ACCOUNT_PATH: "/home/user/.local/share/ms-365-mcp-server/.selected-account.json"
+1. **Install Node.js v24.18.0** — download from [nodejs.org](https://nodejs.org) or use a version manager (nvm, fnm, asdf). Verify: `node --version` should output `v24.18.0` or later.
+2. **Clone or download the repository** — get the source code from GitHub or use `git clone https://github.com/softeria/ms-365-mcp-server.git`.
+3. **Build the server** — from the repository root: `npm install && npm run build`. This creates the `dist/` folder with compiled JavaScript. Alternatively, skip the build and use `npx @softeria/ms-365-mcp-server` directly (Hermes `command` becomes `npx` and `args` starts with `@softeria/ms-365-mcp-server`).
+4. **Copy the config template** — copy `hermes-config.yaml` from the repository root to `~/.hermes/config.yaml`, or merge the `mcp_servers.ms365` block into an existing Hermes config file.
+5. **Set `MS365_MCP_CLIENT_ID`** — replace `your-azure-ad-client-id` with your Azure Entra app (client) ID. See [Azure AD App Registration](docs/deployment.md#azure-ad-app-registration-for-organizations) for how to create one.
+6. **First-time login** — run `npx @softeria/ms-365-mcp-server --login` (or `node dist/index.js --login` if you built locally) to complete the device code flow and persist the MSAL token cache. Follow the on-screen prompts to authenticate in your browser.
+7. **Verify** — run `npx @softeria/ms-365-mcp-server --verify-login` to confirm the cached token is valid and print the signed-in account.
+8. **Start Hermes** — launch Hermes; it will spawn the MCP server as a child process and begin accepting tool calls.
+
+#### How the MCP works with Hermes
+
+When Hermes starts, it reads the `mcp_servers.ms365` block and spawns `node dist/index.js` as a child process with the configured `env`. The `McpServer` instance (created in `src/server.ts`) connects to a `StdioServerTransport`, which reads JSON-RPC requests from stdin and writes responses to stdout. Hermes sends tool-call requests over stdin; the server dispatches them to `registerGraphTools` or `registerAuthTools` (both registered in `src/server.ts`). Before each Graph call, `GraphClient.makeRequest()` calls `AuthManager.getToken()` in `src/auth.ts`, which reuses `MS365_MCP_TOKEN_FILE`, returns an unexpired in-memory token, or attempts a silent MSAL token acquisition (`acquireTokenSilent`) for an already-cached account. If no cached account or valid token exists, the Graph call fails with `No valid token found`; `getToken()` does not start device-code login. First-time interactive authentication is a separate step: run `npx @softeria/ms-365-mcp-server --login` (or call the `login` auth tool from `src/auth-tools.ts`) to invoke `AuthManager.acquireTokenByDeviceCode()` and persist the MSAL token cache. The Graph API response is serialised to JSON and returned to Hermes over stdout. The `buildDiskCoherencyCachePlugin` in `src/auth.ts` ensures that if multiple Hermes sessions run concurrently, each process reloads the newest persisted cache before every MSAL operation, preventing `invalid_grant` errors caused by stale in-memory refresh tokens.
+
+```mermaid
+sequenceDiagram
+    participant H as Hermes Agent
+    participant S as McpServer (stdio)
+    participant A as AuthManager
+    participant M as MSAL / Token Cache
+    participant G as Microsoft Graph API
+
+    H->>S: spawn node dist/index.js (stdio)
+    opt first-time interactive login
+        H->>S: login auth tool or --login
+        S->>A: acquireTokenByDeviceCode()
+        A->>M: persist MSAL token cache
+    end
+    H->>S: JSON-RPC tool call (stdin)
+    S->>S: registerGraphTools / registerAuthTools dispatch
+    S->>A: GraphClient.makeRequest() calls getToken()
+    alt MS365_MCP_TOKEN_FILE or in-memory token valid
+        A-->>S: access token
+    else cached MSAL account exists
+        A->>M: acquireTokenSilent()
+        M-->>A: access token
+        A-->>S: access token
+    else no cached account or valid token
+        A-->>S: No valid token found
+    end
+    S->>G: GET /v1.0/... (Bearer token)
+    G-->>S: JSON response
+    S-->>H: JSON-RPC result (stdout)
 ```
 
-For headless Linux pre-authentication, set `MS365_MCP_TOKEN_FILE` to a JSON file containing a pre-acquired OAuth token. The workflow is: request a device code with `curl`, complete the browser login, poll for the token, write the token response to the file, and point Hermes at it with `MS365_MCP_TOKEN_FILE`. See `.env.example` for the full `curl` commands.
+#### Authentication Session Lifetime
 
-The default XDG paths under `~/.local/share/ms-365-mcp-server/` are created automatically on first login, so you do not need to create those directories manually.
+| Token type | Lifetime | Renewal |
+|---|---|---|
+| Access token | ~1 hour | Automatic — `acquireTokenSilent` in `AuthManager.getToken()` uses the stored refresh token; no user action needed |
+| Refresh token | 90-day sliding window (Microsoft default) | Automatic on each silent refresh; re-run `--login` only if unused for 90+ days |
+
+- **Personal Microsoft accounts (⚠️ June 2026 known issue)**: The `common` authority rejects refresh tokens for MSA accounts (`invalid_grant`). If you sign in with a personal account (`@outlook.com`, `@hotmail.com`, etc.), set `MS365_MCP_TENANT_ID=consumers` in `hermes-config.yaml` and re-run `--login`. Without this, sessions expire after ~1 hour and cannot be silently renewed. See `consumersAuthorityHint()` in `src/auth.ts` for the detection logic.
+- **Token storage**: The server prefers the OS keychain via `keytar`. If `keytar` is unavailable, it falls back to the file at `getTokenCachePath()` — `~/.local/share/ms-365-mcp-server/.token-cache.json` (or `$XDG_DATA_HOME/ms-365-mcp-server/.token-cache.json`). Override with `MS365_MCP_TOKEN_CACHE_PATH`. The `buildDiskCoherencyCachePlugin` in `src/auth.ts` keeps the file coherent across concurrent Hermes processes.
+- **Headless environments**: Use `MS365_MCP_TOKEN_FILE` with the device-code `curl` workflow documented in `.env.example`. The server re-reads the file when the access token expires.
+- **Explicit cache paths**: Override `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` (resolved by `getTokenCachePath()` / `getSelectedAccountPath()` in `src/token-cache-storage.ts`) when the XDG default location is not writable.
 
 ### Local Development
 

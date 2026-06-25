@@ -24,6 +24,14 @@ Production HTTP deployments are stateless: normal Graph requests carry a per-use
 
 For headless stdio deployments that use local MSAL login (`--login`, `--verify-login`, auth tools, account selection, and regular stdio Graph calls), `MS365_MCP_AUTH_CACHE_COMMAND` can point at an external executable wrapper that stores the MSAL token cache and selected-account metadata in a deployment-approved backing store. The package only defines the provider-neutral command protocol; provider-specific scripts for AWS, Azure, GCP, Redis, databases, or other stores live outside this package.
 
+### Hermes / stdio deployments — session lifetime
+
+- **Access token**: ~1 hour; `AuthManager.getToken()` in `src/auth.ts` calls `acquireTokenSilent` automatically — no user action needed while the refresh token is valid.
+- **Refresh token**: 90-day sliding window. Re-run `--login` if the server has not been used for 90+ days.
+- **Personal Microsoft accounts (⚠️ June 2026)**: The `common` authority rejects MSA refresh tokens (`invalid_grant`). Set `MS365_MCP_TENANT_ID=consumers` in your Hermes config and re-run `--login`. See `consumersAuthorityHint()` in `src/auth.ts`.
+- **Token storage**: keytar (OS keychain) preferred; falls back to `~/.local/share/ms-365-mcp-server/.token-cache.json` (resolved by `getTokenCachePath()` in `src/token-cache-storage.ts`). The `buildDiskCoherencyCachePlugin` in `src/auth.ts` keeps the cache coherent when multiple Hermes sessions run concurrently.
+- **Headless pre-auth**: use `MS365_MCP_TOKEN_FILE` with the `curl` device-code workflow in `.env.example`.
+
 In HTTP mode, `MS365_MCP_AUTH_CACHE_COMMAND` is skipped at startup and per Graph request unless local auth tools are explicitly enabled with `--enable-auth-tools` or a local account command such as `--login`, `--verify-login`, `--list-accounts`, `--select-account`, `--remove-account`, or `--logout` is invoked.
 
 ## Docker
@@ -102,7 +110,7 @@ az webapp create \
   --name mcp-server \
   --resource-group your-rg \
   --plan your-plan \
-  --runtime "NODE:20-lts" \
+  --runtime "NODE:24-lts" \
   --assign-identity
 
 az webapp config appsettings set --name mcp-server --resource-group your-rg \

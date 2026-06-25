@@ -1,4 +1,13 @@
 # Hermes MCP server configuration for Microsoft 365.
+#
+# Hermes uses the MCP `stdio` transport for this server. It spawns the
+# `node dist/index.js` process as a child process and exchanges JSON-RPC 2.0
+# messages over the process's stdin/stdout. No network port is opened.
+#
+# The `command` and `args` values below are what Hermes uses to spawn the
+# server. The `env` block is passed to that child process as its environment.
+#
+# Requires Node.js v24.18.0 or later.
 mcp_servers:
   ms365:
     command: "node"
@@ -10,13 +19,30 @@ mcp_servers:
 
       # Azure tenant ID. Use "common" for multi-tenant, "consumers" for personal Microsoft accounts,
       # or your organization tenant ID for single-tenant Entra apps.
+      #
+      # ⚠️ Personal Microsoft accounts (June 2026 known issue): the "common" authority
+      # rejects refresh tokens for MSA accounts (invalid_grant). Set this to "consumers"
+      # if you sign in with a personal Microsoft account (for example, @outlook.com or
+      # @hotmail.com). See consumersAuthorityHint in src/auth.ts for the detection logic.
       MS365_MCP_TENANT_ID: "common"
 
-      # Optional: Custom MSAL token cache path. Defaults to the XDG data directory on Linux.
+      # Optional: Custom MSAL token cache path. By default, getTokenCachePath() in
+      # src/token-cache-storage.ts resolves to:
+      #   $XDG_DATA_HOME/ms-365-mcp-server/.token-cache.json
+      # which expands to:
+      #   ~/.local/share/ms-365-mcp-server/.token-cache.json
+      # when XDG_DATA_HOME is unset. The directory is created automatically on first login.
       MS365_MCP_TOKEN_CACHE_PATH: "/home/user/.local/share/ms-365-mcp-server/.token-cache.json"
 
-      # Optional: Custom selected-account metadata path. Defaults to the XDG data directory on Linux.
+      # Optional: Custom selected-account metadata path. By default, getSelectedAccountPath()
+      # in src/token-cache-storage.ts uses the same XDG base directory and the file:
+      #   .selected-account.json
       MS365_MCP_SELECTED_ACCOUNT_PATH: "/home/user/.local/share/ms-365-mcp-server/.selected-account.json"
 
       # Optional: Path to a pre-authenticated OAuth token JSON file for headless environments.
+      # For headless Linux environments where a browser cannot be opened, obtain a token via
+      # the device code flow using curl (see .env.example for the exact commands), write the
+      # JSON response to a file, and set this variable to that file path. The server re-reads
+      # the file when the access token expires. This is an alternative to running --login
+      # interactively.
       # MS365_MCP_TOKEN_FILE: "/home/user/.local/share/ms-365-mcp-server/token.json"
