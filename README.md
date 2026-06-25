@@ -316,6 +316,29 @@ Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
 
 > **Running in Docker behind a reverse proxy?** Set `--public-url https://your-domain.com` so the OAuth authorize URL handed to the user's browser is reachable from outside the container network. See [docs/deployment.md](docs/deployment.md) for the full guide.
 
+### Hermes Agent
+
+Hermes uses the MCP `stdio` transport. The repository root includes `hermes-config.yaml` as a ready-to-use template for launching the built server.
+
+Example `~/.hermes/config.yaml` entry:
+
+```yaml
+mcp_servers:
+  ms365:
+    command: "node"
+    args:
+      - "/absolute/path/to/ms-365-mcp-server/dist/index.js"
+    env:
+      MS365_MCP_CLIENT_ID: "your-azure-ad-client-id"
+      MS365_MCP_TENANT_ID: "common"
+      MS365_MCP_TOKEN_CACHE_PATH: "/home/user/.local/share/ms-365-mcp-server/.token-cache.json"
+      MS365_MCP_SELECTED_ACCOUNT_PATH: "/home/user/.local/share/ms-365-mcp-server/.selected-account.json"
+```
+
+For headless Linux pre-authentication, set `MS365_MCP_TOKEN_FILE` to a JSON file containing a pre-acquired OAuth token. The workflow is: request a device code with `curl`, complete the browser login, poll for the token, write the token response to the file, and point Hermes at it with `MS365_MCP_TOKEN_FILE`. See `.env.example` for the full `curl` commands.
+
+The default XDG paths under `~/.local/share/ms-365-mcp-server/` are created automatically on first login, so you do not need to create those directories manually.
+
 ### Local Development
 
 For local development or testing:
@@ -611,13 +634,13 @@ Environment variables:
 
 Authentication tokens are stored using the OS credential store (via keytar) when available. If keytar is not installed or fails (common on headless Linux), the server falls back to file-based storage.
 
-**Default fallback paths** are relative to the installed package directory. This means tokens can be lost when the package is reinstalled or updated via npm.
+**Default fallback paths** follow the XDG Base Directory Specification: `~/.local/share/ms-365-mcp-server/.token-cache.json` and `~/.local/share/ms-365-mcp-server/.selected-account.json`, or `$XDG_DATA_HOME/ms-365-mcp-server/...` if `XDG_DATA_HOME` is set.
 
-To persist tokens across updates, set custom paths outside the package directory:
+To persist tokens in explicit locations, set custom paths:
 
 ```bash
-export MS365_MCP_TOKEN_CACHE_PATH="$HOME/.config/ms365-mcp/.token-cache.json"
-export MS365_MCP_SELECTED_ACCOUNT_PATH="$HOME/.config/ms365-mcp/.selected-account.json"
+export MS365_MCP_TOKEN_CACHE_PATH="$HOME/.local/share/ms-365-mcp-server/.token-cache.json"
+export MS365_MCP_SELECTED_ACCOUNT_PATH="$HOME/.local/share/ms-365-mcp-server/.selected-account.json"
 ```
 
 Parent directories are created automatically. Files are written with `0600` permissions.

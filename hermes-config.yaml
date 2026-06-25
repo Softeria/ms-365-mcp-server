@@ -1,0 +1,22 @@
+# Hermes MCP server configuration for Microsoft 365.
+mcp_servers:
+  ms365:
+    command: "node"
+    args:
+      - "/path/to/ms-365-mcp-server/dist/index.js"
+    env:
+      # Azure Entra application (client) ID used for Microsoft Graph authentication.
+      MS365_MCP_CLIENT_ID: "your-azure-ad-client-id"
+
+      # Azure tenant ID. Use "common" for multi-tenant, "consumers" for personal Microsoft accounts,
+      # or your organization tenant ID for single-tenant Entra apps.
+      MS365_MCP_TENANT_ID: "common"
+
+      # Optional: Custom MSAL token cache path. Defaults to the XDG data directory on Linux.
+      MS365_MCP_TOKEN_CACHE_PATH: "/home/user/.local/share/ms-365-mcp-server/.token-cache.json"
+
+      # Optional: Custom selected-account metadata path. Defaults to the XDG data directory on Linux.
+      MS365_MCP_SELECTED_ACCOUNT_PATH: "/home/user/.local/share/ms-365-mcp-server/.selected-account.json"
+
+      # Optional: Path to a pre-authenticated OAuth token JSON file for headless environments.
+      # MS365_MCP_TOKEN_FILE: "/home/user/.local/share/ms-365-mcp-server/token.json"

@@ -807,6 +807,7 @@ class MicrosoftGraphServer {
         });
       }
     } else {
+      // Stdio mode keeps stdout clean for JSON-RPC; logging uses winston file transports and stderr.
       const transport = new StdioServerTransport();
       transport.onerror = (error) => {
         logger.error('Stdio transport error', { error: dumpError(error) });

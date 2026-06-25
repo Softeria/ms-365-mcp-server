@@ -78,6 +78,7 @@ const logger = winston.createLogger({
   ],
 });
 
+// winston.transports.Console writes to process.stderr by default, so this is safe in stdio mode.
 export const enableConsoleLogging = (): void => {
   logger.add(
     new winston.transports.Console({

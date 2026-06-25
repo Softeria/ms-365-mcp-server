@@ -996,6 +996,7 @@ class AuthManager {
         if (hack) {
           hack(text + 'After login run the "verify login" command');
         } else {
+          // Device code prompts must use stderr to avoid corrupting the MCP JSON-RPC stream on stdout.
           process.stderr.write(text + '\n');
         }
         logger.info('Device code login initiated');

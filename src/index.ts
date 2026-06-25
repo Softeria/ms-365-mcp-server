@@ -110,6 +110,7 @@ async function main(): Promise<void> {
       }
       logger.info('Login completed, testing connection with Graph API...');
       const result = await authManager.testLogin();
+      // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
       console.log(JSON.stringify(result));
       process.exit(0);
     }
@@ -117,12 +118,14 @@ async function main(): Promise<void> {
     if (args.verifyLogin) {
       logger.info('Verifying login...');
       const result = await authManager.testLogin();
+      // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
       console.log(JSON.stringify(result));
       process.exit(0);
     }
 
     if (args.logout) {
       await authManager.logout();
+      // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
       console.log(JSON.stringify({ message: 'Logged out successfully' }));
       process.exit(0);
     }
@@ -136,6 +139,7 @@ async function main(): Promise<void> {
         name: account.name,
         selected: account.homeAccountId === selectedAccountId,
       }));
+      // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
       console.log(JSON.stringify({ accounts: result }));
       process.exit(0);
     }
@@ -143,8 +147,10 @@ async function main(): Promise<void> {
     if (args.selectAccount) {
       const success = await authManager.selectAccount(args.selectAccount);
       if (success) {
+        // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
         console.log(JSON.stringify({ message: `Selected account: ${args.selectAccount}` }));
       } else {
+        // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
         console.log(JSON.stringify({ error: `Account not found: ${args.selectAccount}` }));
         process.exit(1);
       }
@@ -154,8 +160,10 @@ async function main(): Promise<void> {
     if (args.removeAccount) {
       const success = await authManager.removeAccount(args.removeAccount);
       if (success) {
+        // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
         console.log(JSON.stringify({ message: `Removed account: ${args.removeAccount}` }));
       } else {
+        // CLI-only path: process.exit(0) follows immediately; stdout output here is intentional and safe (not in the server stdio loop).
         console.log(JSON.stringify({ error: `Account not found: ${args.removeAccount}` }));
         process.exit(1);
       }
