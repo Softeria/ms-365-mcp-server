@@ -225,4 +225,48 @@ describe('CLI Module', () => {
       expect(result).not.toHaveProperty('authCacheCommandArgs');
     });
   });
+
+  describe('Dynamic Client Registration (DCR) — env var override', () => {
+    const prevDisableDcr = process.env.MS365_MCP_DISABLE_DCR;
+
+    afterEach(() => {
+      if (prevDisableDcr === undefined) delete process.env.MS365_MCP_DISABLE_DCR;
+      else process.env.MS365_MCP_DISABLE_DCR = prevDisableDcr;
+    });
+
+    it('enables DCR by default in HTTP mode', () => {
+      delete process.env.MS365_MCP_DISABLE_DCR;
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+      const result = parseArgs();
+      expect(result.enableDynamicRegistration).toBe(true);
+    });
+
+    it('disables DCR when MS365_MCP_DISABLE_DCR=true', () => {
+      process.env.MS365_MCP_DISABLE_DCR = 'true';
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+      const result = parseArgs();
+      expect(result.enableDynamicRegistration).toBe(false);
+    });
+
+    it('disables DCR when MS365_MCP_DISABLE_DCR=1', () => {
+      process.env.MS365_MCP_DISABLE_DCR = '1';
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+      const result = parseArgs();
+      expect(result.enableDynamicRegistration).toBe(false);
+    });
+
+    it('CLI --no-dynamic-registration still wins over env var unset', () => {
+      delete process.env.MS365_MCP_DISABLE_DCR;
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000', dynamicRegistration: false });
+      const result = parseArgs();
+      expect(result.enableDynamicRegistration).toBe(false);
+    });
+
+    it('env var has no effect outside HTTP mode', () => {
+      process.env.MS365_MCP_DISABLE_DCR = 'true';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+      const result = parseArgs();
+      expect(result.enableDynamicRegistration).toBeUndefined();
+    });
+  });
 });
