@@ -142,10 +142,12 @@ export { isDestructiveOperation };
  * Defense-in-depth: destructive tools require an explicit `confirm: true` from
  * the caller before they reach Microsoft Graph. Mitigates accidental
  * sendMail / deleteEvent / etc. when an LLM misroutes a request or follows an
- * injected instruction. Opt out per-deployment via MS365_MCP_REQUIRE_CONFIRM=false.
+ * injected instruction. Opt in per-deployment via MS365_MCP_REQUIRE_CONFIRM=true
+ * (default off, so the gate is a non-breaking, additive opt-in that can coexist
+ * with client-side elicitation prompts).
  */
 function isConfirmGateEnabled(): boolean {
-  return process.env.MS365_MCP_REQUIRE_CONFIRM !== 'false';
+  return process.env.MS365_MCP_REQUIRE_CONFIRM === 'true';
 }
 
 type TextContent = {
@@ -1327,9 +1329,9 @@ export function registerGraphTools(
       paramSchema['confirm'] = z
         .boolean()
         .describe(
-          'Required for destructive operations. Set to true only after the user has explicitly approved this action. ' +
-            'Calls without confirm: true return { error: "confirmation_required" } without touching user data. ' +
-            'Server-wide opt-out: MS365_MCP_REQUIRE_CONFIRM=false.'
+          'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
+            'Set to true only after the user has explicitly approved this action. ' +
+            'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.'
         )
         .optional();
     }

@@ -75,9 +75,9 @@ export function describeToolSchema(
       in: 'Query',
       required: false,
       description:
-        'Required for destructive operations. Set to true only after the user has explicitly approved this action. ' +
-        'Calls without confirm: true return { error: "confirmation_required" } without touching user data. ' +
-        'Server-wide opt-out: MS365_MCP_REQUIRE_CONFIRM=false.',
+        'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
+        'Set to true only after the user has explicitly approved this action. ' +
+        'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.',
       schema: { type: 'boolean' },
     });
   }

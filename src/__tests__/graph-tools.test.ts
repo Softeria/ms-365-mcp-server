@@ -1582,6 +1582,12 @@ describe('graph-tools', () => {
   describe('destructive operations require confirm: true', () => {
     const prevRequireConfirm = process.env.MS365_MCP_REQUIRE_CONFIRM;
 
+    beforeEach(() => {
+      // The confirm gate is opt-in (off by default); enable it for the
+      // gate-behaviour tests below. The default-off case is asserted explicitly.
+      process.env.MS365_MCP_REQUIRE_CONFIRM = 'true';
+    });
+
     afterEach(() => {
       if (prevRequireConfirm === undefined) delete process.env.MS365_MCP_REQUIRE_CONFIRM;
       else process.env.MS365_MCP_REQUIRE_CONFIRM = prevRequireConfirm;
@@ -1721,7 +1727,34 @@ describe('graph-tools', () => {
       expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
     });
 
-    it('opt-out via MS365_MCP_REQUIRE_CONFIRM=false skips the gate', async () => {
+    it('does NOT gate when MS365_MCP_REQUIRE_CONFIRM is unset (opt-in, off by default)', async () => {
+      delete process.env.MS365_MCP_REQUIRE_CONFIRM;
+      const endpoint = makeEndpoint({
+        method: 'delete',
+        path: '/me/messages/:message-id',
+        alias: 'delete-mail-message',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages/{message-id}',
+        method: 'delete',
+        toolName: 'delete-mail-message',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ status: 204 }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('delete-mail-message');
+      await tool!.handler({ messageId: 'abc' }); // No confirm — gate off by default
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT gate when MS365_MCP_REQUIRE_CONFIRM=false (explicit off)', async () => {
       process.env.MS365_MCP_REQUIRE_CONFIRM = 'false';
       const endpoint = makeEndpoint({
         method: 'delete',
