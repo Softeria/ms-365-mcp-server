@@ -72,7 +72,7 @@ program
   )
   .option(
     '--no-dynamic-registration',
-    'Disable OAuth Dynamic Client Registration endpoint in HTTP mode'
+    'Disable OAuth Dynamic Client Registration endpoint in HTTP mode. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
   )
   .option(
     '--auth-browser',
@@ -269,10 +269,15 @@ export function parseArgs(): CommandOptions {
     options.toon = true;
   }
 
-  // Dynamic registration defaults to true in HTTP mode
-  // --enable-dynamic-registration (backwards compat) or --no-dynamic-registration to override
+  // Dynamic registration defaults to true in HTTP mode.
+  // CLI flags `--enable-dynamic-registration` / `--no-dynamic-registration` take
+  // precedence; otherwise `MS365_MCP_DISABLE_DCR=true|1` opts the deployment out
+  // (allows env-var-only configuration in container platforms without modifying
+  // process args).
   if (options.http) {
-    if (options.dynamicRegistration === false) {
+    const dcrDisabledByEnv =
+      process.env.MS365_MCP_DISABLE_DCR === 'true' || process.env.MS365_MCP_DISABLE_DCR === '1';
+    if (options.dynamicRegistration === false || dcrDisabledByEnv) {
       options.enableDynamicRegistration = false;
     } else {
       options.enableDynamicRegistration = true;
