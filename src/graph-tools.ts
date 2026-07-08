@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import logger from './logger.js';
 import { auditLog, getUserIdentityForAudit } from './audit-log.js';
 import GraphClient from './graph-client.js';
+import { isDestructiveOperation } from './lib/destructive-ops.js';
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
@@ -130,6 +131,23 @@ function paginationAllowed(): boolean {
   const raw = process.env.MS365_MCP_ALLOW_PAGINATION;
   if (raw === undefined || raw === '') return true;
   return !/^(0|false|no)$/i.test(raw.trim());
+}
+
+// Canonical definition lives in lib/destructive-ops.ts so tool-schema.ts can
+// use it without circling back through graph-tools.ts; re-exported here for
+// external callers (tests, etc.) that imported it from this module.
+export { isDestructiveOperation };
+
+/**
+ * Defense-in-depth: destructive tools require an explicit `confirm: true` from
+ * the caller before they reach Microsoft Graph. Mitigates accidental
+ * sendMail / deleteEvent / etc. when an LLM misroutes a request or follows an
+ * injected instruction. Opt in per-deployment via MS365_MCP_REQUIRE_CONFIRM=true
+ * (default off, so the gate is a non-breaking, additive opt-in that can coexist
+ * with client-side elicitation prompts).
+ */
+function isConfirmGateEnabled(): boolean {
+  return process.env.MS365_MCP_REQUIRE_CONFIRM === 'true';
 }
 
 type TextContent = {
@@ -637,6 +655,32 @@ async function executeGraphTool(
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
 
+  if (
+    isConfirmGateEnabled() &&
+    isDestructiveOperation(tool.method, config) &&
+    params.confirm !== true
+  ) {
+    logger.warn(
+      `Refusing destructive tool ${tool.alias} (${tool.method.toUpperCase()}): missing confirm: true`
+    );
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'confirmation_required',
+            tool: tool.alias,
+            method: tool.method.toUpperCase(),
+            destructive: true,
+            message:
+              'This tool modifies user data. Re-call with parameter "confirm": true after the user has explicitly approved the operation.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
   const requestId = randomUUID();
   const startTime = Date.now();
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
@@ -687,6 +731,7 @@ async function executeGraphTool(
       if (
         [
           'account',
+          'confirm',
           'fetchAllPages',
           'includeHeaders',
           'excludeResponse',
@@ -1275,6 +1320,22 @@ export function registerGraphTools(
       .describe('Exclude the full response body and only return success or failure indication')
       .optional();
 
+    // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
+    // explicit `confirm: true` server-side gate. See isDestructiveOperation +
+    // executeGraphTool for the enforcement; surface the param in the schema so
+    // the LLM/agent sees it upfront.
+    const destructive = isDestructiveOperation(tool.method, endpointConfig);
+    if (destructive) {
+      paramSchema['confirm'] = z
+        .boolean()
+        .describe(
+          'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
+            'Set to true only after the user has explicitly approved this action. ' +
+            'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.'
+        )
+        .optional();
+    }
+
     // Add timezone parameter for calendar endpoints that support it
     if (endpointConfig?.supportsTimezone) {
       paramSchema['timezone'] = z
@@ -1319,8 +1380,7 @@ export function registerGraphTools(
         {
           title: tool.alias,
           readOnlyHint: isReadOnlyTool,
-          destructiveHint:
-            !isReadOnlyTool && ['POST', 'PATCH', 'DELETE'].includes(tool.method.toUpperCase()),
+          destructiveHint: destructive,
           openWorldHint: true, // All tools call Microsoft Graph API
         },
         async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
@@ -1670,11 +1730,7 @@ export function registerDiscoveryTools(
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
       if (entry) {
-        const schema = describeToolSchema(
-          entry.tool,
-          entry.config?.llmTip,
-          entry.config?.descriptionOverride
-        );
+        const schema = describeToolSchema(entry.tool, entry.config);
         return {
           content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };

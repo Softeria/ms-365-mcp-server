@@ -1766,6 +1766,7 @@
     "method": "post",
     "toolName": "search-query",
     "presets": ["personal", "search", "work"],
+    "readOnly": true,
     "workScopes": [
       "Mail.Read",
       "Calendars.Read",
@@ -1976,6 +1977,7 @@
     "method": "post",
     "toolName": "get-presences-by-user-id",
     "presets": ["teams", "work"],
+    "readOnly": true,
     "workScopes": ["Presence.Read.All"],
     "contentType": "application/json",
     "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
@@ -2259,6 +2261,7 @@
     "method": "post",
     "toolName": "get-mail-tips",
     "presets": ["mail", "outlook", "personal"],
+    "readOnly": true,
     "scopes": ["Mail.Read"],
     "contentType": "application/json",
     "llmTip": "Looks up MailTips for one or more recipients before sending an email — answers 'is this person on auto-reply / OOF?', 'will my email exceed their mailbox quota?', 'are they an external recipient?', 'is this a mailbox or distribution list?'. Body: { EmailAddresses: ['user@contoso.com', ...], MailTipsOptions: 'automaticReplies, mailboxFullStatus, customMailTip, externalMemberCount, totalMemberCount, maxMessageSize, deliveryRestriction, moderationStatus, recipientScope, recipientSuggestions' (comma-separated subset) }. Returns mailTips per recipient with the requested fields populated. Use this to short-circuit urgent emails when a recipient is OOF, or to warn before fanning out to a large DL."
@@ -2429,6 +2432,7 @@
     "method": "post",
     "toolName": "get-onenote-notebook-from-web-url",
     "presets": ["onenote", "personal"],
+    "readOnly": true,
     "workScopes": ["Notes.Read"],
     "contentType": "application/json",
     "llmTip": "Resolves a OneNote notebook from its web URL (the link a user copies from OneNote / SharePoint / Teams). Body: { webUrl: 'https://...' }. Returns a notebook object with id, displayName, sectionsUrl, sectionGroupsUrl, and isShared — you can then list its sections via list-onenote-notebook-sections. Accepts user notebooks, group notebooks, and SharePoint-hosted team notebooks. Personal Microsoft accounts are not supported."
