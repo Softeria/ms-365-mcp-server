@@ -573,6 +573,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         }
         const response = await graphClient.graphRequest(itemPath, {
           accessToken: accountAccessToken,
+          // We JSON.parse the metadata below, so force JSON - under --toon it'd be
+          // TOON and the parse would fail, masking a real item as "no download url".
+          forceJsonOutput: true,
         });
         // graphRequest swallows Graph HTTP errors and returns { isError: true } (see
         // graph-client.ts); surface the real error (401/403/404/429/...) instead of masking
@@ -919,6 +922,7 @@ async function executeGraphTool(
       queryParams?: Record<string, string>;
       accessToken?: string;
       apiVersion?: string;
+      forceJsonOutput?: boolean;
     } = {
       method: tool.method.toUpperCase(),
       headers,
@@ -982,8 +986,6 @@ async function executeGraphTool(
       `Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
     );
 
-    let response = await graphClient.graphRequest(path, options);
-
     const fetchAllPages = params.fetchAllPages === true;
     const paginationEnabled = paginationAllowed();
     if (fetchAllPages && !paginationEnabled) {
@@ -991,75 +993,104 @@ async function executeGraphTool(
         'fetchAllPages requested but MS365_MCP_ALLOW_PAGINATION is disabled; returning first page only'
       );
     }
-    if (fetchAllPages && paginationEnabled && response?.content?.[0]?.text) {
+    // Force every page to JSON so the merge loop can parse them. Under --toon they'd
+    // be TOON and JSON.parse would throw, silently returning only page one (#560).
+    // The merged result gets re-encoded once at the end.
+    const mergePages = fetchAllPages && paginationEnabled;
+    if (mergePages) {
+      options.forceJsonOutput = true;
+    }
+
+    let response = await graphClient.graphRequest(path, options);
+
+    if (mergePages && response?.content?.[0]?.text) {
+      type ODataPage = {
+        value?: unknown[];
+        '@odata.nextLink'?: string;
+        '@odata.deltaLink'?: string;
+        '@odata.count'?: number;
+        [key: string]: unknown;
+      };
+      let combinedResponse: ODataPage | undefined;
       try {
-        let combinedResponse = JSON.parse(response.content[0].text);
-        let allItems = combinedResponse.value || [];
-        let nextLink = combinedResponse['@odata.nextLink'];
-        let pageCount = 1;
-        const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
-        const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
-        // Graph only emits @odata.deltaLink on the final page of a /delta query.
-        // Track it across the pagination loop so we can stamp it on the combined
-        // response — otherwise fetchAllPages on a /delta endpoint silently drops
-        // the resume token and forces callers to re-list from scratch.
-        let deltaLink: string | undefined = combinedResponse['@odata.deltaLink'];
+        combinedResponse = JSON.parse(response.content[0].text) as ODataPage;
 
-        while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
-          logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
+        // Only merge if page one is actually a collection. fetchAllPages can be set
+        // on a single-object GET too, and we'd otherwise graft a bogus value:[] on it.
+        const firstValue = combinedResponse.value;
+        if (Array.isArray(firstValue)) {
+          let allItems: unknown[] = firstValue;
+          let nextLink = combinedResponse['@odata.nextLink'];
+          let pageCount = 1;
+          const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
+          const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
+          // Graph only emits @odata.deltaLink on the final page of a /delta query.
+          // Track it across the pagination loop so we can stamp it on the combined
+          // response — otherwise fetchAllPages on a /delta endpoint silently drops
+          // the resume token and forces callers to re-list from scratch.
+          let deltaLink = combinedResponse['@odata.deltaLink'];
 
-          // Extract path + query string from the nextLink URL.
-          // Pass the full path (with query string) as the endpoint so that
-          // $skiptoken and other pagination params are preserved.
-          // Previously, query params were extracted into nextOptions.queryParams
-          // but graphRequest/performRequest never read that field — they were lost.
-          const url = new URL(nextLink);
-          // nextLink is absolute and version-qualified (/v1.0/... or /beta/...). Strip the
-          // version segment so performRequest can re-apply the request's own apiVersion.
-          const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
-          const nextOptions = { ...options };
+          while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
+            logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
 
-          const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
-          if (nextResponse?.content?.[0]?.text) {
-            const nextJsonResponse = JSON.parse(nextResponse.content[0].text);
-            if (nextJsonResponse.value && Array.isArray(nextJsonResponse.value)) {
-              allItems = allItems.concat(nextJsonResponse.value);
+            // Extract path + query string from the nextLink URL.
+            // Pass the full path (with query string) as the endpoint so that
+            // $skiptoken and other pagination params are preserved.
+            // Previously, query params were extracted into nextOptions.queryParams
+            // but graphRequest/performRequest never read that field — they were lost.
+            const url = new URL(nextLink);
+            // nextLink is absolute and version-qualified (/v1.0/... or /beta/...). Strip the
+            // version segment so performRequest can re-apply the request's own apiVersion.
+            const nextPath = url.pathname.replace(/^\/(v1\.0|beta)/, '') + url.search;
+            const nextOptions = { ...options };
+
+            const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
+            if (nextResponse?.content?.[0]?.text) {
+              const nextJsonResponse = JSON.parse(nextResponse.content[0].text) as ODataPage;
+              if (Array.isArray(nextJsonResponse.value)) {
+                allItems = allItems.concat(nextJsonResponse.value);
+              }
+              nextLink = nextJsonResponse['@odata.nextLink'];
+              if (nextJsonResponse['@odata.deltaLink']) {
+                deltaLink = nextJsonResponse['@odata.deltaLink'];
+              }
+              pageCount++;
+            } else {
+              break;
             }
-            nextLink = nextJsonResponse['@odata.nextLink'];
-            if (nextJsonResponse['@odata.deltaLink']) {
-              deltaLink = nextJsonResponse['@odata.deltaLink'];
-            }
-            pageCount++;
-          } else {
-            break;
           }
-        }
 
-        if (pageCount >= maxPages) {
-          logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
-        }
-        if (allItems.length >= maxItems) {
-          logger.warn(
-            `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+          if (pageCount >= maxPages) {
+            logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
+          }
+          if (allItems.length >= maxItems) {
+            logger.warn(
+              `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+            );
+          }
+
+          combinedResponse.value = allItems;
+          if (combinedResponse['@odata.count']) {
+            combinedResponse['@odata.count'] = allItems.length;
+          }
+          delete combinedResponse['@odata.nextLink'];
+          if (deltaLink) {
+            combinedResponse['@odata.deltaLink'] = deltaLink;
+          }
+
+          logger.info(
+            `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
           );
         }
-
-        combinedResponse.value = allItems;
-        if (combinedResponse['@odata.count']) {
-          combinedResponse['@odata.count'] = allItems.length;
-        }
-        delete combinedResponse['@odata.nextLink'];
-        if (deltaLink) {
-          combinedResponse['@odata.deltaLink'] = deltaLink;
-        }
-
-        response.content[0].text = JSON.stringify(combinedResponse);
-
-        logger.info(
-          `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
-        );
       } catch (e) {
         logger.error(`Error during pagination: ${e}`);
+      }
+
+      // Re-encode once in the configured format. Runs whenever page one parsed
+      // (non-collection skip and mid-loop abort included), so a --toon client
+      // never gets handed the forced-JSON body.
+      if (combinedResponse !== undefined) {
+        response.content[0].text = graphClient.serialize(combinedResponse);
       }
     }
 

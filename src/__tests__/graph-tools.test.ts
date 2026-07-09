@@ -81,7 +81,7 @@ function makeConfig(overrides: Partial<any> = {}) {
 }
 
 /** Creates a mock GraphClient with a controllable graphRequest spy */
-function createMockGraphClient(responses?: any[]) {
+function createMockGraphClient(responses?: any[], outputFormat: 'json' | 'toon' = 'json') {
   const responseQueue = [...(responses || [])];
   return {
     graphRequest: vi.fn().mockImplementation(async () => {
@@ -92,6 +92,13 @@ function createMockGraphClient(responses?: any[]) {
         content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
       };
     }),
+    // Fake serialize: prefix the JSON in toon mode so a test can tell the merged
+    // body went through serialize() and not a plain JSON.stringify.
+    serialize: vi
+      .fn()
+      .mockImplementation((data: unknown) =>
+        outputFormat === 'toon' ? `TOON:${JSON.stringify(data)}` : JSON.stringify(data)
+      ),
   };
 }
 
@@ -219,6 +226,79 @@ describe('graph-tools', () => {
       expect(parsed.value.map((v: any) => v.id)).toEqual(['1', '2', '3']);
       // nextLink should be removed from final response
       expect(parsed['@odata.nextLink']).toBeUndefined();
+    });
+
+    it('merges all pages under --toon and encodes the combined result once (#560)', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      // Pages are JSON here to mimic the forceJsonOutput path; the mock's serialize
+      // adds the TOON prefix so we can check the merged result was re-encoded (#560).
+      const graphClient = createMockGraphClient(
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1' }, { id: '2' }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+                }),
+              },
+            ],
+          },
+          {
+            content: [{ type: 'text', text: JSON.stringify({ value: [{ id: '3' }] }) }],
+          },
+        ],
+        'toon'
+      );
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('test-tool');
+      const result = await tool!.handler({ fetchAllPages: true });
+
+      // Both page requests must be forced to JSON so the merge can parse them.
+      for (const call of graphClient.graphRequest.mock.calls) {
+        expect(call[1]?.forceJsonOutput).toBe(true);
+      }
+
+      // Final body is encoded once via serialize() in the configured (toon) format,
+      // not re-parsed as JSON. It must still contain all 3 merged items.
+      expect(graphClient.serialize).toHaveBeenCalledTimes(1);
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      const parsed = JSON.parse(result.content[0].text.slice('TOON:'.length));
+      expect(parsed.value.map((v: any) => v.id)).toEqual(['1', '2', '3']);
+      expect(parsed['@odata.nextLink']).toBeUndefined();
+    });
+
+    it('does not inject value:[] when fetchAllPages hits a single-object (non-collection) GET', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      // Single-object response (no `value`). fetchAllPages can be set on any GET,
+      // and the merge must leave the object alone, not graft on an empty value array.
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'abc', displayName: 'Solo' }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed).toEqual({ id: 'abc', displayName: 'Solo' });
+      expect(parsed.value).toBeUndefined();
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
     });
 
     it('should stop at 100 page limit', async () => {
@@ -913,6 +993,36 @@ describe('graph-tools', () => {
       expect(payload.name).toBe('report.pdf');
       expect(payload.size).toBe(12727);
       expect(payload.contentType).toBe('application/pdf');
+    });
+
+    it('forces a JSON body on the metadata request so it works under --toon (#560)', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ '@microsoft.graph.downloadUrl': 'https://dl.example/x' }),
+            },
+          ],
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools
+        .get('get-download-url')!
+        .handler({ target: '/drives/d1/items/item1/content' });
+
+      // Without forceJsonOutput the client would TOON-encode the metadata and the
+      // handler's JSON.parse would fail, masking a valid item as "no download url".
+      const [, opts] = graphClient.graphRequest.mock.calls[0];
+      expect(opts?.forceJsonOutput).toBe(true);
+      expect(JSON.parse(result.content[0].text).downloadUrl).toBe('https://dl.example/x');
     });
 
     it('rejects query-shaped targets instead of silently changing request semantics', async () => {

@@ -57,6 +57,9 @@ interface GraphRequestOptions {
   // Graph API version segment for the request path. Defaults to 'v1.0'; endpoints
   // declaring "apiVersion": "beta" in endpoints.json route to the /beta surface.
   apiVersion?: string;
+  // Pin this response to JSON regardless of the configured format, so the
+  // fetchAllPages merge can JSON.parse each page before re-encoding (#560).
+  forceJsonOutput?: boolean;
 
   [key: string]: unknown;
 }
@@ -221,6 +224,15 @@ class GraphClient {
     return JSON.stringify(data, null, pretty ? 2 : undefined);
   }
 
+  /**
+   * Encode a value in the configured format (json/toon). The fetchAllPages merge
+   * uses this to encode the combined result once, after parsing pages as JSON (#560).
+   * Compact by default like JSON.stringify, so JSON-mode output is byte-identical.
+   */
+  serialize(data: unknown, pretty = false): string {
+    return this.serializeData(data, this.outputFormat, pretty);
+  }
+
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
       logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
@@ -228,7 +240,16 @@ class GraphClient {
       // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
 
-      return this.formatJsonResponse(result, options.rawResponse, options.excludeResponse);
+      // forceJsonOutput keeps this body JSON so the fetchAllPages merge can parse
+      // it; otherwise --toon would make the merge's JSON.parse throw (#560).
+      const outputFormat = options.forceJsonOutput ? 'json' : this.outputFormat;
+
+      return this.formatJsonResponse(
+        result,
+        options.rawResponse,
+        options.excludeResponse,
+        outputFormat
+      );
     } catch (error) {
       logger.error(`Error in Graph API request: ${error}`);
       return {
@@ -238,11 +259,16 @@ class GraphClient {
     }
   }
 
-  formatJsonResponse(data: unknown, rawResponse = false, excludeResponse = false): McpResponse {
+  formatJsonResponse(
+    data: unknown,
+    rawResponse = false,
+    excludeResponse = false,
+    outputFormat: 'json' | 'toon' = this.outputFormat
+  ): McpResponse {
     // If excludeResponse is true, only return success indication
     if (excludeResponse) {
       return {
-        content: [{ type: 'text', text: this.serializeData({ success: true }, this.outputFormat) }],
+        content: [{ type: 'text', text: this.serializeData({ success: true }, outputFormat) }],
       };
     }
 
@@ -264,18 +290,14 @@ class GraphClient {
 
       if (rawResponse) {
         return {
-          content: [
-            { type: 'text', text: this.serializeData(responseData.data, this.outputFormat) },
-          ],
+          content: [{ type: 'text', text: this.serializeData(responseData.data, outputFormat) }],
           _meta: meta,
         };
       }
 
       if (responseData.data === null || responseData.data === undefined) {
         return {
-          content: [
-            { type: 'text', text: this.serializeData({ success: true }, this.outputFormat) },
-          ],
+          content: [{ type: 'text', text: this.serializeData({ success: true }, outputFormat) }],
           _meta: meta,
         };
       }
@@ -301,7 +323,7 @@ class GraphClient {
 
       return {
         content: [
-          { type: 'text', text: this.serializeData(responseData.data, this.outputFormat, true) },
+          { type: 'text', text: this.serializeData(responseData.data, outputFormat, true) },
         ],
         _meta: meta,
       };
@@ -310,13 +332,13 @@ class GraphClient {
     // Original handling for backward compatibility
     if (rawResponse) {
       return {
-        content: [{ type: 'text', text: this.serializeData(data, this.outputFormat) }],
+        content: [{ type: 'text', text: this.serializeData(data, outputFormat) }],
       };
     }
 
     if (data === null || data === undefined) {
       return {
-        content: [{ type: 'text', text: this.serializeData({ success: true }, this.outputFormat) }],
+        content: [{ type: 'text', text: this.serializeData({ success: true }, outputFormat) }],
       };
     }
 
@@ -340,7 +362,7 @@ class GraphClient {
     removeODataProps(data as Record<string, unknown>);
 
     return {
-      content: [{ type: 'text', text: this.serializeData(data, this.outputFormat, true) }],
+      content: [{ type: 'text', text: this.serializeData(data, outputFormat, true) }],
     };
   }
 }
