@@ -1394,6 +1394,13 @@
     "workScopes": ["ChatMessage.Read"]
   },
   {
+    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
+    "method": "patch",
+    "toolName": "update-chat-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["Chat.ReadWrite"]
+  },
+  {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
@@ -1473,6 +1480,13 @@
     "workScopes": ["ChannelMessage.Read.All"]
   },
   {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
+    "method": "patch",
+    "toolName": "update-channel-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"]
+  },
+  {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents",
     "method": "get",
     "toolName": "list-channel-message-hosted-contents",
@@ -1502,6 +1516,13 @@
     "toolName": "list-channel-message-replies",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies/{chatMessage-id1}",
+    "method": "patch",
+    "toolName": "update-channel-message-reply",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"]
   },
   {
     "pathPattern": "/teams/{team-id}/members",
