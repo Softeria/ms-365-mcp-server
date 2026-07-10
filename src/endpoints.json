@@ -974,6 +974,78 @@
     "workScopes": ["Notes.Read"]
   },
   {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks",
+    "method": "post",
+    "toolName": "create-sharepoint-site-onenote-notebook",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.Create"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sections",
+    "method": "post",
+    "toolName": "create-sharepoint-site-onenote-section",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.Create"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/sectionGroups/{sectionGroup-id}/sections",
+    "method": "post",
+    "toolName": "create-sharepoint-site-onenote-section-group-section",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.Create"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/sections/{onenoteSection-id}/pages",
+    "method": "post",
+    "toolName": "create-sharepoint-site-onenote-section-page",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.Create"],
+    "contentType": "text/html",
+    "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML fails silently."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/pages/{onenotePage-id}/content",
+    "method": "patch",
+    "toolName": "update-sharepoint-site-onenote-page-content",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.ReadWrite"],
+    "requestBodySchema": {
+      "type": "array",
+      "description": "Array of patchContentCommand objects applied in order to the page's HTML.",
+      "items": {
+        "type": "object",
+        "required": ["target", "action"],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+          },
+          "action": {
+            "type": "string",
+            "enum": ["append", "insert", "prepend", "replace", "delete"],
+            "description": "What to do at the target. 'delete' takes no content."
+          },
+          "position": {
+            "type": "string",
+            "enum": ["after", "before"],
+            "description": "For 'insert'/'append', whether content goes after (default) or before the target's content."
+          },
+          "content": {
+            "type": "string",
+            "description": "HTML to add. Required for all actions except 'delete'."
+          }
+        }
+      }
+    }
+  },
+  {
+    "pathPattern": "/sites/{site-id}/onenote/pages/{onenotePage-id}",
+    "method": "delete",
+    "toolName": "delete-sharepoint-site-onenote-page",
+    "presets": ["onenote", "work"],
+    "workScopes": ["Notes.ReadWrite"]
+  },
+  {
     "pathPattern": "/me/onenote/pages",
     "method": "post",
     "toolName": "create-onenote-page",
