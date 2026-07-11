@@ -8,7 +8,7 @@ import path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 if (!globalThis.File) (globalThis as any).File = Blob;
 
-const { api } = await import('../src/generated/client.js');
+const { api, schemas } = await import('../src/generated/client.js');
 const { api: betaApi } = await import('../src/generated/client-beta.js');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -142,5 +142,47 @@ describe('endpoints.json validation', () => {
     expect(endpoint?.llmTip).toContain('call get-download-url');
     expect(endpoint?.llmTip).toContain('out-of-band');
     expect(endpoint?.llmTip).toContain('call download-bytes');
+  });
+
+  it('should document the @mention shape on the Teams send/reply tools', () => {
+    const mentionTools = [
+      'send-chat-message',
+      'send-channel-message',
+      'reply-to-channel-message',
+      'reply-to-chat-message',
+    ];
+
+    for (const toolName of mentionTools) {
+      const endpoint = endpoints.find((e) => e.toolName === toolName);
+      expect(endpoint, `${toolName} should exist`).toBeDefined();
+      // Model omits userIdentityType without this, and Graph 400s (issue #558)
+      expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('<at id');
+      expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('userIdentityType');
+    }
+  });
+
+  it('should accept and preserve userIdentityType on a mentions payload (passthrough schema)', () => {
+    const chatMessage = (
+      schemas as Record<string, { safeParse: (v: unknown) => { success: boolean; data?: unknown } }>
+    ).microsoft_graph_chatMessage;
+    const payload = {
+      body: { contentType: 'html', content: 'Hi <at id="0">Jane</at>' },
+      mentions: [
+        {
+          id: 0,
+          mentionText: 'Jane',
+          mentioned: { user: { id: 'guid', displayName: 'Jane', userIdentityType: 'aadUser' } },
+        },
+      ],
+    };
+
+    const result = chatMessage.safeParse(payload);
+    expect(result.success).toBe(true);
+    // userIdentityType isn't a modeled field - it survives only because the schemas are
+    // .passthrough(). So this guards the codegen trait, not request serialization.
+    const mentioned = (
+      result.data as { mentions: Array<{ mentioned: { user: { userIdentityType?: string } } }> }
+    ).mentions[0].mentioned.user;
+    expect(mentioned.userIdentityType).toBe('aadUser');
   });
 });
