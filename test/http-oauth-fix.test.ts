@@ -52,7 +52,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
 
     // Capture the registered tool handler
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
+    vi.spyOn(server, 'registerTool').mockImplementation(((...args: any[]) => {
       const name = args[0];
       const handler = args[args.length - 1];
       if (name === 'list-mail-messages' && typeof handler === 'function') {

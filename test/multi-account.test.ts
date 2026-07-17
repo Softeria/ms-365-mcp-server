@@ -32,11 +32,14 @@ describe('Multi-account support', () => {
   let graphClient: GraphClient;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.tool() has ~6 overloads; spying it requires any
   let toolSpy: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let registerToolSpy: any;
 
   beforeEach(() => {
     server = new McpServer({ name: 'test', version: '1.0.0' });
     graphClient = {} as GraphClient;
     toolSpy = vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
+    registerToolSpy = vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as any);
   });
 
   describe('account parameter injection (Layer 2)', () => {
@@ -46,21 +49,20 @@ describe('Multi-account support', () => {
         'work@company.com',
       ]);
 
-      const toolCall = toolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
+      const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
       expect(toolCall).toBeDefined();
 
-      // Schema is the 3rd argument (index 2)
-      const schema = toolCall![2] as Record<string, unknown>;
+      const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;
       expect(schema).toHaveProperty('account');
     });
 
     it('should not inject account param when multiAccount=false', () => {
       registerGraphTools(server, graphClient, false);
 
-      const toolCall = toolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
+      const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
       expect(toolCall).toBeDefined();
 
-      const schema = toolCall![2] as Record<string, unknown>;
+      const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;
       expect(schema).not.toHaveProperty('account');
     });
 
@@ -69,8 +71,8 @@ describe('Multi-account support', () => {
         'user@outlook.com',
       ]);
 
-      const toolCall = toolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
-      const schema = toolCall![2] as Record<string, unknown>;
+      const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
+      const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;
       // account should be a Zod string type, not enum — verify it's present and optional
       expect(schema).toHaveProperty('account');
     });
@@ -313,8 +315,8 @@ describe('Multi-account support', () => {
           ['user@outlook.com', 'work@company.com']
         );
 
-        const toolCall = toolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
-        const schema = toolCall![2] as Record<string, unknown>;
+        const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
+        const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;
         expect(schema).not.toHaveProperty('account');
       });
     });

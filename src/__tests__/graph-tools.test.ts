@@ -131,6 +131,20 @@ function createMockServer() {
         tools.set(name, { description, schema, handler });
       }
     ),
+    registerTool: vi.fn(
+      (
+        name: string,
+        config: { description: string; inputSchema: any },
+        handler: (...args: any[]) => any
+      ) => {
+        // Expose the zod object's shape so tests can keep asserting on params
+        tools.set(name, {
+          description: config.description,
+          schema: config.inputSchema?.shape ?? config.inputSchema,
+          handler,
+        });
+      }
+    ),
     tools,
   };
 }
