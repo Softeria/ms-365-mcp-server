@@ -649,6 +649,65 @@ function registerUtilityToolWithMcp(
   );
 }
 
+// Unwrap optional/nullable/effects/lazy wrappers to get at the object shape of a Body
+// schema, so unmatched top-level params can be recognized as body fields (issue #569).
+// The generated client defines some Body schemas via z.lazy (e.g. chatMessage), whose
+// inner schema sits behind _def.getter rather than innerType/schema.
+function bodySchemaShape(schema: z.ZodTypeAny | undefined): Record<string, unknown> | null {
+  let current: z.ZodTypeAny | undefined = schema;
+  for (let i = 0; i < 10 && current; i++) {
+    if (current instanceof z.ZodObject) {
+      return current.shape as Record<string, unknown>;
+    }
+    const def = (
+      current as {
+        _def?: { innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; getter?: () => z.ZodTypeAny };
+      }
+    )._def;
+    current = def?.innerType ?? def?.schema ?? def?.getter?.();
+  }
+  return null;
+}
+
+// Make a Body schema tolerant of unknown keys so SDK-side validation (which replaces
+// the args with the PARSED result) doesn't strip client-sent fields the schema doesn't
+// declare. Recurses through optional/nullable/lazy wrappers, rebuilding them around the
+// passthrough object; other schema kinds are returned unchanged.
+function lenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  if (schema instanceof z.ZodObject) {
+    return schema.passthrough();
+  }
+  if (schema instanceof z.ZodOptional) {
+    return lenientBodySchema(schema.unwrap()).optional();
+  }
+  if (schema instanceof z.ZodNullable) {
+    return lenientBodySchema(schema.unwrap()).nullable();
+  }
+  if (schema instanceof z.ZodLazy) {
+    return z.lazy(() => lenientBodySchema(schema.schema));
+  }
+  return schema;
+}
+
+// Entity fields Graph treats as read-only. Never rescue these from flattened params —
+// injecting an echoed `id` or timestamp into a POST/PATCH body can fail the request.
+const READ_ONLY_BODY_FIELDS = new Set([
+  'id',
+  'createdDateTime',
+  'lastModifiedDateTime',
+  'changeKey',
+]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Object.hasOwn substitute (tsconfig targets ES2020). Own-property check, not `in`:
+// the zod shape is a normal-prototype object, so `in` would match toString/constructor.
+function hasOwn(obj: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
 async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
@@ -728,6 +787,14 @@ async function executeGraphTool(
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
     let body: unknown = null;
+
+    // Fields of the body schema passed as top-level params instead of nested under
+    // `body` (issue #569: create-draft-email dropped subject/toRecipients). Collected
+    // during the loop and merged into the request body afterwards.
+    const bodyShape = bodySchemaShape(
+      parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
+    );
+    const strayBodyFields: Record<string, unknown> = {};
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       // Skip control parameters - not part of the Microsoft Graph API
@@ -854,6 +921,46 @@ async function executeGraphTool(
         // list — forward it as a query param rather than silently dropping it.
         queryParams[fixedParamName] = `${paramValue}`;
         logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
+      } else if (
+        bodyShape &&
+        (hasOwn(bodyShape, paramName) || hasOwn(bodyShape, camelCaseParamName)) &&
+        !READ_ONLY_BODY_FIELDS.has(hasOwn(bodyShape, paramName) ? paramName : camelCaseParamName)
+      ) {
+        // Fallback: param matches a field of the body schema — the client flattened the
+        // body object into top-level params. Merge into the request body instead of dropping.
+        // The read-only exclusion checks the resolved field name, so kebab-cased variants
+        // like created-date-time can't sneak past it.
+        const fieldName = hasOwn(bodyShape, paramName) ? paramName : camelCaseParamName;
+        strayBodyFields[fieldName] = paramValue;
+        logger.info(
+          `Body field fallback: merging top-level param '${fieldName}' into request body`
+        );
+      } else {
+        logger.warn(`Dropping unrecognized parameter '${paramName}' for tool ${tool.alias}`);
+      }
+    }
+
+    if (Object.keys(strayBodyFields).length > 0) {
+      if (isPlainObject(body)) {
+        // If the `body` param's own keys aren't fields of the body schema but the schema
+        // has a `body` field (e.g. message.body), the client meant it as that field —
+        // nest it. Otherwise treat it as the (partial) body object; spread order lets the
+        // explicitly nested body win over stray top-level duplicates in both branches.
+        const keys = Object.keys(body);
+        const bodyIsNestedField =
+          bodyShape != null &&
+          hasOwn(bodyShape, 'body') &&
+          keys.length > 0 &&
+          keys.every((k) => !hasOwn(bodyShape, k));
+        body = bodyIsNestedField ? { ...strayBodyFields, body } : { ...strayBodyFields, ...body };
+        logger.info(`Merged flattened body fields: ${Object.keys(strayBodyFields).join(', ')}`);
+      } else if (body == null) {
+        body = strayBodyFields;
+        logger.info(`Merged flattened body fields: ${Object.keys(strayBodyFields).join(', ')}`);
+      } else {
+        logger.warn(
+          `Cannot merge flattened body fields (${Object.keys(strayBodyFields).join(', ')}) into non-object request body; dropping them`
+        );
       }
     }
 
@@ -1229,7 +1336,14 @@ export function registerGraphTools(
     const paramSchema: Record<string, z.ZodTypeAny> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
-        paramSchema[param.name] = param.schema || z.any();
+        // Body params get lenient (passthrough) validation: SDK validation returns the
+        // PARSED value, and strip-mode objects silently discard unknown keys. A client
+        // that puts the message's body field in the `body` param (issue #569) would
+        // otherwise have it emptied to {} before the handler can repair the request.
+        paramSchema[param.name] =
+          param.type === 'Body' && param.schema
+            ? lenientBodySchema(param.schema as z.ZodTypeAny)
+            : param.schema || z.any();
       }
     }
 
@@ -1404,17 +1518,26 @@ export function registerGraphTools(
     const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
     try {
-      server.tool(
+      // Register with an explicit .passthrough() object schema instead of a raw shape:
+      // the SDK wraps raw shapes in z.object() which STRIPS unknown keys before the
+      // handler runs. Clients that flatten body fields into top-level params (issue #569:
+      // create-draft-email called with subject/toRecipients as siblings of body) would
+      // lose those params before executeGraphTool's body-field fallback can rescue them.
+      server.registerTool(
         tool.alias,
-        toolDescription,
-        paramSchema,
         {
           title: tool.alias,
-          readOnlyHint: isReadOnlyTool,
-          destructiveHint: destructive,
-          openWorldHint: true, // All tools call Microsoft Graph API
+          description: toolDescription,
+          inputSchema: z.object(paramSchema).passthrough(),
+          annotations: {
+            title: tool.alias,
+            readOnlyHint: isReadOnlyTool,
+            destructiveHint: destructive,
+            openWorldHint: true, // All tools call Microsoft Graph API
+          },
         },
-        async (params) => executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
+        async (params: Record<string, unknown>) =>
+          executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
       );
       registeredCount++;
     } catch (error) {

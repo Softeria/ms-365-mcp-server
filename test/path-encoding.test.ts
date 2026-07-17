@@ -37,12 +37,12 @@ vi.mock('../src/generated/client.js', () => ({
 }));
 
 describe('Path parameter encoding (issue #245)', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn> };
+  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
   let mockGraphClient: GraphClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockServer = { tool: vi.fn() };
+    mockServer = { tool: vi.fn(), registerTool: vi.fn() };
     mockGraphClient = {
       graphRequest: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
@@ -52,7 +52,7 @@ describe('Path parameter encoding (issue #245)', () => {
 
   function getToolHandler(toolName: string) {
     registerGraphTools(mockServer, mockGraphClient, false);
-    const call = mockServer.tool.mock.calls.find((c: unknown[]) => c[0] === toolName);
+    const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
   }
