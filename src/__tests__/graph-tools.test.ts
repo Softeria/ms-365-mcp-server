@@ -137,8 +137,7 @@ function createMockServer() {
         config: { description: string; inputSchema: any },
         handler: (...args: any[]) => any
       ) => {
-        // Graph tools register a zod object schema; expose its shape so tests can
-        // keep asserting on individual params like before.
+        // Expose the zod object's shape so tests can keep asserting on params
         tools.set(name, {
           description: config.description,
           schema: config.inputSchema?.shape ?? config.inputSchema,

@@ -649,10 +649,8 @@ function registerUtilityToolWithMcp(
   );
 }
 
-// Unwrap optional/nullable/effects/lazy wrappers to get at the object shape of a Body
-// schema, so unmatched top-level params can be recognized as body fields (issue #569).
-// The generated client defines some Body schemas via z.lazy (e.g. chatMessage), whose
-// inner schema sits behind _def.getter rather than innerType/schema.
+// Dig out the object shape of a Body schema so flattened top-level params can be
+// matched against it (#569). z.lazy (chatMessage etc.) hides it behind _def.getter
 function bodySchemaShape(schema: z.ZodTypeAny | undefined): Record<string, unknown> | null {
   let current: z.ZodTypeAny | undefined = schema;
   for (let i = 0; i < 10 && current; i++) {
@@ -669,10 +667,8 @@ function bodySchemaShape(schema: z.ZodTypeAny | undefined): Record<string, unkno
   return null;
 }
 
-// Make a Body schema tolerant of unknown keys so SDK-side validation (which replaces
-// the args with the PARSED result) doesn't strip client-sent fields the schema doesn't
-// declare. Recurses through optional/nullable/lazy wrappers, rebuilding them around the
-// passthrough object; other schema kinds are returned unchanged.
+// SDK validation hands the handler the PARSED value, and strip-mode objects silently
+// drop unknown keys - passthrough keeps whatever the client sent
 function lenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   if (schema instanceof z.ZodObject) {
     return schema.passthrough();
@@ -689,8 +685,7 @@ function lenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   return schema;
 }
 
-// Entity fields Graph treats as read-only. Never rescue these from flattened params —
-// injecting an echoed `id` or timestamp into a POST/PATCH body can fail the request.
+// Read-only in Graph - merging an echoed id/timestamp into a POST/PATCH body can 400
 const READ_ONLY_BODY_FIELDS = new Set([
   'id',
   'createdDateTime',
@@ -702,8 +697,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// Object.hasOwn substitute (tsconfig targets ES2020). Own-property check, not `in`:
-// the zod shape is a normal-prototype object, so `in` would match toString/constructor.
+// Object.hasOwn, but tsconfig targets ES2020. Not `in` - that would match
+// toString/constructor through the prototype
 function hasOwn(obj: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
@@ -788,9 +783,8 @@ async function executeGraphTool(
     const headers: Record<string, string> = {};
     let body: unknown = null;
 
-    // Fields of the body schema passed as top-level params instead of nested under
-    // `body` (issue #569: create-draft-email dropped subject/toRecipients). Collected
-    // during the loop and merged into the request body afterwards.
+    // Body fields the client passed as top-level params (#569) - merged into the
+    // request body after the loop
     const bodyShape = bodySchemaShape(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
@@ -926,10 +920,9 @@ async function executeGraphTool(
         (hasOwn(bodyShape, paramName) || hasOwn(bodyShape, camelCaseParamName)) &&
         !READ_ONLY_BODY_FIELDS.has(hasOwn(bodyShape, paramName) ? paramName : camelCaseParamName)
       ) {
-        // Fallback: param matches a field of the body schema — the client flattened the
-        // body object into top-level params. Merge into the request body instead of dropping.
-        // The read-only exclusion checks the resolved field name, so kebab-cased variants
-        // like created-date-time can't sneak past it.
+        // Client flattened the body object into top-level params - rescue instead of
+        // dropping. The read-only check uses the resolved name so kebab-case variants
+        // can't sneak past
         const fieldName = hasOwn(bodyShape, paramName) ? paramName : camelCaseParamName;
         strayBodyFields[fieldName] = paramValue;
         logger.info(
@@ -942,10 +935,9 @@ async function executeGraphTool(
 
     if (Object.keys(strayBodyFields).length > 0) {
       if (isPlainObject(body)) {
-        // If the `body` param's own keys aren't fields of the body schema but the schema
-        // has a `body` field (e.g. message.body), the client meant it as that field —
-        // nest it. Otherwise treat it as the (partial) body object; spread order lets the
-        // explicitly nested body win over stray top-level duplicates in both branches.
+        // If none of body's keys are schema fields but the schema has a `body` field
+        // (message.body), the client meant it as that field - nest it. Spread order lets
+        // an explicit body win over stray duplicates in both branches
         const keys = Object.keys(body);
         const bodyIsNestedField =
           bodyShape != null &&
@@ -1336,10 +1328,7 @@ export function registerGraphTools(
     const paramSchema: Record<string, z.ZodTypeAny> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
-        // Body params get lenient (passthrough) validation: SDK validation returns the
-        // PARSED value, and strip-mode objects silently discard unknown keys. A client
-        // that puts the message's body field in the `body` param (issue #569) would
-        // otherwise have it emptied to {} before the handler can repair the request.
+        // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
         paramSchema[param.name] =
           param.type === 'Body' && param.schema
             ? lenientBodySchema(param.schema as z.ZodTypeAny)
@@ -1518,11 +1507,9 @@ export function registerGraphTools(
     const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
     try {
-      // Register with an explicit .passthrough() object schema instead of a raw shape:
-      // the SDK wraps raw shapes in z.object() which STRIPS unknown keys before the
-      // handler runs. Clients that flatten body fields into top-level params (issue #569:
-      // create-draft-email called with subject/toRecipients as siblings of body) would
-      // lose those params before executeGraphTool's body-field fallback can rescue them.
+      // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
+      // and strips unknown keys before the handler runs, which is exactly how #569's
+      // flattened subject/toRecipients got lost
       server.registerTool(
         tool.alias,
         {

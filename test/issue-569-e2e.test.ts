@@ -52,10 +52,9 @@ vi.mock('../src/generated/client.js', async () => {
   };
 });
 
-// Issue #569: MCP clients flatten message fields (subject, toRecipients) into
-// top-level tool arguments. The SDK validates registered tool input, and with a
-// raw-shape registration it strips unknown keys BEFORE the handler runs — so this
-// test must go through a real McpServer + transport, not call the handler directly.
+// #569: clients flatten message fields into top-level tool args, and the SDK strips
+// unknown keys during validation BEFORE the handler runs. So this test must go through
+// a real McpServer + transport, not call the handler directly
 describe('issue #569 end-to-end (through MCP SDK validation)', () => {
   let mockGraphClient: GraphClient;
 
