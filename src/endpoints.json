@@ -1100,14 +1100,16 @@
     "method": "post",
     "toolName": "create-todo-task",
     "presets": ["personal", "tasks"],
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Creates a new task in a Microsoft To Do list. Body: { title: \"...\" }; optional dueDateTime, reminderDateTime, importance, body (notes), recurrence, categories. Requires todoTaskListId from list-todo-task-lists."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
     "method": "patch",
     "toolName": "update-todo-task",
     "presets": ["personal", "tasks"],
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a Microsoft To Do task. Use this to mark a to-do item complete or done (body: { status: \"completed\" }), reopen it (status: \"notStarted\"), rename it (title), or change its due date (dueDateTime), reminder (reminderDateTime), importance, or notes (body). Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
