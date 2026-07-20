@@ -147,7 +147,7 @@ describe('AuthManager token cache storage', () => {
     const auth = await AuthManager.create(['User.Read']);
 
     const storage = (auth as unknown as { storage: TokenCacheStorage }).storage;
-    expect(storage.description).toBe('default (keytar+file)');
+    expect(storage.description).toBe('default (file)');
   });
 });
 

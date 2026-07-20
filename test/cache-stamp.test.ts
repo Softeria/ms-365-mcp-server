@@ -28,7 +28,7 @@ describe('cache stamp', () => {
       expect(pickNewest(undefined, undefined)).toBeUndefined();
     });
 
-    it('should return keytar when only keytar has data', () => {
+    it('should return primary when only primary has data', () => {
       expect(pickNewest('data', undefined)).toBe('data');
     });
 
@@ -36,13 +36,13 @@ describe('cache stamp', () => {
       expect(pickNewest(undefined, 'data')).toBe('data');
     });
 
-    it('should prefer keytar when neither is stamped', () => {
-      expect(pickNewest('keytar-data', 'file-data')).toBe('keytar-data');
+    it('should prefer primary when neither is stamped', () => {
+      expect(pickNewest('primary-data', 'file-data')).toBe('primary-data');
     });
 
     it('should prefer stamped over unstamped', () => {
       const stamped = wrapCache('new-data');
-      expect(pickNewest('old-keytar', stamped)).toBe('new-data');
+      expect(pickNewest('old-primary', stamped)).toBe('new-data');
       expect(pickNewest(stamped, 'old-file')).toBe('new-data');
     });
 
@@ -53,10 +53,10 @@ describe('cache stamp', () => {
       expect(pickNewest(newer, older)).toBe('new');
     });
 
-    it('should prefer keytar when timestamps are equal', () => {
-      const a = JSON.stringify({ _cacheEnvelope: true, data: 'keytar', savedAt: 1000 });
+    it('should prefer primary when timestamps are equal', () => {
+      const a = JSON.stringify({ _cacheEnvelope: true, data: 'primary', savedAt: 1000 });
       const b = JSON.stringify({ _cacheEnvelope: true, data: 'file', savedAt: 1000 });
-      expect(pickNewest(a, b)).toBe('keytar');
+      expect(pickNewest(a, b)).toBe('primary');
     });
 
     it('should unwrap stamped data when only one source exists', () => {

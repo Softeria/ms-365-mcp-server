@@ -85,7 +85,7 @@ describe('token cache storage', () => {
       const storage = await createTokenCacheStorage();
 
       expect(storage).toBeInstanceOf(DefaultTokenCacheStorage);
-      expect(storage.description).toBe('default (keytar+file)');
+      expect(storage.description).toBe('default (file)');
     });
 
     it('rejects a whitespace-only command for local auth flows', async () => {
