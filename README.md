@@ -27,6 +27,7 @@ This server supports multiple Microsoft cloud environments:
 - Comprehensive Microsoft 365 service integration
 - Read-only mode support for safe operations
 - Tool filtering for granular access control
+- [Tool presets](#tool-presets) and [dynamic discovery](#dynamic-tool-discovery) to shrink the tool surface and token usage
 
 ## Output Format: JSON vs TOON
 
@@ -94,7 +95,7 @@ MS365_MCP_OUTPUT_FORMAT=toon npx @softeria/ms-365-mcp-server
 
 ## Supported Services & Tools
 
-The server provides 200+ tools covering most of the Microsoft Graph API surface. Each tool maps 1-to-1 to a Graph API endpoint and is defined declaratively in [`src/endpoints.json`](src/endpoints.json).
+The server provides 300+ tools covering most of the Microsoft Graph API surface. Each tool maps 1-to-1 to a Graph API endpoint and is defined declaratively in [`src/endpoints.json`](src/endpoints.json).
 
 ### Personal Account Tools (Available by default)
 
@@ -509,7 +510,7 @@ Pinning is opt-in and local-MSAL only:
 
 ## Tool Presets
 
-To reduce initial connection overhead, use preset tool categories instead of loading all 90+ tools:
+To reduce initial connection overhead and token usage, use preset tool categories instead of loading the full tool set:
 
 ```bash
 npx @softeria/ms-365-mcp-server --preset mail
@@ -532,7 +533,7 @@ npx @softeria/ms-365-mcp-server --org-mode --preset teams
 
 ## Dynamic Tool Discovery
 
-Instead of loading all 90+ tools upfront, use dynamic discovery so the LLM finds and loads tools only when it needs them:
+Instead of loading every tool upfront, use dynamic discovery so the LLM finds and loads tools only when it needs them:
 
 ```bash
 npx @softeria/ms-365-mcp-server --discovery
