@@ -25,9 +25,6 @@ type SpawnCommand = (
   options: { stdio: 'pipe'; shell: false }
 ) => ChildProcessWithoutNullStreams;
 
-const SERVICE_NAME = 'ms-365-mcp-server';
-const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
-const SELECTED_ACCOUNT_KEY = 'selected-account';
 const AUTH_CACHE_COMMAND_ENV = 'MS365_MCP_AUTH_CACHE_COMMAND';
 const AUTH_CACHE_COMMAND_TIMEOUT_ENV = 'MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS';
 const DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS = 10_000;
@@ -39,32 +36,6 @@ const __dirname = path.dirname(__filename);
 const FALLBACK_DIR = __dirname;
 const DEFAULT_TOKEN_CACHE_PATH = path.join(FALLBACK_DIR, '..', '.token-cache.json');
 const DEFAULT_SELECTED_ACCOUNT_PATH = path.join(FALLBACK_DIR, '..', '.selected-account.json');
-
-let keytar: typeof import('keytar') | null | undefined = null;
-
-async function getKeytar() {
-  if (keytar === undefined) {
-    return null;
-  }
-  if (keytar === null) {
-    try {
-      // Normalize ESM/CJS interop: under Node 24+ `await import('keytar')` returns a
-      // namespace object whose top-level `setPassword` is undefined (functions live on
-      // `.default`). On older Node and pure CJS, methods live on the namespace itself.
-      // Falling back to the namespace keeps backward compatibility. See issue #418.
-      const mod = (await import('keytar')) as typeof import('keytar') & {
-        default?: typeof import('keytar');
-      };
-      keytar = mod.default ?? mod;
-      return keytar;
-    } catch {
-      logger.info('keytar not available, using file-based credential storage');
-      keytar = undefined;
-      return null;
-    }
-  }
-  return keytar;
-}
 
 export function wrapCache(data: string): string {
   return JSON.stringify({ _cacheEnvelope: true, data, savedAt: Date.now() });
@@ -83,28 +54,28 @@ export function unwrapCache(raw: string): { data: string; savedAt?: number } {
 }
 
 export function pickNewest(
-  keytarRaw: string | undefined,
+  primaryRaw: string | undefined,
   fileRaw: string | undefined
 ): string | undefined {
-  const newest = pickNewestRaw(keytarRaw, fileRaw);
+  const newest = pickNewestRaw(primaryRaw, fileRaw);
   return newest ? unwrapCache(newest).data : undefined;
 }
 
 function pickNewestRaw(
-  keytarRaw: string | undefined,
+  primaryRaw: string | undefined,
   fileRaw: string | undefined
 ): string | undefined {
-  if (!keytarRaw && !fileRaw) return undefined;
-  if (keytarRaw && !fileRaw) return keytarRaw;
-  if (!keytarRaw && fileRaw) return fileRaw;
+  if (!primaryRaw && !fileRaw) return undefined;
+  if (primaryRaw && !fileRaw) return primaryRaw;
+  if (!primaryRaw && fileRaw) return fileRaw;
 
-  const kt = unwrapCache(keytarRaw!);
+  const primary = unwrapCache(primaryRaw!);
   const file = unwrapCache(fileRaw!);
 
-  if (kt.savedAt === undefined && file.savedAt === undefined) return keytarRaw;
-  if (kt.savedAt !== undefined && file.savedAt === undefined) return keytarRaw;
-  if (kt.savedAt === undefined && file.savedAt !== undefined) return fileRaw;
-  return kt.savedAt! >= file.savedAt! ? keytarRaw : fileRaw;
+  if (primary.savedAt === undefined && file.savedAt === undefined) return primaryRaw;
+  if (primary.savedAt !== undefined && file.savedAt === undefined) return primaryRaw;
+  if (primary.savedAt === undefined && file.savedAt !== undefined) return fileRaw;
+  return primary.savedAt! >= file.savedAt! ? primaryRaw : fileRaw;
 }
 
 export function getTokenCachePath(): string {
@@ -115,11 +86,6 @@ export function getTokenCachePath(): string {
 export function getSelectedAccountPath(): string {
   const envPath = process.env.MS365_MCP_SELECTED_ACCOUNT_PATH?.trim();
   return envPath || DEFAULT_SELECTED_ACCOUNT_PATH;
-}
-
-function storageAccountForKey(key: TokenCacheStorageKey): string {
-  assertValidKey(key);
-  return key === 'token-cache' ? TOKEN_CACHE_ACCOUNT : SELECTED_ACCOUNT_KEY;
 }
 
 function filePathForKey(key: TokenCacheStorageKey): string {
@@ -149,58 +115,26 @@ function writeFileAtomically(filePath: string, value: string): void {
 }
 
 export class DefaultTokenCacheStorage implements TokenCacheStorage {
-  readonly description = 'default (keytar+file)';
+  readonly description = 'default (file)';
   readonly failClosed = false;
 
   async load(key: TokenCacheStorageKey): Promise<string | undefined> {
     assertValidKey(key);
-    let keytarRaw: string | undefined;
-    try {
-      const kt = await getKeytar();
-      if (kt) {
-        keytarRaw = (await kt.getPassword(SERVICE_NAME, storageAccountForKey(key))) ?? undefined;
-      }
-    } catch (error) {
-      logger.warn(`Keychain access failed for ${key}: ${(error as Error).message}`);
-    }
-
-    let fileRaw: string | undefined;
     const cachePath = filePathForKey(key);
     if (existsSync(cachePath)) {
-      fileRaw = readFileSync(cachePath, 'utf8');
+      return readFileSync(cachePath, 'utf8');
     }
 
-    return pickNewestRaw(keytarRaw, fileRaw);
+    return undefined;
   }
 
   async save(key: TokenCacheStorageKey, value: string): Promise<void> {
     assertValidKey(key);
-    try {
-      const kt = await getKeytar();
-      if (kt) {
-        await kt.setPassword(SERVICE_NAME, storageAccountForKey(key), value);
-        return;
-      }
-    } catch (error) {
-      logger.warn(
-        `Keychain save failed for ${key}, falling back to file storage: ${(error as Error).message}`
-      );
-    }
-
     writeFileAtomically(filePathForKey(key), value);
   }
 
   async delete(key: TokenCacheStorageKey): Promise<void> {
     assertValidKey(key);
-    try {
-      const kt = await getKeytar();
-      if (kt) {
-        await kt.deletePassword(SERVICE_NAME, storageAccountForKey(key));
-      }
-    } catch (error) {
-      logger.warn(`Keychain deletion failed for ${key}: ${(error as Error).message}`);
-    }
-
     const cachePath = filePathForKey(key);
     try {
       if (fs.existsSync(cachePath)) {

@@ -15,7 +15,7 @@ import { dumpError, getActiveResources } from './crash-logging.js';
 import { version } from './version.js';
 
 // Global crash handlers. Without these, an unhandled rejection from a dependency
-// (MSAL HTTP, keytar native, fetch in node) kills the stdio process silently
+// (MSAL HTTP, fetch in node, external auth-cache wrappers) kills the stdio process silently
 // before winston can flush. Log to stderr synchronously so the dump survives.
 process.on('unhandledRejection', (reason) => {
   const dump = {

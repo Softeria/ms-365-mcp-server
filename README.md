@@ -609,9 +609,9 @@ Environment variables:
 
 ## Token Storage
 
-Authentication tokens are stored using the OS credential store (via keytar) when available. If keytar is not installed or fails (common on headless Linux), the server falls back to file-based storage.
+Authentication tokens are stored in file-based storage by default. The server does not use the OS credential store, `keytar`, macOS Keychain, Windows Credential Manager, or Linux Secret Service, so a local auth flow must not trigger an operating-system password prompt just to read or write the MSAL cache.
 
-**Default fallback paths** are relative to the installed package directory. This means tokens can be lost when the package is reinstalled or updated via npm.
+**Default paths** are relative to the installed package directory. This means tokens can be lost when the package is reinstalled or updated via npm.
 
 To persist tokens across updates, set custom paths outside the package directory:
 
@@ -622,20 +622,20 @@ export MS365_MCP_SELECTED_ACCOUNT_PATH="$HOME/.config/ms365-mcp/.selected-accoun
 
 Parent directories are created automatically. Files are written with `0600` permissions.
 
-> **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls. The OS credential store (keytar) is preferred when available.
+> **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls, ideally a private `0700` directory on an encrypted volume. For stricter custody, use `MS365_MCP_AUTH_CACHE_COMMAND` to wrap a provider-neutral external store.
 
 > **Hosted/sandboxed environments** (e.g. Anthropic Cowork): Set `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` to a persistent mount so tokens survive between sessions.
 
 ### External auth-cache command
 
-Headless local-MSAL deployments can replace the built-in keytar/file storage with a provider-neutral external command:
+Headless local-MSAL deployments can replace the built-in file storage with a provider-neutral external command:
 
 ```bash
 export MS365_MCP_AUTH_CACHE_COMMAND="/path/to/ms365-auth-cache-store"
 export MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS=10000
 ```
 
-When `MS365_MCP_AUTH_CACHE_COMMAND` is set for a local auth flow, the server uses only that command for the MSAL token cache and selected-account metadata. It does not fall back to keytar or local files. If the command path is missing, not executable on POSIX, exits non-zero, times out, or returns malformed data, auth-cache operations fail closed with a sanitized error message.
+When `MS365_MCP_AUTH_CACHE_COMMAND` is set for a local auth flow, the server uses only that command for the MSAL token cache and selected-account metadata. It does not fall back to local files. If the command path is missing, not executable on POSIX, exits non-zero, times out, or returns malformed data, auth-cache operations fail closed with a sanitized error message.
 
 The value must be a real executable wrapper path. It is not a shell command string, and there is no companion args environment variable. Put any interpreter, region, profile, or provider-specific settings inside the wrapper. Windows users should point the variable at a wrapper executable or script that can be launched directly by Node without shell parsing.
 
