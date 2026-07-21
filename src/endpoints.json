@@ -702,7 +702,102 @@
     "isExcelOp": true,
     "scopes": ["Files.ReadWrite"],
     "skipEncoding": ["address"],
-    "llmTip": "Apply rangeFormat properties to a specific range. Required path param 'address' (e.g. 'A1:E5' or 'Sheet1!A1:E5'). Body: { horizontalAlignment, verticalAlignment, wrapText, columnWidth, rowHeight }. Note: font, fill, and borders are sub-resources on rangeFormat — set them via /format/font, /format/fill, and /format/borders/{sideIndex} respectively, not on this endpoint."
+    "llmTip": "Apply rangeFormat properties to a specific range. Required path param 'address' (e.g. 'A1:E5' or 'Sheet1!A1:E5'). Body: { horizontalAlignment, verticalAlignment, wrapText, columnWidth, rowHeight }. Font, fill, and borders are NOT set here; use format-excel-range-font, format-excel-range-fill, and format-excel-range-border for those."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format",
+    "method": "get",
+    "toolName": "get-excel-range-format",
+    "presets": ["excel", "personal"],
+    "isExcelOp": true,
+    "scopes": ["Files.Read"],
+    "skipEncoding": ["address"],
+    "llmTip": "Reads a range's format: alignment, wrapText, columnWidth, rowHeight. Font, fill, and borders are nested and omitted by default; add font, fill, and borders to the $expand parameter to include them in one call. Cell styling often encodes meaning (a fill or font color flagging status such as tentative or reconciled), so expand these to interpret what the cells mean."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format/font",
+    "method": "patch",
+    "toolName": "format-excel-range-font",
+    "presets": ["excel", "personal"],
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Set font formatting on a range: bold, italic, underline, size, color, and font name.",
+    "requestBodySchema": {
+      "type": "object",
+      "description": "Font style applied to every cell in the range. Send only the properties you want to change.",
+      "properties": {
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "underline": {
+          "type": "string",
+          "enum": ["None", "Single", "Double", "SingleAccountant", "DoubleAccountant"]
+        },
+        "size": { "type": "number", "description": "Font size in points." },
+        "color": {
+          "type": "string",
+          "description": "HTML color code for the text, e.g. #FF0000 or a named color like 'red'."
+        },
+        "name": { "type": "string", "description": "Font name, e.g. 'Calibri'." }
+      }
+    }
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format/fill",
+    "method": "patch",
+    "toolName": "format-excel-range-fill",
+    "presets": ["excel", "personal"],
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Set the background fill color of a range's cells.",
+    "requestBodySchema": {
+      "type": "object",
+      "description": "Background fill applied to every cell in the range.",
+      "properties": {
+        "color": {
+          "type": "string",
+          "description": "HTML color code for the background, e.g. #FFFF00 or a named color like 'yellow'."
+        }
+      }
+    }
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')/format/borders/{sideIndex}",
+    "method": "patch",
+    "toolName": "format-excel-range-border",
+    "presets": ["excel"],
+    "isExcelOp": true,
+    "scopes": ["Files.ReadWrite"],
+    "skipEncoding": ["address"],
+    "llmTip": "Sets one border side. The {sideIndex} path param selects which side: EdgeTop, EdgeBottom, EdgeLeft, EdgeRight, InsideVertical, InsideHorizontal, DiagonalDown, or DiagonalUp. To outline all four edges, call once per side.",
+    "requestBodySchema": {
+      "type": "object",
+      "description": "Line style for the chosen border side.",
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "None",
+            "Continuous",
+            "Dash",
+            "DashDot",
+            "DashDotDot",
+            "Dot",
+            "Double",
+            "SlantDashDot"
+          ]
+        },
+        "weight": {
+          "type": "string",
+          "enum": ["Hairline", "Thin", "Medium", "Thick"]
+        },
+        "color": {
+          "type": "string",
+          "description": "HTML color code for the line, e.g. #000000 or a named color like 'black'."
+        }
+      }
+    }
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range()/sort",
