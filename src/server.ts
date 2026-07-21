@@ -9,6 +9,7 @@ import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
+import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
 import GraphClient from './graph-client.js';
 import AuthManager, {
   buildScopesFromEndpoints,
@@ -135,6 +136,12 @@ class MicrosoftGraphServer {
         this.options.allowedScopes
       );
     }
+
+    // Strict JSON-Schema backends (e.g. Kimi/Moonshot) reject a tools/list whose
+    // inputSchema $refs aren't anchored under #/$defs/. The SDK emits root-relative
+    // refs for recursive/shared Microsoft Graph schemas and hard-codes its conversion
+    // options, so normalize the emitted schemas here. See issue #571.
+    installToolSchemaRefNormalization(server);
 
     return server;
   }
