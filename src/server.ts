@@ -121,7 +121,8 @@ class MicrosoftGraphServer {
         this.multiAccount,
         this.accountNames,
         this.options.enabledTools,
-        this.options.allowedScopes
+        this.options.allowedScopes,
+        Boolean(this.options.http)
       );
     } else {
       registerGraphTools(
@@ -133,7 +134,8 @@ class MicrosoftGraphServer {
         this.authManager,
         this.multiAccount,
         this.accountNames,
-        this.options.allowedScopes
+        this.options.allowedScopes,
+        Boolean(this.options.http)
       );
     }
 
