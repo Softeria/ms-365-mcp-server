@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
+import path from 'path';
 
 /**
  * We test executeGraphTool logic by importing it indirectly through registerGraphTools.
@@ -960,6 +961,113 @@ describe('graph-tools', () => {
       expect(result.isError).toBe(true);
       const payload = JSON.parse(result.content[0].text);
       expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+  });
+
+  describe('download-mail-attachment', () => {
+    it('downloads to the configured directory without returning attachment bytes', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const previousDownloadDir = process.env.MS365_MCP_DOWNLOAD_DIR;
+      const downloadDir = path.join(process.cwd(), 'attachment-downloads');
+      process.env.MS365_MCP_DOWNLOAD_DIR = downloadDir;
+
+      try {
+        const graphClient = {
+          downloadToFile: vi.fn().mockResolvedValue({
+            contentType: 'application/pdf',
+            contentLength: 32149,
+          }),
+        };
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        const result = await server.tools.get('download-mail-attachment')!.handler({
+          messageId: 'message/1',
+          attachmentId: 'attachment=1',
+          fileName: 'invoice.pdf',
+        });
+
+        expect(graphClient.downloadToFile).toHaveBeenCalledWith(
+          '/me/messages/message%2F1/attachments/attachment%3D1/$value',
+          path.join(downloadDir, 'invoice.pdf'),
+          { accessToken: undefined }
+        );
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toEqual({
+          path: path.join(downloadDir, 'invoice.pdf'),
+          fileName: 'invoice.pdf',
+          contentType: 'application/pdf',
+          contentLength: 32149,
+        });
+        expect(payload).not.toHaveProperty('contentBytes');
+      } finally {
+        if (previousDownloadDir === undefined) delete process.env.MS365_MCP_DOWNLOAD_DIR;
+        else process.env.MS365_MCP_DOWNLOAD_DIR = previousDownloadDir;
+      }
+    });
+
+    it('sanitizes the output filename before resolving it under the configured directory', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const previousDownloadDir = process.env.MS365_MCP_DOWNLOAD_DIR;
+      const downloadDir = path.join(process.cwd(), 'attachment-downloads');
+      process.env.MS365_MCP_DOWNLOAD_DIR = downloadDir;
+
+      try {
+        const graphClient = {
+          downloadToFile: vi.fn().mockResolvedValue({
+            contentType: 'text/plain',
+            contentLength: 2,
+          }),
+        };
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools.get('download-mail-attachment')!.handler({
+          messageId: 'm1',
+          attachmentId: 'a1',
+          fileName: '../../report:final?.txt',
+        });
+
+        expect(graphClient.downloadToFile).toHaveBeenCalledWith(
+          '/me/messages/m1/attachments/a1/$value',
+          path.join(downloadDir, '.._.._report_final_.txt'),
+          { accessToken: undefined }
+        );
+      } finally {
+        if (previousDownloadDir === undefined) delete process.env.MS365_MCP_DOWNLOAD_DIR;
+        else process.env.MS365_MCP_DOWNLOAD_DIR = previousDownloadDir;
+      }
+    });
+
+    it('fails before Graph access when no download directory is configured', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const previousDownloadDir = process.env.MS365_MCP_DOWNLOAD_DIR;
+      delete process.env.MS365_MCP_DOWNLOAD_DIR;
+
+      try {
+        const graphClient = { downloadToFile: vi.fn() };
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        const result = await server.tools.get('download-mail-attachment')!.handler({
+          messageId: 'm1',
+          attachmentId: 'a1',
+          fileName: 'invoice.pdf',
+        });
+
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text).error).toContain('MS365_MCP_DOWNLOAD_DIR');
+        expect(graphClient.downloadToFile).not.toHaveBeenCalled();
+      } finally {
+        if (previousDownloadDir === undefined) delete process.env.MS365_MCP_DOWNLOAD_DIR;
+        else process.env.MS365_MCP_DOWNLOAD_DIR = previousDownloadDir;
+      }
     });
   });
 

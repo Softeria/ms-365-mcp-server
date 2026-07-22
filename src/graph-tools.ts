@@ -123,6 +123,33 @@ function positiveIntFromEnv(name: string, defaultValue: number): number {
   return n;
 }
 
+function resolveAttachmentDownloadPath(fileName: string): string {
+  const configuredDirectory = process.env.MS365_MCP_DOWNLOAD_DIR?.trim();
+  if (!configuredDirectory) {
+    throw new Error(
+      'MS365_MCP_DOWNLOAD_DIR must be configured before downloading attachments to disk.'
+    );
+  }
+
+  const reservedCharacters = '<>:"/\\|?*';
+  const sanitizedFileName = [...fileName.trim()]
+    .map((character) =>
+      character.charCodeAt(0) <= 0x1f || reservedCharacters.includes(character) ? '_' : character
+    )
+    .join('')
+    .replace(/[. ]+$/g, '');
+  if (!sanitizedFileName) {
+    throw new Error('fileName must contain at least one filesystem-safe character.');
+  }
+
+  const downloadDirectory = path.resolve(configuredDirectory);
+  const destination = path.resolve(downloadDirectory, sanitizedFileName);
+  if (!destination.startsWith(`${downloadDirectory}${path.sep}`)) {
+    throw new Error('fileName must resolve inside MS365_MCP_DOWNLOAD_DIR.');
+  }
+  return destination;
+}
+
 /**
  * Whether `fetchAllPages` is permitted. Defaults to true; set MS365_MCP_ALLOW_PAGINATION
  * to 0/false/no to disable multi-page following entirely (returns the first page only).
@@ -378,6 +405,107 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           accessToken: accountAccessToken,
           rawResponse: true,
         });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+  {
+    name: 'download-mail-attachment',
+    method: 'GET',
+    path: 'tool:download-mail-attachment',
+    searchKeywords:
+      'download save mail email outlook attachment file disk local filesystem without base64',
+    description:
+      'Download an Outlook mail attachment directly to the MCP server filesystem without returning its bytes through the agent context. Requires MS365_MCP_DOWNLOAD_DIR. The filename is sanitized, existing files are never overwritten, and the result contains only { path, fileName, contentType, contentLength }. In local stdio mode the server filesystem is the local machine; in HTTP mode it is the remote server.',
+    readOnlyHint: false,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        messageId: z.string().min(1).describe('Message ID returned by a mail message tool.'),
+        attachmentId: z
+          .string()
+          .min(1)
+          .describe('Attachment ID returned by list-mail-attachments.'),
+        fileName: z
+          .string()
+          .min(1)
+          .describe(
+            'Output filename within MS365_MCP_DOWNLOAD_DIR, usually the name returned by list-mail-attachments. Path separators and platform-reserved characters are replaced with underscores.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const messageId = params.messageId;
+      const attachmentId = params.attachmentId;
+      const fileName = params.fileName;
+      const accountParam = params.account as string | undefined;
+      if (
+        typeof messageId !== 'string' ||
+        messageId.length === 0 ||
+        typeof attachmentId !== 'string' ||
+        attachmentId.length === 0 ||
+        typeof fileName !== 'string' ||
+        fileName.length === 0
+      ) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'messageId, attachmentId, and fileName are required non-empty strings.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+
+        const destination = resolveAttachmentDownloadPath(fileName);
+        const target =
+          `/me/messages/${encodeURIComponent(messageId)}` +
+          `/attachments/${encodeURIComponent(attachmentId)}/$value`;
+        const result = await graphClient.downloadToFile(target, destination, {
+          accessToken: accountAccessToken,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                path: destination,
+                fileName: path.basename(destination),
+                contentType: result.contentType,
+                contentLength: result.contentLength,
+              }),
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],

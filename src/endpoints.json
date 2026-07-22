@@ -205,7 +205,7 @@
     "toolName": "list-mail-attachments",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
-    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To save an attachment directly to the server filesystem without passing base64 through the agent context, configure MS365_MCP_DOWNLOAD_DIR and call download-mail-attachment with the message ID, attachment ID, and name. Use download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value only when a base64 response is acceptable."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",

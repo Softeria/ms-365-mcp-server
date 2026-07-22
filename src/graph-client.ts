@@ -4,6 +4,8 @@ import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
+import { open, stat, unlink } from 'fs/promises';
+import { pipeline } from 'stream/promises';
 import {
   fetchWithResilience,
   getSharedBreaker,
@@ -77,6 +79,11 @@ interface McpResponse {
   isError?: boolean;
 
   [key: string]: unknown;
+}
+
+export interface GraphDownloadResult {
+  contentType: string;
+  contentLength: number;
 }
 
 class GraphClient {
@@ -179,6 +186,63 @@ class GraphClient {
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
+    }
+  }
+
+  async downloadToFile(
+    endpoint: string,
+    destinationPath: string,
+    options: { accessToken?: string; apiVersion?: string } = {}
+  ): Promise<GraphDownloadResult> {
+    const fileHandle = await open(destinationPath, 'wx', 0o600);
+    let completed = false;
+
+    try {
+      const contextTokens = getRequestTokens();
+      const accessToken =
+        options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
+
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      const response = await this.performRequest(endpoint, accessToken, options);
+      if (response.status === 403) {
+        const errorText = await response.text();
+        if (errorText.includes('scope') || errorText.includes('permission')) {
+          throw new Error(
+            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+          );
+        }
+        throw new Error(
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
+        );
+      }
+      if (!response.body) {
+        throw new Error('Microsoft Graph returned an empty response body');
+      }
+
+      await pipeline(response.body, fileHandle.createWriteStream());
+      const fileStats = await stat(destinationPath);
+      completed = true;
+
+      return {
+        contentType: response.headers.get('content-type') || 'application/octet-stream',
+        contentLength: fileStats.size,
+      };
+    } catch (error) {
+      logger.error('Microsoft Graph file download failed:', error);
+      throw error;
+    } finally {
+      await fileHandle.close().catch(() => undefined);
+      if (!completed) {
+        await unlink(destinationPath).catch(() => undefined);
+      }
     }
   }
 
