@@ -144,6 +144,7 @@ describe('Calendar View Tools', () => {
         if (
           toolName === 'parse-teams-url' ||
           toolName === 'download-bytes' ||
+          toolName === 'download-mail-attachment' ||
           toolName === 'copilot-retrieve' ||
           toolName === 'get-download-url'
         )

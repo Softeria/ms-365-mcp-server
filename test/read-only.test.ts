@@ -106,7 +106,7 @@ describe('Read-Only Mode', () => {
 
     // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + utilities
     expect(mockServer.registerTool).toHaveBeenCalledTimes(4);
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');

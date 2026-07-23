@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
 import { isBinaryContentType } from '../src/graph-client.js';
 
 describe('isBinaryContentType', () => {
@@ -216,6 +219,79 @@ describe('GraphClient binary response handling', () => {
       expect(result.rawResponse).toBeUndefined();
     } finally {
       global.fetch = originalFetch;
+    }
+  });
+});
+
+describe('GraphClient file downloads', () => {
+  it('streams Graph response bytes directly to a new file', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-test-'));
+    const destination = path.join(tempDir, 'attachment.pdf');
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0x00, 0x7f]);
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(fileBytes, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })) as typeof fetch;
+
+    try {
+      const client = new GraphClient(
+        { getToken: async () => 'fake-token' } as Parameters<typeof GraphClient>[0],
+        {
+          clientId: 'x',
+          tenantId: 'common',
+          cloudType: 'global',
+        } as Parameters<typeof GraphClient>[1]
+      );
+
+      const result = await client.downloadToFile(
+        '/me/messages/m1/attachments/a1/$value',
+        destination
+      );
+
+      expect(result).toEqual({
+        contentType: 'application/pdf',
+        contentLength: fileBytes.byteLength,
+      });
+      expect(await readFile(destination)).toEqual(Buffer.from(fileBytes));
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('never overwrites an existing file', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-test-'));
+    const destination = path.join(tempDir, 'existing.txt');
+    await writeFile(destination, 'keep me');
+    const originalFetch = global.fetch;
+    let fetchCalled = false;
+    global.fetch = (async () => {
+      fetchCalled = true;
+      return new Response('replacement', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const client = new GraphClient(
+        { getToken: async () => 'fake-token' } as Parameters<typeof GraphClient>[0],
+        {
+          clientId: 'x',
+          tenantId: 'common',
+          cloudType: 'global',
+        } as Parameters<typeof GraphClient>[1]
+      );
+
+      await expect(
+        client.downloadToFile('/me/messages/m1/attachments/a1/$value', destination)
+      ).rejects.toMatchObject({ code: 'EEXIST' });
+      expect(fetchCalled).toBe(false);
+      expect(await readFile(destination, 'utf8')).toBe('keep me');
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 });
