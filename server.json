@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.softeria/ms-365-mcp-server",
+  "title": "Microsoft 365 MCP Server",
+  "description": "Interact with Microsoft 365 services through the Microsoft Graph API.",
+  "version": "0.128.2",
+  "repository": {
+    "url": "https://github.com/Softeria/ms-365-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@softeria/ms-365-mcp-server",
+      "version": "0.128.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
