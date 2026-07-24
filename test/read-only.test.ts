@@ -86,9 +86,9 @@ describe('Read-Only Mode', () => {
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
     // 1 GET graph endpoint via registerTool; parse-teams-url + download-bytes +
-    // get-download-url utilities via tool
+    // download-bytes-to-file + get-download-url utilities via tool
     expect(mockServer.registerTool).toHaveBeenCalledTimes(1);
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -105,8 +105,9 @@ describe('Read-Only Mode', () => {
     registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
 
     // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + utilities
+    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url)
     expect(mockServer.registerTool).toHaveBeenCalledTimes(4);
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -138,8 +139,9 @@ describe('Read-Only Mode', () => {
     expect(toolCalls).not.toContain('update-mail-folder');
 
     // 2 graph tools (list-mail-messages + get-schedule) + utilities
+    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url)
     expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
-    expect(mockServer.tool).toHaveBeenCalledTimes(3);
+    expect(mockServer.tool).toHaveBeenCalledTimes(4);
   });
 
   it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {

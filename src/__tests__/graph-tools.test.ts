@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 
 /**
  * We test executeGraphTool logic by importing it indirectly through registerGraphTools.
@@ -960,6 +963,198 @@ describe('graph-tools', () => {
       expect(result.isError).toBe(true);
       const payload = JSON.parse(result.content[0].text);
       expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+  });
+
+  // ---- 9a. download-bytes-to-file utility tool ----
+  describe('download-bytes-to-file', () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), 'dbtf-'));
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('writes decoded binary bytes to the output path and returns metadata', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      // makeRequest (NOT graphRequest) returns the raw structured object; binary
+      // content comes back as { encoding: 'base64', contentBytes }. "hi" -> "aGk=".
+      const graphClient = {
+        makeRequest: vi.fn().mockResolvedValue({
+          message: 'OK!',
+          contentType: 'image/jpeg',
+          encoding: 'base64',
+          contentLength: 2,
+          contentBytes: 'aGk=',
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const tool = server.tools.get('download-bytes-to-file');
+      expect(tool).toBeDefined();
+
+      const outputPath = join(tmpDir, 'photo.jpg');
+      const result = await tool!.handler({ target: '/me/photo/$value', outputPath });
+
+      expect(graphClient.makeRequest).toHaveBeenCalledTimes(1);
+      const [reqPath, options] = graphClient.makeRequest.mock.calls[0];
+      expect(reqPath).toBe('/me/photo/$value');
+      expect(options.rawResponse).toBe(true);
+
+      expect(result.isError).toBeUndefined();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload).toEqual({ path: outputPath, contentType: 'image/jpeg', bytesWritten: 2 });
+      expect(existsSync(outputPath)).toBe(true);
+      expect(readFileSync(outputPath).toString('utf8')).toBe('hi');
+    });
+
+    it('writes a text/JSON body verbatim from rawResponse', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        makeRequest: vi.fn().mockResolvedValue({
+          message: 'OK!',
+          contentType: 'text/plain',
+          rawResponse: 'line1\nline2\n',
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const outputPath = join(tmpDir, 'note.txt');
+      const result = await server.tools
+        .get('download-bytes-to-file')!
+        .handler({ target: '/me/drive/root:/note.txt:/content', outputPath });
+
+      expect(result.isError).toBeUndefined();
+      expect(readFileSync(outputPath).toString('utf8')).toBe('line1\nline2\n');
+    });
+
+    it('rejects a relative outputPath', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = { makeRequest: vi.fn() };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools
+        .get('download-bytes-to-file')!
+        .handler({ target: '/me/photo/$value', outputPath: 'relative/path.jpg' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/absolute path/);
+      expect(graphClient.makeRequest).not.toHaveBeenCalled();
+    });
+
+    it('rejects absolute URLs in target (Graph paths only)', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any);
+
+      const result = await server.tools.get('download-bytes-to-file')!.handler({
+        target: 'https://example.sharepoint.com/d/abc?temp=signed',
+        outputPath: join(tmpDir, 'x.bin'),
+      });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+
+    it('refuses to overwrite an existing file and skips the Graph call', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const outputPath = join(tmpDir, 'existing.bin');
+      writeFileSync(outputPath, 'original');
+
+      const graphClient = { makeRequest: vi.fn() };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools
+        .get('download-bytes-to-file')!
+        .handler({ target: '/me/photo/$value', outputPath });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/already exists/);
+      expect(graphClient.makeRequest).not.toHaveBeenCalled();
+      // Original file is untouched.
+      expect(readFileSync(outputPath).toString('utf8')).toBe('original');
+    });
+
+    it('surfaces a Graph error and writes no file when makeRequest throws', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      // makeRequest throws on Graph HTTP errors (401/403/404/429/...).
+      const graphClient = {
+        makeRequest: vi
+          .fn()
+          .mockRejectedValue(new Error('Microsoft Graph API error: 404 Not Found')),
+      };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const outputPath = join(tmpDir, 'missing.bin');
+      const result = await server.tools
+        .get('download-bytes-to-file')!
+        .handler({ target: '/me/messages/abc/attachments/xyz/$value', outputPath });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/404 Not Found/);
+      expect(existsSync(outputPath)).toBe(false);
+    });
+
+    it('is registered in stdio mode but hidden in HTTP mode', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const { registerGraphTools } = await loadModule();
+
+      const stdioServer = createMockServer();
+      registerGraphTools(stdioServer as any, {} as any);
+      expect(stdioServer.tools.has('download-bytes-to-file')).toBe(true);
+      // download-bytes remains available in both modes.
+      expect(stdioServer.tools.has('download-bytes')).toBe(true);
+
+      const httpServer = createMockServer();
+      // httpMode is the 10th positional arg.
+      registerGraphTools(
+        httpServer as any,
+        {} as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        true
+      );
+      expect(httpServer.tools.has('download-bytes-to-file')).toBe(false);
+      expect(httpServer.tools.has('download-bytes')).toBe(true);
     });
   });
 

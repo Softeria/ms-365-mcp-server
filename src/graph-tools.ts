@@ -18,6 +18,7 @@ import { api as betaApi } from './generated/client-beta.js';
 const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 import { z } from 'zod';
 import { readFileSync } from 'fs';
+import { writeFile, access } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
@@ -223,6 +224,10 @@ interface UtilityTool {
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
   openWorldHint?: boolean;
+  // When true, this tool writes to the server's local filesystem and is only
+  // registered in stdio mode — never in HTTP/OAuth mode, where a remote client
+  // must not be able to write arbitrary files onto the host.
+  stdioOnly?: boolean;
 }
 
 interface DisabledToolScope {
@@ -378,6 +383,197 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           accessToken: accountAccessToken,
           rawResponse: true,
         });
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          isError: true,
+        };
+      }
+    },
+  },
+  {
+    name: 'download-bytes-to-file',
+    method: 'GET',
+    path: 'tool:download-bytes-to-file',
+    searchKeywords:
+      'save to disk save to file write file to disk save attachment to disk save recording to disk write bytes to local file output path',
+    // Front-loaded on purpose: the discovery search index caps a tool's
+    // description at ~40 tokens, so the OneDrive/SharePoint guidance below
+    // sits past the cap. That keeps the hint for the reading LLM while letting
+    // get-download-url own the high-signal "drive"/"sharepoint" search terms.
+    description:
+      'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. The only out-of-band way to save mail attachments and meeting recordings, whose bytes are exposed solely through authenticated endpoints. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode only: not available over HTTP. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
+    readOnlyHint: true,
+    openWorldHint: true,
+    stdioOnly: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Relative Microsoft Graph path starting with "/". Common paths: ' +
+              '/drives/{drive-id}/items/{driveItem-id}/content (drive file content); ' +
+              '/me/messages/{message-id}/attachments/{attachment-id}/$value (mail attachment, list-mail-attachments returns the IDs); ' +
+              '/me/photo/$value or /users/{user-id}/photo/$value (profile photo); ' +
+              '/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams chat hosted content, list-chat-message-hosted-contents returns the IDs); ' +
+              '/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams channel hosted content). ' +
+              'For meeting recordings, use get-meeting-recording-content where available; Microsoft Graph returns authenticated recording bytes, not a pre-authenticated download URL.'
+          ),
+        outputPath: z
+          .string()
+          .describe(
+            "Absolute path on the server's filesystem where the bytes are written, e.g. /Users/me/downloads/invoice.pdf. Must be absolute; relative paths are rejected. The parent directory must already exist, and an existing file is never overwritten (the call errors if outputPath already exists)."
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const outputPath = params.outputPath;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'target is required and must be a non-empty string.' }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!target.startsWith('/')) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a relative Microsoft Graph path starting with "/", e.g. /me/photo/$value or /drives/{drive-id}/items/{driveItem-id}/content. Absolute URLs are not accepted; if you have an @microsoft.graph.downloadUrl, use the equivalent /content or /$value path instead (Graph 302-redirects to the same bytes).',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (typeof outputPath !== 'string' || outputPath.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'outputPath is required and must be a non-empty string.',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (!path.isAbsolute(outputPath)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `outputPath must be an absolute path, e.g. /Users/me/downloads/file.ext. Received: ${outputPath}`,
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Fail fast before spending a Graph call on a write that can't succeed. The
+      // wx flag on writeFile below is the actual guarantee against a TOCTOU race;
+      // this check just yields a friendlier error in the common case.
+      let fileExists = false;
+      try {
+        await access(outputPath);
+        fileExists = true;
+      } catch {
+        // ENOENT (and any other access error) means the file isn't readable/there;
+        // let the write attempt surface the real problem.
+      }
+      if (fileExists) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: `file already exists at ${outputPath}` }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+            isError: true,
+          };
+        }
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        // Use makeRequest, not graphRequest: graphRequest is the MCP-formatting
+        // wrapper — it serializes the payload into { content: [{ text }] } (as
+        // TOON under --toon), which we'd then have to parse back just to reach
+        // the bytes. makeRequest returns the raw structured object directly:
+        // binary -> { encoding: 'base64', contentBytes }, text/JSON body ->
+        // { rawResponse }. rawResponse keeps a text body byte-faithful (#546).
+        // It throws on Graph HTTP errors (401/403/404/429/...), surfaced by the
+        // surrounding catch.
+        const result = (await graphClient.makeRequest(target, {
+          accessToken: accountAccessToken,
+          rawResponse: true,
+        })) as {
+          contentType?: string;
+          encoding?: string;
+          contentBytes?: string;
+          rawResponse?: string;
+        };
+        let buffer: Buffer;
+        if (result.encoding === 'base64' && typeof result.contentBytes === 'string') {
+          buffer = Buffer.from(result.contentBytes, 'base64');
+        } else if (typeof result.rawResponse === 'string') {
+          buffer = Buffer.from(result.rawResponse, 'utf8');
+        } else {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: 'Graph response contained no downloadable bytes for this target.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        // wx: create-and-fail-if-exists, closing the gap between the access() check
+        // above and this write (issue: TOCTOU).
+        await writeFile(outputPath, buffer, { flag: 'wx' });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                path: outputPath,
+                contentType: result.contentType,
+                bytesWritten: buffer.byteLength,
+              }),
+            },
+          ],
+        };
       } catch (error) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
@@ -1268,7 +1464,8 @@ export function registerGraphTools(
   authManager?: AuthManager,
   multiAccount: boolean = false,
   accountNames: string[] = [],
-  allowedScopesValue?: string
+  allowedScopesValue?: string,
+  httpMode: boolean = false
 ): number {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -1551,6 +1748,7 @@ export function registerGraphTools(
   };
   for (const utility of UTILITY_TOOLS) {
     if (readOnly && !utility.readOnlyHint) continue;
+    if (httpMode && utility.stdioOnly) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
@@ -1726,7 +1924,8 @@ export function registerDiscoveryTools(
   multiAccount: boolean = false,
   accountNames: string[] = [],
   enabledTools?: string,
-  allowedScopesValue?: string
+  allowedScopesValue?: string,
+  httpMode: boolean = false
 ): void {
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
@@ -1755,6 +1954,7 @@ export function registerDiscoveryTools(
   }
   const utilityTools = UTILITY_TOOLS.filter((u) => {
     if (readOnly && !u.readOnlyHint) return false;
+    if (httpMode && u.stdioOnly) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
     return true;
   });
