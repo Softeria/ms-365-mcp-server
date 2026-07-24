@@ -18,7 +18,7 @@ import { api as betaApi } from './generated/client-beta.js';
 const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 import { z } from 'zod';
 import { readFileSync } from 'fs';
-import { writeFile, access } from 'fs/promises';
+import { access } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { TOOL_CATEGORIES } from './tool-categories.js';
@@ -490,9 +490,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           isError: true,
         };
       }
-      // Fail fast before spending a Graph call on a write that can't succeed. The
-      // wx flag on writeFile below is the actual guarantee against a TOCTOU race;
-      // this check just yields a friendlier error in the common case.
+      // downloadToFile's wx is the real no-overwrite guard; this just gives a
+      // friendlier "already exists" error before we bother calling Graph.
       let fileExists = false;
       try {
         await access(outputPath);
@@ -524,44 +523,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
         }
-        // Use makeRequest, not graphRequest: graphRequest is the MCP-formatting
-        // wrapper — it serializes the payload into { content: [{ text }] } (as
-        // TOON under --toon), which we'd then have to parse back just to reach
-        // the bytes. makeRequest returns the raw structured object directly:
-        // binary -> { encoding: 'base64', contentBytes }, text/JSON body ->
-        // { rawResponse }. rawResponse keeps a text body byte-faithful (#546).
-        // It throws on Graph HTTP errors (401/403/404/429/...), surfaced by the
-        // surrounding catch.
-        const result = (await graphClient.makeRequest(target, {
+        // Stream to disk instead of buffering: makeRequest holds the whole file
+        // in memory as base64, which dies on big recordings (V8 max string length).
+        const result = await graphClient.downloadToFile(target, outputPath, {
           accessToken: accountAccessToken,
-          rawResponse: true,
-        })) as {
-          contentType?: string;
-          encoding?: string;
-          contentBytes?: string;
-          rawResponse?: string;
-        };
-        let buffer: Buffer;
-        if (result.encoding === 'base64' && typeof result.contentBytes === 'string') {
-          buffer = Buffer.from(result.contentBytes, 'base64');
-        } else if (typeof result.rawResponse === 'string') {
-          buffer = Buffer.from(result.rawResponse, 'utf8');
-        } else {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  error: 'Graph response contained no downloadable bytes for this target.',
-                }),
-              },
-            ],
-            isError: true,
-          };
-        }
-        // wx: create-and-fail-if-exists, closing the gap between the access() check
-        // above and this write (issue: TOCTOU).
-        await writeFile(outputPath, buffer, { flag: 'wx' });
+        });
         return {
           content: [
             {
@@ -569,7 +535,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               text: JSON.stringify({
                 path: outputPath,
                 contentType: result.contentType,
-                bytesWritten: buffer.byteLength,
+                bytesWritten: result.contentLength,
               }),
             },
           ],
