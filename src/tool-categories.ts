@@ -73,10 +73,11 @@ const PRESET_META: Record<string, { description: string; requiresOrgMode?: boole
 // get-drive-item but no downloader, though its llmTip tells the model to call one. Declare their
 // preset membership here and fold it into each preset pattern.
 //
-// download-bytes fetches ANY relative Graph binary path (drive files, attachments, photos, Teams
-// content, recordings, OneNote resources), so it belongs in EVERY preset. It is universal rather
-// than an enumerated list because a list would silently miss apps and every future preset.
-const UNIVERSAL_UTILITY_TOOLS = ['download-bytes'];
+// download-bytes and download-bytes-to-file both read ANY relative Graph binary path (drive files,
+// attachments, photos, Teams content, recordings, OneNote resources) - one returns base64, the other
+// streams the bytes to a local file - so they belong in EVERY preset. Universal rather than an
+// enumerated list because a list would silently miss apps and every future preset.
+const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
 
 // Scoped utilities are only meaningful where the resources they act on appear. get-download-url
 // resolves a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event
