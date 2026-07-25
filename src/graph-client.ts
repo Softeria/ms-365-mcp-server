@@ -9,6 +9,8 @@ import {
   getSharedBreaker,
   loadResilienceConfig,
 } from './lib/graph-resilience.js';
+import { open, stat, unlink } from 'fs/promises';
+import { pipeline } from 'stream/promises';
 
 /**
  * Returns true if the given HTTP Content-Type header indicates a binary
@@ -77,6 +79,11 @@ interface McpResponse {
   isError?: boolean;
 
   [key: string]: unknown;
+}
+
+export interface GraphDownloadResult {
+  contentType: string;
+  contentLength: number;
 }
 
 class GraphClient {
@@ -179,6 +186,78 @@ class GraphClient {
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Stream Graph byte content straight to a file, without holding the whole
+   * payload in memory. download-bytes-to-file uses this for big mail attachments
+   * and meeting recordings, where makeRequest's base64 buffering would blow up
+   * memory or hit V8's max string length. Creates the file with wx + 0o600 (never
+   * overwrites) and removes a partial file if the transfer fails.
+   */
+  async downloadToFile(
+    endpoint: string,
+    destinationPath: string,
+    options: Pick<GraphRequestOptions, 'accessToken' | 'apiVersion'> = {}
+  ): Promise<GraphDownloadResult> {
+    const fileHandle = await open(destinationPath, 'wx', 0o600);
+    let completed = false;
+
+    try {
+      const contextTokens = getRequestTokens();
+      const accessToken =
+        options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      const response = await this.performRequest(endpoint, accessToken, options);
+      if (response.status === 403) {
+        const errorText = await response.text();
+        if (errorText.includes('scope') || errorText.includes('permission')) {
+          throw new Error(
+            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+          );
+        }
+        throw new Error(
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
+        );
+      }
+      if (!response.body) {
+        throw new Error('Microsoft Graph returned an empty response body');
+      }
+
+      await pipeline(response.body, fileHandle.createWriteStream());
+      // Bytes are on disk now - a stat() hiccup past here must not delete them
+      // (that also blocks a retry, since we never overwrite).
+      completed = true;
+
+      let contentLength: number;
+      try {
+        contentLength = (await stat(destinationPath)).size;
+      } catch {
+        const header = Number(response.headers.get('content-length'));
+        contentLength = Number.isFinite(header) ? header : 0;
+      }
+
+      return {
+        contentType: response.headers.get('content-type') || 'application/octet-stream',
+        contentLength,
+      };
+    } catch (error) {
+      logger.error('Microsoft Graph file download failed:', error);
+      throw error;
+    } finally {
+      await fileHandle.close().catch(() => undefined);
+      if (!completed) {
+        await unlink(destinationPath).catch(() => undefined);
+      }
     }
   }
 

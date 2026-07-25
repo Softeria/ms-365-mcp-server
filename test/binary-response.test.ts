@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
 import { isBinaryContentType } from '../src/graph-client.js';
 
 describe('isBinaryContentType', () => {
@@ -216,6 +219,154 @@ describe('GraphClient binary response handling', () => {
       expect(result.rawResponse).toBeUndefined();
     } finally {
       global.fetch = originalFetch;
+    }
+  });
+});
+
+describe('GraphClient file downloads', () => {
+  it('streams Graph response bytes straight to a new file', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-'));
+    const destination = path.join(tempDir, 'attachment.pdf');
+    // High bytes (0xff, 0x00, 0x7f) would be mangled by a UTF-8 text decode;
+    // streaming to disk must preserve them exactly.
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0x00, 0x7f]);
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(fileBytes, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = {
+        getToken: async () => 'fake-token',
+      };
+      const mockSecrets = {
+        clientId: 'x',
+        tenantId: 'common',
+        cloudType: 'global',
+      };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const result = await client.downloadToFile(
+        '/me/messages/m1/attachments/a1/$value',
+        destination
+      );
+
+      expect(result).toEqual({
+        contentType: 'application/pdf',
+        contentLength: fileBytes.byteLength,
+      });
+      expect(await readFile(destination)).toEqual(Buffer.from(fileBytes));
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('never overwrites an existing file and does not hit the network', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-'));
+    const destination = path.join(tempDir, 'existing.txt');
+    await writeFile(destination, 'keep me');
+
+    const originalFetch = global.fetch;
+    let fetchCalled = false;
+    global.fetch = (async () => {
+      fetchCalled = true;
+      return new Response('replacement', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const mockAuth = {
+        getToken: async () => 'fake-token',
+      };
+      const mockSecrets = {
+        clientId: 'x',
+        tenantId: 'common',
+        cloudType: 'global',
+      };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      // The wx open fails before any request, so the original file survives.
+      await expect(
+        client.downloadToFile('/me/messages/m1/attachments/a1/$value', destination)
+      ).rejects.toMatchObject({ code: 'EEXIST' });
+      expect(fetchCalled).toBe(false);
+      expect(await readFile(destination, 'utf8')).toBe('keep me');
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('removes the just-created file when the download fails', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-'));
+    const destination = path.join(tempDir, 'partial.bin');
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response('not found', {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      await expect(
+        client.downloadToFile('/me/messages/m1/attachments/a1/$value', destination)
+      ).rejects.toThrow(/404/);
+      // wx creates the file up front, so a failed download must clean it up.
+      await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('maps a 403 scope error to the org-mode hint and leaves no file', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'ms365-download-'));
+    const destination = path.join(tempDir, 'forbidden.bin');
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response('Missing scope Mail.Read', { status: 403 })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      await expect(
+        client.downloadToFile('/me/messages/m1/attachments/a1/$value', destination)
+      ).rejects.toThrow(/--org-mode/);
+      await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      global.fetch = originalFetch;
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 });
