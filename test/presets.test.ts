@@ -134,15 +134,17 @@ describe('utility tools in presets', () => {
     }
   });
 
-  // download-bytes is a universal Graph binary reader, so no preset - current or future - should
-  // be able to find a resource without being able to read its bytes.
-  it('download-bytes is available in every preset (universal binary reader)', () => {
-    for (const preset of namedPresets) {
-      expect(inPreset(preset, 'download-bytes'), `download-bytes missing from ${preset}`).toBe(
-        true
-      );
+  // download-bytes and download-bytes-to-file are universal Graph binary readers (base64 vs stream
+  // to disk), so no preset - current or future - should be able to find a resource without being
+  // able to read its bytes.
+  it.each(['download-bytes', 'download-bytes-to-file'])(
+    '%s is available in every preset (universal binary reader)',
+    (tool) => {
+      for (const preset of namedPresets) {
+        expect(inPreset(preset, tool), `${tool} missing from ${preset}`).toBe(true);
+      }
     }
-  });
+  );
 
   // Pin the full get-download-url membership so a regression dropping any drive-backed preset
   // is caught. download-bytes membership is covered by the every-preset test above.
