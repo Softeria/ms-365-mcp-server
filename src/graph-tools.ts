@@ -30,6 +30,28 @@ export interface DiscoverySearchIndex {
   nameTokens: Map<string, Set<string>>;
 }
 import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
+import {
+  TOP_UNSUPPORTED_DELTA_TOOLS,
+  shouldOmitTopParam,
+  paginationAllowed,
+  positiveIntFromEnv,
+  DEFAULT_MAX_PAGES,
+  getMaxPages,
+  isFetchAllPagesApplicable,
+  FILTER_PARAM_DESCRIPTION,
+  SEARCH_PARAM_DESCRIPTION,
+  SELECT_PARAM_DESCRIPTION,
+  EXPAND_PARAM_DESCRIPTION,
+  ORDERBY_PARAM_DESCRIPTION,
+  TOP_PARAM_DESCRIPTION,
+  SKIP_PARAM_DESCRIPTION,
+  COUNT_PARAM_DESCRIPTION,
+  CONFIRM_PARAM_DESCRIPTION,
+  TIMEZONE_PARAM_DESCRIPTION,
+  EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
+  getAccountParamDescription,
+  getFetchAllPagesParamDescription,
+} from './lib/param-descriptions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,18 +88,6 @@ const endpointsData = JSON.parse(
 ) as EndpointConfig[];
 
 /**
- * Delta tools where Graph does NOT support `$top`. The calendarView delta function
- * lists `$top` neither as supported nor among its rejected params; page size is
- * controlled via `Prefer: odata.maxpagesize` instead. By contrast message/driveItem/site
- * delta explicitly document `$top` support, so it must be preserved for those.
- * See https://learn.microsoft.com/en-us/graph/api/event-delta
- */
-const TOP_UNSUPPORTED_DELTA_TOOLS = new Set([
-  'list-calendar-events-delta',
-  'list-calendar-view-delta',
-]);
-
-/**
  * Prefix beta-version tools with a [beta] marker so the instability is visible in the
  * tool description itself, regardless of what (if anything) the llmTip says. Tools on
  * v1.0 (the default) are returned unchanged.
@@ -109,30 +119,13 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
-const DEFAULT_MAX_PAGES = 100;
 const DEFAULT_MAX_ITEMS = 10_000;
 
-/** Reads a positive-integer env var, falling back to `defaultValue` when unset or invalid. */
-function positiveIntFromEnv(name: string, defaultValue: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return defaultValue;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) {
-    logger.warn(`Ignoring invalid ${name}=${JSON.stringify(raw)} (use a positive integer)`);
-    return defaultValue;
-  }
-  return n;
-}
-
-/**
- * Whether `fetchAllPages` is permitted. Defaults to true; set MS365_MCP_ALLOW_PAGINATION
- * to 0/false/no to disable multi-page following entirely (returns the first page only).
- */
-function paginationAllowed(): boolean {
-  const raw = process.env.MS365_MCP_ALLOW_PAGINATION;
-  if (raw === undefined || raw === '') return true;
-  return !/^(0|false|no)$/i.test(raw.trim());
-}
+// Canonical definitions of TOP_UNSUPPORTED_DELTA_TOOLS, paginationAllowed, and
+// positiveIntFromEnv live in lib/param-descriptions.ts so tool-schema.ts can use
+// them without circling back through graph-tools.ts, and so the description text
+// they parameterize can't drift between the two registration paths (see that
+// file's header comment).
 
 // Canonical definition lives in lib/destructive-ops.ts so tool-schema.ts can
 // use it without circling back through graph-tools.ts; re-exported here for
@@ -1509,41 +1502,28 @@ export function registerGraphTools(
       }
     }
 
-    if (tool.method.toUpperCase() === 'GET' && tool.path.includes('/') && paginationAllowed()) {
-      const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
+    if (isFetchAllPagesApplicable(tool)) {
+      const maxPages = getMaxPages();
       paramSchema['fetchAllPages'] = z
         .boolean()
-        .describe(
-          `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
-            'Can return enormous payloads—only when the user explicitly needs a full export. ' +
-            'Prefer a small $top first, then paginate or narrow with $filter/$search.'
-        )
+        .describe(getFetchAllPagesParamDescription(maxPages))
         .optional();
     }
 
-    // Override OData parameter descriptions with spec-gap guidance
+    // Override OData parameter descriptions with spec-gap guidance. Text lives in
+    // lib/param-descriptions.ts, shared with describeToolSchema (--discovery mode),
+    // so the two paths cannot describe the same parameter differently.
     if (paramSchema['filter'] !== undefined || paramSchema['$filter'] !== undefined) {
       const key = paramSchema['$filter'] !== undefined ? '$filter' : 'filter';
-      paramSchema[key] = z
-        .string()
-        .describe(
-          'OData filter expression. Add $count=true for advanced filters (flag/flagStatus, contains()). Cannot combine with $search.'
-        )
-        .optional();
+      paramSchema[key] = z.string().describe(FILTER_PARAM_DESCRIPTION).optional();
     }
     if (paramSchema['search'] !== undefined || paramSchema['$search'] !== undefined) {
       const key = paramSchema['$search'] !== undefined ? '$search' : 'search';
-      paramSchema[key] = z
-        .string()
-        .describe('KQL search query — wrap value in double quotes. Cannot combine with $filter.')
-        .optional();
+      paramSchema[key] = z.string().describe(SEARCH_PARAM_DESCRIPTION).optional();
     }
     if (paramSchema['select'] !== undefined || paramSchema['$select'] !== undefined) {
       const key = paramSchema['$select'] !== undefined ? '$select' : 'select';
-      paramSchema[key] = z
-        .string()
-        .describe('Comma-separated fields to return, e.g. id,subject,from,receivedDateTime')
-        .optional();
+      paramSchema[key] = z.string().describe(SELECT_PARAM_DESCRIPTION).optional();
     }
     // The spec describes every $expand as "Expand related entities", which says nothing about
     // what is expandable. Models pass non-navigation properties — message body is the one I
@@ -1552,58 +1532,31 @@ export function registerGraphTools(
     // everywhere, so the type is unchanged in practice.
     if (paramSchema['expand'] !== undefined || paramSchema['$expand'] !== undefined) {
       const key = paramSchema['$expand'] !== undefined ? '$expand' : 'expand';
-      paramSchema[key] = z
-        .array(z.string())
-        .describe(
-          'Navigation properties to inline, e.g. attachments on a message or event. Only ' +
-            'navigation properties can be expanded: expanding a non-navigation property such ' +
-            'as a message body fails with "Parsing OData Select and Expand failed", and an ' +
-            'unsupported value may be ignored rather than reported. Request ordinary fields ' +
-            'with $select instead.'
-        )
-        .optional();
+      paramSchema[key] = z.array(z.string()).describe(EXPAND_PARAM_DESCRIPTION).optional();
     }
     if (paramSchema['orderby'] !== undefined || paramSchema['$orderby'] !== undefined) {
       const key = paramSchema['$orderby'] !== undefined ? '$orderby' : 'orderby';
-      paramSchema[key] = z
-        .string()
-        .describe('Sort expression, e.g. receivedDateTime desc')
-        .optional();
+      paramSchema[key] = z.string().describe(ORDERBY_PARAM_DESCRIPTION).optional();
     }
     // The calendar delta tools don't support $top (see TOP_UNSUPPORTED_DELTA_TOOLS) —
     // page size is controlled via Prefer: odata.maxpagesize. Strip top/$top from
     // their schemas so callers can't reach for a parameter that won't work. Other
     // delta tools (message/driveItem/site) do support $top, so leave them alone.
     // Server-side defense-in-depth in executeGraphTool handles stale clients.
-    if (TOP_UNSUPPORTED_DELTA_TOOLS.has(tool.alias)) {
+    if (shouldOmitTopParam(tool.alias)) {
       delete paramSchema['top'];
       delete paramSchema['$top'];
     } else if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
       const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
-      paramSchema[key] = z
-        .number()
-        .describe(
-          'Page size (Graph $top). Start small (e.g. 5–15) so responses fit the model context; ' +
-            'raise only if needed. Use $select to return fewer fields per item. ' +
-            'For more rows, use @odata.nextLink from the response instead of a very large $top.'
-        )
-        .optional();
+      paramSchema[key] = z.number().describe(TOP_PARAM_DESCRIPTION).optional();
     }
     if (paramSchema['skip'] !== undefined || paramSchema['$skip'] !== undefined) {
       const key = paramSchema['$skip'] !== undefined ? '$skip' : 'skip';
-      paramSchema[key] = z
-        .number()
-        .describe('Items to skip for pagination. Not supported with $search.')
-        .optional();
+      paramSchema[key] = z.number().describe(SKIP_PARAM_DESCRIPTION).optional();
     }
     if (paramSchema['count'] !== undefined || paramSchema['$count'] !== undefined) {
       const countKey = paramSchema['$count'] !== undefined ? '$count' : 'count';
-      paramSchema[countKey] = z
-        .boolean()
-        .describe(
-          'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains().'
-        )
-        .optional();
+      paramSchema[countKey] = z.boolean().describe(COUNT_PARAM_DESCRIPTION).optional();
     }
 
     // Add account parameter for multi-account mode.
@@ -1611,15 +1564,9 @@ export function registerGraphTools(
     // sees available accounts upfront without a round-trip, but accounts added mid-session via
     // --login are still accepted — getTokenForAccount() handles validation at runtime.
     if (multiAccount) {
-      const accountHint =
-        accountNames.length > 0 ? `Known accounts: ${accountNames.join(', ')}. ` : '';
       paramSchema['account'] = z
         .string()
-        .describe(
-          `${accountHint}Microsoft account email to use for this request. ` +
-            `Required when multiple accounts are configured. ` +
-            `Use the list-accounts tool to discover all currently available accounts.`
-        )
+        .describe(getAccountParamDescription(accountNames))
         .optional();
     }
 
@@ -1641,33 +1588,19 @@ export function registerGraphTools(
     // the LLM/agent sees it upfront.
     const destructive = isDestructiveOperation(tool.method, endpointConfig);
     if (destructive) {
-      paramSchema['confirm'] = z
-        .boolean()
-        .describe(
-          'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
-            'Set to true only after the user has explicitly approved this action. ' +
-            'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.'
-        )
-        .optional();
+      paramSchema['confirm'] = z.boolean().describe(CONFIRM_PARAM_DESCRIPTION).optional();
     }
 
     // Add timezone parameter for calendar endpoints that support it
     if (endpointConfig?.supportsTimezone) {
-      paramSchema['timezone'] = z
-        .string()
-        .describe(
-          'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.'
-        )
-        .optional();
+      paramSchema['timezone'] = z.string().describe(TIMEZONE_PARAM_DESCRIPTION).optional();
     }
 
     // Add expandExtendedProperties parameter for calendar endpoints that support it
     if (endpointConfig?.supportsExpandExtendedProperties) {
       paramSchema['expandExtendedProperties'] = z
         .boolean()
-        .describe(
-          'When true, expands singleValueExtendedProperties on each event. Use this to retrieve custom extended properties (e.g., sync metadata) stored on calendar events.'
-        )
+        .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION)
         .optional();
     }
 
@@ -2055,7 +1988,7 @@ export function registerDiscoveryTools(
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
       if (entry) {
-        const schema = describeToolSchema(entry.tool, entry.config);
+        const schema = describeToolSchema(entry.tool, entry.config, { multiAccount, accountNames });
         return {
           content: [{ type: 'text', text: JSON.stringify(schema, null, 2) }],
         };
