@@ -149,12 +149,16 @@ let activeConversions = 0;
 /**
  * Prefers the compiled sibling (the real production shape: tsup compiles this project
  * 1:1 into dist/, no bundling). Falls back to the .ts source when only that exists — running
- * directly against TypeScript source (e.g. under vitest, which transforms this module's own
+ * directly against TypeScript source (e.g. `npm run dev`/`dev:http`/`inspector`, which use tsx
+ * against src/index.ts with no build step, or vitest, which transforms this module's own
  * imports but has no effect on a separately spawned worker thread, since that thread does its
- * own plain Node module resolution). Node's own built-in TypeScript support (unflagged as of
- * Node 22/24) loads the .ts sibling directly with no build step or extra dependency needed,
- * which only matters for dev/test — assertNodeVersionSupportsDocumentConversion already
- * requires Node >=22.13.0 for this feature regardless.
+ * own plain Node module resolution).
+ *
+ * Node's built-in TypeScript type-stripping only became enabled *by default* in Node 22.18.0;
+ * assertNodeVersionSupportsDocumentConversion's floor of >=22.13.0 (set by pdfjs-dist's own
+ * engines requirement, not by this fallback) is below that, so on Node 22.13.0-22.17.x a plain
+ * `new Worker('*.ts')` fails outright unless something explicitly asks for stripping. See
+ * WORKER_EXEC_ARGV below for how that gap is closed.
  */
 function resolveWorkerPath(): string {
   const compiled = fileURLToPath(new URL('./document-conversion-worker.js', import.meta.url));
@@ -163,6 +167,23 @@ function resolveWorkerPath(): string {
 }
 
 const WORKER_PATH = resolveWorkerPath();
+
+/**
+ * `--experimental-strip-types` is what actually enables loading a raw .ts worker on Node
+ * versions where type-stripping isn't unflagged by default yet (22.13.0-22.17.x - see
+ * resolveWorkerPath above). Passing it explicitly on newer Node too (where it's already the
+ * default) is a harmless no-op, so this only needs one condition - whether the path is the .ts
+ * fallback at all - rather than trying to detect the running Node's exact minor version. Returns
+ * undefined for the compiled-.js production case: the compiled worker needs no special flag,
+ * and an unnecessary execArgv would just be one more thing to explain. Exported (pure, no I/O)
+ * so the path->flags mapping is unit-testable without depending on which Node version actually
+ * runs the tests or which of WORKER_PATH's two branches the real filesystem happened to pick.
+ */
+export function execArgvForWorkerPath(path: string): string[] | undefined {
+  return path.endsWith('.ts') ? ['--experimental-strip-types'] : undefined;
+}
+
+const WORKER_EXEC_ARGV = execArgvForWorkerPath(WORKER_PATH);
 
 /**
  * Convert a binary document (PDF, DOCX, PPTX, XLSX, ODT, ...) already held in memory into
@@ -256,6 +277,7 @@ export async function convertReservedBufferToMarkdown(
       workerPath: WORKER_PATH,
       workerData: { arrayBuffer, ocr: options.ocr ?? false, maxOutputChars },
       transferList: [arrayBuffer],
+      execArgv: WORKER_EXEC_ARGV,
       timeoutMs,
       maxOldGenerationSizeMb,
       describeTimeout: (ms) =>

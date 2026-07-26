@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertNodeVersionSupportsDocumentConversion,
   convertBufferToMarkdown,
+  execArgvForWorkerPath,
   MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION,
   MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION,
   MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION,
@@ -267,5 +268,26 @@ describe('OfficeParserNotInstalledError', () => {
     const error = new OfficeParserNotInstalledError();
     expect(error.message).toContain('npm install officeparser');
     expect(error.name).toBe('OfficeParserNotInstalledError');
+  });
+});
+
+describe('execArgvForWorkerPath', () => {
+  // Regression coverage for a real code-review finding: Node's built-in TypeScript
+  // type-stripping only became enabled by default in 22.18.0, but
+  // assertNodeVersionSupportsDocumentConversion's floor is 22.13.0 (set by pdfjs-dist's own
+  // engines requirement) - so on 22.13.0-22.17.x, loading the raw .ts worker fallback (used
+  // whenever no compiled dist/ sibling exists yet - dev mode via tsx, or vitest running
+  // directly against src/) failed outright without an explicit flag. Tested here as a pure
+  // path -> flags mapping rather than by actually running on that exact Node range, the same
+  // way assertNodeVersionSupportsDocumentConversion's own boundary is tested with explicit
+  // version strings below instead of installing that exact Node version.
+  it('requests --experimental-strip-types for a .ts worker path', () => {
+    expect(execArgvForWorkerPath('/x/document-conversion-worker.ts')).toEqual([
+      '--experimental-strip-types',
+    ]);
+  });
+
+  it('requests no special flags for a compiled .js worker path', () => {
+    expect(execArgvForWorkerPath('/x/document-conversion-worker.js')).toBeUndefined();
   });
 });

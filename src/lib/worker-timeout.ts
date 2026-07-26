@@ -22,6 +22,12 @@ export interface RunInWorkerOptions<TData> {
   maxOldGenerationSizeMb?: number;
   /** Substituted into the timeout rejection message in place of a generic "N ms" phrase. */
   describeTimeout?: (timeoutMs: number) => string;
+  /** Node CLI flags passed to the worker specifically (as its own process.execArgv), on top
+   *  of whatever it would otherwise inherit from the parent thread. Used by document-conversion.ts
+   *  to force `--experimental-strip-types` when workerPath is a raw .ts source file, since that
+   *  flag only became unflagged by default in Node 22.18 - without it, loading a .ts worker on
+   *  the 22.13-22.17 range this feature otherwise claims to support fails outright. */
+  execArgv?: string[];
 }
 
 /**
@@ -38,7 +44,8 @@ export interface RunInWorkerOptions<TData> {
 export function runInWorkerWithTimeout<TData, TValue>(
   options: RunInWorkerOptions<TData>
 ): Promise<TValue> {
-  const { workerPath, workerData, transferList, timeoutMs, maxOldGenerationSizeMb } = options;
+  const { workerPath, workerData, transferList, timeoutMs, maxOldGenerationSizeMb, execArgv } =
+    options;
   const describeTimeout =
     options.describeTimeout ??
     ((ms: number) => `Operation exceeded the ${ms}ms limit and was terminated.`);
@@ -48,6 +55,7 @@ export function runInWorkerWithTimeout<TData, TValue>(
       workerData,
       transferList: transferList as TransferListItem[] | undefined,
       resourceLimits: maxOldGenerationSizeMb !== undefined ? { maxOldGenerationSizeMb } : undefined,
+      execArgv,
     });
 
     let settled = false;
