@@ -62,12 +62,17 @@ interface GraphRequestOptions {
   // Pin this response to JSON regardless of the configured format, so the
   // fetchAllPages merge can JSON.parse each page before re-encoding (#560).
   forceJsonOutput?: boolean;
-  // Caps the binary response body makeRequest will hold in memory. Opt-in and unset by
+  // Caps the response body makeRequest will hold in memory, whichever branch (binary or
+  // text/JSON) the response actually takes — a target's MIME type, not the caller's
+  // intent, decides which branch runs, and convert-document accepts arbitrary relative
+  // Graph paths, so it cannot assume the response will be classified as binary. An
+  // earlier version of this guard covered only the binary branch on the assumption that
+  // convert-document only ever "really" deals with binary content; a large text/plain or
+  // application/rtf target (not matched by isBinaryContentType) proved that assumption
+  // wrong by taking the unguarded response.text() path instead. Opt-in and unset by
   // default so every pre-existing caller (download-bytes, download-bytes-to-file's own
-  // performRequest use, etc.) keeps buffering the whole body exactly as before. Only
-  // convert-document passes this today, to stop a large accessible file from being fully
-  // buffered (then base64-inflated) before its own post-fetch size cap gets a chance to
-  // reject it. See readBodyWithLimit for the enforcement mechanics.
+  // performRequest use, etc.) keeps buffering the whole body exactly as before. See
+  // readBodyWithLimit for the enforcement mechanics.
   maxResponseBytes?: number;
 
   [key: string]: unknown;
@@ -97,7 +102,10 @@ export class GraphResponseTooLargeError extends Error {
 
 /**
  * Reads `response`'s body into a single Buffer while enforcing `maxBytes`, without ever
- * holding a full over-limit body in memory.
+ * holding a full over-limit body in memory. Used for both the binary and the text/JSON
+ * branch in makeRequest — it only counts bytes, so it doesn't need to know or care what
+ * they mean; a large text/plain or application/rtf response needs the same protection a
+ * large PDF does.
  *
  * Two layers, cheapest first:
  *
@@ -247,7 +255,14 @@ class GraphClient {
           contentBytes: buffer.toString('base64'),
         };
       } else {
-        const text = await response.text();
+        // Same cap, same helper, as the binary branch above: a non-binary MIME type does not
+        // mean a small body. convert-document accepts arbitrary relative Graph paths, and a
+        // large text/plain or application/rtf target lands here, not in the binary branch
+        // above — readBodyWithLimit doesn't care what the bytes mean, only how many there are.
+        const text =
+          options.maxResponseBytes !== undefined
+            ? (await readBodyWithLimit(response, options.maxResponseBytes)).toString('utf-8')
+            : await response.text();
 
         if (text === '') {
           result = { message: 'OK!' };

@@ -289,15 +289,83 @@ describe('GraphClient binary response handling', () => {
     }
   });
 
-  it('does not apply maxResponseBytes to non-binary (JSON/text) responses - deliberate, narrowest-fix scope', async () => {
-    // maxResponseBytes only guards the binary-response branch, which is the only branch
-    // convert-document's makeRequest call can ever act on (it errors out unless
-    // raw.contentBytes comes back as a string). A JSON/text response ignores
-    // maxResponseBytes entirely and is still buffered via response.text() exactly as
-    // before - a deliberate scope decision (see the doc comment on
-    // GraphRequestOptions.maxResponseBytes in graph-client.ts), not an oversight: no
-    // current caller needs it on the text path, and adding it there would widen this
-    // fix's blast radius for no exercised benefit.
+  it('rejects an oversized non-binary (e.g. RTF or plain-text) response when maxResponseBytes is set', async () => {
+    // A real code-review finding: an earlier version of this guard covered only the
+    // binary-response branch, on the assumption that convert-document only ever "really"
+    // deals with binary content. But convert-document accepts arbitrary relative Graph
+    // paths, and which branch a response takes is decided by its MIME type, not by the
+    // caller's intent - a large text/plain or application/rtf attachment (application/rtf
+    // does not match isBinaryContentType's rules) takes the text branch and was buffered
+    // in full via response.text() before this fix, regardless of maxResponseBytes. Pinned
+    // here with application/rtf specifically, since that's the concrete example that
+    // proved the "only binary needs this" assumption wrong.
+    const { default: GraphClient } = await import('../src/graph-client.js');
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response('not read', {
+        status: 200,
+        headers: {
+          'content-type': 'application/rtf',
+          'content-length': String(50 * 1024 * 1024),
+        },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      await expect(
+        client.makeRequest('/me/messages/m1/attachments/a1/$value', { maxResponseBytes: 1024 })
+      ).rejects.toThrow(GraphResponseTooLargeError);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('still returns a non-binary (JSON) response normally via makeRequest when maxResponseBytes is set but not exceeded', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const smallJson = JSON.stringify({ value: 'hello' });
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(smallJson, {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(smallJson.length),
+        },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const result = (await client.makeRequest('/me/messages', {
+        maxResponseBytes: 1_000_000,
+      })) as Record<string, unknown>;
+
+      expect(result.value).toBe(JSON.parse(smallJson).value);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('does not apply maxResponseBytes at all when the caller does not opt in (unset, pre-existing callers unaffected)', async () => {
+    // download-bytes and every other pre-existing caller never passes maxResponseBytes, so
+    // this must stay exactly as unguarded as it was before either fix - the point of this
+    // test is that the option being *unset* is still a real, working escape hatch, not that
+    // non-binary responses are unguarded when it *is* set (that was the bug just fixed above).
     const { default: GraphClient } = await import('../src/graph-client.js');
     const bigJson = JSON.stringify({ value: 'x'.repeat(2000) });
 
@@ -320,11 +388,7 @@ describe('GraphClient binary response handling', () => {
         'json'
       );
 
-      // A 10-byte maxResponseBytes would reject this immediately if it applied to
-      // non-binary bodies too - it doesn't, on purpose.
-      const result = (await client.makeRequest('/me/messages', {
-        maxResponseBytes: 10,
-      })) as Record<string, unknown>;
+      const result = (await client.makeRequest('/me/messages')) as Record<string, unknown>;
 
       expect(result.value).toBe(JSON.parse(bigJson).value);
     } finally {
