@@ -101,6 +101,46 @@ export class GraphResponseTooLargeError extends Error {
 }
 
 /**
+ * Thrown by readBodyWithLimit when no new chunk arrives within `stallTimeoutMs` of the
+ * previous one (or of the read starting). fetchWithResilience's own AbortController only
+ * covers the wait for `fetch()` to return a Response — it's cleared the moment headers
+ * arrive, before any of the body is read (see graph-resilience.ts). Without a deadline of
+ * its own here, a caller that reserves a scarce resource around the whole call (e.g.
+ * convert-document's conversion-concurrency slot, held from just before this fetch until
+ * conversion finishes) could hold it forever against a connection that sends headers and
+ * then trickles or stalls indefinitely.
+ */
+export class GraphResponseBodyTimeoutError extends Error {
+  constructor(public readonly stallTimeoutMs: number) {
+    super(
+      `Response body read stalled for over ${stallTimeoutMs}ms with no new data; aborted before the full body was buffered.`
+    );
+    this.name = 'GraphResponseBodyTimeoutError';
+  }
+}
+
+// Only invoked when stallTimeoutMs is set (see the call site) - the untimed path calls
+// reader.read() directly with no wrapper, so pre-existing callers that never pass a
+// stallTimeoutMs see zero behavioral or timing difference from before this helper existed.
+async function readChunkWithStallTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  stallTimeoutMs: number
+) {
+  let timer: ReturnType<typeof setTimeout>;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new GraphResponseBodyTimeoutError(stallTimeoutMs)),
+      stallTimeoutMs
+    );
+  });
+  try {
+    return await Promise.race([reader.read(), stalled]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
+/**
  * Reads `response`'s body into a single Buffer while enforcing `maxBytes`, without ever
  * holding a full over-limit body in memory. Used for both the binary and the text/JSON
  * branch in makeRequest — it only counts bytes, so it doesn't need to know or care what
@@ -126,8 +166,18 @@ export class GraphResponseTooLargeError extends Error {
  *    — so an unbounded body without a Content-Length is still bounded to roughly
  *    `maxBytes` (plus at most one in-flight chunk) of peak memory, never fully buffered
  *    first.
+ *
+ * `stallTimeoutMs`, when passed, bounds each individual `reader.read()` call rather than the
+ * whole body: a fresh deadline starts after every chunk (or when the read begins), so a
+ * connection that keeps sending data, however slowly, is never killed purely for taking a
+ * long time overall — only for going silent past the deadline. See
+ * GraphResponseBodyTimeoutError for why this exists.
  */
-export async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+export async function readBodyWithLimit(
+  response: Response,
+  maxBytes: number,
+  stallTimeoutMs?: number
+): Promise<Buffer> {
   const contentLengthHeader = response.headers.get('content-length');
   if (contentLengthHeader !== null) {
     const declared = Number(contentLengthHeader);
@@ -148,17 +198,27 @@ export async function readBodyWithLimit(response: Response, maxBytes: number): P
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value && value.byteLength > 0) {
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel().catch(() => undefined);
-        throw new GraphResponseTooLargeError(maxBytes, total, 'stream');
+  try {
+    for (;;) {
+      const { done, value } =
+        stallTimeoutMs === undefined
+          ? await reader.read()
+          : await readChunkWithStallTimeout(reader, stallTimeoutMs);
+      if (done) break;
+      if (value && value.byteLength > 0) {
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel().catch(() => undefined);
+          throw new GraphResponseTooLargeError(maxBytes, total, 'stream');
+        }
+        chunks.push(value);
       }
-      chunks.push(value);
     }
+  } catch (error) {
+    if (error instanceof GraphResponseBodyTimeoutError) {
+      await reader.cancel().catch(() => undefined);
+    }
+    throw error;
   }
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
@@ -242,10 +302,20 @@ class GraphClient {
         // maxResponseBytes is opt-in (only convert-document passes it): when unset, this
         // is exactly the old unconditional arrayBuffer() read, so download-bytes and every
         // other existing caller is unaffected. When set, readBodyWithLimit enforces it
-        // without ever buffering a full over-limit body first — see its doc comment.
+        // without ever buffering a full over-limit body first — see its doc comment. The
+        // same MS365_MCP_GRAPH_TIMEOUT_MS deadline that bounds waiting for fetch() to
+        // return headers (see graph-resilience.ts's fetchWithResilience, which clears its
+        // own AbortController the moment headers arrive) is reused here to bound stalls
+        // during body consumption too — otherwise a connection that stalls mid-body after
+        // headers land could hold a caller-reserved resource (e.g. convert-document's
+        // conversion-concurrency slot) forever.
         const buffer =
           options.maxResponseBytes !== undefined
-            ? await readBodyWithLimit(response, options.maxResponseBytes)
+            ? await readBodyWithLimit(
+                response,
+                options.maxResponseBytes,
+                loadResilienceConfig().fetchTimeoutMs
+              )
             : Buffer.from(await response.arrayBuffer());
         result = {
           message: 'OK!',
@@ -261,7 +331,13 @@ class GraphClient {
         // above — readBodyWithLimit doesn't care what the bytes mean, only how many there are.
         const text =
           options.maxResponseBytes !== undefined
-            ? (await readBodyWithLimit(response, options.maxResponseBytes)).toString('utf-8')
+            ? (
+                await readBodyWithLimit(
+                  response,
+                  options.maxResponseBytes,
+                  loadResilienceConfig().fetchTimeoutMs
+                )
+              ).toString('utf-8')
             : await response.text();
 
         if (text === '') {

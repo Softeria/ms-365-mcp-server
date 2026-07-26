@@ -84,14 +84,28 @@ export function runInWorkerWithTimeout<TData, TValue>(
       if (settled) return;
       settled = true;
       cleanup();
-      void worker.terminate();
-      if (outcome.ok) {
-        resolve(outcome.value);
-      } else {
-        const error = new Error(outcome.errorMessage);
-        error.name = outcome.errorKind;
-        reject(error);
-      }
+      // Await terminate() before settling, for the same reason the timeout branch above
+      // does: it resolves only once the worker has actually exited, not merely once
+      // termination has been requested. A fire-and-forget `void worker.terminate()` here let
+      // the caller's own `finally` (e.g. releasing a concurrency-limit slot) run while a
+      // large finished worker's heap was still being torn down, so a new call could pass the
+      // concurrency check and spin up another worker before that memory was actually freed.
+      worker
+        .terminate()
+        .catch((err) => {
+          logger.warn(
+            `Worker termination after reporting an outcome raised its own error: ${(err as Error).message}`
+          );
+        })
+        .finally(() => {
+          if (outcome.ok) {
+            resolve(outcome.value);
+          } else {
+            const error = new Error(outcome.errorMessage);
+            error.name = outcome.errorKind;
+            reject(error);
+          }
+        });
     });
 
     worker.once('error', (error) => {

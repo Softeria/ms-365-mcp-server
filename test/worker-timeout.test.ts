@@ -136,4 +136,51 @@ describe('runInWorkerWithTimeout', () => {
       spy.mockRestore();
     }
   }, 10_000);
+
+  // Regression test for a second instance of the same race, found on the success/handled-failure
+  // path this time rather than the timeout path: the 'message' handler used to call
+  // `void worker.terminate()` and resolve/reject immediately without waiting for it. A caller
+  // releasing a concurrency-limit slot in its own `finally` block could then do so before a
+  // large finished worker's heap had actually been freed, letting a new call slip past the
+  // concurrency check while the old worker's memory was still being torn down.
+  it('waits for worker.terminate() to resolve before resolving on a reported success', async () => {
+    const terminateDelayMs = 250;
+    const spy = vi.spyOn(Worker.prototype, 'terminate').mockImplementation(function (this: Worker) {
+      return new Promise((resolve) => setTimeout(() => resolve(0), terminateDelayMs));
+    });
+    try {
+      const start = Date.now();
+      const value = await runInWorkerWithTimeout<{ mode: string }, string>({
+        workerPath: FIXTURE_PATH,
+        workerData: { mode: 'fast-success' },
+        timeoutMs: 5000,
+      });
+      const elapsed = Date.now() - start;
+      expect(value).toBe('done');
+      expect(elapsed).toBeGreaterThanOrEqual(terminateDelayMs);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 10_000);
+
+  it('waits for worker.terminate() to resolve before rejecting on a reported handled failure', async () => {
+    const terminateDelayMs = 250;
+    const spy = vi.spyOn(Worker.prototype, 'terminate').mockImplementation(function (this: Worker) {
+      return new Promise((resolve) => setTimeout(() => resolve(0), terminateDelayMs));
+    });
+    try {
+      const start = Date.now();
+      await expect(
+        runInWorkerWithTimeout<{ mode: string }, string>({
+          workerPath: FIXTURE_PATH,
+          workerData: { mode: 'throw' },
+          timeoutMs: 5000,
+        })
+      ).rejects.toThrow('simulated failure');
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeGreaterThanOrEqual(terminateDelayMs);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 10_000);
 });

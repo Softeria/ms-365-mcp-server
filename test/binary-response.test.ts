@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import {
+  GraphResponseBodyTimeoutError,
   GraphResponseTooLargeError,
   isBinaryContentType,
   readBodyWithLimit,
@@ -495,6 +496,85 @@ describe('readBodyWithLimit', () => {
     expect((error as GraphResponseTooLargeError).reportedOrReadBytes).toBe(300);
     // Aborted after the 3rd chunk - never drained all 10 (which would be 1000 bytes).
     expect(chunksServed).toBe(3);
+  });
+
+  // Regression test for the finding that a connection sending headers and then stalling (or
+  // trickling) mid-body could hold a caller-reserved resource (e.g. convert-document's
+  // conversion-concurrency slot, reserved before this fetch) forever: fetchWithResilience's own
+  // AbortController is cleared as soon as fetch() returns, before any of the body is read (see
+  // graph-resilience.ts), so nothing else here bounded a stall until stallTimeoutMs was added.
+  it('rejects with GraphResponseBodyTimeoutError when the stream goes silent past stallTimeoutMs', async () => {
+    let cancelled = false;
+    let emitted = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // Emits exactly one chunk on the first pull; every subsequent pull (the stream asks
+        // again once the reader drains its queue) does nothing at all - no further enqueue,
+        // no close, no error - simulating a connection that sent partial data and then
+        // stalled indefinitely rather than one that immediately misbehaves.
+        if (!emitted) {
+          emitted = true;
+          controller.enqueue(new Uint8Array([1, 2, 3]));
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const response = new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    });
+
+    const start = Date.now();
+    let error: unknown;
+    try {
+      await readBodyWithLimit(response, 1024, 100);
+    } catch (e) {
+      error = e;
+    }
+    const elapsed = Date.now() - start;
+
+    expect(error).toBeInstanceOf(GraphResponseBodyTimeoutError);
+    expect((error as GraphResponseBodyTimeoutError).stallTimeoutMs).toBe(100);
+    // Comfortably below the total absence of a deadline (this test would hang without one).
+    expect(elapsed).toBeLessThan(2000);
+    expect(cancelled).toBe(true);
+  });
+
+  it('does not time out a slow-but-steady stream whose chunks each arrive within stallTimeoutMs', async () => {
+    const chunks = [new Uint8Array([1, 2]), new Uint8Array([3, 4]), new Uint8Array([5, 6])];
+    let i = 0;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (i < chunks.length) {
+          // Each individual gap is well under the 200ms stall deadline, even though the whole
+          // body takes 3x that in total - stallTimeoutMs bounds silence between chunks, not
+          // overall duration.
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          controller.enqueue(chunks[i++]);
+        } else {
+          controller.close();
+        }
+      },
+    });
+    const response = new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    });
+
+    const buffer = await readBodyWithLimit(response, 1024, 200);
+    expect(buffer).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
+  });
+
+  it('does not apply any stall timeout when stallTimeoutMs is omitted (pre-existing callers unaffected)', async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const response = new Response(bytes, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    });
+    const buffer = await readBodyWithLimit(response, 1024);
+    expect(buffer).toEqual(Buffer.from(bytes));
   });
 });
 
