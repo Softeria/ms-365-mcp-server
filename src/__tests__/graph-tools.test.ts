@@ -64,6 +64,7 @@ function makeEndpoint(overrides: Partial<any> = {}) {
       { name: 'search', type: 'Query', schema: z.string().optional() },
       { name: 'select', type: 'Query', schema: z.string().optional() },
       { name: 'orderby', type: 'Query', schema: z.string().optional() },
+      { name: 'expand', type: 'Query', schema: z.string().optional() },
       { name: 'count', type: 'Query', schema: z.boolean().optional() },
       { name: 'top', type: 'Query', schema: z.number().optional() },
       { name: 'skip', type: 'Query', schema: z.number().optional() },
@@ -511,6 +512,25 @@ describe('graph-tools', () => {
 
       expect(schema['top'].description).toContain('Start small');
       expect(schema['top'].description).toContain('$select');
+    });
+    it('should describe $expand as navigation-properties-only', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      const schema = server.tools.get('test-tool')!.schema;
+
+      expect(schema['expand']).toBeDefined();
+      // Must not be Microsoft's uninformative "Expand related entities".
+      expect(schema['expand'].description).not.toBe('Expand related entities');
+      expect(schema['expand'].description).toContain('navigation');
+      // Names at least one real navigation property so the model has something to copy.
+      expect(schema['expand'].description).toContain('attachments');
     });
   });
 
