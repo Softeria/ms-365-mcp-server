@@ -50,6 +50,14 @@ vi.mock('../tool-categories.js', () => ({
   TOOL_CATEGORIES: {},
 }));
 
+// Mock the document-conversion library — convert-document's own conversion logic
+// (officeparser wiring, truncation, timeouts) is covered by test/document-conversion.test.ts.
+// Here we only need to verify convert-document calls it correctly and handles what it returns.
+const convertBufferToMarkdownMock = vi.fn();
+vi.mock('../lib/document-conversion.js', () => ({
+  convertBufferToMarkdown: (...args: unknown[]) => convertBufferToMarkdownMock(...args),
+}));
+
 // ---------- helpers ----------
 
 function makeEndpoint(overrides: Partial<any> = {}) {
@@ -1005,6 +1013,265 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('convert-document', () => {
+    beforeEach(() => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+    });
+
+    function binaryGraphClient(contentBytes: string, contentLength?: number) {
+      return {
+        makeRequest: vi.fn().mockResolvedValue({
+          contentType: 'application/pdf',
+          encoding: 'base64',
+          contentLength: contentLength ?? Buffer.from(contentBytes, 'base64').byteLength,
+          contentBytes,
+        }),
+      };
+    }
+
+    it('is not registered when --enable-document-conversion is not passed', async () => {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any);
+      expect(server.tools.has('convert-document')).toBe(false);
+    });
+
+    it('is registered when documentConversionEnabled is true', async () => {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        {} as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+      expect(server.tools.has('convert-document')).toBe(true);
+    });
+
+    it('fetches, decodes, and converts binary content to markdown', async () => {
+      const b64 = Buffer.from('fake pdf bytes').toString('base64');
+      const graphClient = binaryGraphClient(b64);
+      convertBufferToMarkdownMock.mockResolvedValue({
+        markdown: '# Quote\n\n$3,590.00',
+        truncated: false,
+        totalLength: 19,
+      });
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({
+        target: '/me/messages/m1/attachments/a1/$value',
+      });
+
+      expect(graphClient.makeRequest).toHaveBeenCalledWith(
+        '/me/messages/m1/attachments/a1/$value',
+        expect.objectContaining({ accessToken: undefined })
+      );
+      const [passedBuffer] = convertBufferToMarkdownMock.mock.calls[0];
+      expect(Buffer.isBuffer(passedBuffer)).toBe(true);
+      expect(passedBuffer.toString()).toBe('fake pdf bytes');
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload).toEqual({
+        contentType: 'application/pdf',
+        markdown: '# Quote\n\n$3,590.00',
+        truncated: false,
+        totalLength: 19,
+      });
+    });
+
+    it('passes ocr through to convertBufferToMarkdown', async () => {
+      const graphClient = binaryGraphClient(Buffer.from('x').toString('base64'));
+      convertBufferToMarkdownMock.mockResolvedValue({
+        markdown: 'text',
+        truncated: false,
+        totalLength: 4,
+      });
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value', ocr: true });
+
+      expect(convertBufferToMarkdownMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ ocr: true })
+      );
+    });
+
+    it('errors clearly when the target does not return binary content', async () => {
+      const graphClient = { makeRequest: vi.fn().mockResolvedValue({ value: [] }) };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: '/me/messages/m1' });
+
+      expect(result.isError).toBe(true);
+      expect(convertBufferToMarkdownMock).not.toHaveBeenCalled();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/did not return binary content/);
+    });
+
+    it('rejects a source over the size cap before attempting conversion', async () => {
+      const graphClient = binaryGraphClient(
+        Buffer.from('small').toString('base64'),
+        30 * 1024 * 1024
+      );
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value' });
+
+      expect(result.isError).toBe(true);
+      expect(convertBufferToMarkdownMock).not.toHaveBeenCalled();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/conversion limit/);
+    });
+
+    it('surfaces a conversion failure (e.g. missing officeparser) as a tool error, not a crash', async () => {
+      const graphClient = binaryGraphClient(Buffer.from('x').toString('base64'));
+      convertBufferToMarkdownMock.mockRejectedValue(
+        new Error("convert-document requires the optional 'officeparser' package")
+      );
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/officeparser/);
+    });
+
+    it('rejects targets that do not start with /', async () => {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        {} as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: 'not-a-path' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/relative Microsoft Graph path/);
+    });
+
+    it('is skipped in HTTP mode the same as any other utility tool when disabled, but present when enabled over HTTP', async () => {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        {} as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        true, // httpMode
+        true // documentConversionEnabled
+      );
+      // Unlike download-bytes-to-file (stdioOnly), convert-document never touches the
+      // filesystem, so it is available over HTTP once explicitly enabled.
+      expect(server.tools.has('convert-document')).toBe(true);
+    });
+  });
+
   // ---- 9a. download-bytes-to-file utility tool ----
   describe('download-bytes-to-file', () => {
     let tmpDir: string;
@@ -1849,6 +2116,55 @@ describe('graph-tools', () => {
       expect(result.isError).toBe(true);
       const payload = JSON.parse(result.content[0].text);
       expect(payload.error).toMatch(/not found/i);
+    });
+
+    it('does not surface convert-document until --enable-document-conversion is passed', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, {} as any);
+
+      const result = await server.tools
+        .get('search-tools')!
+        .handler({ query: 'convert markdown pdf' });
+      const payload = JSON.parse(result.content[0].text);
+      const names = payload.tools.map((t: any) => t.name);
+      expect(names).not.toContain('convert-document');
+
+      const schema = await server.tools
+        .get('get-tool-schema')!
+        .handler({ tool_name: 'convert-document' });
+      expect(JSON.parse(schema.content[0].text).error).toMatch(/not found/i);
+    });
+
+    it('surfaces convert-document once --enable-document-conversion is passed', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        undefined,
+        false,
+        true
+      );
+
+      const result = await server.tools
+        .get('search-tools')!
+        .handler({ query: 'convert markdown pdf' });
+      const payload = JSON.parse(result.content[0].text);
+      const names = payload.tools.map((t: any) => t.name);
+      expect(names).toContain('convert-document');
     });
   });
 

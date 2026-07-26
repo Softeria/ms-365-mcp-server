@@ -519,7 +519,7 @@ npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 
 Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `all`
 
-Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
+Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. `convert-document` is also universal, so a preset can always both fetch and, once `--enable-document-conversion` is set, read the text of what it finds. So a preset that can find a file can always read its bytes.
 
 The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose exactly one Microsoft app. Use these for "expose exactly one app" deployments:
 
@@ -570,6 +570,7 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
+--enable-document-conversion Enable convert-document, which fetches Graph binary content (mail attachments, drive files) and converts it to markdown server-side instead of returning base64. Off by default (new dependency, parses untrusted content) — see "Document Conversion" below
 --no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
@@ -729,6 +730,34 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 ### Optional Dependencies
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
+
+## Document Conversion
+
+`convert-document` fetches Microsoft Graph binary content — a mail attachment, a drive/SharePoint
+file — and converts it to markdown text on the server, instead of returning base64 for the caller
+to decode and parse itself. It is off by default:
+
+```
+--enable-document-conversion
+```
+
+Two things have to both be true for it to appear:
+
+1. The flag above is passed.
+2. The optional [`officeparser`](https://www.npmjs.com/package/officeparser) package is installed.
+   It is an `optionalDependency` of this package, so a plain `npm install` already includes it —
+   this only matters if you installed with `--omit=optional` or otherwise pruned it. If it's
+   missing, the tool returns a clear error rather than crashing the server.
+
+It supports PDF, Word, PowerPoint, Excel, OpenDocument, and a few other formats. OCR for
+scanned/image-based documents is available via an `ocr` parameter but off by default — it adds
+real latency, so try without it first. Source size is capped at 25MB and conversion at 30 seconds,
+independent of whatever limits `officeparser` enforces internally; output markdown is truncated
+past 20,000 characters, with the untruncated length reported so a caller knows there's more.
+
+`convert-document` never accepts a filesystem path and never writes one — it only ever reads bytes
+already fetched from Graph and returns text, so it carries none of `download-bytes-to-file`'s
+stdio-only restriction and works over HTTP.
 
 ## Production Deployment
 

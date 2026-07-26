@@ -77,7 +77,13 @@ const PRESET_META: Record<string, { description: string; requiresOrgMode?: boole
 // attachments, photos, Teams content, recordings, OneNote resources) - one returns base64, the other
 // streams the bytes to a local file - so they belong in EVERY preset. Universal rather than an
 // enumerated list because a list would silently miss apps and every future preset.
-const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
+//
+// convert-document reads the same universe of binary paths as download-bytes (it's built on the
+// same target parameter) and converts server-side instead of returning base64, so it belongs
+// alongside it here rather than in SCOPED_UTILITY_TOOLS below. Whether it actually registers is
+// gated separately by --enable-document-conversion in graph-tools.ts; this only controls whether
+// a --preset filter would otherwise hide it once that flag is on.
+const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file', 'convert-document'];
 
 // Scoped utilities are only meaningful where the resources they act on appear. get-download-url
 // resolves a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event

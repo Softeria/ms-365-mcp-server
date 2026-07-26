@@ -102,6 +102,7 @@ class MicrosoftGraphServer {
           orgMode: Boolean(this.options.orgMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
+          documentConversionEnabled: Boolean(this.options.enableDocumentConversion),
         }),
       }
     );
@@ -122,7 +123,8 @@ class MicrosoftGraphServer {
         this.accountNames,
         this.options.enabledTools,
         this.options.allowedScopes,
-        Boolean(this.options.http)
+        Boolean(this.options.http),
+        Boolean(this.options.enableDocumentConversion)
       );
     } else {
       registerGraphTools(
@@ -135,7 +137,8 @@ class MicrosoftGraphServer {
         this.multiAccount,
         this.accountNames,
         this.options.allowedScopes,
-        Boolean(this.options.http)
+        Boolean(this.options.http),
+        Boolean(this.options.enableDocumentConversion)
       );
     }
 

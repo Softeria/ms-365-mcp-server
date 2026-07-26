@@ -134,10 +134,10 @@ describe('utility tools in presets', () => {
     }
   });
 
-  // download-bytes and download-bytes-to-file are universal Graph binary readers (base64 vs stream
-  // to disk), so no preset - current or future - should be able to find a resource without being
-  // able to read its bytes.
-  it.each(['download-bytes', 'download-bytes-to-file'])(
+  // download-bytes, download-bytes-to-file, and convert-document are universal Graph binary
+  // readers (base64, stream-to-disk, and server-side markdown conversion respectively), so no
+  // preset - current or future - should be able to find a resource without being able to read it.
+  it.each(['download-bytes', 'download-bytes-to-file', 'convert-document'])(
     '%s is available in every preset (universal binary reader)',
     (tool) => {
       for (const preset of namedPresets) {

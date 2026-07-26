@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { buildMcpServerInstructions } from '../src/mcp-instructions.js';
 
 describe('buildMcpServerInstructions', () => {
-  const baseCtx = { orgMode: true, readOnly: false, multiAccount: false };
+  const baseCtx = {
+    orgMode: true,
+    readOnly: false,
+    multiAccount: false,
+    documentConversionEnabled: false,
+  };
 
   it('includes general Graph guidance for standard mode', () => {
     const s = buildMcpServerInstructions({ ...baseCtx, discovery: false });
@@ -27,6 +32,21 @@ describe('buildMcpServerInstructions', () => {
     const s = buildMcpServerInstructions({ ...baseCtx, discovery: false, multiAccount: false });
     expect(s).not.toContain('Multiple accounts');
     expect(s).not.toContain('account parameter');
+  });
+
+  it('does not mention convert-document when document conversion is disabled', () => {
+    const s = buildMcpServerInstructions({ ...baseCtx, discovery: false });
+    expect(s).not.toContain('convert-document');
+  });
+
+  it('points to convert-document for readable attachments when document conversion is enabled', () => {
+    const s = buildMcpServerInstructions({
+      ...baseCtx,
+      discovery: false,
+      documentConversionEnabled: true,
+    });
+    expect(s).toContain('convert-document');
+    expect(s).toContain('instead of download-bytes');
   });
 
   it('routes drive file downloads to get-download-url and authenticated byte reads to download-bytes', () => {

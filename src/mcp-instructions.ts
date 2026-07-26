@@ -3,6 +3,7 @@ export type McpInstructionsContext = {
   orgMode: boolean;
   readOnly: boolean;
   multiAccount: boolean;
+  documentConversionEnabled: boolean;
 };
 
 function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
@@ -15,6 +16,10 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     'Teams chat and channel messages: prefer HTML contentType in the body; plain text is often mangled by Graph.',
     'Files / binary content: for large drive/SharePoint file content, prefer get-download-url to resolve a pre-authenticated URL for out-of-band download. Use download-bytes for authenticated byte reads such as mail attachments, profile photos, Teams hosted content, and meeting recordings. In stdio mode, download-bytes-to-file writes those same authenticated bytes straight to a local absolute path instead of returning base64 — the only out-of-band option for large mail attachments and meeting recordings, which get-download-url cannot handle. These tools take relative Microsoft Graph paths, not absolute URLs. For uploads, upload-file-content takes a base64 string body up to 4MB; use create-upload-session above that.',
   ];
+  if (opts.documentConversionEnabled)
+    parts.push(
+      'To read a PDF, Word, PowerPoint, Excel, or OpenDocument attachment or file rather than just fetching its bytes, use convert-document instead of download-bytes — it returns markdown text, not base64 you would have to decode and parse yourself.'
+    );
   if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
   if (opts.multiAccount)
     parts.push('Multiple accounts: pass the account parameter when required (see list-accounts).');

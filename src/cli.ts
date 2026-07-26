@@ -40,6 +40,10 @@ program
     'Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)'
   )
   .option(
+    '--enable-document-conversion',
+    'Enable the convert-document tool, which fetches Graph binary content (mail attachments, drive files) and converts it to markdown server-side. Requires the optional "officeparser" package. Off by default: it is a new dependency and it parses untrusted binary content.'
+  )
+  .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
@@ -114,6 +118,7 @@ export interface CommandOptions {
   readOnly?: boolean;
   http?: string | boolean;
   enableAuthTools?: boolean;
+  enableDocumentConversion?: boolean;
   enabledTools?: string;
   allowedScopes?: string;
   extraScopes?: string;
