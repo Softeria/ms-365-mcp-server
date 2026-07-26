@@ -10,6 +10,7 @@
     "pathPattern": "/me/messages",
     "method": "get",
     "toolName": "list-mail-messages",
+    "descriptionOverride": "List, search, and filter Outlook email messages in the signed-in user's mailbox across all folders. Returns message metadata (subject, from, receivedDateTime, isRead, hasAttachments) plus a body preview. Use $search for keyword queries, $filter to narrow by sender/read state/date, $top to limit page size, and $select to trim fields.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "llmTip": "List read search my Outlook emails across folders. CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:john AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-mail-message with the specific message id."
@@ -72,6 +73,7 @@
     "pathPattern": "/me/messages/{message-id}",
     "method": "get",
     "toolName": "get-mail-message",
+    "descriptionOverride": "Get a single Outlook email message by its message ID, including full subject, sender, recipients, body, and attachment flags. Use list-mail-messages first to obtain the message ID.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"]
   },
@@ -157,6 +159,7 @@
     "pathPattern": "/me/messages",
     "method": "post",
     "toolName": "create-draft-email",
+    "descriptionOverride": "Create a draft Outlook email message in the signed-in user's Drafts folder. Set subject, body, toRecipients, ccRecipients, and importance. The draft is saved, not sent — use send-mail to send a message directly, or send the draft afterwards.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"]
   },
@@ -164,6 +167,7 @@
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
+    "descriptionOverride": "Delete an Outlook email message by its message ID. This is a soft delete that moves the message to Deleted Items.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
     "llmTip": "Soft delete — moves to Deleted Items. To permanently delete, delete again from Deleted Items."
@@ -180,6 +184,7 @@
     "pathPattern": "/me/messages/{message-id}",
     "method": "patch",
     "toolName": "update-mail-message",
+    "descriptionOverride": "Update an existing Outlook email message by its message ID — for example mark it read or unread (isRead), flag it (flag), change its categories, importance, or edit a draft's subject, body, or recipients.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"]
   },
@@ -820,6 +825,7 @@
     "pathPattern": "/me/messages/{message-id}/$value",
     "method": "get",
     "toolName": "get-mail-message-mime",
+    "descriptionOverride": "Download the raw MIME source (RFC 822 .eml content) of an Outlook email message by its message ID. Returns the complete original message including headers and encoded attachments.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
