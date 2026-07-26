@@ -514,6 +514,131 @@ describe('graph-tools', () => {
     });
   });
 
+  // ---- $search KQL quote normalization ----
+  describe('$search quote normalization', () => {
+    async function callWithSearch(search: string, path = '/me/messages'): Promise<string> {
+      const endpoint = makeEndpoint({ path });
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({ search });
+      return graphClient.graphRequest.mock.calls[0][0] as string;
+    }
+
+    it('wraps a bare KQL expression in one pair of double quotes', async () => {
+      const url = await callWithSearch('from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('collapses per-term quoting into a single enclosing pair', async () => {
+      const url = await callWithSearch('"from:john" AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('leaves an already correctly quoted expression untouched', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    // Graph rejects a property phrase that has no enclosing pair, so add one and escape
+    // the phrase quotes — the form Microsoft documents for embedded quotes.
+    it('adds the enclosing pair around a property phrase', async () => {
+      const url = await callWithSearch('subject:"quarterly report"');
+      expect(url).toContain(`$search=${encodeURIComponent('"subject:\\"quarterly report\\""')}`);
+    });
+
+    it('keeps a standalone phrase grouped', async () => {
+      const url = await callWithSearch('"quarterly report" AND from:john');
+      expect(url).toContain(
+        `$search=${encodeURIComponent('"\\"quarterly report\\" AND from:john"')}`
+      );
+    });
+
+    it('leaves the documented escaped form untouched', async () => {
+      const query = '"subject:\\"quarterly report\\""';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Already correctly wrapped free text is a multi-term search, not a phrase — escaping
+    // its quotes would narrow it to messages containing the exact phrase.
+    it('leaves already-wrapped free text as a multi-term search', async () => {
+      const query = '"quarterly report"';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Date and size restrictions use comparison operators rather than a colon; they are
+    // clauses too, so per-clause quoting must be undone rather than escaped as a phrase.
+    it.each([
+      ['"received>=2024-01-01" AND from:john', '"received>=2024-01-01 AND from:john"'],
+      ['"size>1000" AND subject:meeting', '"size>1000 AND subject:meeting"'],
+      ['"received<2024-01-01"', '"received<2024-01-01"'],
+    ])('undoes per-clause quoting on a comparison clause (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A phrase can open with a word and a colon without being a clause. RE and Q3 are not
+    // mail properties, so the grouping quotes have to survive.
+    it.each([
+      ['"RE: quarterly report" AND from:john', '"\\"RE: quarterly report\\" AND from:john"'],
+      ['"Q3: plan.pdf" AND subject:budget', '"\\"Q3: plan.pdf\\" AND subject:budget"'],
+    ])('keeps phrase quotes on a clause-shaped phrase (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // The colon inside the phrase is part of the text, not a property separator.
+    it.each([
+      ['subject:"RE: quarterly report"', '"subject:\\"RE: quarterly report\\""'],
+      ['attachment:"Q3: plan.pdf"', '"attachment:\\"Q3: plan.pdf\\""'],
+    ])('keeps phrase quotes when the phrase contains a colon (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    it('repairs an unbalanced quote rather than sending it', async () => {
+      const url = await callWithSearch('from:"john');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john"')}`);
+    });
+
+    it.each([' ', '   ', '"', '""""'])('drops an unsearchable $search value %j', async (query) => {
+      const url = await callWithSearch(query);
+      expect(url).not.toContain('$search');
+    });
+
+    // Directory search advertises clause-level quoting, which mail's convention would
+    // destroy: collapsing the quotes below changes an OR of two clauses into one.
+    it.each([
+      ['/users', '"displayName:john" OR "displayName:jane"'],
+      ['/planner/tasks/:plannerTaskId/messages', 'foo OR bar'],
+      ['/chats/:chatId/messages', 'foo OR bar'],
+      ['/teams/:teamId/channels/:channelId/messages', 'foo OR bar'],
+    ])('does not touch $search on %s', async (path, query) => {
+      const url = await callWithSearch(query, path);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    it.each([
+      '/me/mailFolders/:mailFolderId/messages',
+      '/users/:userId/messages',
+      '/me/mailFolders/:mailFolderId/childFolders/:childFolderId/messages',
+    ])('still normalizes on %s', async (path) => {
+      const url = await callWithSearch('"from:john" AND subject:meeting', path);
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+  });
+
   describe('MS365_MCP_MAX_TOP', () => {
     const prevMaxTop = process.env.MS365_MCP_MAX_TOP;
 
