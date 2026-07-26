@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import logger, { enableConsoleLogging } from './logger.js';
 import { registerAuthTools } from './auth-tools.js';
 import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
+import { assertNodeVersionSupportsDocumentConversion } from './lib/document-conversion.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
 import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
 import GraphClient from './graph-client.js';
@@ -180,6 +181,10 @@ class MicrosoftGraphServer {
       logger.info(
         'Account routing disabled: requests use the OAuth bearer identity, so the "account" parameter is not injected into tool schemas'
       );
+    }
+
+    if (this.options.enableDocumentConversion) {
+      assertNodeVersionSupportsDocumentConversion();
     }
 
     if (this.options.obo) {

@@ -751,9 +751,19 @@ Two things have to both be true for it to appear:
 
 It supports PDF, Word, PowerPoint, Excel, OpenDocument, and a few other formats. OCR for
 scanned/image-based documents is available via an `ocr` parameter but off by default — it adds
-real latency, so try without it first. Source size is capped at 25MB and conversion at 30 seconds,
-independent of whatever limits `officeparser` enforces internally; output markdown is truncated
-past 20,000 characters, with the untruncated length reported so a caller knows there's more.
+real latency, so try without it first. Source size is capped at 25MB (checked against the actual
+decoded bytes) and output markdown is truncated past 20,000 characters, with the untruncated
+length reported so a caller knows there's more.
+
+The parse itself runs in a worker thread with a 30-second hard timeout enforced by terminating
+that worker, not by asking `officeparser` to cooperate. That distinction matters: some of
+`officeparser`'s per-format parsers only check for cancellation between loop iterations with no
+`await` inside them, so a plain same-thread timeout next to the parse call never actually gets a
+turn on the event loop on an ordinary large spreadsheet or document — nothing needs to be
+malicious for that to happen, just wide or dense. Terminating the worker stops the parse
+regardless of whether its own code was ever going to check anything, and the worker's heap is
+separately capped, so a pathological document exhausts only its own worker's memory budget
+rather than the main server process's.
 
 `convert-document` never accepts a filesystem path and never writes one — it only ever reads bytes
 already fetched from Graph and returns text, so it carries none of `download-bytes-to-file`'s

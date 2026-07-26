@@ -1,102 +1,113 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import {
+  assertNodeVersionSupportsDocumentConversion,
+  convertBufferToMarkdown,
+  MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION,
+  OfficeParserNotInstalledError,
+  UnsupportedNodeVersionError,
+} from '../src/lib/document-conversion.js';
 
-const parseOfficeMock = vi.fn();
+// A tiny, valid, hand-crafted PDF - real bytes, real officeparser, run through a real worker
+// thread. officeparser now runs in a worker (see src/lib/worker-timeout.ts for why: some of its
+// per-format parsers are not interruptible via a cooperative AbortSignal), which means vitest's
+// module mocking cannot reach it - a `vi.mock('officeparser', ...)` in this process has no
+// effect on a separately spawned worker thread's own module resolution. So these tests exercise
+// the real conversion pipeline end to end rather than mocking officeparser away.
+const MINIMAL_PDF = Buffer.from(
+  `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 300 144] /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 45 >>
+stream
+BT /F1 18 Tf 20 100 Td (Hello from a test PDF) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+0
+%%EOF`
+);
 
-vi.mock('officeparser', () => ({
-  parseOffice: (...args: unknown[]) => parseOfficeMock(...args),
-}));
+describe('convertBufferToMarkdown (real officeparser, real worker)', () => {
+  it('extracts real text from a real PDF via the worker pipeline', async () => {
+    const result = await convertBufferToMarkdown(MINIMAL_PDF, { timeoutMs: 15_000 });
+    expect(result.markdown).toContain('Hello from a test PDF');
+    expect(result.truncated).toBe(false);
+    expect(result.totalLength).toBe(result.markdown.length);
+  }, 20_000);
 
-// Imported after the mock so the module under test picks up the mocked officeparser.
-const { convertBufferToMarkdown } = await import('../src/lib/document-conversion.js');
-
-function astReturning(markdown: string) {
-  return { to: vi.fn().mockResolvedValue({ value: markdown, messages: [] }) };
-}
-
-describe('convertBufferToMarkdown', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns the converted markdown untruncated when it fits', async () => {
-    parseOfficeMock.mockResolvedValue(astReturning('# Quote\n\n$3,590.00'));
-    const result = await convertBufferToMarkdown(Buffer.from('fake pdf bytes'));
-    expect(result).toEqual({
-      markdown: '# Quote\n\n$3,590.00',
-      truncated: false,
-      totalLength: '# Quote\n\n$3,590.00'.length,
+  it('truncates output over maxOutputChars and reports the untruncated length', async () => {
+    const result = await convertBufferToMarkdown(MINIMAL_PDF, {
+      timeoutMs: 15_000,
+      maxOutputChars: 5,
     });
-  });
-
-  it('truncates output over maxOutputChars and reports the real total length', async () => {
-    const long = 'x'.repeat(100);
-    parseOfficeMock.mockResolvedValue(astReturning(long));
-    const result = await convertBufferToMarkdown(Buffer.from('fake'), { maxOutputChars: 10 });
-    expect(result.markdown).toBe('x'.repeat(10));
+    expect(result.markdown).toHaveLength(5);
     expect(result.truncated).toBe(true);
-    expect(result.totalLength).toBe(100);
-  });
+    expect(result.totalLength).toBeGreaterThan(5);
+  }, 20_000);
 
-  it('passes ocr through to parseOffice, off by default', async () => {
-    parseOfficeMock.mockResolvedValue(astReturning('text'));
-    await convertBufferToMarkdown(Buffer.from('fake'));
-    expect(parseOfficeMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ ocr: false })
+  it('rejects with a clear message when the timeout is exceeded', async () => {
+    // 1ms is unreachable for any real parse to complete inside honestly, so this exercises the
+    // real worker-termination path (see test/worker-timeout.test.ts for the mechanism itself)
+    // against the actual officeparser worker script, not a synthetic fixture.
+    await expect(convertBufferToMarkdown(MINIMAL_PDF, { timeoutMs: 1 })).rejects.toThrow(
+      /exceeded the 1ms limit/
     );
+  }, 20_000);
+});
 
-    await convertBufferToMarkdown(Buffer.from('fake'), { ocr: true });
-    expect(parseOfficeMock).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ ocr: true })
-    );
+describe('assertNodeVersionSupportsDocumentConversion', () => {
+  it(`does not throw at or above Node ${MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION}`, () => {
+    expect(() => assertNodeVersionSupportsDocumentConversion('22.0.0')).not.toThrow();
+    expect(() => assertNodeVersionSupportsDocumentConversion('24.1.2')).not.toThrow();
   });
 
-  it('passes an AbortSignal to parseOffice for the timeout', async () => {
-    parseOfficeMock.mockResolvedValue(astReturning('text'));
-    await convertBufferToMarkdown(Buffer.from('fake'));
-    const config = parseOfficeMock.mock.calls[0][1];
-    expect(config.abortSignal).toBeInstanceOf(AbortSignal);
-  });
+  it.each(['18.19.1', '20.11.0', '21.7.3'])(
+    'throws UnsupportedNodeVersionError below the minimum (%s)',
+    (version) => {
+      expect(() => assertNodeVersionSupportsDocumentConversion(version)).toThrow(
+        UnsupportedNodeVersionError
+      );
+    }
+  );
 
-  it('reports a clear, non-crashing error when parseOffice rejects', async () => {
-    parseOfficeMock.mockRejectedValue(new Error('corrupt PDF: unexpected EOF'));
-    await expect(convertBufferToMarkdown(Buffer.from('fake'))).rejects.toThrow(
-      'corrupt PDF: unexpected EOF'
-    );
-  });
-
-  it('turns an aborted parse into a message naming the timeout, not a raw AbortError', async () => {
-    parseOfficeMock.mockImplementation(() => {
-      const err = new Error('aborted');
-      err.name = 'AbortError';
-      return Promise.reject(err);
-    });
-    await expect(convertBufferToMarkdown(Buffer.from('fake'), { timeoutMs: 5 })).rejects.toThrow(
-      /5ms limit/
+  it('names the actual and required versions in the error message', () => {
+    expect(() => assertNodeVersionSupportsDocumentConversion('18.19.1')).toThrow(
+      /requires Node >=22.*running Node 18\.19\.1/
     );
   });
 
-  it('throws OfficeParserNotInstalledError with actionable guidance when the module is missing', async () => {
-    vi.doMock('officeparser', () => {
-      throw new Error("Cannot find module 'officeparser'");
-    });
-    vi.resetModules();
-    // Re-import the error class from the same fresh module instance as convertWithMissingDep —
-    // resetModules gives every import() a new module registry, so the OfficeParserNotInstalledError
-    // captured at the top of this file is a *different* class object from the one actually thrown
-    // here, and instanceof across that boundary always fails.
-    const {
-      convertBufferToMarkdown: convertWithMissingDep,
-      OfficeParserNotInstalledError: FreshOfficeParserNotInstalledError,
-    } = await import('../src/lib/document-conversion.js');
-    await expect(convertWithMissingDep(Buffer.from('fake'))).rejects.toThrow(
-      FreshOfficeParserNotInstalledError
-    );
-    await expect(convertWithMissingDep(Buffer.from('fake'))).rejects.toThrow(
-      'npm install officeparser'
-    );
-    vi.doUnmock('officeparser');
-    vi.resetModules();
+  it('does not throw on an unparseable version string (fails open rather than blocking startup on a fluke)', () => {
+    expect(() => assertNodeVersionSupportsDocumentConversion('not-a-version')).not.toThrow();
+  });
+
+  it('defaults to the real running Node version when called with no argument', () => {
+    // This process's own Node version is asserted elsewhere to be >=20 for the test suite to
+    // run at all (vitest 4 requires it), so this only proves the default parameter reads
+    // process.versions.node rather than proving anything about a specific version.
+    expect(() => assertNodeVersionSupportsDocumentConversion()).not.toThrow();
+  });
+});
+
+describe('OfficeParserNotInstalledError', () => {
+  it('names npm install officeparser in its message', () => {
+    const error = new OfficeParserNotInstalledError();
+    expect(error.message).toContain('npm install officeparser');
+    expect(error.name).toBe('OfficeParserNotInstalledError');
   });
 });

@@ -129,10 +129,12 @@ const DEFAULT_MAX_ITEMS = 10_000;
 // they parameterize can't drift between the two registration paths (see that
 // file's header comment).
 
-// Defense-in-depth ceiling on convert-document's source size, independent of whatever
-// limit officeparser itself enforces. Comfortably above a normal email attachment or
-// small document, well below the kind of file that would produce an unusably large
-// markdown output regardless of how well it converts.
+// Ceiling on convert-document's source size, independent of whatever limit officeparser
+// itself enforces. This bounds CPU/memory spent inside the conversion worker; it does not
+// bound the earlier Graph fetch, which already buffers the whole attachment in memory before
+// this check ever runs (graph-client.ts's makeRequest, shared with download-bytes). Comfortably
+// above a normal email attachment or small document, well below the kind of file that would
+// produce an unusably large markdown output regardless of how well it converts.
 const MAX_CONVERT_SOURCE_BYTES = 25 * 1024 * 1024;
 
 // Canonical definition lives in lib/destructive-ops.ts so tool-schema.ts can
@@ -491,20 +493,24 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             isError: true,
           };
         }
-        if (typeof raw.contentLength === 'number' && raw.contentLength > MAX_CONVERT_SOURCE_BYTES) {
+        const buffer = Buffer.from(raw.contentBytes, 'base64');
+        // Checked against the decoded buffer's own byteLength, not Graph's separately-reported
+        // contentLength: that field happens to always be set alongside contentBytes today, but
+        // nothing enforces that at the type level, and a cap that silently no-ops the moment a
+        // future refactor stops setting one of the two is worse than no cap at all.
+        if (buffer.byteLength > MAX_CONVERT_SOURCE_BYTES) {
           return {
             content: [
               {
                 type: 'text',
                 text: JSON.stringify({
-                  error: `Source is ${raw.contentLength} bytes, over the ${MAX_CONVERT_SOURCE_BYTES}-byte conversion limit. Use download-bytes-to-file (stdio mode) or download-bytes instead.`,
+                  error: `Source is ${buffer.byteLength} bytes, over the ${MAX_CONVERT_SOURCE_BYTES}-byte conversion limit. Use download-bytes-to-file (stdio mode) or download-bytes instead.`,
                 }),
               },
             ],
             isError: true,
           };
         }
-        const buffer = Buffer.from(raw.contentBytes, 'base64');
         const { markdown, truncated, totalLength } = await convertBufferToMarkdown(buffer, {
           ocr,
         });
@@ -522,8 +528,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           ],
         };
       } catch (error) {
+        // A worker crash or an exotic dependency failure could reject with something that
+        // isn't an Error (bare string, undefined) - error.message would be undefined then,
+        // and JSON.stringify silently drops undefined values, producing an empty {} body
+        // instead of a message explaining what happened.
+        const message = error instanceof Error ? error.message : String(error);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
+          content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
           isError: true,
         };
       }

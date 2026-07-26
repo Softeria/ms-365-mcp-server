@@ -1019,12 +1019,15 @@ describe('graph-tools', () => {
       mockEndpointsJson = [];
     });
 
-    function binaryGraphClient(contentBytes: string, contentLength?: number) {
+    function binaryGraphClient(contentBytes: string) {
       return {
         makeRequest: vi.fn().mockResolvedValue({
           contentType: 'application/pdf',
           encoding: 'base64',
-          contentLength: contentLength ?? Buffer.from(contentBytes, 'base64').byteLength,
+          // Deliberately NOT derived from contentBytes here: the size-cap test below relies on
+          // the tool checking the real decoded buffer, not this reported field, so this value
+          // must be free to disagree with it.
+          contentLength: Buffer.from(contentBytes, 'base64').byteLength,
           contentBytes,
         }),
       };
@@ -1165,10 +1168,50 @@ describe('graph-tools', () => {
     });
 
     it('rejects a source over the size cap before attempting conversion', async () => {
-      const graphClient = binaryGraphClient(
-        Buffer.from('small').toString('base64'),
-        30 * 1024 * 1024
+      // The cap is checked against the real decoded buffer, not a reported contentLength
+      // field (see the fix in graph-tools.ts), so this constructs an actually-oversized
+      // payload rather than spoofing a size value on a small one.
+      const oversized = Buffer.alloc(26 * 1024 * 1024, 'x').toString('base64');
+      const graphClient = binaryGraphClient(oversized);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
       );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value' });
+
+      expect(result.isError).toBe(true);
+      expect(convertBufferToMarkdownMock).not.toHaveBeenCalled();
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/conversion limit/);
+    });
+
+    it('still enforces the size cap when Graph reports no contentLength at all', async () => {
+      // A caller (or a future graph-client.ts refactor) that returns contentBytes without a
+      // contentLength must not silently bypass the cap - it has to be derived from the actual
+      // bytes, not trusted from an optional, separately-reported field.
+      const oversized = Buffer.alloc(26 * 1024 * 1024, 'x').toString('base64');
+      const graphClient = {
+        makeRequest: vi.fn().mockResolvedValue({
+          contentType: 'application/pdf',
+          encoding: 'base64',
+          contentBytes: oversized,
+          // contentLength intentionally omitted.
+        }),
+      };
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
