@@ -60,12 +60,24 @@ export function runInWorkerWithTimeout<TData, TValue>(
       if (settled) return;
       settled = true;
       cleanup();
-      worker.terminate().catch((err) => {
-        logger.warn(
-          `Worker termination after timeout raised its own error: ${(err as Error).message}`
-        );
-      });
-      reject(new Error(describeTimeout(timeoutMs)));
+      // Await terminate() before rejecting: it resolves only once the worker has actually
+      // exited (Node waits for the underlying 'exit' event), not merely once termination has
+      // been requested. Rejecting first — as an earlier version of this code did — let the
+      // caller's own cleanup (e.g. releasing a concurrency-limit slot in a `finally` block)
+      // run while the old worker's up-to-`maxOldGenerationSizeMb` heap was still being torn
+      // down, so a new call could pass a concurrency check and spin up another worker before
+      // that memory was actually freed. A slow teardown (native parsing or OCR mid-flight)
+      // widens that window rather than closing it.
+      worker
+        .terminate()
+        .catch((err) => {
+          logger.warn(
+            `Worker termination after timeout raised its own error: ${(err as Error).message}`
+          );
+        })
+        .finally(() => {
+          reject(new Error(describeTimeout(timeoutMs)));
+        });
     }, timeoutMs);
 
     worker.once('message', (outcome: WorkerOutcome<TValue>) => {

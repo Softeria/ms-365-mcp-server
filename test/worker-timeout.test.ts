@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fileURLToPath } from 'url';
+import { Worker } from 'worker_threads';
 import { runInWorkerWithTimeout } from '../src/lib/worker-timeout.js';
 
 const FIXTURE_PATH = fileURLToPath(
@@ -101,5 +102,38 @@ describe('runInWorkerWithTimeout', () => {
         describeTimeout: (ms) => `custom message for ${ms}ms`,
       })
     ).rejects.toThrow('custom message for 100ms');
+  }, 10_000);
+
+  // Regression test for a real race a code reviewer found: an earlier version rejected the
+  // timeout branch immediately, without waiting for worker.terminate() to actually resolve.
+  // A caller releasing a concurrency-limit slot in its own `finally` block would then do so
+  // before the old worker (and its up-to-N-MB heap) had genuinely exited, letting a new call
+  // slip past the concurrency check while memory from the terminated one was still being freed.
+  // Node's worker.terminate() resolves only once the underlying 'exit' event has fired, so
+  // mocking an artificial delay on it and asserting the rejection waits at least that long
+  // proves the ordering directly, without depending on how long real OS-level teardown takes.
+  it('waits for worker.terminate() to resolve before rejecting on timeout', async () => {
+    const terminateDelayMs = 250;
+    const spy = vi.spyOn(Worker.prototype, 'terminate').mockImplementation(function (this: Worker) {
+      return new Promise((resolve) => setTimeout(() => resolve(0), terminateDelayMs));
+    });
+    try {
+      const timeoutMs = 50;
+      const start = Date.now();
+      await expect(
+        runInWorkerWithTimeout<{ mode: string; spinMs: number }, string>({
+          workerPath: FIXTURE_PATH,
+          workerData: { mode: 'spin-then-succeed', spinMs: 5000 },
+          timeoutMs,
+        })
+      ).rejects.toThrow(new RegExp(`exceeded the ${timeoutMs}ms limit`));
+      const elapsed = Date.now() - start;
+      // If the bug were present, this would settle at ~timeoutMs (50ms) regardless of the
+      // mocked terminate() delay. Requiring it to reach at least the mocked delay proves the
+      // rejection is gated on terminate() actually resolving, not just on the timer firing.
+      expect(elapsed).toBeGreaterThanOrEqual(terminateDelayMs);
+    } finally {
+      spy.mockRestore();
+    }
   }, 10_000);
 });
