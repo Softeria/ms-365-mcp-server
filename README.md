@@ -742,13 +742,19 @@ to decode and parse itself. It is off by default:
 --enable-document-conversion
 ```
 
-Two things have to both be true for it to appear:
+Three things have to all be true for it to appear:
 
 1. The flag above is passed.
 2. The optional [`officeparser`](https://www.npmjs.com/package/officeparser) package is installed.
    It is an `optionalDependency` of this package, so a plain `npm install` already includes it —
    this only matters if you installed with `--omit=optional` or otherwise pruned it. If it's
    missing, the tool returns a clear error rather than crashing the server.
+3. Node is **>=22.13.0**. This package as a whole supports Node >=18, but `officeparser`'s own
+   dependencies (`file-type`, `pdfjs-dist`) do not run on anything older, so this floor is
+   specific to this one feature — every other tool works fine on the package's normal minimum.
+   Passing `--enable-document-conversion` on an older Node aborts startup immediately with a
+   clear error naming the required version, rather than letting the server start and failing
+   lazily on the first `convert-document` call.
 
 It supports PDF, Word, PowerPoint, Excel, OpenDocument, and a few other formats. OCR for
 scanned/image-based documents is available via an `ocr` parameter but off by default — it adds
