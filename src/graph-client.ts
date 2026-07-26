@@ -36,6 +36,15 @@ export function isBinaryContentType(contentType: string): boolean {
   if (lower.startsWith('application/zip') || lower.startsWith('application/x-zip')) {
     return true;
   }
+  // Legacy binary Word (.doc) and RTF use plain, non-'vnd.'/'x-' MIME types, so neither
+  // matches the vendor-prefix rule below despite being genuinely binary formats that
+  // officeparser (convert-document's parser) declares support for. Left misclassified, Graph
+  // responses for these would be UTF-8-decoded (corrupting the bytes) and returned without
+  // contentBytes, so convert-document would wrongly report "did not return binary content"
+  // for exactly the attachments it's supposed to handle.
+  if (lower === 'application/msword' || lower === 'application/rtf' || lower === 'text/rtf') {
+    return true;
+  }
   // Office document MIME types and other vendor-specific binary formats.
   if (lower.startsWith('application/vnd.') || lower.startsWith('application/x-')) {
     // Be conservative: exclude MIME types that use the structured-syntax suffix
@@ -67,9 +76,9 @@ interface GraphRequestOptions {
   // intent, decides which branch runs, and convert-document accepts arbitrary relative
   // Graph paths, so it cannot assume the response will be classified as binary. An
   // earlier version of this guard covered only the binary branch on the assumption that
-  // convert-document only ever "really" deals with binary content; a large text/plain or
-  // application/rtf target (not matched by isBinaryContentType) proved that assumption
-  // wrong by taking the unguarded response.text() path instead. Opt-in and unset by
+  // convert-document only ever "really" deals with binary content; a large text/plain
+  // target (a non-binary MIME type by any classification) proved that assumption wrong by
+  // taking the unguarded response.text() path instead. Opt-in and unset by
   // default so every pre-existing caller (download-bytes, download-bytes-to-file's own
   // performRequest use, etc.) keeps buffering the whole body exactly as before. See
   // readBodyWithLimit for the enforcement mechanics.
@@ -144,8 +153,7 @@ async function readChunkWithStallTimeout(
  * Reads `response`'s body into a single Buffer while enforcing `maxBytes`, without ever
  * holding a full over-limit body in memory. Used for both the binary and the text/JSON
  * branch in makeRequest — it only counts bytes, so it doesn't need to know or care what
- * they mean; a large text/plain or application/rtf response needs the same protection a
- * large PDF does.
+ * they mean; a large text/plain response needs the same protection a large PDF does.
  *
  * Two layers, cheapest first:
  *
@@ -327,8 +335,8 @@ class GraphClient {
       } else {
         // Same cap, same helper, as the binary branch above: a non-binary MIME type does not
         // mean a small body. convert-document accepts arbitrary relative Graph paths, and a
-        // large text/plain or application/rtf target lands here, not in the binary branch
-        // above — readBodyWithLimit doesn't care what the bytes mean, only how many there are.
+        // large text/plain target lands here, not in the binary branch above —
+        // readBodyWithLimit doesn't care what the bytes mean, only how many there are.
         const text =
           options.maxResponseBytes !== undefined
             ? (

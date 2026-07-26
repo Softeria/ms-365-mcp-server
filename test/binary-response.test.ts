@@ -38,6 +38,18 @@ describe('isBinaryContentType', () => {
     expect(isBinaryContentType('application/zip')).toBe(true);
   });
 
+  // Regression coverage: a real code-review finding pointed out that legacy binary Word
+  // (.doc) and RTF use plain MIME types matching neither the vnd./x- vendor-prefix rule nor
+  // any other existing rule, so Graph responses for these were UTF-8-decoded (corrupting the
+  // bytes) and returned without contentBytes - convert-document would then wrongly report
+  // "did not return binary content" for exactly the attachment types officeparser supports.
+  it('returns true for legacy Word (.doc) and RTF, which do not match the vnd./x- pattern', () => {
+    expect(isBinaryContentType('application/msword')).toBe(true);
+    expect(isBinaryContentType('application/rtf')).toBe(true);
+    expect(isBinaryContentType('text/rtf')).toBe(true);
+    expect(isBinaryContentType('application/msword; charset=binary')).toBe(true);
+  });
+
   it('returns true for Office document vnd types', () => {
     expect(
       isBinaryContentType('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -290,16 +302,18 @@ describe('GraphClient binary response handling', () => {
     }
   });
 
-  it('rejects an oversized non-binary (e.g. RTF or plain-text) response when maxResponseBytes is set', async () => {
+  it('rejects an oversized non-binary (e.g. plain text) response when maxResponseBytes is set', async () => {
     // A real code-review finding: an earlier version of this guard covered only the
     // binary-response branch, on the assumption that convert-document only ever "really"
     // deals with binary content. But convert-document accepts arbitrary relative Graph
     // paths, and which branch a response takes is decided by its MIME type, not by the
-    // caller's intent - a large text/plain or application/rtf attachment (application/rtf
-    // does not match isBinaryContentType's rules) takes the text branch and was buffered
-    // in full via response.text() before this fix, regardless of maxResponseBytes. Pinned
-    // here with application/rtf specifically, since that's the concrete example that
-    // proved the "only binary needs this" assumption wrong.
+    // caller's intent - a large text/plain attachment takes the text branch and was
+    // buffered in full via response.text() before this fix, regardless of maxResponseBytes.
+    // Originally pinned with application/rtf as the concrete non-binary example; a later
+    // finding established that RTF is actually a binary format officeparser supports (see
+    // the isBinaryContentType tests above), so this uses text/plain instead - genuinely
+    // non-binary and still exercises the same "non-binary MIME type does not mean small
+    // body" gap.
     const { default: GraphClient } = await import('../src/graph-client.js');
 
     const originalFetch = global.fetch;
@@ -307,7 +321,7 @@ describe('GraphClient binary response handling', () => {
       new Response('not read', {
         status: 200,
         headers: {
-          'content-type': 'application/rtf',
+          'content-type': 'text/plain',
           'content-length': String(50 * 1024 * 1024),
         },
       })) as typeof fetch;
