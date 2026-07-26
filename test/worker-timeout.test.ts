@@ -183,4 +183,29 @@ describe('runInWorkerWithTimeout', () => {
       spy.mockRestore();
     }
   }, 10_000);
+
+  // Third instance of the same race, this time on the 'error' event (an uncaught exception
+  // inside the worker, e.g. exceeding maxOldGenerationSizeMb): rejecting immediately here, as an
+  // earlier version of this code did, let the caller's own `finally` (releasing a
+  // concurrency-limit slot) run before a large crashed worker's heap was actually freed.
+  it('waits for worker.terminate() to resolve before rejecting on an uncaught worker error', async () => {
+    const terminateDelayMs = 250;
+    const spy = vi.spyOn(Worker.prototype, 'terminate').mockImplementation(function (this: Worker) {
+      return new Promise((resolve) => setTimeout(() => resolve(0), terminateDelayMs));
+    });
+    try {
+      const start = Date.now();
+      await expect(
+        runInWorkerWithTimeout<{ mode: string }, string>({
+          workerPath: FIXTURE_PATH,
+          workerData: { mode: 'uncaught-throw' },
+          timeoutMs: 5000,
+        })
+      ).rejects.toThrow(/uncaught in worker/);
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeGreaterThanOrEqual(terminateDelayMs);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 10_000);
 });

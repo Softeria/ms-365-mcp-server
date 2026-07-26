@@ -120,7 +120,24 @@ export function runInWorkerWithTimeout<TData, TValue>(
       if (settled) return;
       settled = true;
       cleanup();
-      reject(error);
+      // Same reasoning as the message and timeout branches above: don't let the caller's own
+      // `finally` (e.g. releasing a concurrency-limit slot) run before the worker has actually
+      // finished tearing down. An uncaught error inside the worker (e.g. exceeding
+      // maxOldGenerationSizeMb) fires this event before Node's underlying 'exit' event, so
+      // rejecting immediately here — as an earlier version of this code did — could release
+      // the slot while a large crashed worker's heap was still being freed. terminate() is
+      // safe to call on a worker that's already mid-crash; it resolves once teardown is
+      // actually done either way.
+      worker
+        .terminate()
+        .catch((err) => {
+          logger.warn(
+            `Worker termination after an error event raised its own error: ${(err as Error).message}`
+          );
+        })
+        .finally(() => {
+          reject(error);
+        });
     });
 
     worker.once('exit', (code) => {
