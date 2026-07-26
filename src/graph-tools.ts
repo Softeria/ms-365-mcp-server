@@ -1545,6 +1545,24 @@ export function registerGraphTools(
         .describe('Comma-separated fields to return, e.g. id,subject,from,receivedDateTime')
         .optional();
     }
+    // The spec describes every $expand as "Expand related entities", which says nothing about
+    // what is expandable. Models pass non-navigation properties — message body is the one I
+    // hit repeatedly — and Graph answers 400 "Parsing OData Select and Expand failed".
+    // Restated as the override rather than a new schema: $expand is already array<string>
+    // everywhere, so the type is unchanged in practice.
+    if (paramSchema['expand'] !== undefined || paramSchema['$expand'] !== undefined) {
+      const key = paramSchema['$expand'] !== undefined ? '$expand' : 'expand';
+      paramSchema[key] = z
+        .array(z.string())
+        .describe(
+          'Navigation properties to inline, e.g. attachments on a message or event. Only ' +
+            'navigation properties can be expanded: expanding a non-navigation property such ' +
+            'as a message body fails with "Parsing OData Select and Expand failed", and an ' +
+            'unsupported value may be ignored rather than reported. Request ordinary fields ' +
+            'with $select instead.'
+        )
+        .optional();
+    }
     if (paramSchema['orderby'] !== undefined || paramSchema['$orderby'] !== undefined) {
       const key = paramSchema['$orderby'] !== undefined ? '$orderby' : 'orderby';
       paramSchema[key] = z
