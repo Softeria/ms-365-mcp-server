@@ -37,6 +37,15 @@ const cases: Case[] = [
   { query: 'read mail message', expect: 'get-mail-message', inTop: 5 },
   { query: 'delete mail', expect: 'delete-mail-message', inTop: 5 },
   { query: 'list mail folders', expect: 'list-mail-folders', inTop: 3 },
+  // Semantic mail queries. The Microsoft-supplied base descriptions for these six
+  // /me/messages operations are mis-sourced (openTypeExtension / eventMessage blurbs),
+  // so these rely on the descriptionOverride entries in endpoints.json.
+  { query: 'search my inbox for an email', expect: 'list-mail-messages', inTop: 5 },
+  { query: 'read the full body of an email', expect: 'get-mail-message', inTop: 5 },
+  { query: 'save a draft email', expect: 'create-draft-email', inTop: 5 },
+  { query: 'mark email as read', expect: 'update-mail-message', inTop: 5 },
+  { query: 'move email to deleted items', expect: 'delete-mail-message', inTop: 5 },
+  { query: 'raw mime source of a message', expect: 'get-mail-message-mime', inTop: 5 },
   // Calendar
   { query: 'create calendar event', expect: 'create-calendar-event', inTop: 5 },
   { query: 'create event', expect: 'create-calendar-event', inTop: 5 },
