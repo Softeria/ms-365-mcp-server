@@ -591,6 +591,7 @@ Environment variables:
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
+- `MS365_MCP_MAX_CONCURRENT_CONVERSIONS=<n>`: Maximum number of `convert-document` conversions allowed to run at once (positive integer, default `3`). Each conversion runs in its own worker thread with up to a 512MB heap allowance, so unbounded concurrency could exhaust host memory; calls beyond the limit fail immediately with a retryable error rather than queuing. See "Document Conversion" below.
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
@@ -768,6 +769,18 @@ rather than the main server process's.
 `convert-document` never accepts a filesystem path and never writes one — it only ever reads bytes
 already fetched from Graph and returns text, so it carries none of `download-bytes-to-file`'s
 stdio-only restriction and works over HTTP.
+
+Markdown output is truncated inside the worker itself, before the result ever crosses back to the
+main process — so the full untruncated string for a document that expands into a huge markdown
+output is never copied onto the main process's heap, only the already-bounded result is.
+
+At most `MS365_MCP_MAX_CONCURRENT_CONVERSIONS` (default `3`) conversions run at once. Each worker
+can claim up to its own 512MB heap allowance, so with no cap a handful of ordinary simultaneous
+calls — not necessarily malicious, just a chatty client reading several attachments back to back —
+could collectively exceed host memory even though each individual worker stays under its own
+limit. A call arriving once the limit is already reached fails immediately with a clear,
+retryable error (`Too many document conversions are already in progress (<n>); try again
+shortly.`) rather than queuing or crashing the server.
 
 ## Production Deployment
 

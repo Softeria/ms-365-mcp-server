@@ -1,6 +1,8 @@
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { runInWorkerWithTimeout } from './worker-timeout.js';
+import { positiveIntFromEnv } from './env.js';
+import type { TruncatedMarkdown } from './document-conversion-worker.js';
 
 /**
  * officeparser itself declares `node >=18.0.0`, but that is misleading once its own
@@ -82,6 +84,26 @@ export class OfficeParserNotInstalledError extends Error {
   }
 }
 
+/**
+ * Thrown when `MS365_MCP_MAX_CONCURRENT_CONVERSIONS` conversions are already running and
+ * another call arrives. Deliberately a plain, retryable error rather than a queue: each worker
+ * can claim up to `maxOldGenerationSizeMb` (default 512 MB) of its own heap, and with no cap on
+ * concurrency, a handful of ordinary simultaneous convert-document calls — not necessarily
+ * malicious, just a chatty client reading several attachments back to back — could each spin up
+ * a worker and collectively exhaust host memory even though every individual worker stays under
+ * its own limit. Rejecting outright (rather than queuing) sidesteps having to decide whether a
+ * queued call's timeout clock starts at request time or at actual-run time; the caller already
+ * has retry/backoff plumbing for ordinary tool errors, so "try again shortly" is a fine answer
+ * for a personal-scale MCP server that will rarely if ever see genuine concurrent load this
+ * high.
+ */
+export class TooManyConcurrentConversionsError extends Error {
+  constructor(limit: number) {
+    super(`Too many document conversions are already in progress (${limit}); try again shortly.`);
+    this.name = 'TooManyConcurrentConversionsError';
+  }
+}
+
 export interface ConvertBufferOptions {
   /** Run OCR on embedded images. Off by default: slower, and unnecessary for born-digital
    *  documents, which covers the large majority of email/drive attachments. */
@@ -107,6 +129,22 @@ export interface ConvertBufferResult {
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_CHARS = 20_000;
 const DEFAULT_MAX_OLD_GENERATION_SIZE_MB = 512;
+
+// Each conversion worker can claim up to DEFAULT_MAX_OLD_GENERATION_SIZE_MB (512 MB) of its own
+// heap. 3 concurrent workers therefore tops out around ~1.5 GB attributable to conversions
+// alone, which is a reasonable ceiling to reserve out of a typical modern host's memory (a
+// personal-scale deployment on a machine with, say, 4-8+ GB available) while still leaving
+// headroom for the main server process, its own Graph-response buffering, and everything else
+// running alongside it. Configurable via MS365_MCP_MAX_CONCURRENT_CONVERSIONS for deployments
+// that want it higher or lower.
+const DEFAULT_MAX_CONCURRENT_CONVERSIONS = 3;
+
+// Process-wide count of in-flight conversions, scoped to this module (not to
+// runInWorkerWithTimeout/worker-timeout.ts) since document conversion is currently the only
+// caller of that generic helper and its memory profile (up to 512 MB per worker) is specific to
+// this feature. A future second caller of runInWorkerWithTimeout with different needs should not
+// be forced to share this limit; see the commit message for the full reasoning.
+let activeConversions = 0;
 
 /**
  * Prefers the compiled sibling (the real production shape: tsup compiles this project
@@ -141,50 +179,69 @@ const WORKER_PATH = resolveWorkerPath();
  * would trigger the abort never got a turn on the event loop until the parse finished on its
  * own. `worker.terminate()` from a wrapping thread is not cooperative — it stops the parse
  * whether or not its own code ever checks anything.
+ *
+ * Bounded by a process-wide concurrency limit (`MS365_MCP_MAX_CONCURRENT_CONVERSIONS`, default
+ * `DEFAULT_MAX_CONCURRENT_CONVERSIONS`): each worker can claim up to `maxOldGenerationSizeMb` of
+ * its own heap, and nothing about the per-worker cap stops several calls arriving concurrently
+ * from each spinning up their own worker and collectively exceeding host memory. Rather than
+ * queuing excess calls (which would need an answer to "does a queued call's timeout start at
+ * request time or run time?"), calls beyond the limit are rejected immediately with
+ * `TooManyConcurrentConversionsError` — simpler to reason about and a legitimate fit for a
+ * personal-scale MCP server that will rarely see genuine concurrent load this high.
  */
 export async function convertBufferToMarkdown(
   buffer: Buffer,
   options: ConvertBufferOptions = {}
 ): Promise<ConvertBufferResult> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
-  const maxOldGenerationSizeMb =
-    options.maxOldGenerationSizeMb ?? DEFAULT_MAX_OLD_GENERATION_SIZE_MB;
-
-  // buffer.buffer may be a larger pooled Node allocation than this one Buffer's own view into
-  // it (Buffer.byteOffset/byteLength narrow a shared backing store) - slice to an ArrayBuffer
-  // sized exactly to this buffer's own bytes before transferring, so the worker receives (and
-  // the transfer moves ownership of) only this document's data, not unrelated pool memory.
-  const arrayBuffer = buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength
-  ) as ArrayBuffer;
+  const limit = positiveIntFromEnv(
+    'MS365_MCP_MAX_CONCURRENT_CONVERSIONS',
+    DEFAULT_MAX_CONCURRENT_CONVERSIONS
+  );
+  // Synchronous check-then-increment: no `await` sits between reading activeConversions and
+  // incrementing it, so two concurrent calls to this async function cannot both observe the
+  // same pre-increment count and both slip past the limit — the event loop cannot interleave
+  // them mid-check the way it could if an await separated the read from the write.
+  if (activeConversions >= limit) {
+    throw new TooManyConcurrentConversionsError(limit);
+  }
+  activeConversions++;
 
   try {
-    const markdown = await runInWorkerWithTimeout<
-      { arrayBuffer: ArrayBuffer; ocr: boolean },
-      string
-    >({
-      workerPath: WORKER_PATH,
-      workerData: { arrayBuffer, ocr: options.ocr ?? false },
-      transferList: [arrayBuffer],
-      timeoutMs,
-      maxOldGenerationSizeMb,
-      describeTimeout: (ms) =>
-        `Document conversion exceeded the ${ms}ms limit and was terminated. Try again with ` +
-        'ocr disabled, or use download-bytes / download-bytes-to-file instead.',
-    });
-    const totalLength = markdown.length;
-    const truncated = totalLength > maxOutputChars;
-    return {
-      markdown: truncated ? markdown.slice(0, maxOutputChars) : markdown,
-      truncated,
-      totalLength,
-    };
-  } catch (error) {
-    if ((error as Error).name === 'OfficeParserNotInstalled') {
-      throw new OfficeParserNotInstalledError();
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
+    const maxOldGenerationSizeMb =
+      options.maxOldGenerationSizeMb ?? DEFAULT_MAX_OLD_GENERATION_SIZE_MB;
+
+    // buffer.buffer may be a larger pooled Node allocation than this one Buffer's own view into
+    // it (Buffer.byteOffset/byteLength narrow a shared backing store) - slice to an ArrayBuffer
+    // sized exactly to this buffer's own bytes before transferring, so the worker receives (and
+    // the transfer moves ownership of) only this document's data, not unrelated pool memory.
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer;
+
+    try {
+      return await runInWorkerWithTimeout<
+        { arrayBuffer: ArrayBuffer; ocr: boolean; maxOutputChars: number },
+        TruncatedMarkdown
+      >({
+        workerPath: WORKER_PATH,
+        workerData: { arrayBuffer, ocr: options.ocr ?? false, maxOutputChars },
+        transferList: [arrayBuffer],
+        timeoutMs,
+        maxOldGenerationSizeMb,
+        describeTimeout: (ms) =>
+          `Document conversion exceeded the ${ms}ms limit and was terminated. Try again with ` +
+          'ocr disabled, or use download-bytes / download-bytes-to-file instead.',
+      });
+    } catch (error) {
+      if ((error as Error).name === 'OfficeParserNotInstalled') {
+        throw new OfficeParserNotInstalledError();
+      }
+      throw error;
     }
-    throw error;
+  } finally {
+    activeConversions--;
   }
 }

@@ -1268,6 +1268,42 @@ describe('graph-tools', () => {
       expect(payload.error).toMatch(/officeparser/);
     });
 
+    it('surfaces a too-many-concurrent-conversions rejection as a tool error, not a crash', async () => {
+      // convertBufferToMarkdown itself enforces MS365_MCP_MAX_CONCURRENT_CONVERSIONS (see
+      // test/document-conversion.test.ts for the real concurrency-limiting behavior); here we
+      // only need to verify the convert-document tool surfaces that specific rejection the same
+      // way it surfaces any other conversion failure - as a normal isError:true tool result with
+      // a clear, retryable message, not an unhandled rejection that crashes the server.
+      const graphClient = binaryGraphClient(Buffer.from('x').toString('base64'));
+      convertBufferToMarkdownMock.mockRejectedValue(
+        new Error('Too many document conversions are already in progress (3); try again shortly.')
+      );
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      const result = await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value' });
+
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toMatch(/Too many document conversions are already in progress/);
+      expect(payload.error).toMatch(/try again shortly/);
+    });
+
     it('rejects targets that do not start with /', async () => {
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
