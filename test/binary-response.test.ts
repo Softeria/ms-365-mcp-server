@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { isBinaryContentType } from '../src/graph-client.js';
+import {
+  GraphResponseTooLargeError,
+  isBinaryContentType,
+  readBodyWithLimit,
+} from '../src/graph-client.js';
 
 describe('isBinaryContentType', () => {
   it('returns false for empty/unknown content types', () => {
@@ -220,6 +224,213 @@ describe('GraphClient binary response handling', () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+
+  it('rejects an oversized binary response via makeRequest when maxResponseBytes is set (Content-Length path)', async () => {
+    // convert-document is the only caller that passes maxResponseBytes (see graph-tools.ts).
+    // This proves makeRequest actually wires readBodyWithLimit in on that opt-in path.
+    // The real body here is tiny (10 bytes) - the point is that the fix trusts the
+    // Content-Length header and rejects without ever needing to look at the real bytes.
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(new Uint8Array(10), {
+        status: 200,
+        headers: {
+          'content-type': 'application/pdf',
+          'content-length': String(50 * 1024 * 1024),
+        },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      await expect(
+        client.makeRequest('/drives/d1/items/i1/content', { maxResponseBytes: 1024 })
+      ).rejects.toThrow(GraphResponseTooLargeError);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('still returns a binary response normally via makeRequest when maxResponseBytes is set but not exceeded', async () => {
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(bytes, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf', 'content-length': String(bytes.byteLength) },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      const result = (await client.makeRequest('/drives/d1/items/i1/content', {
+        maxResponseBytes: 25 * 1024 * 1024,
+      })) as Record<string, unknown>;
+
+      expect(result.contentBytes).toBe(Buffer.from(bytes).toString('base64'));
+      expect(result.contentLength).toBe(bytes.byteLength);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('does not apply maxResponseBytes to non-binary (JSON/text) responses - deliberate, narrowest-fix scope', async () => {
+    // maxResponseBytes only guards the binary-response branch, which is the only branch
+    // convert-document's makeRequest call can ever act on (it errors out unless
+    // raw.contentBytes comes back as a string). A JSON/text response ignores
+    // maxResponseBytes entirely and is still buffered via response.text() exactly as
+    // before - a deliberate scope decision (see the doc comment on
+    // GraphRequestOptions.maxResponseBytes in graph-client.ts), not an oversight: no
+    // current caller needs it on the text path, and adding it there would widen this
+    // fix's blast radius for no exercised benefit.
+    const { default: GraphClient } = await import('../src/graph-client.js');
+    const bigJson = JSON.stringify({ value: 'x'.repeat(2000) });
+
+    const originalFetch = global.fetch;
+    global.fetch = (async () =>
+      new Response(bigJson, {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(bigJson.length),
+        },
+      })) as typeof fetch;
+
+    try {
+      const mockAuth = { getToken: async () => 'fake-token' };
+      const mockSecrets = { clientId: 'x', tenantId: 'common', cloudType: 'global' };
+      const client = new GraphClient(
+        mockAuth as Parameters<typeof GraphClient>[0],
+        mockSecrets as Parameters<typeof GraphClient>[1],
+        'json'
+      );
+
+      // A 10-byte maxResponseBytes would reject this immediately if it applied to
+      // non-binary bodies too - it doesn't, on purpose.
+      const result = (await client.makeRequest('/me/messages', {
+        maxResponseBytes: 10,
+      })) as Record<string, unknown>;
+
+      expect(result.value).toBe(JSON.parse(bigJson).value);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
+describe('readBodyWithLimit', () => {
+  it('rejects a response whose Content-Length exceeds the limit without ever reading the body', async () => {
+    let pulled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled = true;
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
+      },
+    });
+    const response = new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'application/pdf',
+        'content-length': String(50 * 1024 * 1024),
+      },
+    });
+
+    let error: unknown;
+    try {
+      await readBodyWithLimit(response, 1024);
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeInstanceOf(GraphResponseTooLargeError);
+    expect((error as GraphResponseTooLargeError).detectedVia).toBe('content-length');
+    expect((error as GraphResponseTooLargeError).limitBytes).toBe(1024);
+    expect((error as GraphResponseTooLargeError).reportedOrReadBytes).toBe(50 * 1024 * 1024);
+    // The whole point of the Content-Length fast path: the stream is never pulled from.
+    expect(pulled).toBe(false);
+  });
+
+  it('reads the body normally when Content-Length is under the limit', async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const response = new Response(bytes, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf', 'content-length': String(bytes.byteLength) },
+    });
+
+    const buffer = await readBodyWithLimit(response, 1024);
+    expect(buffer).toEqual(Buffer.from(bytes));
+  });
+
+  it('streams and reconstructs a body under the limit when Content-Length is absent', async () => {
+    const chunks = [new Uint8Array([1, 2]), new Uint8Array([3, 4]), new Uint8Array([5, 6])];
+    let i = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (i < chunks.length) {
+          controller.enqueue(chunks[i++]);
+        } else {
+          controller.close();
+        }
+      },
+    });
+    const response = new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    });
+
+    const buffer = await readBodyWithLimit(response, 1024);
+    expect(buffer).toEqual(Buffer.from([1, 2, 3, 4, 5, 6]));
+  });
+
+  it('aborts a chunked body partway through once the running total crosses the limit (no Content-Length)', async () => {
+    let chunksServed = 0;
+    const totalChunks = 10;
+    const chunkSize = 100;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (chunksServed < totalChunks) {
+          chunksServed += 1;
+          controller.enqueue(new Uint8Array(chunkSize).fill(chunksServed));
+        } else {
+          controller.close();
+        }
+      },
+    });
+    const response = new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    });
+
+    // Crosses the limit partway through the 3rd 100-byte chunk (300 > 250).
+    const maxBytes = 250;
+    let error: unknown;
+    try {
+      await readBodyWithLimit(response, maxBytes);
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeInstanceOf(GraphResponseTooLargeError);
+    expect((error as GraphResponseTooLargeError).detectedVia).toBe('stream');
+    expect((error as GraphResponseTooLargeError).reportedOrReadBytes).toBe(300);
+    // Aborted after the 3rd chunk - never drained all 10 (which would be 1000 bytes).
+    expect(chunksServed).toBe(3);
   });
 });
 

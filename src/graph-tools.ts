@@ -130,11 +130,14 @@ const DEFAULT_MAX_ITEMS = 10_000;
 // file's header comment).
 
 // Ceiling on convert-document's source size, independent of whatever limit officeparser
-// itself enforces. This bounds CPU/memory spent inside the conversion worker; it does not
-// bound the earlier Graph fetch, which already buffers the whole attachment in memory before
-// this check ever runs (graph-client.ts's makeRequest, shared with download-bytes). Comfortably
-// above a normal email attachment or small document, well below the kind of file that would
-// produce an unusably large markdown output regardless of how well it converts.
+// itself enforces. Bounds CPU/memory spent inside the conversion worker. Also passed to
+// graph-client.ts's makeRequest as maxResponseBytes (see the call below), so an
+// over-the-cap Graph response is rejected via its Content-Length header (or aborted
+// mid-stream if that header is absent/unreliable) before it is fully buffered here —
+// download-bytes, which does not pass maxResponseBytes, is unaffected and keeps buffering
+// the whole body as before. Comfortably above a normal email attachment or small document,
+// well below the kind of file that would produce an unusably large markdown output
+// regardless of how well it converts.
 const MAX_CONVERT_SOURCE_BYTES = 25 * 1024 * 1024;
 
 // Canonical definition lives in lib/destructive-ops.ts so tool-schema.ts can
@@ -478,6 +481,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         }
         const raw = (await graphClient.makeRequest(target, {
           accessToken: accountAccessToken,
+          // Stops Graph's response from being fully buffered (then base64-inflated) in
+          // memory for a huge accessible file before the MAX_CONVERT_SOURCE_BYTES check
+          // below ever runs — see graph-client.ts's readBodyWithLimit. Every other
+          // makeRequest caller (download-bytes, etc.) leaves this unset and is unaffected.
+          maxResponseBytes: MAX_CONVERT_SOURCE_BYTES,
         })) as { contentType?: string; contentLength?: number; contentBytes?: string };
         if (typeof raw?.contentBytes !== 'string') {
           return {

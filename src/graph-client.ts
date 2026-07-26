@@ -62,8 +62,97 @@ interface GraphRequestOptions {
   // Pin this response to JSON regardless of the configured format, so the
   // fetchAllPages merge can JSON.parse each page before re-encoding (#560).
   forceJsonOutput?: boolean;
+  // Caps the binary response body makeRequest will hold in memory. Opt-in and unset by
+  // default so every pre-existing caller (download-bytes, download-bytes-to-file's own
+  // performRequest use, etc.) keeps buffering the whole body exactly as before. Only
+  // convert-document passes this today, to stop a large accessible file from being fully
+  // buffered (then base64-inflated) before its own post-fetch size cap gets a chance to
+  // reject it. See readBodyWithLimit for the enforcement mechanics.
+  maxResponseBytes?: number;
 
   [key: string]: unknown;
+}
+
+/**
+ * Thrown by readBodyWithLimit when a response body is over the caller-supplied
+ * `maxResponseBytes`. `detectedVia` records whether the rejection happened before any
+ * bytes were read (trusted the `Content-Length` header) or partway through a stream (no
+ * usable Content-Length, so bytes were counted as they arrived) — useful for tests and
+ * logs, not load-bearing for callers.
+ */
+export class GraphResponseTooLargeError extends Error {
+  constructor(
+    public readonly limitBytes: number,
+    public readonly reportedOrReadBytes: number,
+    public readonly detectedVia: 'content-length' | 'stream'
+  ) {
+    super(
+      detectedVia === 'content-length'
+        ? `Response Content-Length is ${reportedOrReadBytes} bytes, over the ${limitBytes}-byte limit. Rejected before reading the body.`
+        : `Response body exceeded the ${limitBytes}-byte limit after at least ${reportedOrReadBytes} bytes were read (no usable Content-Length header was sent); aborted before the full body was buffered.`
+    );
+    this.name = 'GraphResponseTooLargeError';
+  }
+}
+
+/**
+ * Reads `response`'s body into a single Buffer while enforcing `maxBytes`, without ever
+ * holding a full over-limit body in memory.
+ *
+ * Two layers, cheapest first:
+ *
+ * 1. Trust a `Content-Length` response header when present: if it already exceeds
+ *    `maxBytes`, cancel the body (`response.body.cancel()`, releasing the underlying
+ *    connection instead of letting it silently drain) and reject immediately, without
+ *    reading a single byte off the wire. Microsoft Graph's binary endpoints
+ *    ($value/content/photo) are backed by Exchange/SharePoint/Azure Storage blobs whose
+ *    exact size is known upfront (driveItem /content even 302-redirects to a
+ *    preauthenticated blob URL that itself supports byte-range requests, which requires a
+ *    known length — see learn.microsoft.com/en-us/graph/api/driveitem-get-content), so a
+ *    real Content-Length is the common case, not a maybe.
+ *
+ * 2. Content-Length is still just a header a server chose to send, though — it can be
+ *    absent under chunked transfer encoding, proxies that strip it, etc. When it's missing
+ *    or unparseable, stream the body via the Web Streams reader, counting bytes as they
+ *    arrive, and abort (`reader.cancel()`) the moment the running total crosses `maxBytes`
+ *    — so an unbounded body without a Content-Length is still bounded to roughly
+ *    `maxBytes` (plus at most one in-flight chunk) of peak memory, never fully buffered
+ *    first.
+ */
+export async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+  const contentLengthHeader = response.headers.get('content-length');
+  if (contentLengthHeader !== null) {
+    const declared = Number(contentLengthHeader);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      if (response.body) {
+        await response.body.cancel().catch(() => undefined);
+      }
+      throw new GraphResponseTooLargeError(maxBytes, declared, 'content-length');
+    }
+  }
+
+  if (!response.body) {
+    // No stream to read (e.g. a 200 with an empty body) — arrayBuffer() just resolves
+    // empty; nothing to guard.
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value && value.byteLength > 0) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new GraphResponseTooLargeError(maxBytes, total, 'stream');
+      }
+      chunks.push(value);
+    }
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 interface ContentItem {
@@ -141,7 +230,15 @@ class GraphClient {
         // decoded with response.text() — that performs a lossy UTF-8 decode and
         // replaces every high byte with U+FFFD, destroying the file. Read the
         // raw bytes and return them as base64 so callers can reconstruct them.
-        const buffer = Buffer.from(await response.arrayBuffer());
+        //
+        // maxResponseBytes is opt-in (only convert-document passes it): when unset, this
+        // is exactly the old unconditional arrayBuffer() read, so download-bytes and every
+        // other existing caller is unaffected. When set, readBodyWithLimit enforces it
+        // without ever buffering a full over-limit body first — see its doc comment.
+        const buffer =
+          options.maxResponseBytes !== undefined
+            ? await readBodyWithLimit(response, options.maxResponseBytes)
+            : Buffer.from(await response.arrayBuffer());
         result = {
           message: 'OK!',
           contentType: contentTypeHeader,
