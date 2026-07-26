@@ -189,59 +189,102 @@ const WORKER_PATH = resolveWorkerPath();
  * `TooManyConcurrentConversionsError` — simpler to reason about and a legitimate fit for a
  * personal-scale MCP server that will rarely see genuine concurrent load this high.
  */
-export async function convertBufferToMarkdown(
-  buffer: Buffer,
-  options: ConvertBufferOptions = {}
-): Promise<ConvertBufferResult> {
+/**
+ * Reserves one slot against `MS365_MCP_MAX_CONCURRENT_CONVERSIONS`, throwing
+ * `TooManyConcurrentConversionsError` immediately (synchronously, before any `await`) if the
+ * limit is already reached, and returns a release function the caller must invoke exactly once
+ * when the reserved work is done (success or failure).
+ *
+ * Exported separately from `convertBufferToMarkdown` so a caller that must first fetch the
+ * source bytes over the network (e.g. graph-tools.ts's convert-document handler) can reserve the
+ * slot BEFORE that fetch rather than only once the bytes are already fully buffered in memory —
+ * otherwise several concurrent calls could each buffer up to the source-size cap before any of
+ * them is turned away, defeating the point of the limit. See convert-document's handler for the
+ * paired acquire/release usage.
+ */
+export function acquireConversionSlot(): () => void {
   const limit = positiveIntFromEnv(
     'MS365_MCP_MAX_CONCURRENT_CONVERSIONS',
     DEFAULT_MAX_CONCURRENT_CONVERSIONS
   );
   // Synchronous check-then-increment: no `await` sits between reading activeConversions and
-  // incrementing it, so two concurrent calls to this async function cannot both observe the
-  // same pre-increment count and both slip past the limit — the event loop cannot interleave
-  // them mid-check the way it could if an await separated the read from the write.
+  // incrementing it, so two concurrent calls to this function cannot both observe the same
+  // pre-increment count and both slip past the limit — the event loop cannot interleave them
+  // mid-check the way it could if an await separated the read from the write.
   if (activeConversions >= limit) {
     throw new TooManyConcurrentConversionsError(limit);
   }
   activeConversions++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeConversions--;
+  };
+}
+
+/**
+ * Same conversion as `convertBufferToMarkdown`, but for callers that have already reserved
+ * their own slot via `acquireConversionSlot()` (typically before fetching the source bytes) and
+ * will release it themselves — this does not acquire or release a slot of its own, so it must
+ * never be called without one already held, or the concurrency limit goes unenforced for that
+ * call.
+ */
+export async function convertReservedBufferToMarkdown(
+  buffer: Buffer,
+  options: ConvertBufferOptions = {}
+): Promise<ConvertBufferResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
+  const maxOldGenerationSizeMb =
+    options.maxOldGenerationSizeMb ?? DEFAULT_MAX_OLD_GENERATION_SIZE_MB;
+
+  // buffer.buffer may be a larger pooled Node allocation than this one Buffer's own view into
+  // it (Buffer.byteOffset/byteLength narrow a shared backing store) - slice to an ArrayBuffer
+  // sized exactly to this buffer's own bytes before transferring, so the worker receives (and
+  // the transfer moves ownership of) only this document's data, not unrelated pool memory.
+  const arrayBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer;
 
   try {
-    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
-    const maxOldGenerationSizeMb =
-      options.maxOldGenerationSizeMb ?? DEFAULT_MAX_OLD_GENERATION_SIZE_MB;
-
-    // buffer.buffer may be a larger pooled Node allocation than this one Buffer's own view into
-    // it (Buffer.byteOffset/byteLength narrow a shared backing store) - slice to an ArrayBuffer
-    // sized exactly to this buffer's own bytes before transferring, so the worker receives (and
-    // the transfer moves ownership of) only this document's data, not unrelated pool memory.
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength
-    ) as ArrayBuffer;
-
-    try {
-      return await runInWorkerWithTimeout<
-        { arrayBuffer: ArrayBuffer; ocr: boolean; maxOutputChars: number },
-        TruncatedMarkdown
-      >({
-        workerPath: WORKER_PATH,
-        workerData: { arrayBuffer, ocr: options.ocr ?? false, maxOutputChars },
-        transferList: [arrayBuffer],
-        timeoutMs,
-        maxOldGenerationSizeMb,
-        describeTimeout: (ms) =>
-          `Document conversion exceeded the ${ms}ms limit and was terminated. Try again with ` +
-          'ocr disabled, or use download-bytes / download-bytes-to-file instead.',
-      });
-    } catch (error) {
-      if ((error as Error).name === 'OfficeParserNotInstalled') {
-        throw new OfficeParserNotInstalledError();
-      }
-      throw error;
+    return await runInWorkerWithTimeout<
+      { arrayBuffer: ArrayBuffer; ocr: boolean; maxOutputChars: number },
+      TruncatedMarkdown
+    >({
+      workerPath: WORKER_PATH,
+      workerData: { arrayBuffer, ocr: options.ocr ?? false, maxOutputChars },
+      transferList: [arrayBuffer],
+      timeoutMs,
+      maxOldGenerationSizeMb,
+      describeTimeout: (ms) =>
+        `Document conversion exceeded the ${ms}ms limit and was terminated. Try again with ` +
+        'ocr disabled, or use download-bytes / download-bytes-to-file instead.',
+    });
+  } catch (error) {
+    if ((error as Error).name === 'OfficeParserNotInstalled') {
+      throw new OfficeParserNotInstalledError();
     }
+    throw error;
+  }
+}
+
+/**
+ * Convenience wrapper for callers that have not already reserved a slot themselves: acquires
+ * one via `acquireConversionSlot()`, runs the conversion, and always releases it afterwards.
+ * Kept as the default entrypoint for direct/test callers; convert-document's handler uses
+ * `acquireConversionSlot()` + `convertReservedBufferToMarkdown()` directly instead, so its slot
+ * covers the network fetch too — see the comment on `acquireConversionSlot` for why.
+ */
+export async function convertBufferToMarkdown(
+  buffer: Buffer,
+  options: ConvertBufferOptions = {}
+): Promise<ConvertBufferResult> {
+  const release = acquireConversionSlot();
+  try {
+    return await convertReservedBufferToMarkdown(buffer, options);
   } finally {
-    activeConversions--;
+    release();
   }
 }

@@ -54,8 +54,13 @@ vi.mock('../tool-categories.js', () => ({
 // (officeparser wiring, truncation, timeouts) is covered by test/document-conversion.test.ts.
 // Here we only need to verify convert-document calls it correctly and handles what it returns.
 const convertBufferToMarkdownMock = vi.fn();
+// Default: acquiring a slot always succeeds and returns a no-op release. Tests that need to
+// exercise the TooManyConcurrentConversionsError path override this with mockImplementationOnce
+// to throw synchronously, matching how the real acquireConversionSlot() behaves.
+const acquireConversionSlotMock = vi.fn(() => () => {});
 vi.mock('../lib/document-conversion.js', () => ({
-  convertBufferToMarkdown: (...args: unknown[]) => convertBufferToMarkdownMock(...args),
+  convertReservedBufferToMarkdown: (...args: unknown[]) => convertBufferToMarkdownMock(...args),
+  acquireConversionSlot: (...args: unknown[]) => acquireConversionSlotMock(...args),
 }));
 
 // ---------- helpers ----------
@@ -1269,15 +1274,19 @@ describe('graph-tools', () => {
     });
 
     it('surfaces a too-many-concurrent-conversions rejection as a tool error, not a crash', async () => {
-      // convertBufferToMarkdown itself enforces MS365_MCP_MAX_CONCURRENT_CONVERSIONS (see
-      // test/document-conversion.test.ts for the real concurrency-limiting behavior); here we
-      // only need to verify the convert-document tool surfaces that specific rejection the same
-      // way it surfaces any other conversion failure - as a normal isError:true tool result with
-      // a clear, retryable message, not an unhandled rejection that crashes the server.
+      // acquireConversionSlot() enforces MS365_MCP_MAX_CONCURRENT_CONVERSIONS synchronously,
+      // before the Graph fetch even starts (see the "reserves the conversion slot before
+      // fetching" test below and test/document-conversion.test.ts for the real concurrency
+      // behavior); here we only need to verify the convert-document tool surfaces that specific
+      // failure the same way it surfaces any other conversion failure - as a normal isError:true
+      // tool result with a clear, retryable message, not an unhandled rejection that crashes
+      // the server, and that it never fetches bytes it will just have to discard.
       const graphClient = binaryGraphClient(Buffer.from('x').toString('base64'));
-      convertBufferToMarkdownMock.mockRejectedValue(
-        new Error('Too many document conversions are already in progress (3); try again shortly.')
-      );
+      acquireConversionSlotMock.mockImplementationOnce(() => {
+        throw new Error(
+          'Too many document conversions are already in progress (3); try again shortly.'
+        );
+      });
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
@@ -1302,6 +1311,62 @@ describe('graph-tools', () => {
       const payload = JSON.parse(result.content[0].text);
       expect(payload.error).toMatch(/Too many document conversions are already in progress/);
       expect(payload.error).toMatch(/try again shortly/);
+      expect(graphClient.makeRequest).not.toHaveBeenCalled();
+      expect(convertBufferToMarkdownMock).not.toHaveBeenCalled();
+    });
+
+    it('reserves the conversion slot before fetching, and releases it whether the call succeeds or fails', async () => {
+      const graphClient = binaryGraphClient(Buffer.from('x').toString('base64'));
+      convertBufferToMarkdownMock.mockResolvedValue({
+        markdown: 'text',
+        truncated: false,
+        totalLength: 4,
+      });
+      const release = vi.fn();
+      const callOrder: string[] = [];
+      acquireConversionSlotMock.mockImplementationOnce(() => {
+        callOrder.push('acquire');
+        return release;
+      });
+      graphClient.makeRequest.mockImplementationOnce(async () => {
+        callOrder.push('fetch');
+        return {
+          contentType: 'application/pdf',
+          encoding: 'base64',
+          contentBytes: Buffer.from('x').toString('base64'),
+        };
+      });
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        true
+      );
+
+      const tool = server.tools.get('convert-document');
+      await tool!.handler({ target: '/me/messages/m1/attachments/a1/$value' });
+
+      expect(callOrder).toEqual(['acquire', 'fetch']);
+      expect(release).toHaveBeenCalledTimes(1);
+
+      // Also released when conversion itself fails, not just on success.
+      acquireConversionSlotMock.mockImplementationOnce(() => release);
+      convertBufferToMarkdownMock.mockRejectedValueOnce(new Error('conversion blew up'));
+      const failedResult = await tool!.handler({
+        target: '/me/messages/m1/attachments/a1/$value',
+      });
+      expect(failedResult.isError).toBe(true);
+      expect(release).toHaveBeenCalledTimes(2);
     });
 
     it('rejects targets that do not start with /', async () => {
