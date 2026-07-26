@@ -4,20 +4,33 @@ import { runInWorkerWithTimeout } from './worker-timeout.js';
 
 /**
  * officeparser itself declares `node >=18.0.0`, but that is misleading once its own
- * dependencies are taken into account: file-type requires Node >=22 and pdfjs-dist requires
- * >=22.13.0 (or >=24). npm only warns rather than blocking on an engines mismatch by default,
- * so --enable-document-conversion would otherwise install "successfully" on Node 18/20 and
- * fail only the first time convert-document is actually called, with an obscure error from
- * deep inside one of those dependencies rather than one that names the real cause.
+ * dependencies are taken into account: file-type requires Node >=22 and the locked
+ * pdfjs-dist@6.1.200 declares `engines.node: ">=22.13.0 || >=24"`. npm only warns rather
+ * than blocking on an engines mismatch by default, so --enable-document-conversion would
+ * otherwise install "successfully" on an unsupported Node and fail only the first time
+ * convert-document is actually called, with an obscure error from deep inside one of those
+ * dependencies rather than one that names the real cause.
+ *
+ * A major-only check (major < 22) is not tight enough: Node 22.0.0-22.12.x pass a
+ * major-only check but are still below pdfjs-dist's real floor, so document conversion would
+ * still fail lazily on first use for that range - exactly the failure mode this guard exists
+ * to prevent. Verified with `semver.satisfies(version, '>=22.13.0 || >=24')` that the range
+ * simplifies to a single floor of >=22.13.0: every 23.x and 24.x release is already
+ * >=22.13.0 under plain version-tuple comparison, so the `|| >=24` disjunct is redundant and
+ * matches nothing the first clause doesn't already cover. The real requirement is therefore:
+ * major > 22, or (major === 22 and minor >= 13).
  */
 export const MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION = 22;
+export const MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION = 13;
+/** "22.13.0" - the precise floor, for use in messages. */
+export const MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION = `${MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION}.${MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION}.0`;
 
 /** Thrown at startup when --enable-document-conversion is passed on a Node version too old
  *  for officeparser's own dependencies to run on. */
 export class UnsupportedNodeVersionError extends Error {
   constructor(nodeVersion: string) {
     super(
-      `--enable-document-conversion requires Node >=${MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION} ` +
+      `--enable-document-conversion requires Node >=${MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION} ` +
         `(running Node ${nodeVersion}). officeparser's own dependencies (file-type, pdfjs-dist) ` +
         'do not run on older Node, even though officeparser itself declares broader support. ' +
         'Upgrade Node, or omit --enable-document-conversion if you do not need convert-document.'
@@ -31,12 +44,27 @@ export class UnsupportedNodeVersionError extends Error {
  * Node version) is below what officeparser's dependency tree actually requires. Call at
  * startup, before accepting any traffic, so an incompatible Node version fails immediately
  * and clearly rather than on the first real convert-document call.
+ *
+ * Compares major and minor as numbers (not the whole version string, and not a plain major
+ * check) so that e.g. "22.9.0" is correctly treated as older than "22.13.0" - a lexicographic
+ * string compare would get this backwards. Patch is irrelevant: every 22.13.x patch clears the
+ * floor and every 22.12.x patch misses it, so only major.minor need to be parsed.
  */
 export function assertNodeVersionSupportsDocumentConversion(
   nodeVersion: string = process.versions.node
 ): void {
-  const major = Number.parseInt(nodeVersion.split('.')[0], 10);
-  if (Number.isFinite(major) && major < MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION) {
+  const [majorStr, minorStr] = nodeVersion.split('.');
+  const major = Number.parseInt(majorStr, 10);
+  const minor = Number.parseInt(minorStr, 10);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) {
+    // Unparseable version string: fail open rather than blocking startup on a fluke.
+    return;
+  }
+  const tooOld =
+    major < MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION ||
+    (major === MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION &&
+      minor < MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION);
+  if (tooOld) {
     throw new UnsupportedNodeVersionError(nodeVersion);
   }
 }
@@ -88,7 +116,7 @@ const DEFAULT_MAX_OLD_GENERATION_SIZE_MB = 512;
  * own plain Node module resolution). Node's own built-in TypeScript support (unflagged as of
  * Node 22/24) loads the .ts sibling directly with no build step or extra dependency needed,
  * which only matters for dev/test — assertNodeVersionSupportsDocumentConversion already
- * requires Node >=22 for this feature regardless.
+ * requires Node >=22.13.0 for this feature regardless.
  */
 function resolveWorkerPath(): string {
   const compiled = fileURLToPath(new URL('./document-conversion-worker.js', import.meta.url));

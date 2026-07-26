@@ -65,11 +65,13 @@ describe('document conversion Node-version guard wiring', () => {
 
   it('propagates the guard error instead of starting on an unsupported Node version', async () => {
     assertNodeVersionMock.mockImplementation(() => {
-      throw new Error('--enable-document-conversion requires Node >=22 (running Node 18.19.1).');
+      throw new Error(
+        '--enable-document-conversion requires Node >=22.13.0 (running Node 18.19.1).'
+      );
     });
     const server = new MicrosoftGraphServer(mockAuthManager(), {
       enableDocumentConversion: true,
     });
-    await expect(server.initialize('test')).rejects.toThrow(/requires Node >=22/);
+    await expect(server.initialize('test')).rejects.toThrow(/requires Node >=22\.13\.0/);
   });
 });

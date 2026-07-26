@@ -3,6 +3,8 @@ import {
   assertNodeVersionSupportsDocumentConversion,
   convertBufferToMarkdown,
   MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION,
+  MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION,
+  MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION,
   OfficeParserNotInstalledError,
   UnsupportedNodeVersionError,
 } from '../src/lib/document-conversion.js';
@@ -72,12 +74,12 @@ describe('convertBufferToMarkdown (real officeparser, real worker)', () => {
 });
 
 describe('assertNodeVersionSupportsDocumentConversion', () => {
-  it(`does not throw at or above Node ${MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION}`, () => {
-    expect(() => assertNodeVersionSupportsDocumentConversion('22.0.0')).not.toThrow();
+  it(`does not throw at or above Node ${MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION}`, () => {
+    expect(() => assertNodeVersionSupportsDocumentConversion('22.13.0')).not.toThrow();
     expect(() => assertNodeVersionSupportsDocumentConversion('24.1.2')).not.toThrow();
   });
 
-  it.each(['18.19.1', '20.11.0', '21.7.3'])(
+  it.each(['18.19.1', '20.11.0', '21.7.3', '21.9.9', '22.0.0'])(
     'throws UnsupportedNodeVersionError below the minimum (%s)',
     (version) => {
       expect(() => assertNodeVersionSupportsDocumentConversion(version)).toThrow(
@@ -86,9 +88,35 @@ describe('assertNodeVersionSupportsDocumentConversion', () => {
     }
   );
 
-  it('names the actual and required versions in the error message', () => {
+  // Node 22.0.0-22.12.x pass a major-only check (major === 22) but are still below
+  // pdfjs-dist@6.1.200's actual declared floor of >=22.13.0, so document conversion would
+  // otherwise fail lazily on the first real convert-document call instead of at startup. These
+  // boundary cases pin the fix: only major===22 with minor>=13 (or major>22) may pass.
+  it.each([
+    ['22.12.9', true],
+    ['22.13.0', false],
+    ['22.13.1', false],
+    ['23.0.0', false],
+    ['24.0.0', false],
+  ] as const)('boundary check around Node %s (throws: %s)', (version, shouldThrow) => {
+    const assertion = () => assertNodeVersionSupportsDocumentConversion(version);
+    if (shouldThrow) {
+      expect(assertion).toThrow(UnsupportedNodeVersionError);
+    } else {
+      expect(assertion).not.toThrow();
+    }
+  });
+
+  it(`MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION and MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION agree`, () => {
+    expect(MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION).toBe(13);
+    expect(MIN_NODE_VERSION_FOR_DOCUMENT_CONVERSION).toBe(
+      `${MIN_NODE_MAJOR_FOR_DOCUMENT_CONVERSION}.${MIN_NODE_MINOR_FOR_DOCUMENT_CONVERSION}.0`
+    );
+  });
+
+  it('names the actual and precise required versions in the error message', () => {
     expect(() => assertNodeVersionSupportsDocumentConversion('18.19.1')).toThrow(
-      /requires Node >=22.*running Node 18\.19\.1/
+      /requires Node >=22\.13\.0.*running Node 18\.19\.1/
     );
   });
 
