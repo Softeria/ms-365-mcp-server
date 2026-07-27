@@ -314,7 +314,11 @@ class GraphClient {
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
-      logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
+      // Redact accessToken from log output to prevent credential leakage (#601)
+      const { accessToken: _redacted, ...safeOptions } = options;
+      logger.info(
+        `Calling ${endpoint} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+      );
 
       // Use new OAuth-aware request method
       const result = await this.makeRequest(endpoint, options);
