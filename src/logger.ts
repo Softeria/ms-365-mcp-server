@@ -5,9 +5,9 @@ import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
 
-// Opt-in PII/secret redaction (MS365_MCP_REDACT_PII). Runs before the printf
-// so both file and console transports emit scrubbed messages. No-op unless
-// enabled, so default behaviour is unchanged.
+// PII/secret redaction (MS365_MCP_REDACT_PII), on by default. Runs before
+// the printf so both file and console transports emit scrubbed messages.
+// Set MS365_MCP_REDACT_PII=false to opt out and get fully verbose logs.
 const redactFormat = winston.format((info) => {
   if (!redactionEnabled()) return info;
   if (typeof info.message === 'string') {

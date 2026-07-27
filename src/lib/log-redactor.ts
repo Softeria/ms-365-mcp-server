@@ -1,11 +1,13 @@
 /**
- * Opt-in redaction of sensitive material from log output.
+ * Redaction of sensitive material from log output. On by default.
  *
  * Error messages bubbled up from upstream libraries (MSAL, fetch, the Graph
  * SDK) routinely interpolate request URLs, Authorization headers, and token
  * payloads into their message strings. When those land in a log file or the
- * console they expose bearer/refresh tokens and user identifiers. Enabling
- * `MS365_MCP_REDACT_PII` runs each log message through the patterns below.
+ * console they expose bearer/refresh tokens and user identifiers, and this
+ * server necessarily handles live Graph bearer tokens with mail/calendar/
+ * contacts read-write scopes. Every log message is run through the patterns
+ * below unless an operator explicitly opts out with `MS365_MCP_REDACT_PII=false`.
  *
  * Patterns are intentionally generic (JWTs, Bearer headers, OAuth token
  * fields, email addresses) — no jurisdiction-specific identifiers — so the
@@ -52,10 +54,14 @@ const REDACTIONS: RedactionPattern[] = [
   },
 ];
 
-/** Whether opt-in PII redaction is enabled via MS365_MCP_REDACT_PII=true|1. */
+/**
+ * Whether PII/secret redaction is enabled. On by default; set
+ * MS365_MCP_REDACT_PII=false|0 to opt out and get fully verbose logs.
+ */
 export function redactionEnabled(): boolean {
   const raw = process.env.MS365_MCP_REDACT_PII;
-  return raw === 'true' || raw === '1';
+  if (raw === undefined) return true;
+  return raw !== 'false' && raw !== '0';
 }
 
 /** Applies every redaction pattern to `input` and returns the scrubbed string. */
