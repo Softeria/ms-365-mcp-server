@@ -149,6 +149,21 @@ CLI value takes precedence over `MS365_MCP_ALLOWED_SCOPES`; if neither is set, t
 
 Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools that require `Mail.Read`, and `Files.ReadWrite.All` covers tools that require `Files.Read`.
 
+SharePoint supports two enterprise permission models:
+
+- Broad tenant scopes such as `Sites.Read.All`, `Sites.ReadWrite.All`, and `Sites.Manage.All`.
+- Microsoft Graph `Sites.Selected`, where SharePoint site access is granted to the app on specific site collections and Graph evaluates the signed-in user's own permissions at request time.
+
+The default org-mode behavior continues to request the broad SharePoint scopes used by existing deployments. Enterprises that want selected-site SharePoint access can set an allowlist containing `Sites.Selected` instead of broad `Sites.*.All` scopes. Direct site/list/item tools that target an explicit SharePoint site can run with `Sites.Selected`; tenant-wide SharePoint discovery and search tools still require broad SharePoint scopes.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --read-only \
+  --enabled-tools 'sharepoint|site|drive|planner' \
+  --allowed-scopes 'User.Read Files.Read Notes.Read Tasks.Read Sites.Selected'
+```
+
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
 ### Requesting extra scopes
