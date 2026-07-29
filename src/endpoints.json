@@ -1944,11 +1944,13 @@
     "llmTip": "Deletes a column from a SharePoint list. This is irreversible — all data stored in this column across every list item is lost. Confirm with the user before calling. Cannot delete built-in columns (Title, Created, Modified, etc.)."
   },
   {
-    "pathPattern": "/sites/{site-id}/getByPath(path='{path}')",
+    "pathPattern": "/sites/{site-id}:/{path}",
     "method": "get",
     "toolName": "get-sharepoint-site-by-path",
     "presets": ["work"],
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "skipEncoding": ["path"],
+    "llmTip": "Resolve a SharePoint site from its server-relative URL. site-id is the hostname (contoso.sharepoint.com) and path is the site path without a leading slash (sites/marketing, teams/hr). Returns the site object whose id feeds list-sharepoint-site-drives."
   },
   {
     "pathPattern": "/sites/delta()",
