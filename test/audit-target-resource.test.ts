@@ -2,25 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { deriveTargetResource, resolveGraphPathForAudit } from '../src/audit-target-resource.js';
 
 describe('audit target-resource derivation', () => {
-  it('derives a SharePoint site target from a path template', () => {
+  it('derives a SharePoint site target from the last ID path parameter', () => {
     expect(
       deriveTargetResource({
-        pathPattern: '/sites/{hostname}:/{site-path}',
+        pathPattern: '/sites/{site-id}:/{path}',
         params: {
-          hostname: 'contoso.sharepoint.com',
-          sitePath: '/sites/Finance',
+          siteId: 'contoso.sharepoint.com',
+          path: '/sites/Finance',
         },
       })
     ).toEqual({
-      type: 'sharepoint_site',
-      id: '/sites/contoso.sharepoint.com:/%2Fsites%2FFinance',
+      type: 'site',
+      id: '/sites/contoso.sharepoint.com',
     });
   });
 
-  it('derives a drive item target and strips query strings', () => {
+  it('derives a drive item target from camelCase params', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/drives/drive-1/items/item-2?$select=id,name',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        params: {
+          driveId: 'drive-1',
+          driveItemId: 'item-2',
+        },
       })
     ).toEqual({
       type: 'drive_item',
@@ -31,7 +35,11 @@ describe('audit target-resource derivation', () => {
   it('records nested drive item endpoints as the parent drive item', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/drives/drive-1/items/item-2/versions',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}/versions',
+        params: {
+          driveId: 'drive-1',
+          driveItemId: 'item-2',
+        },
       })
     ).toEqual({
       type: 'drive_item',
@@ -42,7 +50,11 @@ describe('audit target-resource derivation', () => {
   it('records drive content endpoints as the parent drive item', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/drives/drive-1/items/item-2/content',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}/content',
+        params: {
+          driveId: 'drive-1',
+          driveItemId: 'item-2',
+        },
       })
     ).toEqual({
       type: 'drive_item',
@@ -53,18 +65,39 @@ describe('audit target-resource derivation', () => {
   it('omits drive path content endpoints because they can contain filenames', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/me/drive/root:/Project/report.docx:/content',
+        pathPattern: '/me/drive/root:/{path}:/content',
+        params: {
+          path: 'Project/report.docx',
+        },
       })
     ).toBeUndefined();
+  });
+
+  it('derives mail message targets', () => {
+    expect(
+      deriveTargetResource({
+        pathPattern: '/me/messages/{message-id}',
+        params: {
+          messageId: 'message-1',
+        },
+      })
+    ).toEqual({
+      type: 'message',
+      id: '/me/messages/message-1',
+    });
   });
 
   it('records mail attachment value endpoints as the parent attachment', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/me/messages/message-1/attachments/attachment-2/$value',
+        pathPattern: '/me/messages/{message-id}/attachments/{attachment-id}/$value',
+        params: {
+          messageId: 'message-1',
+          attachmentId: 'attachment-2',
+        },
       })
     ).toEqual({
-      type: 'mail_attachment',
+      type: 'attachment',
       id: '/me/messages/message-1/attachments/attachment-2',
     });
   });
@@ -72,7 +105,7 @@ describe('audit target-resource derivation', () => {
   it('derives Planner task targets', () => {
     expect(
       deriveTargetResource({
-        pathPattern: '/planner/tasks/:plannerTaskId',
+        pathPattern: '/planner/tasks/{plannerTask-id}',
         params: { plannerTaskId: 'task-123' },
       })
     ).toEqual({
@@ -84,7 +117,19 @@ describe('audit target-resource derivation', () => {
   it('omits a target resource for broad list/search calls', () => {
     expect(
       deriveTargetResource({
-        resolvedPath: '/me/messages?$search=%22budget%22',
+        pathPattern: '/me/messages',
+        params: { search: 'budget' },
+      })
+    ).toBeUndefined();
+  });
+
+  it('omits a target resource when the ID parameter is missing', () => {
+    expect(
+      deriveTargetResource({
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        params: {
+          driveId: 'drive-1',
+        },
       })
     ).toBeUndefined();
   });

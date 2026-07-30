@@ -27,6 +27,15 @@ function toKebabCase(name: string): string {
   return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 }
 
+function toSnakeCase(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[-\s]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toLowerCase();
+}
+
 function valueForPlaceholder(
   placeholderName: string,
   params: Record<string, unknown>
@@ -62,78 +71,42 @@ export function resolveGraphPathForAudit(
   return resolvedPath.startsWith('/') ? resolvedPath : `/${resolvedPath}`;
 }
 
-function stripQueryAndFragment(path: string): string {
-  return path.split(/[?#]/, 1)[0];
-}
-
-function stripTransportEndpoint(path: string): string {
-  return path.replace(/\/(?:content|\$value)$/i, '');
-}
-
-function normalizePath(path: string): string {
-  const withoutQuery = stripQueryAndFragment(path);
-  const withoutTransport = stripTransportEndpoint(withoutQuery);
-  return withoutTransport.replace(/\/+$/, '') || '/';
-}
-
-function typedResource(type: string, path: string): AuditTargetResource {
-  return { type, id: normalizePath(path) };
+function idPlaceholderBase(name: string): string | undefined {
+  const base = name.replace(/[-_]?id\d*$/i, '');
+  if (base === name || base.length === 0) return undefined;
+  return base;
 }
 
 export function deriveTargetResource(input: TargetResourceInput): AuditTargetResource | undefined {
-  const candidatePath =
-    input.resolvedPath ?? resolveGraphPathForAudit(input.pathPattern, input.params ?? {});
-  if (!candidatePath || !candidatePath.startsWith('/')) return undefined;
+  const pathPattern = input.pathPattern;
+  if (!pathPattern) return undefined;
 
-  const path = normalizePath(candidatePath);
-  const lowerPath = path.toLowerCase();
+  const placeholderPattern = /\{([^}]+)\}|:([A-Za-z][A-Za-z0-9-]*)/g;
+  let lastTarget:
+    | {
+        base: string;
+        end: number;
+      }
+    | undefined;
 
-  if (
-    /^\/(?:chats\/[^/]+\/messages\/[^/]+|teams\/[^/]+\/channels\/[^/]+\/messages\/[^/]+)\/hostedcontents\/[^/]+$/.test(
-      lowerPath
-    )
-  ) {
-    return typedResource('teams_hosted_content', path);
+  for (const match of pathPattern.matchAll(placeholderPattern)) {
+    const name = match[1] ?? match[2];
+    const base = idPlaceholderBase(name);
+    if (!base) continue;
+    lastTarget = {
+      base,
+      end: match.index + match[0].length,
+    };
   }
 
-  if (/^\/(?:me|users\/[^/]+)\/messages\/[^/]+\/attachments\/[^/]+$/.test(lowerPath)) {
-    return typedResource('mail_attachment', path);
-  }
+  if (!lastTarget) return undefined;
 
-  if (/^\/(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/onenote\/pages\/[^/]+$/.test(lowerPath)) {
-    return typedResource('onenote_page', path);
-  }
+  const targetPattern = pathPattern.slice(0, lastTarget.end);
+  const id = resolveGraphPathForAudit(targetPattern, input.params ?? {});
+  if (!id) return undefined;
 
-  if (/^\/planner\/tasks\/[^/]+$/.test(lowerPath)) {
-    return typedResource('planner_task', path);
-  }
-
-  const driveItemPath = path.match(
-    /^(\/(?:drives\/[^/]+\/items\/[^/]+|(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/drive\/items\/[^/]+|(?:groups\/[^/]+|sites\/[^/]+)\/drives\/[^/]+\/items\/[^/]+))(?:\/.*)?$/i
-  )?.[1];
-  if (driveItemPath) {
-    return typedResource('drive_item', driveItemPath);
-  }
-
-  if (/^\/sites\/[^/]+\/lists\/[^/]+\/items\/[^/]+$/.test(lowerPath)) {
-    return typedResource('sharepoint_list_item', path);
-  }
-
-  if (/^\/sites\/[^/]+\/lists\/[^/]+$/.test(lowerPath)) {
-    return typedResource('sharepoint_list', path);
-  }
-
-  if (/^\/(?:sites\/[^/]+\/drives\/[^/]+|drives\/[^/]+)$/.test(lowerPath)) {
-    return typedResource('sharepoint_drive', path);
-  }
-
-  if (/^\/sites\/[^/]+(?::\/.*)?$/.test(lowerPath)) {
-    return typedResource('sharepoint_site', path);
-  }
-
-  if (/^\/(?:me|users\/[^/]+)\/photo$/.test(lowerPath)) {
-    return typedResource('profile_photo', path);
-  }
-
-  return undefined;
+  return {
+    type: toSnakeCase(lastTarget.base),
+    id,
+  };
 }
