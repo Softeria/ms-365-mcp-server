@@ -1239,7 +1239,6 @@ async function executeGraphTool(
 
     targetResource = deriveTargetResource({
       pathPattern: config?.pathPattern ?? tool.path,
-      resolvedPath: path,
       params,
     });
 

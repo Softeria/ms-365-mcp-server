@@ -5,7 +5,6 @@ export interface AuditTargetResource {
 
 export interface TargetResourceInput {
   pathPattern?: string;
-  resolvedPath?: string;
   params?: Record<string, unknown>;
 }
 
