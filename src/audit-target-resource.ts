@@ -115,13 +115,6 @@ export function deriveTargetResource(input: TargetResourceInput): AuditTargetRes
     return typedResource('drive_item', driveItemPath);
   }
 
-  const driveItemByPath = path.match(
-    /^(\/(?:drives\/[^/]+\/root:\/.+:|(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/drive\/root:\/.+:|(?:groups\/[^/]+|sites\/[^/]+)\/drives\/[^/]+\/root:\/.+:))(?:\/.*)?$/i
-  )?.[1];
-  if (driveItemByPath) {
-    return typedResource('drive_item', driveItemByPath);
-  }
-
   if (/^\/sites\/[^/]+\/lists\/[^/]+\/items\/[^/]+$/.test(lowerPath)) {
     return typedResource('sharepoint_list_item', path);
   }

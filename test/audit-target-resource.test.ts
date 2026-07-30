@@ -50,15 +50,12 @@ describe('audit target-resource derivation', () => {
     });
   });
 
-  it('records drive path content endpoints as the parent drive item path', () => {
+  it('omits drive path content endpoints because they can contain filenames', () => {
     expect(
       deriveTargetResource({
         resolvedPath: '/me/drive/root:/Project/report.docx:/content',
       })
-    ).toEqual({
-      type: 'drive_item',
-      id: '/me/drive/root:/Project/report.docx:',
-    });
+    ).toBeUndefined();
   });
 
   it('records mail attachment value endpoints as the parent attachment', () => {
