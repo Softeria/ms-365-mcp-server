@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { randomUUID } from 'crypto';
 import logger from './logger.js';
-import { auditLog, getUserIdentityForAudit } from './audit-log.js';
+import { auditLog, getUserIdentityForAudit, type AuditEvent } from './audit-log.js';
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
@@ -197,6 +197,123 @@ interface CallToolResult {
   isError?: boolean;
 
   [key: string]: unknown;
+}
+
+function auditHttpStatus(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function auditErrorCode(value: unknown): string | number | undefined {
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
+}
+
+function auditNonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function auditStringNumberMap(value: unknown): Record<string, number> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, number] =>
+      typeof entry[1] === 'number' && Number.isInteger(entry[1]) && entry[1] >= 0
+  );
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function graphResponseAuditFields(
+  response: Pick<CallToolResult, '_meta' | 'isError'>
+): Pick<
+  AuditEvent,
+  | 'http_status'
+  | 'error_code'
+  | 'graph_batch_subrequest_count'
+  | 'graph_batch_http_status_counts'
+  | 'graph_batch_error_code_counts'
+> {
+  const httpStatus = auditHttpStatus(response._meta?.http_status);
+  const errorCode = response.isError ? auditErrorCode(response._meta?.error_code) : undefined;
+  const graphBatchSubrequestCount = auditNonNegativeInteger(
+    response._meta?.graph_batch_subrequest_count
+  );
+  const graphBatchHttpStatusCounts = auditStringNumberMap(
+    response._meta?.graph_batch_http_status_counts
+  );
+  const graphBatchErrorCodeCounts = auditStringNumberMap(
+    response._meta?.graph_batch_error_code_counts
+  );
+
+  return {
+    ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
+    ...(errorCode !== undefined ? { error_code: errorCode } : {}),
+    ...(graphBatchSubrequestCount !== undefined
+      ? { graph_batch_subrequest_count: graphBatchSubrequestCount }
+      : {}),
+    ...(graphBatchHttpStatusCounts !== undefined
+      ? { graph_batch_http_status_counts: graphBatchHttpStatusCounts }
+      : {}),
+    ...(graphBatchErrorCodeCounts !== undefined
+      ? { graph_batch_error_code_counts: graphBatchErrorCodeCounts }
+      : {}),
+  };
+}
+
+function thrownErrorAuditFields(error: unknown): Pick<AuditEvent, 'http_status' | 'error_code'> {
+  const err = error as {
+    code?: string | number;
+    status?: string | number;
+    httpStatus?: string | number;
+    graphErrorCode?: string | number;
+  };
+  const httpStatus = auditHttpStatus(err?.httpStatus ?? err?.status);
+  const errorCode = auditErrorCode(err?.graphErrorCode ?? err?.code ?? err?.status);
+
+  return {
+    ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
+    ...(errorCode !== undefined ? { error_code: errorCode } : {}),
+  };
+}
+
+async function executeUtilityTool(
+  utility: UtilityTool,
+  ctx: UtilityToolContext,
+  params: Record<string, unknown>
+): Promise<CallToolResult> {
+  const requestId = randomUUID();
+  const startTime = Date.now();
+  const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
+
+  try {
+    const response = await utility.execute(params, ctx);
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: utility.name,
+      http_method: utility.method.toUpperCase(),
+      status: response.isError ? 'error' : 'success',
+      duration_ms: Date.now() - startTime,
+      ...graphResponseAuditFields(response),
+    });
+    return response;
+  } catch (error) {
+    const err = error as { name?: string };
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: utility.name,
+      http_method: utility.method.toUpperCase(),
+      status: 'error',
+      duration_ms: Date.now() - startTime,
+      error_type: err?.name || 'Error',
+      ...thrownErrorAuditFields(error),
+    });
+    throw error;
+  }
 }
 
 interface UtilityToolContext {
@@ -533,11 +650,14 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
+          ...(result.httpStatus !== undefined ? { _meta: { http_status: result.httpStatus } } : {}),
         };
       } catch (error) {
+        const metadata = thrownErrorAuditFields(error);
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
           isError: true,
+          ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
         };
       }
     },
@@ -761,6 +881,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               },
             ],
             isError: true,
+            _meta: response._meta,
           };
         }
         const file = item?.file as { mimeType?: string } | undefined;
@@ -776,11 +897,14 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
+          _meta: response._meta,
         };
       } catch (error) {
+        const metadata = thrownErrorAuditFields(error);
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
           isError: true,
+          ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
         };
       }
     },
@@ -801,7 +925,7 @@ function registerUtilityToolWithMcp(
       readOnlyHint: utility.readOnlyHint ?? true,
       openWorldHint: utility.openWorldHint ?? true,
     },
-    async (params) => utility.execute(params, ctx)
+    async (params) => executeUtilityTool(utility, ctx, params)
   );
 }
 
@@ -1300,6 +1424,11 @@ async function executeGraphTool(
             const nextOptions = { ...options };
 
             const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
+            if (nextResponse?.isError) {
+              response = nextResponse;
+              combinedResponse = undefined;
+              break;
+            }
             if (nextResponse?.content?.[0]?.text) {
               const nextJsonResponse = JSON.parse(nextResponse.content[0].text) as ODataPage;
               if (Array.isArray(nextJsonResponse.value)) {
@@ -1380,6 +1509,7 @@ async function executeGraphTool(
       http_method: httpMethod,
       status: response.isError ? 'error' : 'success',
       duration_ms: Date.now() - startTime,
+      ...graphResponseAuditFields(response),
     });
 
     return {
@@ -1399,7 +1529,7 @@ async function executeGraphTool(
       status: 'error',
       duration_ms: Date.now() - startTime,
       error_type: err?.name || 'Error',
-      error_code: err?.status ?? err?.code,
+      ...thrownErrorAuditFields(error),
     });
     return {
       content: [
@@ -2047,7 +2177,7 @@ export function registerDiscoveryTools(
       }
       const utility = utilityByName.get(tool_name);
       if (utility) {
-        return utility.execute(parameters, utilityCtx);
+        return executeUtilityTool(utility, utilityCtx, parameters);
       }
       return {
         content: [

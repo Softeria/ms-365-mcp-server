@@ -19,6 +19,15 @@ vi.mock('../logger.js', () => ({
   },
 }));
 
+const auditLogMock = vi.hoisted(() => vi.fn());
+vi.mock('../audit-log.js', async () => {
+  const actual = await vi.importActual<typeof import('../audit-log.js')>('../audit-log.js');
+  return {
+    ...actual,
+    auditLog: auditLogMock,
+  };
+});
+
 // Mock the generated client — we supply our own endpoint definitions per test
 const mockEndpoints: any[] = [];
 vi.mock('../generated/client-beta.js', () => ({ api: { endpoints: [] } }));
@@ -167,6 +176,213 @@ describe('graph-tools', () => {
     vi.clearAllMocks();
   });
 
+  // ---- 0. Audit outcome metadata ----
+  describe('audit outcome metadata', () => {
+    it('includes HTTP status on successful Graph tool calls', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
+          _meta: { http_status: 200 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'success',
+          http_status: 200,
+        })
+      );
+    });
+
+    it('includes HTTP status and Graph error code on failed Graph tool calls', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 403 Forbidden' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 403, error_code: 'accessDenied' },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'error',
+          http_status: 403,
+          error_code: 'accessDenied',
+        })
+      );
+    });
+
+    it('includes HTTP status on utility tool calls that reach Graph', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                contentType: 'image/jpeg',
+                encoding: 'base64',
+                contentBytes: 'aGk=',
+              }),
+            },
+          ],
+          _meta: { http_status: 200 },
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('download-bytes')!.handler({ target: '/me/photo/$value' });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes',
+          status: 'success',
+          http_method: 'GET',
+          http_status: 200,
+        })
+      );
+    });
+
+    it('includes HTTP status and Graph error code on failed utility Graph calls', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 403 Forbidden' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 403, error_code: 'accessDenied' },
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('download-bytes')!.handler({ target: '/me/photo/$value' });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes',
+          status: 'error',
+          http_status: 403,
+          error_code: 'accessDenied',
+        })
+      );
+    });
+
+    it('copies Graph batch outcome metadata into audit events', async () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/$batch',
+        alias: 'graph-batch',
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/$batch',
+        method: 'post',
+        toolName: 'graph-batch',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                responses: [
+                  { id: '1', status: 200, body: { id: 'message-1' } },
+                  {
+                    id: '2',
+                    status: 403,
+                    body: { error: { code: 'accessDenied', message: 'Access denied' } },
+                  },
+                ],
+              }),
+            },
+          ],
+          _meta: {
+            http_status: 200,
+            graph_batch_subrequest_count: 2,
+            graph_batch_http_status_counts: { '200': 1, '403': 1 },
+            graph_batch_error_code_counts: { accessDenied: 1 },
+          },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('graph-batch')!.handler({
+        body: { requests: [{ id: '1', method: 'GET', url: '/me' }] },
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'graph-batch',
+          status: 'success',
+          http_status: 200,
+          graph_batch_subrequest_count: 2,
+          graph_batch_http_status_counts: { '200': 1, '403': 1 },
+          graph_batch_error_code_counts: { accessDenied: 1 },
+        })
+      );
+    });
+  });
+
   // ---- 1. $count advanced query mode ----
   describe('$count advanced query mode', () => {
     it('should set ConsistencyLevel: eventual header when $count=true', async () => {
@@ -244,6 +460,57 @@ describe('graph-tools', () => {
       expect(parsed.value.map((v: any) => v.id)).toEqual(['1', '2', '3']);
       // nextLink should be removed from final response
       expect(parsed['@odata.nextLink']).toBeUndefined();
+    });
+
+    it('returns and audits a later-page Graph error instead of partial success', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+              }),
+            },
+          ],
+          _meta: { http_status: 200 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 429 Too Many Requests' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 429, error_code: 'tooManyRequests' },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toContain('429 Too Many Requests');
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(2);
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'error',
+          http_status: 429,
+          error_code: 'tooManyRequests',
+        })
+      );
     });
 
     it('merges all pages under --toon and encodes the combined result once (#560)', async () => {
@@ -1027,6 +1294,7 @@ describe('graph-tools', () => {
         downloadToFile: vi.fn().mockResolvedValue({
           contentType: 'image/jpeg',
           contentLength: 2,
+          httpStatus: 200,
         }),
       };
 
@@ -1049,6 +1317,15 @@ describe('graph-tools', () => {
       expect(result.isError).toBeUndefined();
       const payload = JSON.parse(result.content[0].text);
       expect(payload).toEqual({ path: outputPath, contentType: 'image/jpeg', bytesWritten: 2 });
+      expect(result._meta).toMatchObject({ http_status: 200 });
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes-to-file',
+          status: 'success',
+          http_status: 200,
+        })
+      );
     });
 
     it('rejects a relative outputPath', async () => {
@@ -1232,6 +1509,7 @@ describe('graph-tools', () => {
               }),
             },
           ],
+          _meta: { http_status: 200 },
         }),
       };
 
@@ -1255,6 +1533,15 @@ describe('graph-tools', () => {
       expect(payload.name).toBe('report.pdf');
       expect(payload.size).toBe(12727);
       expect(payload.contentType).toBe('application/pdf');
+      expect(result._meta).toMatchObject({ http_status: 200 });
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-download-url',
+          status: 'success',
+          http_status: 200,
+        })
+      );
     });
 
     it('forces a JSON body on the metadata request so it works under --toon (#560)', async () => {
