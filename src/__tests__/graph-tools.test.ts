@@ -412,6 +412,246 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('audit target resources', () => {
+    it('adds target_resource to generated Graph tool audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'item-2' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+        driveItemId: 'item-2',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-drive-item',
+          status: 'success',
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
+    it('adds target_resource to failed generated Graph tool audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient();
+      graphClient.graphRequest.mockRejectedValueOnce(
+        Object.assign(new Error('Forbidden'), { status: 403 })
+      );
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      const result = await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+        driveItemId: 'item-2',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-drive-item',
+          status: 'error',
+          error_code: 403,
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
+    it('derives target_resource from generic ID path parameters', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-mail-message',
+        path: '/me/messages/:messageId',
+        parameters: [{ name: 'messageId', type: 'Path', schema: z.string() }],
+      });
+      const config = makeConfig({
+        toolName: 'get-mail-message',
+        pathPattern: '/me/messages/{message-id}',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'message-1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-mail-message')!.handler({
+        messageId: 'message-1',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-mail-message',
+          status: 'success',
+          target_resource: {
+            type: 'message',
+            id: '/me/messages/message-1',
+          },
+        })
+      );
+    });
+
+    it('omits target_resource when an ID path parameter is missing', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'item-2' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+      });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).toMatchObject({
+        event: 'tool.call',
+        tool: 'get-drive-item',
+        status: 'success',
+      });
+      expect(payload).not.toHaveProperty('target_resource');
+    });
+
+    it('omits SharePoint path parameters from target_resource', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-sharepoint-site-by-path',
+        path: "/sites/:siteId/getByPath(path=':path')",
+        parameters: [
+          { name: 'siteId', type: 'Path', schema: z.string() },
+          { name: 'path', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-sharepoint-site-by-path',
+        pathPattern: '/sites/{site-id}:/{path}',
+        scopes: [['Sites.Read.All'], ['Sites.Selected']],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'site-1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-sharepoint-site-by-path')!.handler({
+        siteId: 'contoso.sharepoint.com',
+        path: '/sites/Finance',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-sharepoint-site-by-path',
+          status: 'success',
+          target_resource: {
+            type: 'site',
+            id: '/sites/contoso.sharepoint.com',
+          },
+        })
+      );
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(JSON.stringify(payload)).not.toContain('Finance');
+    });
+
+    it('omits target_resource for generated broad list/search audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'list-mail-messages',
+        path: '/me/messages',
+      });
+      const config = makeConfig({
+        toolName: 'list-mail-messages',
+        pathPattern: '/me/messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('list-mail-messages')!.handler({ search: 'budget' });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).toMatchObject({
+        event: 'tool.call',
+        tool: 'list-mail-messages',
+        status: 'success',
+      });
+      expect(payload).not.toHaveProperty('target_resource');
+    });
+  });
+
   // ---- 2. fetchAllPages pagination ----
   describe('fetchAllPages pagination', () => {
     it('should follow @odata.nextLink and combine results', async () => {

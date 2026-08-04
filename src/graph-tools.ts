@@ -26,6 +26,7 @@ import { TOOL_CATEGORIES } from './tool-categories.js';
 import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
+import { deriveTargetResource, type AuditTargetResource } from './audit-target-resource.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -1022,6 +1023,7 @@ async function executeGraphTool(
   const startTime = Date.now();
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
   const httpMethod = tool.method.toUpperCase();
+  let targetResource: AuditTargetResource | undefined;
 
   try {
     const accountParam = params.account as string | undefined;
@@ -1359,6 +1361,11 @@ async function executeGraphTool(
       options.accessToken = accountAccessToken;
     }
 
+    targetResource = deriveTargetResource({
+      pathPattern: config?.pathPattern ?? tool.path,
+      params,
+    });
+
     // Redact accessToken from log output to prevent credential leakage
     const { accessToken: _redacted, ...safeOptions } = options;
     logger.info(
@@ -1509,6 +1516,7 @@ async function executeGraphTool(
       http_method: httpMethod,
       status: response.isError ? 'error' : 'success',
       duration_ms: Date.now() - startTime,
+      ...(targetResource ? { target_resource: targetResource } : {}),
       ...graphResponseAuditFields(response),
     });
 
@@ -1528,6 +1536,7 @@ async function executeGraphTool(
       http_method: httpMethod,
       status: 'error',
       duration_ms: Date.now() - startTime,
+      ...(targetResource ? { target_resource: targetResource } : {}),
       error_type: err?.name || 'Error',
       ...thrownErrorAuditFields(error),
     });
