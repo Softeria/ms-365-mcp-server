@@ -364,7 +364,7 @@
     "toolName": "create-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Create (schedule) a new calendar event — a meeting or appointment — on the user's calendar. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Pass times in UTC (e.g. 3:30 PM AEDT = 04:30 UTC). Do NOT use startDateTime/startTimeZone — those flat fields are ignored. Set subject, location, body, and attendees; supports online meetings and recurrence.",
+    "descriptionOverride": "Create (schedule) a new calendar event — a meeting or appointment — on the user's calendar. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone — those flat fields are silently dropped. For one-off events, UTC is simplest (e.g. 3:30 PM AEDT = 04:30 UTC). For recurring events, use the organizer's own time zone name instead — Graph resolves DST against the zone in start.timeZone, so UTC drifts after DST changes. Get the zone from get-mailbox-settings, or validate one with list-supported-time-zones instead of guessing from memory. Set subject, location, body, and attendees; supports online meetings and recurrence.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
@@ -373,7 +373,7 @@
     "toolName": "update-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Update an event on the default calendar. Requires eventId (the event's ID from get-calendar-view or list-calendar-events). Times use nested {dateTime, timeZone} objects in UTC.",
+    "descriptionOverride": "Update an event on the default calendar. Requires eventId (the event's ID from get-calendar-view or list-calendar-events). Times use nested {dateTime, timeZone} objects. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
@@ -433,7 +433,7 @@
     "toolName": "create-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Create a calendar event on a specific calendar. Requires calendarId (the parent calendar container ID). Times use nested {dateTime, timeZone} objects in UTC. Do NOT use startDateTime/startTimeZone.",
+    "descriptionOverride": "Create a calendar event on a specific calendar. Requires calendarId (the target calendar's ID). Times use nested {dateTime, timeZone} objects — do NOT use startDateTime/startTimeZone, those flat fields are silently dropped. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
@@ -442,7 +442,7 @@
     "toolName": "update-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Update a specific calendar event. Requires calendarId (the parent calendar container path, same for all events) and eventId (the individual event's ID). Get both from get-calendar-view or list-calendar-events results. Times use nested {dateTime, timeZone} objects in UTC.",
+    "descriptionOverride": "Update a specific calendar event. Requires calendarId (the target calendar's ID) and eventId (the individual event's ID) — get both from get-calendar-view or list-calendar-events results. Times use nested {dateTime, timeZone} objects. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
@@ -451,7 +451,7 @@
     "toolName": "delete-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Delete a specific calendar event. Requires calendarId (the parent calendar container) and eventId (the event's own ID). Deleting a series master deletes all occurrences.",
+    "descriptionOverride": "Delete a specific calendar event. Requires calendarId (the target calendar's ID) and eventId (the event's own ID).",
     "llmTip": "Deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, use the specific instance ID."
   },
   {
@@ -2474,7 +2474,7 @@
     "toolName": "list-supported-time-zones",
     "presets": ["calendar", "mail", "outlook", "personal"],
     "scopes": ["User.Read"],
-    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone, or before setting timeZone on a calendar event's start/end (especially for recurring events) — don't guess a time zone name from memory, look it up here."
   },
   {
     "pathPattern": "/me/outlook/supportedLanguages()",
