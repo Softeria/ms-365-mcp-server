@@ -829,7 +829,7 @@
     "pathPattern": "/me/messages/{message-id}/$value",
     "method": "get",
     "toolName": "get-mail-message-mime",
-    "descriptionOverride": "Download the raw MIME source (RFC 822 .eml content) of an Outlook email message by its message ID. Returns the complete original message including headers and encoded attachments.",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of an Outlook email message by its message ID. Returns the complete original message including headers and encoded attachments.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
@@ -1291,7 +1291,7 @@
     "toolName": "update-planner-task",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
+    "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority is 0-10 (lower = higher priority); Planner's own UI presets are 1=Urgent, 3=Important, 5=Medium, 9=Low."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
@@ -1478,7 +1478,7 @@
     "toolName": "list-relevant-people",
     "presets": ["users", "work"],
     "workScopes": ["People.Read"],
-    "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, emailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
+    "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, scoredEmailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
   },
   {
     "pathPattern": "/me/memberOf",
@@ -2043,7 +2043,7 @@
     "toolName": "create-online-meeting",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.ReadWrite"],
-    "llmTip": "Creates a new online meeting. Required body: { subject, startDateTime, endDateTime }. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
+    "llmTip": "Creates a new online meeting. Only endDateTime is documented as required; subject and startDateTime are commonly supplied but optional. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
@@ -2408,7 +2408,7 @@
     "toolName": "extract-drive-item-sensitivity-labels",
     "presets": ["files", "onedrive", "personal"],
     "workScopes": ["Files.Read.All"],
-    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
   },
   {
     "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
