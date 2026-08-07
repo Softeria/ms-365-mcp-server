@@ -36,6 +36,8 @@ import { requestContext } from './request-context.js';
 import { dumpError } from './crash-logging.js';
 import crypto from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
+import { isIP, isIPv6 } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import OboClient from './obo-client.js';
 
 /**
@@ -96,6 +98,110 @@ export function parseAttachmentPortOption(value: unknown): number | null {
     );
   }
   return port;
+}
+
+/** One label of a DNS name: letters, digits and hyphens, not starting or ending on a hyphen. */
+const HOSTNAME_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/;
+
+function isHostname(value: string): boolean {
+  // A single trailing dot is the fully-qualified spelling and resolves fine.
+  const name = value.endsWith('.') ? value.slice(0, -1) : value;
+  if (name.length === 0 || name.length > 253) return false;
+  return name
+    .split('.')
+    .every((label) => label.length > 0 && label.length <= 63 && HOSTNAME_LABEL.test(label));
+}
+
+/**
+ * Resolve `--attachment-host` / `MS365_MCP_ATTACHMENT_HOST` into a bind address,
+ * or null to inherit the MCP listener's host.
+ *
+ * **Why a second interface and not just a second port.** `--attachment-port`
+ * moves the route to a listener of its own, but until this option existed both
+ * listeners bound the same host -- and with `--http 3000` that host is undefined,
+ * so Node binds the wildcard and both ports answer on every interface. Docker
+ * network membership grants a peer *every* port on a container, not one, so a
+ * conversion sidecar admitted to a shared bridge in order to fetch `/attachment`
+ * on 3001 can equally dial `/mcp` on 3000 -- and under `--trust-proxy-auth`,
+ * where reachability is the whole of the authentication, that is the entire tool
+ * surface with no credential. Two ports on one wildcard is a naming convention,
+ * not an isolation boundary. Binding them to different addresses makes the MCP
+ * port unreachable from the sidecar's network by *binding* rather than by a rule
+ * that has to keep matching.
+ *
+ * Strict for the same reason `parseAttachmentPortOption` is: every value this
+ * refuses is one where a lenient reading would bind somewhere the operator did
+ * not name while they believed the surfaces were separated. In particular a
+ * whitespace-only value throws rather than silently meaning "inherit".
+ *
+ * IPv6 is accepted, bracketed (`[::1]`) or bare (`::1`), and normalised to the
+ * bare form `net.Server.listen` wants. This does *not* contradict
+ * `attachment-url-config.ts` refusing an IPv6 literal in
+ * `MS365_MCP_ATTACHMENT_URL_BASE`: that refusal is about the URL *signature*,
+ * whose canonical string covers the host and which this runtime and the
+ * verifying sidecar's Python normalise differently. A bind address is never
+ * signed -- it is handed to the kernel. What follows from the pair is a
+ * deployment note, not a code rule: bind the attachment listener to whatever
+ * address you like, but keep naming it in the base by hostname.
+ */
+export function parseAttachmentHostOption(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  const raw = String(value).trim();
+
+  const reject = (reason: string): never => {
+    throw new Error(
+      `--attachment-host / MS365_MCP_ATTACHMENT_HOST must be a bare IPv4 address, IPv6 ` +
+        `address or hostname (${reason}), got ${JSON.stringify(String(value))}`
+    );
+  };
+
+  if (raw === '') reject('it is empty');
+
+  // Bracketed IPv6, the spelling operators copy out of a URL.
+  if (raw.startsWith('[') || raw.endsWith(']')) {
+    if (!raw.startsWith('[') || !raw.endsWith(']')) reject('unbalanced brackets');
+    const inner = raw.slice(1, -1);
+    if (!isIPv6(inner)) reject('the brackets do not contain an IPv6 address');
+    return inner;
+  }
+
+  if (isIP(raw) !== 0) return raw;
+  if (isHostname(raw)) return raw;
+
+  // The likeliest mistake, and worth its own sentence: an operator who expected
+  // this flag to take an address the way --http does.
+  if (raw.includes(':')) {
+    reject('this takes a host only -- the port goes on --attachment-port');
+  }
+  return reject('not a valid address or hostname');
+}
+
+/** True when a listener bound to `address` answers on the wildcard, i.e. everywhere. */
+function isWildcardAddress(address: string): boolean {
+  return address === '0.0.0.0' || address === '::' || address === '';
+}
+
+/** `host:port`, bracketing an IPv6 literal so the result is a usable authority. */
+function formatAuthority(address: string, port: number): string {
+  return isIPv6(address) ? `[${address}]:${port}` : `${address}:${port}`;
+}
+
+/**
+ * How to describe a listener in the startup log, read from what it actually
+ * bound rather than from what was asked for.
+ *
+ * The two differ in exactly the case that matters. The old line hard-coded
+ * `all interfaces (0.0.0.0)` whenever no host was configured, but an unhosted
+ * `listen()` on a dual-stack box binds `::` -- so the log named an address family
+ * the process had not bound, on the one line an operator reads to check whether
+ * the two listeners are actually separated.
+ */
+function describeBoundAddress(bound: AddressInfo): { label: string; authority: string } {
+  const authority = formatAuthority(bound.address, bound.port);
+  if (isWildcardAddress(bound.address)) {
+    return { label: `all interfaces (${authority})`, authority: `localhost:${bound.port}` };
+  }
+  return { label: authority, authority };
 }
 
 class MicrosoftGraphServer {
@@ -305,6 +411,23 @@ class MicrosoftGraphServer {
           'attachment route to put on the second listener. Pass both, or neither.'
       );
     }
+
+    // --attachment-host: which interface that second listener binds.
+    //
+    // Refused without --attachment-port for the same reason the port is refused
+    // without the feature flag: alone it names an interface for a listener that
+    // was never going to exist, the attachment route stays on the MCP app, and
+    // the operator reading their own command line believes they have pinned the
+    // one surface with no credential on it to an address the tool surface cannot
+    // be reached at. Silently ignoring the value would leave that belief intact.
+    const attachmentHost = parseAttachmentHostOption(this.options.attachmentHost);
+    if (attachmentHost !== null && attachmentPort === null) {
+      throw new Error(
+        '--attachment-host requires --attachment-port: without a second listener there is ' +
+          'no separate interface to bind, and the attachment route stays on the MCP app.'
+      );
+    }
+
     // Ignored in stdio mode, like the flag it depends on: there is no HTTP
     // listener to split in two.
     if (attachmentPort !== null && !this.options.http) {
@@ -986,43 +1109,67 @@ class MicrosoftGraphServer {
         res.send('Microsoft 365 MCP Server is running');
       });
 
-      await this.listen(app, port, host);
-      if (host) {
-        logger.info(`Server listening on ${host}:${port}`);
-        logger.info(`  - MCP endpoint: http://${host}:${port}/mcp`);
-        logger.info(`  - OAuth endpoints: http://${host}:${port}/auth/*`);
-        logger.info(
-          `  - OAuth discovery: http://${host}:${port}/.well-known/oauth-authorization-server`
-        );
-      } else {
-        logger.info(`Server listening on all interfaces (0.0.0.0:${port})`);
-        logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
-        logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
-        logger.info(
-          `  - OAuth discovery: http://localhost:${port}/.well-known/oauth-authorization-server`
-        );
-      }
+      // Every line below is written from the address the kernel actually
+      // handed back, not from the option that asked for it. On this pair of
+      // listeners the log is how an operator checks whether the surfaces are
+      // separated, so it must not be able to name a host it did not bind.
+      const mcpBound = await this.listen(app, port, host);
+      const mcp = describeBoundAddress(mcpBound);
+      logger.info(`Server listening on ${mcp.label}`);
+      logger.info(`  - MCP endpoint: http://${mcp.authority}/mcp`);
+      logger.info(`  - OAuth endpoints: http://${mcp.authority}/auth/*`);
+      logger.info(
+        `  - OAuth discovery: http://${mcp.authority}/.well-known/oauth-authorization-server`
+      );
 
       if (attachmentApp && attachmentPort !== null) {
-        // Same host as the MCP listener. A deployment that binds the MCP port
-        // to loopback has said something about who may reach this process, and
-        // silently exposing the second port on every interface would answer that
-        // question differently for the surface with no credential on it.
+        // Inherits the MCP listener's host unless --attachment-host overrides it.
+        // Inheriting is the safe default rather than the useful one: a deployment
+        // that binds the MCP port to loopback has said something about who may
+        // reach this process, and putting the uncredentialed surface on every
+        // interface without being asked would answer that question differently.
+        // Separating the two interfaces is what actually isolates them, and it
+        // has to be typed.
         //
         // If this bind fails the whole start fails -- and `stop()` below closes
         // the listener that did come up. Half a split is not a degraded mode: it
         // is the attachment route missing while the operator's network policy
         // already assumes it moved.
+        let attachmentBound: AddressInfo;
         try {
-          await this.listen(attachmentApp, attachmentPort, host);
+          attachmentBound = await this.listen(
+            attachmentApp,
+            attachmentPort,
+            attachmentHost ?? host
+          );
         } catch (error) {
           await this.stop();
           throw error;
         }
-        logger.info(
-          `Attachment listener on ${host ?? 'all interfaces (0.0.0.0)'}:${attachmentPort}` +
-            ` — serves ${ATTACHMENT_ROUTE} only`
-        );
+        const attachment = describeBoundAddress(attachmentBound);
+        logger.info(`Attachment listener on ${attachment.label} — serves ${ATTACHMENT_ROUTE} only`);
+
+        // The split is only an isolation boundary if the two listeners are
+        // reachable from different places. Sharing an address -- or either one
+        // taking the wildcard -- means any peer that can reach the attachment
+        // port can reach the MCP port on the same interface, and under
+        // --trust-proxy-auth reaching /mcp is all the authentication there is.
+        // Said once, at startup, because the failure is silent by construction:
+        // everything works, and the sidecar simply also has every tool.
+        if (
+          this.options.trustProxyAuth &&
+          this.listenersShareAnInterface(mcpBound, attachmentBound)
+        ) {
+          logger.warn(
+            `--attachment-port split ${ATTACHMENT_ROUTE} onto port ${attachmentBound.port}, but ` +
+              `both listeners answer on the same interface (MCP ${mcp.label}, attachment ` +
+              `${attachment.label}), so the ports are not isolated from each other. ` +
+              'With --trust-proxy-auth, /mcp requires no credential, so anything permitted to ' +
+              'reach the attachment port can also call every tool. Bind them to different ' +
+              '--http and --attachment-host addresses, or keep the MCP port off the network ' +
+              'the attachment fetcher is on.'
+          );
+        }
       }
     } else {
       const transport = new StdioServerTransport();
@@ -1054,10 +1201,23 @@ class MicrosoftGraphServer {
    * not got: on EADDRINUSE the server logged that it was listening and stayed
    * up serving nothing.
    */
-  private listen(app: express.Express, port: number, host: string | undefined): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  private async listen(
+    app: express.Express,
+    port: number,
+    host: string | undefined
+  ): Promise<AddressInfo> {
+    // Declared out here rather than read inside `done`, and that is load-bearing.
+    // A callback passed to `app.listen` is not guaranteed to run on a later
+    // tick -- a test double that invokes it synchronously does so before
+    // `app.listen` has returned the handle, and a `done` that closed over a
+    // `const server` declared after the call would hit the temporal dead zone
+    // and throw `Cannot access 'server' before initialization`. Resolving the
+    // promise first and reading the handle after the `await` puts the read on a
+    // microtask, by which time the assignment below has definitely happened.
+    let server!: HttpServer;
+    await new Promise<void>((resolve, reject) => {
       const done = (error?: Error) => (error ? reject(error) : resolve());
-      const server = host ? app.listen(port, host, done) : app.listen(port, done);
+      server = host ? app.listen(port, host, done) : app.listen(port, done);
       // Not redundant with the above: that wiring is Express's, not Node's, so
       // an `error` raised after the first settle -- or a future version that
       // stops doing it -- still has somewhere to land. Rejecting an already
@@ -1068,6 +1228,34 @@ class MicrosoftGraphServer {
       // close.
       this.httpServers.push(server);
     });
+
+    // What was bound, not what was asked for, so callers cannot log an address
+    // the kernel never gave them -- the wildcard case is the live one, where an
+    // unhosted listen binds `::` rather than the `0.0.0.0` the old log claimed.
+    const address = server.address();
+    if (address === null || typeof address === 'string') {
+      // A pipe or an already-closed handle. Neither is reachable from here, and
+      // guessing an authority for one would be the exact fiction this return
+      // type exists to prevent.
+      throw new Error(`Listener on port ${port} reported no TCP address`);
+    }
+    return address;
+  }
+
+  /**
+   * Whether the two listeners can be reached from a common interface.
+   *
+   * A wildcard on either side answers everywhere, so it overlaps whatever the
+   * other one bound -- and on Linux a dual-stack `::` accepts IPv4 too, so the
+   * families are not a distinction worth drawing here. Otherwise they overlap
+   * only if they bound the same address. Deliberately coarse in the direction of
+   * warning: `127.0.0.1` and `127.0.0.2` are two addresses on one interface,
+   * separate to `bind()` and to a container network, and a check that tried to
+   * reason about routes instead of addresses would be wrong more often than this.
+   */
+  private listenersShareAnInterface(a: AddressInfo, b: AddressInfo): boolean {
+    if (isWildcardAddress(a.address) || isWildcardAddress(b.address)) return true;
+    return a.address === b.address;
   }
 
   /**

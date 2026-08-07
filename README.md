@@ -595,6 +595,10 @@ When running as an MCP server, the following options can be used:
 --attachment-port <port> Serve /attachment on its own listener on this port instead of on the
                   MCP app, so a fetcher that can read attachments cannot also reach /mcp
                   (requires --enable-attachment-urls; see "Splitting the attachment listener")
+--attachment-host <host> Interface the --attachment-port listener binds. Defaults to whatever
+                  --http bound, which with a wildcard --http leaves BOTH ports on every
+                  interface and so isolates nothing — set this to make the split real
+                  (requires --attachment-port; see "Splitting the attachment listener")
 --no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
@@ -619,6 +623,7 @@ Environment variables:
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
+- `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
@@ -683,11 +688,13 @@ at all — **reachability is the authentication** — so one shared port means t
 allowed through in order to fetch a PDF can also call every tool on the server.
 
 `--attachment-port <port>` (or `MS365_MCP_ATTACHMENT_PORT`) moves the route onto a listener
-of its own:
+of its own, and `--attachment-host <host>` (or `MS365_MCP_ATTACHMENT_HOST`) says which
+interface that listener binds:
 
 ```
-ms-365-mcp-server --http 3000 --trust-proxy-auth \
-                  --enable-attachment-urls --attachment-port 3001
+ms-365-mcp-server --http 10.89.0.2:3000 --trust-proxy-auth \
+                  --enable-attachment-urls \
+                  --attachment-port 3001 --attachment-host 10.89.1.2
 MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3001   # note: the attachment port
 ```
 
@@ -699,12 +706,66 @@ MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3001   # note: the attachment port
   not read for it), unlike the MCP listener, which trusts one hop. This port is meant to be
   dialled directly on a container network; honouring `X-Forwarded-For` on the server's one
   uncredentialed surface would let a caller choose its own rate-limit bucket.
-- Both listeners bind the same host as `--http`, so `--http 127.0.0.1:3000` does not
-  quietly publish the attachment port on every interface.
 
 The flag requires `--enable-attachment-urls` and refuses to start without it — on its own
 it would open a port with nothing on it while the operator believed the surfaces were
 separated. In stdio mode it warns and is ignored, like the flag it depends on.
+`--attachment-host` likewise requires `--attachment-port`: alone it would name an interface
+for a listener that does not exist.
+
+#### Two ports are not two surfaces unless they bind two interfaces
+
+**This is the part that decides whether any of the above is worth anything.** Read it
+before you deploy the split.
+
+`--attachment-port` on its own separates the two surfaces _inside the process_. It does not
+separate them _on the network_. Without `--attachment-host` the attachment listener inherits
+whatever host `--http` bound — and `--http 3000`, the common form, names no host at all, so
+Node binds the wildcard and **both** ports answer on **every** interface:
+
+```
+ms-365-mcp-server --http 3000 --trust-proxy-auth \
+                  --enable-attachment-urls --attachment-port 3001   # NOT isolated
+```
+
+Container networks grant a peer every port on a container, not one port. Put a
+document-conversion sidecar on a shared bridge so it can fetch `/attachment` on 3001, and
+that same sidecar can dial `:3000/mcp` — which under `--trust-proxy-auth` reads no
+`Authorization` header at all and hands back the full tool catalogue. Nothing fails, nothing
+is logged as an error, and the config looks exactly like the isolated one.
+
+To make it real, give the two listeners **different addresses**, and put only the attachment
+address on the network the fetcher is on:
+
+```yaml
+# docker compose — the MCP port on the agent's own bridge, the attachment port on the
+# bridge shared with the converter. The converter can reach 3001 and cannot route to 3000.
+services:
+  m365-mcp:
+    networks: { agent-net: { ipv4_address: 10.89.0.2 }, convert-net: { ipv4_address: 10.89.1.2 } }
+    command: >
+      --http 10.89.0.2:3000 --trust-proxy-auth
+      --enable-attachment-urls
+      --attachment-port 3001 --attachment-host 10.89.1.2
+  docglean:
+    networks: [convert-net]
+```
+
+The MCP port is then unreachable from `convert-net` **by binding** — there is no socket
+listening on that interface — rather than by a firewall rule that has to keep matching.
+
+The server warns at startup if you run `--trust-proxy-auth` with `--attachment-port` while
+both listeners still answer on a common interface (either sharing an address, or either one
+on the wildcard). Both bound addresses are logged, read back from the socket rather than
+from the flags, so `Server listening on …` and `Attachment listener on …` can be compared
+directly.
+
+`--attachment-host` takes a bare IPv4 address, IPv6 address (bracketed `[::1]` or bare
+`::1`) or hostname. It is refused rather than coerced — `--attachment-host 10.0.0.5:3001`
+is an error naming `--attachment-port`, not a bind to something else. Note that
+`MS365_MCP_ATTACHMENT_URL_BASE` still must not be an IPv6 literal (the URL signature covers
+the host and the two implementations normalise IPv6 differently); if you bind the listener
+to an IPv6 address, name it in the base by hostname.
 
 Point `MS365_MCP_ATTACHMENT_URL_BASE` at the attachment port. The server cannot check this
 for you: the base is usually a container name on a network this process cannot resolve, so

@@ -21,12 +21,21 @@
  *    discovery documents, so "the second app has nothing else on it" is checked
  *    as a property of the app rather than assumed from the one path we thought
  *    to name.
+ *
+ * `--attachment-port` alone is only half of it. Two ports on one wildcard bind
+ * are still one reachable surface -- container network membership grants a peer
+ * every port on a container -- so `--attachment-host` binds the two listeners to
+ * different addresses and the cases below assert the cross-interface dials are
+ * **connection-refused**, i.e. that there is no socket rather than no route.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import MicrosoftGraphServer, { parseAttachmentPortOption } from '../src/server.js';
+import MicrosoftGraphServer, {
+  parseAttachmentHostOption,
+  parseAttachmentPortOption,
+} from '../src/server.js';
 import GraphClient from '../src/graph-client.js';
 import type AuthManager from '../src/auth.js';
 import { getAttachmentMinting, resetAttachmentMinting } from '../src/lib/attachment-minting.js';
@@ -69,14 +78,14 @@ const ATTACHMENT_BODY = 'PDFBYTES';
  * on a test host that is not a real risk, and the alternative -- fixed port
  * numbers -- has a much larger one.
  */
-async function reserveFreePorts(count: number): Promise<number[]> {
+async function reserveFreePorts(count: number, host = '127.0.0.1'): Promise<number[]> {
   const holders = await Promise.all(
     Array.from(
       { length: count },
       () =>
         new Promise<Server>((resolve) => {
           const s = createServer();
-          s.listen(0, '127.0.0.1', () => resolve(s));
+          s.listen(0, host, () => resolve(s));
         })
     )
   );
@@ -104,6 +113,7 @@ describe('--attachment-port (split attachment listener)', () => {
     vi.clearAllMocks();
     delete process.env.MS365_MCP_RATE_LIMIT_DISABLED;
     delete process.env.MS365_MCP_ATTACHMENT_PORT;
+    delete process.env.MS365_MCP_ATTACHMENT_HOST;
     delete process.env.MS365_MCP_ATTACHMENT_URL_KEY_FILE;
     process.env.MS365_MCP_ATTACHMENT_URL_KEY = 'shared-hmac-key';
     // Graph is never dialled; every case either redeems a ticket against this
@@ -252,6 +262,160 @@ describe('--attachment-port (split attachment listener)', () => {
     });
   });
 
+  /**
+   * `--attachment-host`: the half of the split that makes it an isolation
+   * boundary rather than a naming convention.
+   *
+   * `--attachment-port` alone separates the surfaces inside the process; both
+   * listeners still bind the same host, and with a wildcard `--http` that is
+   * every interface. Docker network membership grants a peer every port on a
+   * container, so a sidecar admitted to a shared bridge to fetch `/attachment`
+   * on one port can dial `/mcp` on the other. These bind two loopback addresses
+   * -- `127.0.0.1` and `127.0.0.2` are separate to `bind()` on Linux -- and
+   * assert the cross-interface dials are **connection-refused**, which is a
+   * claim about the socket rather than about a route or a middleware.
+   *
+   * The ports here are reserved on `0.0.0.0` so each is known free on both
+   * addresses; a port reserved on one loopback address says nothing about the
+   * other.
+   */
+  describe('--attachment-host: the two listeners on different interfaces', () => {
+    const MCP_HOST = '127.0.0.1';
+    const ATTACHMENT_HOST = '127.0.0.2';
+    let mcpPort: number;
+    let attachmentPort: number;
+
+    beforeEach(async () => {
+      [mcpPort, attachmentPort] = await reserveFreePorts(2, '0.0.0.0');
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://m365-mcp:${attachmentPort}`;
+      await start({
+        http: `${MCP_HOST}:${mcpPort}`,
+        trustProxyAuth: true,
+        enableAttachmentUrls: true,
+        attachmentPort: String(attachmentPort),
+        attachmentHost: ATTACHMENT_HOST,
+      });
+    });
+
+    it('serves the attachment route on the attachment host, and the MCP app on its own', async () => {
+      const ticket = mintTicket();
+      const attachment = await fetch(
+        `http://${ATTACHMENT_HOST}:${attachmentPort}/attachment?t=${encodeURIComponent(ticket)}`
+      );
+      expect(attachment.status).toBe(200);
+      expect(await attachment.text()).toBe(ATTACHMENT_BODY);
+
+      expect((await fetch(`http://${MCP_HOST}:${mcpPort}/`)).status).toBe(200);
+    });
+
+    it('does not answer the MCP port on the attachment interface', async () => {
+      // The whole point. A sidecar on the network that reaches ATTACHMENT_HOST
+      // has no socket to talk to on the MCP port -- not a 404, not a 401, no
+      // listener. Under --trust-proxy-auth a reachable /mcp would need no
+      // credential at all, so "refused" is the only answer worth asserting.
+      await expect(fetch(`http://${ATTACHMENT_HOST}:${mcpPort}/`)).rejects.toThrow();
+      await expect(
+        fetch(`http://${ATTACHMENT_HOST}:${mcpPort}/mcp`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+        })
+      ).rejects.toThrow();
+    });
+
+    it('does not answer the attachment port on the MCP interface, and burns no ticket doing it', async () => {
+      const ticket = mintTicket();
+      const store = getAttachmentMinting()!.store;
+      expect(store.size()).toBe(1);
+
+      await expect(
+        fetch(`http://${MCP_HOST}:${attachmentPort}/attachment?t=${encodeURIComponent(ticket)}`)
+      ).rejects.toThrow();
+
+      // Same standard of proof as the shared-host case: a refused connection
+      // could in principle have been a listener that accepted, ran the handler
+      // and reset. An intact, still-redeemable ticket proves nothing ran.
+      expect(store.size()).toBe(1);
+      const redeemed = await fetch(
+        `http://${ATTACHMENT_HOST}:${attachmentPort}/attachment?t=${encodeURIComponent(ticket)}`
+      );
+      expect(redeemed.status).toBe(200);
+      expect(await redeemed.text()).toBe(ATTACHMENT_BODY);
+    });
+
+    it('logs the address each listener actually bound, and does not warn about a shared interface', async () => {
+      const lines = vi.mocked(logger.info).mock.calls.map(([message]) => String(message));
+      expect(lines).toContain(`Server listening on ${MCP_HOST}:${mcpPort}`);
+      expect(lines).toContain(
+        `Attachment listener on ${ATTACHMENT_HOST}:${attachmentPort} — serves /attachment only`
+      );
+      // No "all interfaces" claim anywhere: neither listener took the wildcard.
+      expect(lines.filter((line) => /all interfaces/.test(line))).toEqual([]);
+
+      const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+      expect(warnings.filter((w) => /not isolated from each other/.test(w))).toEqual([]);
+    });
+  });
+
+  describe('without --attachment-host: unchanged inheritance of the MCP host', () => {
+    it('binds the attachment listener to the host --http bound, and to nothing else', async () => {
+      const [mcpPort, attachmentPort] = await reserveFreePorts(2, '0.0.0.0');
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://m365-mcp:${attachmentPort}`;
+      await start({
+        http: `127.0.0.1:${mcpPort}`,
+        trustProxyAuth: true,
+        enableAttachmentUrls: true,
+        attachmentPort: String(attachmentPort),
+      });
+
+      const ticket = mintTicket();
+      const inherited = await fetch(
+        `http://127.0.0.1:${attachmentPort}/attachment?t=${encodeURIComponent(ticket)}`
+      );
+      expect(inherited.status).toBe(200);
+      expect(await inherited.text()).toBe(ATTACHMENT_BODY);
+
+      // Inherited, not widened: absent --attachment-host must not quietly put
+      // the uncredentialed surface on every interface.
+      await expect(fetch(`http://127.0.0.2:${attachmentPort}/attachment`)).rejects.toThrow();
+      expect(vi.mocked(logger.info).mock.calls.map(([message]) => String(message))).toContain(
+        `Attachment listener on 127.0.0.1:${attachmentPort} — serves /attachment only`
+      );
+    });
+
+    it('warns that a shared interface is not an isolation boundary', async () => {
+      // The configuration an operator lands on by reading only `--attachment-port`:
+      // ports split, both on the wildcard, and the sidecar allowed onto the
+      // network for one of them holding the other as well.
+      const [mcpPort, attachmentPort] = await reserveFreePorts(2, '0.0.0.0');
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://m365-mcp:${attachmentPort}`;
+      await start({
+        // `:port` is parseHttpOption's "no host", which is what `--http 3000`
+        // also produces -- Node then takes the wildcard for both listeners.
+        http: `:${mcpPort}`,
+        trustProxyAuth: true,
+        enableAttachmentUrls: true,
+        attachmentPort: String(attachmentPort),
+      });
+
+      const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+      const shared = warnings.filter((w) => /not isolated from each other/.test(w));
+      expect(shared).toHaveLength(1);
+      expect(shared[0]).toMatch(/--attachment-host/);
+
+      // And the wildcard line names the address that was really bound rather
+      // than the `0.0.0.0` the old log hard-coded for every unhosted listen.
+      const lines = vi.mocked(logger.info).mock.calls.map(([message]) => String(message));
+      const bound = lines.find((line) => /^Attachment listener on /.test(line));
+      expect(bound).toMatch(/all interfaces \(/);
+      // Whatever the kernel chose, that is what was printed -- `::` on a
+      // dual-stack host, `0.0.0.0` otherwise -- and never both.
+      expect(bound).toMatch(
+        new RegExp(`all interfaces \\((?:\\[::\\]|0\\.0\\.0\\.0):${attachmentPort}\\)`)
+      );
+    });
+  });
+
   describe('without the flag: unchanged single-listener behaviour', () => {
     it('keeps the attachment route on the MCP port and opens no second listener', async () => {
       const [mcpPort, unusedPort] = await reserveFreePorts(2);
@@ -302,6 +466,42 @@ describe('--attachment-port (split attachment listener)', () => {
       // It refused before binding anything, so neither port is live.
       await expect(fetch(`http://127.0.0.1:${mcpPort}/`)).rejects.toThrow();
       await expect(fetch(`http://127.0.0.1:${attachmentPort}/attachment`)).rejects.toThrow();
+    });
+
+    it('refuses to start when --attachment-host is given without --attachment-port', async () => {
+      const [mcpPort] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://m365-mcp:${mcpPort}`;
+
+      await expect(
+        start({
+          http: `127.0.0.1:${mcpPort}`,
+          trustProxyAuth: true,
+          enableAttachmentUrls: true,
+          attachmentHost: '127.0.0.2',
+        })
+      ).rejects.toThrow(/--attachment-host requires --attachment-port/);
+
+      // Nothing bound: it refused before the MCP listener came up, so an
+      // operator who typed only the host is not left with a running server
+      // whose attachment route is on the MCP port after all.
+      await expect(fetch(`http://127.0.0.1:${mcpPort}/`)).rejects.toThrow();
+    });
+
+    it('refuses a --attachment-host that is not an address, before binding anything', async () => {
+      const [mcpPort, attachmentPort] = await reserveFreePorts(2);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://m365-mcp:${attachmentPort}`;
+
+      await expect(
+        start({
+          http: `127.0.0.1:${mcpPort}`,
+          trustProxyAuth: true,
+          enableAttachmentUrls: true,
+          attachmentPort: String(attachmentPort),
+          attachmentHost: '127.0.0.2:3001',
+        })
+      ).rejects.toThrow(/the port goes on --attachment-port/);
+
+      await expect(fetch(`http://127.0.0.1:${mcpPort}/`)).rejects.toThrow();
     });
 
     it('warns and ignores --attachment-port in stdio mode', async () => {
@@ -449,5 +649,77 @@ describe('parseAttachmentPortOption', () => {
   it('names both the flag and the env var, since either could have supplied it', () => {
     expect(() => parseAttachmentPortOption('nope')).toThrow(/--attachment-port/);
     expect(() => parseAttachmentPortOption('nope')).toThrow(/MS365_MCP_ATTACHMENT_PORT/);
+  });
+});
+
+/**
+ * The bind host.
+ *
+ * Same strictness posture as the port, for the same reason: every value refused
+ * here is one where a lenient reading would bind the server's one uncredentialed
+ * surface somewhere the operator did not name, while they believed the two
+ * listeners were on different interfaces.
+ */
+describe('parseAttachmentHostOption', () => {
+  it('reads absent, null and empty as "inherit the MCP listener\'s host"', () => {
+    expect(parseAttachmentHostOption(undefined)).toBeNull();
+    expect(parseAttachmentHostOption(null)).toBeNull();
+    expect(parseAttachmentHostOption('')).toBeNull();
+  });
+
+  it('accepts IPv4, including the explicit wildcard', () => {
+    expect(parseAttachmentHostOption('127.0.0.2')).toBe('127.0.0.2');
+    expect(parseAttachmentHostOption('  10.89.1.2  ')).toBe('10.89.1.2');
+    // Typed out in full, this is a choice rather than an accident, so it stands.
+    expect(parseAttachmentHostOption('0.0.0.0')).toBe('0.0.0.0');
+  });
+
+  it('accepts IPv6 bracketed or bare, and hands back the bare form listen() wants', () => {
+    expect(parseAttachmentHostOption('::1')).toBe('::1');
+    expect(parseAttachmentHostOption('[::1]')).toBe('::1');
+    expect(parseAttachmentHostOption('[fd00::2]')).toBe('fd00::2');
+    expect(parseAttachmentHostOption('::')).toBe('::');
+  });
+
+  it('accepts a hostname, which is what a container address usually is', () => {
+    expect(parseAttachmentHostOption('m365-max-mcp')).toBe('m365-max-mcp');
+    expect(parseAttachmentHostOption('mcp.internal.example.com')).toBe('mcp.internal.example.com');
+    expect(parseAttachmentHostOption('mcp.example.com.')).toBe('mcp.example.com.');
+  });
+
+  it('refuses a host:port, and says where the port goes', () => {
+    // The likeliest mistake: assuming this flag takes an address the way --http
+    // does. Coercing it would bind the host `127.0.0.2:3001` -- which fails --
+    // or, worse for a shape that stripped the port, bind somewhere unannounced.
+    expect(() => parseAttachmentHostOption('127.0.0.2:3001')).toThrow(
+      /the port goes on --attachment-port/
+    );
+    expect(() => parseAttachmentHostOption('m365-mcp:3001')).toThrow(
+      /the port goes on --attachment-port/
+    );
+    expect(() => parseAttachmentHostOption('[::1]:3001')).toThrow(/--attachment-host/);
+  });
+
+  it('refuses a URL, a path, a wildcard label and whitespace-only input', () => {
+    expect(() => parseAttachmentHostOption('http://m365-mcp')).toThrow(/--attachment-host/);
+    expect(() => parseAttachmentHostOption('m365-mcp/attachment')).toThrow(/--attachment-host/);
+    expect(() => parseAttachmentHostOption('*')).toThrow(/--attachment-host/);
+    expect(() => parseAttachmentHostOption('-leading-hyphen')).toThrow(/--attachment-host/);
+    expect(() => parseAttachmentHostOption('a..b')).toThrow(/--attachment-host/);
+    // Not "inherit": a value was supplied and it names nothing.
+    expect(() => parseAttachmentHostOption('   ')).toThrow(/it is empty/);
+  });
+
+  it('refuses unbalanced brackets rather than guessing which half was meant', () => {
+    expect(() => parseAttachmentHostOption('[::1')).toThrow(/unbalanced brackets/);
+    expect(() => parseAttachmentHostOption('::1]')).toThrow(/unbalanced brackets/);
+    expect(() => parseAttachmentHostOption('[m365-mcp]')).toThrow(
+      /the brackets do not contain an IPv6 address/
+    );
+  });
+
+  it('names both the flag and the env var, since either could have supplied it', () => {
+    expect(() => parseAttachmentHostOption('nope!')).toThrow(/--attachment-host/);
+    expect(() => parseAttachmentHostOption('nope!')).toThrow(/MS365_MCP_ATTACHMENT_HOST/);
   });
 });
