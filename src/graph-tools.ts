@@ -5,6 +5,8 @@ import { auditLog, getUserIdentityForAudit } from './audit-log.js';
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
+import { getAttachmentMinting } from './lib/attachment-minting.js';
+import { buildAttachmentUrl, TicketStoreFullError } from './lib/attachment-tickets.js';
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
@@ -266,6 +268,76 @@ async function checkAccountParamInBearerMode(
     `authenticated as that account, or run the server in stdio mode (or HTTP with --trust-proxy-auth) ` +
     `where cached accounts are available.`
   );
+}
+
+/**
+ * Mint a server-served download URL for a Graph byte resource Graph itself
+ * exposes no pre-authenticated URL for, or return null if minting is off.
+ *
+ * **This grants no authority the calling agent did not already hold.** Every
+ * target that reaches here is one `download-bytes` would fetch for the same
+ * caller on the same account; the ticket only moves those bytes out of the
+ * agent's context window and into a direct transfer. That is the whole
+ * security argument for the feature, and it is why minting is scoped to the
+ * byte endpoints below rather than to any Graph path.
+ *
+ * Returns null when the feature is disabled, so the caller falls through to
+ * the refusal it would have given before -- the tool's behaviour is unchanged
+ * for anyone not running with `--enable-attachment-urls`.
+ */
+async function mintDownloadUrl(
+  target: string,
+  accountParam: string | undefined,
+  authManager: AuthManager | undefined
+): Promise<CallToolResult | null> {
+  const minting = getAttachmentMinting();
+  if (!minting) return null;
+
+  // OBO/bearer mode has no durable token of its own: identity arrives per
+  // request on the caller's Authorization header, and a ticket is redeemed
+  // later by a third party that sends none. Minting would produce a URL that
+  // always 502s, so refuse at mint time where the message can say why.
+  if (authManager?.isOAuthModeEnabled()) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error:
+              'Server-minted download URLs are unavailable in OAuth/OBO mode: the URL is redeemed without an Authorization header, and this server holds no token of its own to fetch the bytes with. Use download-bytes.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  let ticket: { id: string; expiresAtMs: number };
+  try {
+    ticket = minting.store.mint(target, accountParam);
+  } catch (error) {
+    if (error instanceof TicketStoreFullError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: error.message }) }],
+        isError: true,
+      };
+    }
+    throw error;
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          downloadUrl: buildAttachmentUrl(minting.config, ticket.id),
+          expiresAt: new Date(ticket.expiresAtMs).toISOString(),
+          singleUse: true,
+          note: 'Served by this server, not by Microsoft Graph. Valid for one fetch until it expires.',
+        }),
+      },
+    ],
+  };
 }
 
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
@@ -630,6 +702,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         /^\/groups\/[^/]+\/messages\/[^/]+\/attachments\//.test(pathPart) ||
         /^\/groups\/[^/]+\/events\/[^/]+\/attachments\//.test(pathPart)
       ) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -650,6 +724,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         ) ||
         /^\/communications\/calls\/[^/]+\/recordings\/[^/]+(?:\/content)?$/.test(pathPart)
       ) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -665,6 +741,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       }
       // Other /$value byte endpoints (profile photo, Teams hosted content) likewise have no URL.
       if (pathPart.endsWith('/$value')) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -751,6 +829,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         }
         const downloadUrl = item?.['@microsoft.graph.downloadUrl'] as string | undefined;
         if (!downloadUrl) {
+          // The metadata path carries no downloadUrl, but the bytes are still
+          // reachable at its /content sub-resource -- which is what a ticket
+          // has to name, since that is what the redemption route will GET.
+          const minted = await mintDownloadUrl(`${itemPath}/content`, accountParam, authManager);
+          if (minted) return minted;
           return {
             content: [
               {

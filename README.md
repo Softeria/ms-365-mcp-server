@@ -590,6 +590,8 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
+--enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
+                  exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs")
 --no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
@@ -627,6 +629,74 @@ Environment variables:
 - `MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS`: Per-invocation timeout for `MS365_MCP_AUTH_CACHE_COMMAND` (default: `10000`)
 - `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
 - `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
+
+## Server-Minted Attachment URLs
+
+`get-download-url` returns Microsoft's own pre-authenticated `@microsoft.graph.downloadUrl`
+for OneDrive and SharePoint items. Graph publishes no such URL for **mail and calendar
+attachments, meeting recordings, or any other `/$value` byte endpoint** — for those, the
+only way to read the bytes has been `download-bytes`, which returns base64 into the
+agent's context. A 73 KB, 3-page PDF costs about 24,500 tokens that way, and the model
+cannot parse them anyway.
+
+`--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
+URL of its own, `get-download-url` mints one this server serves:
+
+```
+GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
+```
+
+The ticket is 32 bytes of CSPRNG output, **single-use**, memory-only, and expires after
+`MS365_MCP_ATTACHMENT_URL_TTL_S` seconds. Redeeming it streams the Graph bytes with this
+server's own token; the fetcher sends no Authorization header and holds no Microsoft
+credential.
+
+**This grants no authority the calling agent did not already have.** Every target that can
+be minted is one `download-bytes` would fetch for the same caller on the same account. The
+ticket only moves those bytes out of the context window and into a direct transfer.
+
+### Configuration
+
+```
+MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3000   # required
+MS365_MCP_ATTACHMENT_URL_KEY=...                     # required (or _KEY_FILE=/path)
+MS365_MCP_ATTACHMENT_URL_KEY_ID=1                    # optional, default 1
+MS365_MCP_ATTACHMENT_URL_TTL_S=120                   # optional, default 120, max 3600
+```
+
+`MS365_MCP_ATTACHMENT_URL_BASE` is deliberately **not** `MS365_MCP_PUBLIC_URL`: that one is
+browser-facing, for OAuth redirects, while this is fetched server-to-server and is
+commonly a container address. A missing or malformed setting fails at startup rather than
+per-request — a signing feature that comes up without a key would mint URLs nothing can
+verify, silently.
+
+### The signature, and who checks what
+
+`dgk`/`dgx`/`dgs` are **not** checked by this server on redemption, and that is deliberate.
+They exist for the fetcher: a document-conversion sidecar that refuses to dial a private
+address unless the URL carries a valid HMAC from an origin it has been configured to trust.
+What authorises redemption *here* is the ticket. Verifying the signature on the way back in
+would prove only that we minted the URL — which the ticket already proves — while coupling
+redemption to the sidecar's clock and to the key surviving a restart.
+
+The wire format is [docglean-mcp](https://github.com/msoukhomlinov/docglean-mcp)'s
+`signing.py` (`canonical_string`), and `src/lib/url-signing.ts` is a port of it. The
+canonical string is `\n`-joined: `v1`, lowercased scheme, lowercased host, the port always
+explicit, the path, the remaining query with `dgk`/`dgx`/`dgs` removed and the rest sorted
+and re-encoded, and the expiry. The test vectors in
+`test/attachment-url-signing.test.ts` were verified against the Python implementation byte
+for byte — three places where the obvious JavaScript disagrees with Python (`!*'()`
+escaping, `+` decoding as a space, and code-point vs UTF-16 sort order) are why that check
+exists rather than being assumed.
+
+The ticket travels in the **query, not the path**, because the verifying sidecar keeps a
+fetched URL's path in its error messages and strips the query.
+
+### Not available in OAuth/OBO mode
+
+Identity there arrives per request on the caller's `Authorization` header, and a ticket is
+redeemed later by a fetcher that sends none. Minting refuses with an explanation rather
+than producing a URL that always fails.
 
 ## Token Storage
 

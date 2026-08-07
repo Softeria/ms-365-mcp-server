@@ -40,6 +40,10 @@ program
     'Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)'
   )
   .option(
+    '--enable-attachment-urls',
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE and MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE)'
+  )
+  .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
@@ -114,6 +118,7 @@ export interface CommandOptions {
   readOnly?: boolean;
   http?: string | boolean;
   enableAuthTools?: boolean;
+  enableAttachmentUrls?: boolean;
   enabledTools?: string;
   allowedScopes?: string;
   extraScopes?: string;
