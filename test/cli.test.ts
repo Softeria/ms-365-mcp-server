@@ -226,6 +226,56 @@ describe('CLI Module', () => {
     });
   });
 
+  describe('--attachment-port / MS365_MCP_ATTACHMENT_PORT', () => {
+    const prev = process.env.MS365_MCP_ATTACHMENT_PORT;
+
+    afterEach(() => {
+      if (prev === undefined) delete process.env.MS365_MCP_ATTACHMENT_PORT;
+      else process.env.MS365_MCP_ATTACHMENT_PORT = prev;
+    });
+
+    it('passes a CLI-supplied port through untouched', () => {
+      delete process.env.MS365_MCP_ATTACHMENT_PORT;
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000', attachmentPort: '3001' });
+
+      expect(parseArgs().attachmentPort).toBe('3001');
+    });
+
+    it('uses MS365_MCP_ATTACHMENT_PORT as a fallback', () => {
+      process.env.MS365_MCP_ATTACHMENT_PORT = '3001';
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+
+      expect(parseArgs().attachmentPort).toBe('3001');
+    });
+
+    it('prefers the CLI flag over the env var', () => {
+      process.env.MS365_MCP_ATTACHMENT_PORT = '4001';
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000', attachmentPort: '3001' });
+
+      expect(parseArgs().attachmentPort).toBe('3001');
+    });
+
+    it('leaves the option unset when neither is given, so the listener stays single', () => {
+      delete process.env.MS365_MCP_ATTACHMENT_PORT;
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+
+      expect(parseArgs().attachmentPort).toBeUndefined();
+    });
+
+    it('does not validate the value here', () => {
+      // Deliberate: the value only means anything alongside
+      // --enable-attachment-urls and --http, both of which server.ts decides,
+      // so it is parsed and refused there -- one message whichever way it
+      // arrived. A second, partial check here would be a second message to keep
+      // in step with the first.
+      process.env.MS365_MCP_ATTACHMENT_PORT = 'not-a-port';
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+
+      expect(parseArgs().attachmentPort).toBe('not-a-port');
+      expect(process.exit).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Dynamic Client Registration (DCR) — env var override', () => {
     const prevDisableDcr = process.env.MS365_MCP_DISABLE_DCR;
 

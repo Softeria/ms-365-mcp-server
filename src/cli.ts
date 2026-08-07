@@ -44,6 +44,10 @@ program
     'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE and MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE)'
   )
   .option(
+    '--attachment-port <port>',
+    'HTTP mode only. Serve the attachment download route on its own listener on this port instead of on the MCP app, so a caller that can fetch attachments cannot also reach /mcp. Requires --enable-attachment-urls, and MS365_MCP_ATTACHMENT_URL_BASE must name this port. Equivalent env var: MS365_MCP_ATTACHMENT_PORT.'
+  )
+  .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
@@ -119,6 +123,12 @@ export interface CommandOptions {
   http?: string | boolean;
   enableAuthTools?: boolean;
   enableAttachmentUrls?: boolean;
+  /**
+   * Raw, unvalidated port for the split attachment listener. A string when it
+   * came from the command line or the environment; `server.ts` is what turns it
+   * into a number and refuses the values that are not one.
+   */
+  attachmentPort?: string | number;
   enabledTools?: string;
   allowedScopes?: string;
   extraScopes?: string;
@@ -201,6 +211,14 @@ export function parseArgs(): CommandOptions {
         'Provide one or more whitespace-separated scopes, or omit it.'
     );
     process.exit(1);
+  }
+
+  // CLI wins over env, same as every other option here. Left as the raw string:
+  // the value is only meaningful together with --enable-attachment-urls and
+  // --http, and both of those are decided in server.ts, so that is where it is
+  // parsed and rejected -- one message, one place, whichever way it arrived.
+  if (options.attachmentPort === undefined && process.env.MS365_MCP_ATTACHMENT_PORT !== undefined) {
+    options.attachmentPort = process.env.MS365_MCP_ATTACHMENT_PORT;
   }
 
   if (

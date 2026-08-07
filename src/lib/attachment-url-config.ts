@@ -115,7 +115,9 @@ export function loadAttachmentUrlConfig(
       '--enable-attachment-urls requires MS365_MCP_ATTACHMENT_URL_BASE (the origin a ' +
         'document-conversion sidecar will fetch, e.g. http://m365-mcp:3000). This is ' +
         'deliberately not MS365_MCP_PUBLIC_URL: that one is browser-facing for OAuth, ' +
-        'while this is reached server-to-server and is commonly a container address.'
+        'while this is reached server-to-server and is commonly a container address. ' +
+        'With --attachment-port, name that port here, not the --http one: the route is ' +
+        'not served on the MCP port at all in that mode.'
     );
   }
   let parsedBase: URL;

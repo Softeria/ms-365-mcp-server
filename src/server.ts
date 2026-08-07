@@ -35,6 +35,7 @@ import { getCloudEndpoints } from './cloud-config.js';
 import { requestContext } from './request-context.js';
 import { dumpError } from './crash-logging.js';
 import crypto from 'node:crypto';
+import type { Server as HttpServer } from 'node:http';
 import OboClient from './obo-client.js';
 
 /**
@@ -63,6 +64,40 @@ function parseHttpOption(httpOption: string | boolean): { host: string | undefin
   return { host: undefined, port };
 }
 
+/**
+ * Resolve `--attachment-port` / `MS365_MCP_ATTACHMENT_PORT` into a port number,
+ * or null when the split listener is off.
+ *
+ * Validated strictly rather than coerced. `parseHttpOption` above falls back to
+ * 3000 on garbage, which is defensible for the one port the server is *for*;
+ * it is not defensible here, because the whole point of this port is that the
+ * MCP surface is somewhere else. A silent fallback would put the attachment
+ * route back on a port the operator did not choose, and `parseInt('3000x')`
+ * quietly returning 3000 would put it on the MCP port -- reassembling exactly
+ * the shared listener this option exists to take apart.
+ *
+ * Port 0 is refused for the same reason. Node reads it as "any free port",
+ * which starts cleanly and serves attachments at an address nobody was told.
+ */
+export function parseAttachmentPortOption(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(
+      '--attachment-port / MS365_MCP_ATTACHMENT_PORT must be a port number between 1 and ' +
+        `65535, got ${JSON.stringify(String(value))}`
+    );
+  }
+  const port = Number(raw);
+  if (port < 1 || port > 65535) {
+    throw new Error(
+      '--attachment-port / MS365_MCP_ATTACHMENT_PORT must be a port number between 1 and ' +
+        `65535, got ${port}`
+    );
+  }
+  return port;
+}
+
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -73,6 +108,16 @@ class MicrosoftGraphServer {
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
+
+  /**
+   * Every HTTP listener `start()` opened, so `stop()` can close every one.
+   *
+   * A list rather than a field because `--attachment-port` makes it two, and an
+   * untracked listener cannot be closed at all: it holds the event loop open
+   * for the life of the process. One that is only *usually* two is worse than
+   * either, so nothing here special-cases the count.
+   */
+  private httpServers: HttpServer[] = [];
 
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
   private pkceStore: Map<
@@ -241,6 +286,31 @@ class MicrosoftGraphServer {
       logger.warn(
         '--enable-attachment-urls has no effect in stdio mode and is being ignored: ' +
           'the minted URL has to be reachable over HTTP. Start with --http to use it.'
+      );
+    }
+
+    // --attachment-port: serve the attachment route on a listener of its own.
+    //
+    // The dependency is checked before the mode is, and unconditionally, on
+    // purpose. Alone the flag would open a second listener with nothing on it,
+    // and the operator who typed it believes they have separated the attachment
+    // surface from the tool surface. Warning and continuing would leave that
+    // belief intact while the route stayed on the MCP port -- the exact
+    // arrangement the flag exists to prevent -- so this refuses to start in
+    // every mode rather than only in the one where it would have worked.
+    const attachmentPort = parseAttachmentPortOption(this.options.attachmentPort);
+    if (attachmentPort !== null && !this.options.enableAttachmentUrls) {
+      throw new Error(
+        '--attachment-port requires --enable-attachment-urls: on its own there is no ' +
+          'attachment route to put on the second listener. Pass both, or neither.'
+      );
+    }
+    // Ignored in stdio mode, like the flag it depends on: there is no HTTP
+    // listener to split in two.
+    if (attachmentPort !== null && !this.options.http) {
+      logger.warn(
+        '--attachment-port has no effect in stdio mode and is being ignored: there is no ' +
+          'HTTP listener to split. Start with --http to use it.'
       );
     }
 
@@ -815,17 +885,65 @@ class MicrosoftGraphServer {
       // silently. Failing to start names the missing variable once, to the
       // person who can set it.
       const attachmentConfig = loadAttachmentUrlConfig(Boolean(this.options.enableAttachmentUrls));
+      let attachmentApp: express.Express | null = null;
       if (attachmentConfig) {
         const ticketStore = new AttachmentTicketStore(attachmentConfig.ttlSeconds);
         configureAttachmentMinting({ store: ticketStore, config: attachmentConfig });
+
+        // Where the route goes.
+        //
+        // Without --attachment-port it goes on the MCP app, which is what this
+        // has always done and stays the default. With it, the route gets an
+        // Express app of its own and the MCP app never learns the path exists.
+        //
+        // That separation is the point, and it is a real one only because these
+        // are two apps rather than two paths on one. In a deployment running
+        // --trust-proxy-auth the MCP endpoint reads no Authorization header at
+        // all -- reachability *is* authentication -- so a single listener means
+        // any container that can fetch an attachment can also call every tool
+        // on the server. Two listeners let the network policy say "the
+        // converter reaches the attachment port, and nothing else", and that
+        // sentence is enforceable.
+        //
+        // The dedicated app is deliberately bare: no JSON or urlencoded body
+        // parsers (the route is a GET whose only input is a query parameter),
+        // no CORS (nothing fetches this from a browser origin), no OAuth
+        // router, no /mcp, not even the health check. Everything not mounted
+        // 404s by Express's own default, so the isolation is a property of what
+        // was built rather than of a rule somewhere that has to keep matching.
+        const dedicated = attachmentPort !== null;
+        attachmentApp = dedicated ? express() : app;
+
+        if (dedicated) {
+          // Same header policy as the MCP app; there is no reason for the two
+          // listeners to disagree about, say, nosniff.
+          attachmentApp.use(
+            helmet({
+              contentSecurityPolicy: false,
+              crossOriginEmbedderPolicy: false,
+              hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+            })
+          );
+          // `trust proxy` is left at Express's default (off) here, deliberately
+          // unlike the MCP app above, and MS365_MCP_TRUST_PROXY_HOPS is not read
+          // for it. This listener exists to be dialled directly by a sidecar on
+          // a container network, not through the reverse proxy that terminates
+          // the MCP side; honouring X-Forwarded-For on it would let the one
+          // uncredentialed surface the server exposes pick its own rate-limit
+          // bucket and so opt out of the limiter below. A deployment that really
+          // does front this port with a proxy wants a knob added here, not the
+          // MCP app's setting inherited by accident.
+        }
 
         // Its own limiter, tighter than the MCP one. This is the only route
         // reachable with no credential at all -- the ticket in the query is the
         // credential -- so it is the one brute-force surface the server exposes.
         // A 256-bit ticket makes guessing hopeless regardless; this bounds the
-        // cost of someone trying.
+        // cost of someone trying. It follows the route onto whichever app the
+        // route landed on: moving the route to its own listener must not be a
+        // way to shed the protection that came with it.
         if (!rateLimitDisabled) {
-          app.use(
+          attachmentApp.use(
             ATTACHMENT_ROUTE,
             rateLimit({
               windowMs: 60_000,
@@ -835,7 +953,7 @@ class MicrosoftGraphServer {
             })
           );
         }
-        app.get(
+        attachmentApp.get(
           ATTACHMENT_ROUTE,
           createAttachmentHandler({
             store: ticketStore,
@@ -847,6 +965,18 @@ class MicrosoftGraphServer {
           `  - Attachment URLs: ${attachmentConfig.base}${ATTACHMENT_ROUTE} ` +
             `(ttl ${attachmentConfig.ttlSeconds}s, key id ${attachmentConfig.keyId})`
         );
+        if (dedicated) {
+          // The minted URL is built from MS365_MCP_ATTACHMENT_URL_BASE, which
+          // this server cannot check against the port it just bound -- the base
+          // is commonly a container name reached through a network this process
+          // cannot see. Log both so a mismatch is one line apart in the startup
+          // output instead of a fetch failure in another codebase.
+          logger.info(
+            `  - Attachment listener: separate, port ${attachmentPort} ` +
+              `(${ATTACHMENT_ROUTE} is NOT served on the MCP port; ` +
+              'MS365_MCP_ATTACHMENT_URL_BASE must name this port)'
+          );
+        }
       } else {
         configureAttachmentMinting(null);
       }
@@ -856,24 +986,43 @@ class MicrosoftGraphServer {
         res.send('Microsoft 365 MCP Server is running');
       });
 
+      await this.listen(app, port, host);
       if (host) {
-        app.listen(port, host, () => {
-          logger.info(`Server listening on ${host}:${port}`);
-          logger.info(`  - MCP endpoint: http://${host}:${port}/mcp`);
-          logger.info(`  - OAuth endpoints: http://${host}:${port}/auth/*`);
-          logger.info(
-            `  - OAuth discovery: http://${host}:${port}/.well-known/oauth-authorization-server`
-          );
-        });
+        logger.info(`Server listening on ${host}:${port}`);
+        logger.info(`  - MCP endpoint: http://${host}:${port}/mcp`);
+        logger.info(`  - OAuth endpoints: http://${host}:${port}/auth/*`);
+        logger.info(
+          `  - OAuth discovery: http://${host}:${port}/.well-known/oauth-authorization-server`
+        );
       } else {
-        app.listen(port, () => {
-          logger.info(`Server listening on all interfaces (0.0.0.0:${port})`);
-          logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
-          logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
-          logger.info(
-            `  - OAuth discovery: http://localhost:${port}/.well-known/oauth-authorization-server`
-          );
-        });
+        logger.info(`Server listening on all interfaces (0.0.0.0:${port})`);
+        logger.info(`  - MCP endpoint: http://localhost:${port}/mcp`);
+        logger.info(`  - OAuth endpoints: http://localhost:${port}/auth/*`);
+        logger.info(
+          `  - OAuth discovery: http://localhost:${port}/.well-known/oauth-authorization-server`
+        );
+      }
+
+      if (attachmentApp && attachmentPort !== null) {
+        // Same host as the MCP listener. A deployment that binds the MCP port
+        // to loopback has said something about who may reach this process, and
+        // silently exposing the second port on every interface would answer that
+        // question differently for the surface with no credential on it.
+        //
+        // If this bind fails the whole start fails -- and `stop()` below closes
+        // the listener that did come up. Half a split is not a degraded mode: it
+        // is the attachment route missing while the operator's network policy
+        // already assumes it moved.
+        try {
+          await this.listen(attachmentApp, attachmentPort, host);
+        } catch (error) {
+          await this.stop();
+          throw error;
+        }
+        logger.info(
+          `Attachment listener on ${host ?? 'all interfaces (0.0.0.0)'}:${attachmentPort}` +
+            ` — serves ${ATTACHMENT_ROUTE} only`
+        );
       }
     } else {
       const transport = new StdioServerTransport();
@@ -883,6 +1032,71 @@ class MicrosoftGraphServer {
       await this.server!.connect(transport);
       logger.info('Server connected to stdio transport');
     }
+  }
+
+  /**
+   * Bind one Express app and record the listener.
+   *
+   * Awaited rather than fire-and-forget, which is what `app.listen(...)` on its
+   * own was. Two consequences, both wanted. A bind failure (EADDRINUSE is the
+   * live one now that there is a second port to collide) rejects `start()`, so
+   * `index.ts` reports it and exits 1 instead of the `error` event reaching the
+   * process-wide `uncaughtException` handler as an unattributed dump. And the
+   * caller knows the port is actually accepting connections when this resolves,
+   * so the second bind cannot race the first.
+   *
+   * **The callback's argument is read, and that is not a formality.** Express 5
+   * wraps the callback passed to `app.listen` in `once()` and registers that
+   * same wrapper as the server's `error` handler (`application.js`), so a bind
+   * that fails does not skip the callback -- it calls it with an Error. The
+   * zero-argument `() => logger.info('Server listening on ...')` this replaces
+   * is the shape every example uses, and it announced a port the process had
+   * not got: on EADDRINUSE the server logged that it was listening and stayed
+   * up serving nothing.
+   */
+  private listen(app: express.Express, port: number, host: string | undefined): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const done = (error?: Error) => (error ? reject(error) : resolve());
+      const server = host ? app.listen(port, host, done) : app.listen(port, done);
+      // Not redundant with the above: that wiring is Express's, not Node's, so
+      // an `error` raised after the first settle -- or a future version that
+      // stops doing it -- still has somewhere to land. Rejecting an already
+      // settled promise is a no-op.
+      server.once('error', reject);
+      // Tracked before it is listening, not after: a bind that fails part-way
+      // still leaves a handle, and an untracked one is one `stop()` can never
+      // close.
+      this.httpServers.push(server);
+    });
+  }
+
+  /**
+   * Close every listener this server opened.
+   *
+   * `close()` alone is not enough and the difference is not theoretical: it
+   * stops accepting but waits on established sockets, and a keep-alive client
+   * (Node's own `fetch` is one) holds one open by default, so the process hangs
+   * instead of exiting. `closeIdleConnections()` drops exactly those, while a
+   * transfer still in flight -- an attachment being streamed -- is allowed to
+   * finish.
+   *
+   * Minting is switched off at the same time. The tickets live in a store this
+   * server owns, and after this returns there is no listener left to redeem
+   * them on; continuing to hand out URLs for a dead route would be a lie the
+   * agent only discovers at fetch time.
+   */
+  async stop(): Promise<void> {
+    const servers = this.httpServers.splice(0);
+    configureAttachmentMinting(null);
+    await Promise.all(
+      servers.map(
+        (server) =>
+          new Promise<void>((resolve) => {
+            server.close(() => resolve());
+            server.closeIdleConnections();
+          })
+      )
+    );
   }
 }
 

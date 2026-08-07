@@ -17,7 +17,9 @@ const expressMocks = vi.hoisted(() => {
   app.listen = vi.fn((...args: unknown[]) => {
     const callback = args.find((arg): arg is () => void => typeof arg === 'function');
     callback?.();
-    return { close: vi.fn() };
+    // Shaped like the http.Server Express really returns: server.ts attaches an
+    // `error` listener to it and MicrosoftGraphServer.stop() closes it.
+    return { close: vi.fn(), closeIdleConnections: vi.fn(), once: vi.fn() };
   });
 
   const express = Object.assign(
