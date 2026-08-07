@@ -34,8 +34,21 @@ export const ATTACHMENT_ROUTE = '/attachment';
  */
 const DEFAULT_TTL_SECONDS = 120;
 
-/** Upper bound on the configurable TTL. See the coupling note above. */
-const MAX_TTL_SECONDS = 3600;
+/**
+ * Upper bound on the configurable TTL, set to the verifying sidecar's own
+ * default max-TTL rather than to a round number.
+ *
+ * This was 3600, which made the documented maximum a value at which the feature
+ * is 100% non-functional: docglean's `verify()` refuses any signature whose
+ * expiry is further out than its `_MAX_TTL_S` (default 300) plus `_CLOCK_SKEW_S`
+ * (5), so measured against a default-configured origin, 305 passes and 306 is
+ * refused. Allowing a caller to configure twelve times that offered nothing but
+ * a silent failure whose cause is in another codebase.
+ *
+ * A deployment that has raised the sidecar's own `_MAX_TTL_S` can raise this in
+ * the same change; both sides have to agree, and the tighter of the two wins.
+ */
+const MAX_TTL_SECONDS = 300;
 
 export class AttachmentUrlConfigError extends Error {
   constructor(message: string) {
@@ -44,15 +57,35 @@ export class AttachmentUrlConfigError extends Error {
   }
 }
 
+/**
+ * The exact character set Python's argument-less `str.strip()` removes.
+ *
+ * `String.prototype.trim()` is not the same set and the differences are both
+ * reachable and silent. `trim()` removes U+FEFF (a BOM, which plenty of editors
+ * write) and Python does not; Python removes U+001C-U+001F and U+0085 (NEL) and
+ * `trim()` does not. Either way the two sides derive different key bytes from
+ * the same file and every signature is refused with no diagnostic — and U+0085
+ * slips past the control-character check below, since it is not < 0x20.
+ */
+const PYTHON_WHITESPACE = '\t\n\v\f\r   ' + '           ' + '    　';
+
+function pythonStrip(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && PYTHON_WHITESPACE.includes(value[start])) start += 1;
+  while (end > start && PYTHON_WHITESPACE.includes(value[end - 1])) end -= 1;
+  return value.slice(start, end);
+}
+
 function readKey(env: Record<string, string | undefined>): string {
   const keyFile = env.MS365_MCP_ATTACHMENT_URL_KEY_FILE;
   if (keyFile) {
     try {
-      // `.trim()` so a key file written with a trailing newline -- which every
+      // Stripped so a key file written with a trailing newline -- which every
       // ordinary editor and `echo` produces -- signs the same bytes the sidecar
-      // reads, since docglean's `_KEY_FILE` strips too. Without it the two
-      // disagree silently and every signature is refused.
-      return readFileSync(keyFile, 'utf8').trim();
+      // reads, since docglean's `_KEY_FILE` strips too. `pythonStrip` rather
+      // than `.trim()` because the two sets differ; see its docstring.
+      return pythonStrip(readFileSync(keyFile, 'utf8'));
     } catch {
       // The path, never the contents: a read error carrying file bytes would
       // put the key in the log that reports the failure.
@@ -96,6 +129,20 @@ export function loadAttachmentUrlConfig(
   if (parsedBase.protocol !== 'http:' && parsedBase.protocol !== 'https:') {
     throw new AttachmentUrlConfigError(
       `MS365_MCP_ATTACHMENT_URL_BASE must be http or https, got ${parsedBase.protocol}`
+    );
+  }
+  // An IPv6 literal cannot be signed compatibly. WHATWG normalises some
+  // literals into a different spelling than the one written (`[::ffff:127.0.0.1]`
+  // becomes `::ffff:7f00:1`) while the verifier's Python preserves the original,
+  // so the two canonical strings differ on the host line and every minted URL is
+  // refused. Refused here, where the message can say so, rather than at the far
+  // end as an unexplained `blocked_host` on every fetch. Use a hostname.
+  if (parsedBase.hostname.startsWith('[')) {
+    throw new AttachmentUrlConfigError(
+      'MS365_MCP_ATTACHMENT_URL_BASE must not be an IPv6 literal: the URL signature ' +
+        'covers the host, and this runtime and the verifying sidecar normalise IPv6 ' +
+        'spellings differently, so every minted URL would be refused. Use a hostname ' +
+        `(a container or service name) instead of ${parsedBase.hostname}.`
     );
   }
   if (parsedBase.search || parsedBase.hash) {

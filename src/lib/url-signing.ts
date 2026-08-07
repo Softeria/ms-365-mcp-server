@@ -31,7 +31,7 @@
  * locally and is refused by the sidecar.
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 
 /** Python's `urllib.parse.quote(s, safe='')` -- safe set is `A-Za-z0-9_.-~`. */
 export function quoteAll(value: string): string {
@@ -117,9 +117,19 @@ function canonicalQuery(query: string): string {
 export function canonicalString(url: string, expiry: string): string {
   const parsed = new URL(url);
   const scheme = parsed.protocol.replace(/:$/, '').toLowerCase();
-  // `URL.hostname` keeps the brackets off an IPv6 literal and is already
-  // lowercased; `.port` is '' when the URL used the scheme default.
-  const host = parsed.hostname.toLowerCase();
+  // WHATWG `URL.hostname` **includes** the brackets on an IPv6 literal
+  // (`[fd00::1]`); Python's `urlsplit().hostname` strips them (`fd00::1`). An
+  // earlier revision of this line asserted the opposite and shipped a host line
+  // that could never match, so every URL minted against an IPv6 base was
+  // refused by the verifier with no diagnostic connecting the two.
+  //
+  // Stripping them is necessary but NOT sufficient, which is why
+  // `attachment-url-config.ts` refuses an IPv6-literal base outright: WHATWG
+  // also *rewrites* some literals into their compressed form (`[::ffff:127.0.0.1]`
+  // becomes `::ffff:7f00:1`) while Python preserves whatever was written. No
+  // amount of post-processing here recovers the original spelling, so the
+  // divergence is closed at configuration time instead.
+  const host = parsed.hostname.toLowerCase().replace(/^\[(.+)\]$/, '$1');
   const port = parsed.port === '' ? (scheme === 'https' ? 443 : 80) : Number(parsed.port);
   const path = parsed.pathname === '' ? '/' : parsed.pathname;
   const query = canonicalQuery(parsed.search.replace(/^\?/, ''));
@@ -156,12 +166,4 @@ export function signUrl(url: string, config: SigningConfig, nowMs: number = Date
   kept.push(['dgk', config.keyId], ['dgx', expiry], ['dgs', signature]);
   parsed.search = kept.map(([name, value]) => `${quoteAll(name)}=${quoteAll(value)}`).join('&');
   return parsed.toString();
-}
-
-/** Constant-time compare of two ticket ids. Length is not itself a secret. */
-export function safeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a, 'utf8');
-  const right = Buffer.from(b, 'utf8');
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
 }

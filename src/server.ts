@@ -232,6 +232,18 @@ class MicrosoftGraphServer {
       logger.info('Server running in READ-ONLY mode. Write operations are disabled.');
     }
 
+    // The minting feature lives entirely inside the HTTP branch below, because
+    // the whole point of it is a URL something else can fetch. Passing the flag
+    // to a stdio run used to do nothing at all -- no route, no config
+    // validation, no complaint -- so an operator who set it in the wrong place
+    // saw a clean startup and a tool that never minted.
+    if (this.options.enableAttachmentUrls && !this.options.http) {
+      logger.warn(
+        '--enable-attachment-urls has no effect in stdio mode and is being ignored: ' +
+          'the minted URL has to be reachable over HTTP. Start with --http to use it.'
+      );
+    }
+
     if (this.options.http) {
       const { host, port } = parseHttpOption(this.options.http);
 

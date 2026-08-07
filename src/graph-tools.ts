@@ -293,21 +293,42 @@ async function mintDownloadUrl(
   const minting = getAttachmentMinting();
   if (!minting) return null;
 
-  // OBO/bearer mode has no durable token of its own: identity arrives per
-  // request on the caller's Authorization header, and a ticket is redeemed
-  // later by a third party that sends none. Minting would produce a URL that
-  // always 502s, so refuse at mint time where the message can say why.
-  if (authManager?.isOAuthModeEnabled()) {
+  // Refuse whenever this request's Graph identity comes from the caller rather
+  // than from this server's own token cache.
+  //
+  // **Both halves of this predicate are load-bearing, and checking only the
+  // first is an authority escalation, not merely a broken feature.**
+  // `isOAuthModeEnabled()` is true only for MS365_MCP_OAUTH_TOKEN and the
+  // oauth-provider path; it is *false* in plain `--http` bearer mode and in
+  // `--obo`, both of which still run the tool inside a request context holding
+  // the caller's token. In those modes `download-bytes` reads as the caller
+  // while a redeemed ticket reads as whatever account this server has cached --
+  // so minting would let a caller ask under one identity and have the bytes
+  // fetched under another. Every other token site in this file pairs these two
+  // checks (see the `getRequestTokens()` guards below); this one must too.
+  if (authManager?.isOAuthModeEnabled() || getRequestTokens()) {
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
             error:
-              'Server-minted download URLs are unavailable in OAuth/OBO mode: the URL is redeemed without an Authorization header, and this server holds no token of its own to fetch the bytes with. Use download-bytes.',
+              'Server-minted download URLs are unavailable when Graph identity comes from the request (OAuth, OBO, or bearer mode): the URL is redeemed later without an Authorization header, so the bytes would be fetched as a different identity than the one that asked for them. Use download-bytes.',
           }),
         },
       ],
+      isError: true,
+    };
+  }
+
+  // Validated here rather than left to the caller further down: the three
+  // early mint sites return before the tool reaches its own account check, so
+  // without this an unusable `account` would be baked into a ticket and only
+  // surface as a 502 at redemption, long after the agent could act on it.
+  const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+  if (accountModeError) {
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
       isError: true,
     };
   }

@@ -661,7 +661,7 @@ ticket only moves those bytes out of the context window and into a direct transf
 MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3000   # required
 MS365_MCP_ATTACHMENT_URL_KEY=...                     # required (or _KEY_FILE=/path)
 MS365_MCP_ATTACHMENT_URL_KEY_ID=1                    # optional, default 1
-MS365_MCP_ATTACHMENT_URL_TTL_S=120                   # optional, default 120, max 3600
+MS365_MCP_ATTACHMENT_URL_TTL_S=120                   # optional, default 120, max 300
 ```
 
 `MS365_MCP_ATTACHMENT_URL_BASE` is deliberately **not** `MS365_MCP_PUBLIC_URL`: that one is

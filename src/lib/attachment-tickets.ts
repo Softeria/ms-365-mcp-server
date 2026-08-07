@@ -116,7 +116,11 @@ export class AttachmentTicketStore {
     const ticket = this.tickets.get(id);
     if (!ticket) return undefined;
     this.tickets.delete(id);
-    if (ticket.expiresAtMs <= nowMs) return undefined;
+    // No second expiry check here: `sweep` above ran against this same `nowMs`
+    // and already removed anything at or past its expiry, so a surviving entry
+    // is live by construction. A re-check would be unreachable code asserting a
+    // guarantee the sweep already provides -- and because both use one captured
+    // timestamp, there is no sweep/get race for it to cover.
     return ticket;
   }
 

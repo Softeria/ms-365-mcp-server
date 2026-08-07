@@ -148,6 +148,58 @@ describe('loadAttachmentUrlConfig', () => {
     ).toThrow(AttachmentUrlConfigError);
   });
 
+  it('refuses an IPv6-literal base, which could never sign compatibly', () => {
+    // Regression: WHATWG URL.hostname keeps the brackets and rewrites some
+    // literals into a compressed form; the verifier's Python does neither. A
+    // base like this produced a healthy startup and a 100% refusal rate at the
+    // far end, with nothing connecting the two.
+    for (const base of ['http://[fd00::1]:3000', 'http://[::1]:3000']) {
+      expect(() =>
+        loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_BASE: base })
+      ).toThrow(AttachmentUrlConfigError);
+    }
+  });
+
+  it('caps the TTL at the verifier default rather than at a round number', () => {
+    // Regression: the ceiling was 3600, but docglean refuses anything past its
+    // own _MAX_TTL_S (300) plus _CLOCK_SKEW_S (5) — so every value from 306 to
+    // 3600 was advertised as valid and was in fact unusable.
+    expect(
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_TTL_S: '300' })!.ttlSeconds
+    ).toBe(300);
+    expect(() =>
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_TTL_S: '301' })
+    ).toThrow(AttachmentUrlConfigError);
+  });
+
+  it('strips a key file the way Python does, not the way trim() does', async () => {
+    // Regression: .trim() removes a BOM (Python does not) and leaves U+0085
+    // (Python removes it, and it slips past the control-character guard because
+    // it is not < 0x20). Either way both ends derive different key bytes.
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'dgkey-'));
+
+    const bom = join(dir, 'bom');
+    writeFileSync(bom, '﻿secret\n');
+    expect(
+      loadAttachmentUrlConfig(true, {
+        MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+        MS365_MCP_ATTACHMENT_URL_KEY_FILE: bom,
+      })!.key
+    ).toBe('﻿secret');
+
+    const nel = join(dir, 'nel');
+    writeFileSync(nel, 'secret');
+    expect(
+      loadAttachmentUrlConfig(true, {
+        MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+        MS365_MCP_ATTACHMENT_URL_KEY_FILE: nel,
+      })!.key
+    ).toBe('secret');
+  });
+
   it('refuses a base carrying a query string', () => {
     expect(() =>
       loadAttachmentUrlConfig(true, {
