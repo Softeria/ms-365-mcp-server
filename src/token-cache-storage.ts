@@ -391,6 +391,13 @@ function parseTimeoutMs(value: string | undefined): number {
 }
 
 async function assertCommandUsable(commandPath: string): Promise<void> {
+  // A relative path resolves against cwd, which the client picks and the
+  // operator may never have looked at. Require an absolute one so the value
+  // names a specific executable rather than "whatever is in the current folder".
+  if (!path.isAbsolute(commandPath)) {
+    throw new Error(`${AUTH_CACHE_COMMAND_ENV} must be an absolute path.`);
+  }
+
   let stats: fs.Stats;
   try {
     stats = await fs.promises.stat(commandPath);
