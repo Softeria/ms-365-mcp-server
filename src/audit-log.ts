@@ -86,6 +86,8 @@ export interface AuditEvent {
   tool: string;
   http_method?: string;
   status: AuditStatus;
+  reason?: string;
+  missing_scopes?: string[];
   duration_ms?: number;
   target_resource?: { type: string; id?: string };
   error_type?: string;

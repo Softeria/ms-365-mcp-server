@@ -6,6 +6,7 @@ import GraphClient from '../src/graph-client.js';
 vi.mock('../src/logger.js', () => ({
   default: {
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
