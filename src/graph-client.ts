@@ -196,6 +196,65 @@ class GraphClient {
    * memory or hit V8's max string length. Creates the file with wx + 0o600 (never
    * overwrites) and removes a partial file if the transfer fails.
    */
+  /**
+   * Fetch Graph binary content and hand back the undrained response stream.
+   *
+   * Same auth, same resilience and the same error mapping as `downloadToFile`,
+   * which is the reason this exists rather than the attachment route calling
+   * `fetch` for itself: token acquisition, the OBO/bearer context tokens, retry
+   * and the 403-scope special case are all in `performRequest`, which is
+   * private. Splitting them would give the route a second, quietly divergent
+   * copy of the auth path.
+   *
+   * The caller owns the body from here and MUST consume or cancel it -- an
+   * abandoned stream holds a socket open until the agent times out.
+   */
+  async downloadStream(
+    endpoint: string,
+    options: Pick<GraphRequestOptions, 'accessToken' | 'apiVersion'> = {}
+  ): Promise<{
+    body: NonNullable<Response['body']>;
+    contentType: string;
+    contentLength: number | null;
+    contentDisposition: string | null;
+  }> {
+    const contextTokens = getRequestTokens();
+    const accessToken =
+      options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
+    if (!accessToken) {
+      throw new Error('No access token available');
+    }
+
+    const response = await this.performRequest(endpoint, accessToken, options);
+    if (response.status === 403) {
+      const errorText = await response.text();
+      if (errorText.includes('scope') || errorText.includes('permission')) {
+        throw new Error(
+          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+        );
+      }
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
+      );
+    }
+    if (!response.body) {
+      throw new Error('Microsoft Graph returned an empty response body');
+    }
+
+    const headerLength = Number(response.headers.get('content-length'));
+    return {
+      body: response.body,
+      contentType: response.headers.get('content-type') || 'application/octet-stream',
+      contentLength: Number.isFinite(headerLength) ? headerLength : null,
+      contentDisposition: response.headers.get('content-disposition'),
+    };
+  }
+
   async downloadToFile(
     endpoint: string,
     destinationPath: string,

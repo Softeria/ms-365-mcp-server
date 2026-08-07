@@ -16,8 +16,20 @@ const expressMocks = vi.hoisted(() => {
   app.post = vi.fn(() => app);
   app.listen = vi.fn((...args: unknown[]) => {
     const callback = args.find((arg): arg is () => void => typeof arg === 'function');
+    const port = typeof args[0] === 'number' ? args[0] : 0;
+    // An unhosted listen binds the wildcard, which is what the real one reports
+    // back through address() -- not the `undefined` it was handed.
+    const address = typeof args[1] === 'string' ? args[1] : '::';
     callback?.();
-    return { close: vi.fn() };
+    // Shaped like the http.Server Express really returns: server.ts attaches an
+    // `error` listener to it, reads address() to log what was actually bound
+    // rather than what was requested, and MicrosoftGraphServer.stop() closes it.
+    return {
+      close: vi.fn(),
+      closeIdleConnections: vi.fn(),
+      once: vi.fn(),
+      address: vi.fn(() => ({ address, family: address.includes(':') ? 'IPv6' : 'IPv4', port })),
+    };
   });
 
   const express = Object.assign(

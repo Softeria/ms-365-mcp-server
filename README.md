@@ -590,6 +590,15 @@ When running as an MCP server, the following options can be used:
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
                   Starts Express.js server with MCP endpoint at /mcp
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
+--enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
+                  exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs")
+--attachment-port <port> Serve /attachment on its own listener on this port instead of on the
+                  MCP app, so a fetcher that can read attachments cannot also reach /mcp
+                  (requires --enable-attachment-urls; see "Splitting the attachment listener")
+--attachment-host <host> Interface the --attachment-port listener binds. Defaults to whatever
+                  --http bound, which with a wildcard --http leaves BOTH ports on every
+                  interface and so isolates nothing — set this to make the split real
+                  (requires --attachment-port; see "Splitting the attachment listener")
 --no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
@@ -613,6 +622,8 @@ Environment variables:
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
+- `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
+- `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
@@ -627,6 +638,167 @@ Environment variables:
 - `MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS`: Per-invocation timeout for `MS365_MCP_AUTH_CACHE_COMMAND` (default: `10000`)
 - `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
 - `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
+
+## Server-Minted Attachment URLs
+
+`get-download-url` returns Microsoft's own pre-authenticated `@microsoft.graph.downloadUrl`
+for OneDrive and SharePoint items. Graph publishes no such URL for **mail and calendar
+attachments, meeting recordings, or any other `/$value` byte endpoint** — for those, the
+only way to read the bytes has been `download-bytes`, which returns base64 into the
+agent's context. A 73 KB, 3-page PDF costs about 24,500 tokens that way, and the model
+cannot parse them anyway.
+
+`--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
+URL of its own, `get-download-url` mints one this server serves:
+
+```
+GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
+```
+
+The ticket is 32 bytes of CSPRNG output, **single-use**, memory-only, and expires after
+`MS365_MCP_ATTACHMENT_URL_TTL_S` seconds. Redeeming it streams the Graph bytes with this
+server's own token; the fetcher sends no Authorization header and holds no Microsoft
+credential.
+
+**This grants no authority the calling agent did not already have.** Every target that can
+be minted is one `download-bytes` would fetch for the same caller on the same account. The
+ticket only moves those bytes out of the context window and into a direct transfer.
+
+### Configuration
+
+```
+MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3000   # required
+MS365_MCP_ATTACHMENT_URL_KEY=...                     # required (or _KEY_FILE=/path)
+MS365_MCP_ATTACHMENT_URL_KEY_ID=1                    # optional, default 1
+MS365_MCP_ATTACHMENT_URL_TTL_S=120                   # optional, default 120, max 300
+```
+
+`MS365_MCP_ATTACHMENT_URL_BASE` is deliberately **not** `MS365_MCP_PUBLIC_URL`: that one is
+browser-facing, for OAuth redirects, while this is fetched server-to-server and is
+commonly a container address. A missing or malformed setting fails at startup rather than
+per-request — a signing feature that comes up without a key would mint URLs nothing can
+verify, silently.
+
+### Splitting the attachment listener
+
+By default `/attachment` is served by the same Express app, on the same port, as `/mcp`.
+That is fine when callers are authenticated by a bearer token, and it is a problem when
+they are not. Under `--trust-proxy-auth` the MCP endpoint reads no `Authorization` header
+at all — **reachability is the authentication** — so one shared port means the sidecar you
+allowed through in order to fetch a PDF can also call every tool on the server.
+
+`--attachment-port <port>` (or `MS365_MCP_ATTACHMENT_PORT`) moves the route onto a listener
+of its own, and `--attachment-host <host>` (or `MS365_MCP_ATTACHMENT_HOST`) says which
+interface that listener binds:
+
+```
+ms-365-mcp-server --http 10.89.0.2:3000 --trust-proxy-auth \
+                  --enable-attachment-urls \
+                  --attachment-port 3001 --attachment-host 10.89.1.2
+MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3001   # note: the attachment port
+```
+
+- `GET /attachment` on **3001** works; on 3000 it is **404** — the MCP app never mounts it.
+- `/mcp` on **3001** is **404**, as is everything else: the second app has the attachment
+  route and nothing more. No OAuth router, no body parsers, no CORS, no health check.
+- The 60 req/min limiter that guards the route follows it onto the new listener.
+- `trust proxy` is **off** on the attachment listener (and `MS365_MCP_TRUST_PROXY_HOPS` is
+  not read for it), unlike the MCP listener, which trusts one hop. This port is meant to be
+  dialled directly on a container network; honouring `X-Forwarded-For` on the server's one
+  uncredentialed surface would let a caller choose its own rate-limit bucket.
+
+The flag requires `--enable-attachment-urls` and refuses to start without it — on its own
+it would open a port with nothing on it while the operator believed the surfaces were
+separated. In stdio mode it warns and is ignored, like the flag it depends on.
+`--attachment-host` likewise requires `--attachment-port`: alone it would name an interface
+for a listener that does not exist.
+
+#### Two ports are not two surfaces unless they bind two interfaces
+
+**This is the part that decides whether any of the above is worth anything.** Read it
+before you deploy the split.
+
+`--attachment-port` on its own separates the two surfaces _inside the process_. It does not
+separate them _on the network_. Without `--attachment-host` the attachment listener inherits
+whatever host `--http` bound — and `--http 3000`, the common form, names no host at all, so
+Node binds the wildcard and **both** ports answer on **every** interface:
+
+```
+ms-365-mcp-server --http 3000 --trust-proxy-auth \
+                  --enable-attachment-urls --attachment-port 3001   # NOT isolated
+```
+
+Container networks grant a peer every port on a container, not one port. Put a
+document-conversion sidecar on a shared bridge so it can fetch `/attachment` on 3001, and
+that same sidecar can dial `:3000/mcp` — which under `--trust-proxy-auth` reads no
+`Authorization` header at all and hands back the full tool catalogue. Nothing fails, nothing
+is logged as an error, and the config looks exactly like the isolated one.
+
+To make it real, give the two listeners **different addresses**, and put only the attachment
+address on the network the fetcher is on:
+
+```yaml
+# docker compose — the MCP port on the agent's own bridge, the attachment port on the
+# bridge shared with the converter. The converter can reach 3001 and cannot route to 3000.
+services:
+  m365-mcp:
+    networks: { agent-net: { ipv4_address: 10.89.0.2 }, convert-net: { ipv4_address: 10.89.1.2 } }
+    command: >
+      --http 10.89.0.2:3000 --trust-proxy-auth
+      --enable-attachment-urls
+      --attachment-port 3001 --attachment-host 10.89.1.2
+  docglean:
+    networks: [convert-net]
+```
+
+The MCP port is then unreachable from `convert-net` **by binding** — there is no socket
+listening on that interface — rather than by a firewall rule that has to keep matching.
+
+The server warns at startup if you run `--trust-proxy-auth` with `--attachment-port` while
+both listeners still answer on a common interface (either sharing an address, or either one
+on the wildcard). Both bound addresses are logged, read back from the socket rather than
+from the flags, so `Server listening on …` and `Attachment listener on …` can be compared
+directly.
+
+`--attachment-host` takes a bare IPv4 address, IPv6 address (bracketed `[::1]` or bare
+`::1`) or hostname. It is refused rather than coerced — `--attachment-host 10.0.0.5:3001`
+is an error naming `--attachment-port`, not a bind to something else. Note that
+`MS365_MCP_ATTACHMENT_URL_BASE` still must not be an IPv6 literal (the URL signature covers
+the host and the two implementations normalise IPv6 differently); if you bind the listener
+to an IPv6 address, name it in the base by hostname.
+
+Point `MS365_MCP_ATTACHMENT_URL_BASE` at the attachment port. The server cannot check this
+for you: the base is usually a container name on a network this process cannot resolve, so
+a wrong port here shows up as a fetch failure in the sidecar, not an error here. Both the
+base and the bound port are logged at startup, one line apart, for exactly that comparison.
+
+### The signature, and who checks what
+
+`dgk`/`dgx`/`dgs` are **not** checked by this server on redemption, and that is deliberate.
+They exist for the fetcher: a document-conversion sidecar that refuses to dial a private
+address unless the URL carries a valid HMAC from an origin it has been configured to trust.
+What authorises redemption _here_ is the ticket. Verifying the signature on the way back in
+would prove only that we minted the URL — which the ticket already proves — while coupling
+redemption to the sidecar's clock and to the key surviving a restart.
+
+The wire format is [docglean-mcp](https://github.com/msoukhomlinov/docglean-mcp)'s
+`signing.py` (`canonical_string`), and `src/lib/url-signing.ts` is a port of it. The
+canonical string is `\n`-joined: `v1`, lowercased scheme, lowercased host, the port always
+explicit, the path, the remaining query with `dgk`/`dgx`/`dgs` removed and the rest sorted
+and re-encoded, and the expiry. The test vectors in
+`test/attachment-url-signing.test.ts` were verified against the Python implementation byte
+for byte — three places where the obvious JavaScript disagrees with Python (`!*'()`
+escaping, `+` decoding as a space, and code-point vs UTF-16 sort order) are why that check
+exists rather than being assumed.
+
+The ticket travels in the **query, not the path**, because the verifying sidecar keeps a
+fetched URL's path in its error messages and strips the query.
+
+### Not available in OAuth/OBO mode
+
+Identity there arrives per request on the caller's `Authorization` header, and a ticket is
+redeemed later by a fetcher that sends none. Minting refuses with an explanation rather
+than producing a URL that always fails.
 
 ## Token Storage
 

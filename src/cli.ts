@@ -40,6 +40,18 @@ program
     'Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)'
   )
   .option(
+    '--enable-attachment-urls',
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE and MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE)'
+  )
+  .option(
+    '--attachment-port <port>',
+    'HTTP mode only. Serve the attachment download route on its own listener on this port instead of on the MCP app, so a caller that can fetch attachments cannot also reach /mcp. Requires --enable-attachment-urls, and MS365_MCP_ATTACHMENT_URL_BASE must name this port. A separate port only isolates the two surfaces if they also bind separate interfaces — see --attachment-host. Equivalent env var: MS365_MCP_ATTACHMENT_PORT.'
+  )
+  .option(
+    '--attachment-host <host>',
+    'Interface the --attachment-port listener binds (IPv4, IPv6 or hostname). Defaults to whatever --http bound, which with a wildcard --http means both ports answer on every interface — so a peer allowed onto the network to fetch attachments can also reach /mcp. Bind this to the address the fetcher uses and --http to a different one to make that unreachable rather than merely un-advertised. Requires --attachment-port. Equivalent env var: MS365_MCP_ATTACHMENT_HOST.'
+  )
+  .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
   )
@@ -114,6 +126,20 @@ export interface CommandOptions {
   readOnly?: boolean;
   http?: string | boolean;
   enableAuthTools?: boolean;
+  enableAttachmentUrls?: boolean;
+  /**
+   * Raw, unvalidated port for the split attachment listener. A string when it
+   * came from the command line or the environment; `server.ts` is what turns it
+   * into a number and refuses the values that are not one.
+   */
+  attachmentPort?: string | number;
+  /**
+   * Raw, unvalidated bind host for the split attachment listener. Unset means
+   * "inherit whatever --http bound", which is the pre-existing behaviour and
+   * stays the default. Validated in `server.ts` alongside the port, so the two
+   * halves of one decision are refused in one place.
+   */
+  attachmentHost?: string;
   enabledTools?: string;
   allowedScopes?: string;
   extraScopes?: string;
@@ -196,6 +222,23 @@ export function parseArgs(): CommandOptions {
         'Provide one or more whitespace-separated scopes, or omit it.'
     );
     process.exit(1);
+  }
+
+  // CLI wins over env, same as every other option here. Left as the raw string:
+  // the value is only meaningful together with --enable-attachment-urls and
+  // --http, and both of those are decided in server.ts, so that is where it is
+  // parsed and rejected -- one message, one place, whichever way it arrived.
+  if (options.attachmentPort === undefined && process.env.MS365_MCP_ATTACHMENT_PORT !== undefined) {
+    options.attachmentPort = process.env.MS365_MCP_ATTACHMENT_PORT;
+  }
+
+  // Same idiom, same reasoning, and deliberately a variable of its own rather
+  // than a host accepted inside MS365_MCP_ATTACHMENT_PORT: a variable named
+  // _PORT holding `10.89.0.5:3001` misreads at a glance, and the two values
+  // default differently -- an absent port means "no second listener", an absent
+  // host means "inherit the MCP one".
+  if (options.attachmentHost === undefined && process.env.MS365_MCP_ATTACHMENT_HOST !== undefined) {
+    options.attachmentHost = process.env.MS365_MCP_ATTACHMENT_HOST;
   }
 
   if (
