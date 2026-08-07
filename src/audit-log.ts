@@ -85,6 +85,10 @@ export interface AuditEvent {
   user_principal_name?: string;
   tool: string;
   http_method?: string;
+  http_status?: number;
+  graph_batch_subrequest_count?: number;
+  graph_batch_http_status_counts?: Record<string, number>;
+  graph_batch_error_code_counts?: Record<string, number>;
   status: AuditStatus;
   duration_ms?: number;
   target_resource?: { type: string; id?: string };
