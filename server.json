@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.softeria/ms-365-mcp-server",
+  "name": "io.github.Softeria/ms-365-mcp-server",
   "title": "Microsoft 365 MCP Server",
   "description": "Interact with Microsoft 365 and Office services through the Microsoft Graph API.",
   "version": "0.0.0-development",
