@@ -4,16 +4,23 @@ on:
   push:
     branches:
       - main
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
+  workflow_dispatch:
+    inputs:
+      registry_version:
+        description: 'Publish an already released version to the MCP Registry (skips the release itself)'
+        required: true
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write # npm trusted publishing
+    outputs:
+      version: ${{ steps.released.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,3 +37,73 @@ jobs:
       - run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # semantic-release writes the released version into package.json, and
+      # leaves it untouched when there was nothing to release.
+      - name: Read released version
+        id: released
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" = "0.0.0-development" ]; then
+            echo "No release this run, skipping MCP Registry publish"
+            VERSION=""
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # Separate job so the publisher binary never runs alongside the build, and so a
+  # failed registry publish can be redriven with workflow_dispatch without waiting
+  # for the next release.
+  publish-registry:
+    needs: release
+    if: ${{ !cancelled() && (inputs.registry_version != '' || needs.release.outputs.version != '') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # MCP Registry authentication
+    env:
+      PUBLISHER_VERSION: v1.8.1
+      VERSION: ${{ inputs.registry_version || needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set version in server.json
+        run: |
+          case "$VERSION" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Not a version: '$VERSION'" && exit 1 ;;
+          esac
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp
+          mv server.tmp server.json
+      - name: Install mcp-publisher
+        shell: bash
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      - name: Publish to MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          # The registry validates mcpName against the npm tarball, which may not
+          # be readable immediately after publish.
+          for i in 1 2 3 4 5; do
+            ./mcp-publisher publish && exit 0
+            [ "$i" = 5 ] && break
+            echo "Publish attempt $i failed, retrying in $((15 * i))s"
+            sleep $((15 * i))
+          done
+          # A publish can land server-side while the CLI still reports failure, and
+          # every retry after that is rejected as a duplicate version. Confirm
+          # against the registry before failing the job. Note that the API's name
+          # filter is not exact, so the name has to be re-checked here.
+          NAME=$(jq -r .name server.json)
+          # The search index can lag a publish that just landed, so ask twice.
+          for i in 1 2; do
+            COUNT=$(curl -sS --get "https://registry.modelcontextprotocol.io/v0/servers" \
+              --data-urlencode "search=$NAME" --data-urlencode "version=$VERSION" |
+              jq --arg n "$NAME" --arg v "$VERSION" \
+                '[.servers[].server | select(.name == $n and .version == $v)] | length' || echo 0)
+            if [ "$COUNT" = 1 ]; then
+              echo "$NAME@$VERSION is live in the registry, publish succeeded"
+              exit 0
+            fi
+            [ "$i" = 2 ] && break
+            sleep 15
+          done
+          exit 1
