@@ -93,12 +93,17 @@ jobs:
           # against the registry before failing the job. Note that the API's name
           # filter is not exact, so the name has to be re-checked here.
           NAME=$(jq -r .name server.json)
-          COUNT=$(curl -sS --get "https://registry.modelcontextprotocol.io/v0/servers" \
-            --data-urlencode "search=$NAME" --data-urlencode "version=$VERSION" |
-            jq --arg n "$NAME" --arg v "$VERSION" \
-              '[.servers[].server | select(.name == $n and .version == $v)] | length')
-          if [ "$COUNT" = 1 ]; then
-            echo "$NAME@$VERSION is live in the registry, publish succeeded"
-            exit 0
-          fi
+          # The search index can lag a publish that just landed, so ask twice.
+          for i in 1 2; do
+            COUNT=$(curl -sS --get "https://registry.modelcontextprotocol.io/v0/servers" \
+              --data-urlencode "search=$NAME" --data-urlencode "version=$VERSION" |
+              jq --arg n "$NAME" --arg v "$VERSION" \
+                '[.servers[].server | select(.name == $n and .version == $v)] | length' || echo 0)
+            if [ "$COUNT" = 1 ]; then
+              echo "$NAME@$VERSION is live in the registry, publish succeeded"
+              exit 0
+            fi
+            [ "$i" = 2 ] && break
+            sleep 15
+          done
           exit 1
