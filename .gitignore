@@ -141,6 +141,7 @@ dist
 .token-cache.json
 .selected-account.json
 .cache-key
+*.migrated
 
 # Server logs (may contain PII and token metadata)
 logs/
