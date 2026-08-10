@@ -55,12 +55,17 @@ export function createAndSaveSimplifiedOpenAPI(
         description: `Path parameter: ${paramName}`,
         schema: { type: 'string' },
       }));
-      // Without an llmTip the fallback used to be the tool name itself, which reached the
+      // The fallback used to be the llmTip, then the tool name itself, which reached the
       // model as the whole description ("update-sharepoint-site-onenote-page-content
       // (synthesized)"). Prefer a real sentence built from the same name.
+      //
+      // The synthesized sentence goes ahead of the llmTip on purpose: graph-tools appends
+      // the llmTip to the description at registration, so using it here too shipped it
+      // twice in the same tool description. The llmTip stays as the fallback for the tool
+      // names with no verb to synthesize from (graph-batch).
       const synthesizedDescription =
-        endpoint.llmTip ||
         synthesizeDescriptionFromToolName(endpoint.toolName) ||
+        endpoint.llmTip ||
         `${endpoint.toolName} (synthesized)`;
       pathSpec[methodLower] = {
         tags: ['drives.driveItem'],

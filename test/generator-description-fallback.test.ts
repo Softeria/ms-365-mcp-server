@@ -130,8 +130,13 @@ const overridden = new Set(
     .map((e) => e.toolName)
 );
 
+// Looser than the generator's pattern in the middle, so a scaffolding variant Microsoft
+// has not used yet still trips this, but anchored at both ends for the same reason the
+// generator anchors. Without the end anchor a stub prefix followed by real prose gets
+// flagged, and the generator is right to keep those - "Get the todoTask resources from
+// the tasks navigation property of a specified todoTaskList." is a real description.
 const STUB_SHAPES =
-  /^(?:Create new navigation property|Update the navigation property|Delete navigation property|Get \S+ from \S+|Invoke (?:action|function) )/;
+  /^(?:Create new navigation property[^.]*|Update the navigation property[^.]*|Delete navigation property[^.]*|Get \S+ from \S+|Invoke (?:action|function) \S+)\.?$/i;
 
 function describedEndpoints(source: string): Array<[string, string]> {
   const found: Array<[string, string]> = [];
@@ -158,5 +163,13 @@ describe('generated client describes the operation instead', () => {
     const client = readGenerated('client.ts');
     expect(client).toContain('Create a shared mailbox draft.');
     expect(client).toContain('Sort an Excel range.');
+  });
+
+  // Endpoints Microsoft never published take the same synthesized sentence rather than
+  // their llmTip, which graph-tools appends to the description anyway.
+  it('does not fall back to the llmTip for endpoints missing from the spec', () => {
+    const client = readGenerated('client.ts');
+    expect(client).toContain('Format an Excel range font.');
+    expect(client).toContain('Update SharePoint site OneNote page content.');
   });
 });
