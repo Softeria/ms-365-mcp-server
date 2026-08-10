@@ -105,6 +105,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "get",
     "toolName": "get-shared-mailbox-message",
+    "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"]
   },
@@ -411,6 +412,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/events",
     "method": "get",
     "toolName": "list-specific-calendar-events",
+    "descriptionOverride": "List events from one of the signed-in user's calendars, addressed by calendar ID.",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
@@ -421,6 +423,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}",
     "method": "get",
     "toolName": "get-specific-calendar-event",
+    "descriptionOverride": "Get a single event from one of the signed-in user's calendars, addressed by calendar ID and event ID. Any calendar can be addressed this way, including the default one.",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
@@ -464,6 +467,7 @@
     "pathPattern": "/me/calendars/{calendar-id}/calendarView",
     "method": "get",
     "toolName": "get-specific-calendar-view",
+    "descriptionOverride": "List the occurrences, exceptions, and single instances of events over a time range, from one of the signed-in user's calendars addressed by calendar ID.",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
@@ -482,6 +486,7 @@
     "pathPattern": "/users/{user-id}/calendar/events",
     "method": "get",
     "toolName": "list-shared-calendar-events",
+    "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated access to that calendar is required. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
     "presets": ["work"],
     "workScopes": ["Calendars.Read.Shared"]
   },
@@ -489,6 +494,7 @@
     "pathPattern": "/users/{user-id}/calendarView",
     "method": "get",
     "toolName": "get-shared-calendar-view",
+    "descriptionOverride": "List the occurrences, exceptions, and single instances of events in another user's default calendar over a time range. Requires the startDateTime and endDateTime query parameters in ISO 8601 format. Unlike list-shared-calendar-events, recurring series are expanded into individual occurrences.",
     "presets": ["work"],
     "workScopes": ["Calendars.Read.Shared"],
     "supportsTimezone": true
@@ -1979,6 +1985,7 @@
     "pathPattern": "/copilot/retrieval",
     "method": "post",
     "toolName": "copilot-retrieve",
+    "descriptionOverride": "Search Microsoft 365 content using the Copilot Retrieval API. Grounds a natural-language query against the hybrid index behind Microsoft 365 Copilot and returns permission-trimmed text extracts with their source URLs.",
     "presets": ["search", "work"],
     "readOnly": true,
     "workScopes": [["Files.Read.All", "Sites.Read.All"], ["ExternalItem.Read.All"]],
@@ -2216,17 +2223,19 @@
     "pathPattern": "/places/{place-id}/graph.roomList/rooms",
     "method": "get",
     "toolName": "list-room-list-rooms",
+    "descriptionOverride": "List the meeting rooms that belong to a room list.",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
-    "llmTip": "Lists rooms belonging to a specific room list. The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
+    "llmTip": "The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
   },
   {
     "pathPattern": "/places/{place-id}/graph.roomList/rooms/{room-id}",
     "method": "get",
     "toolName": "get-room-list-room",
+    "descriptionOverride": "Get a single meeting room from a room list, by room ID.",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
-    "llmTip": "Gets a specific room within a room list. The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
+    "llmTip": "The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
   },
   {
     "pathPattern": "/places/{place-id}",
