@@ -125,6 +125,23 @@
     "workScopes": ["Mail.ReadWrite.Shared"]
   },
   {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/move",
+    "method": "post",
+    "toolName": "move-shared-mailbox-message",
+    "descriptionOverride": "Move a message in another user's mailbox or a shared mailbox to a different folder. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive)."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}",
+    "method": "patch",
+    "toolName": "update-shared-mailbox-message",
+    "descriptionOverride": "Update a message in another user's mailbox or a shared mailbox — for example mark it read or unread (isRead), flag it (flag), change its categories or importance, or edit a draft's subject, body, or recipients. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
     "method": "post",
     "toolName": "reply-shared-mailbox-mail",
