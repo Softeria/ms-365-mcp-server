@@ -88,4 +88,17 @@ jobs:
             echo "Publish attempt $i failed, retrying in $((15 * i))s"
             sleep $((15 * i))
           done
+          # A publish can land server-side while the CLI still reports failure, and
+          # every retry after that is rejected as a duplicate version. Confirm
+          # against the registry before failing the job. Note that the API's name
+          # filter is not exact, so the name has to be re-checked here.
+          NAME=$(jq -r .name server.json)
+          COUNT=$(curl -sS --get "https://registry.modelcontextprotocol.io/v0/servers" \
+            --data-urlencode "search=$NAME" --data-urlencode "version=$VERSION" |
+            jq --arg n "$NAME" --arg v "$VERSION" \
+              '[.servers[].server | select(.name == $n and .version == $v)] | length')
+          if [ "$COUNT" = 1 ]; then
+            echo "$NAME@$VERSION is live in the registry, publish succeeded"
+            exit 0
+          fi
           exit 1
