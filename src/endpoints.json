@@ -1559,14 +1559,14 @@
     "pathPattern": "/me/chats",
     "method": "get",
     "toolName": "list-chats",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": [["Chat.Read"], ["Chat.ReadBasic"]]
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": [["Chat.Read"], ["Chat.ReadBasic"]]
   },
   {
@@ -1610,7 +1610,7 @@
     "pathPattern": "/chats/{chat-id}/messages",
     "method": "post",
     "toolName": "send-chat-message",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChatMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
@@ -1618,28 +1618,28 @@
     "pathPattern": "/me/joinedTeams",
     "method": "get",
     "toolName": "list-joined-teams",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Team.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Channel.ReadBasic.All"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Channel.ReadBasic.All"]
   },
   {
@@ -1696,7 +1696,7 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
     "method": "post",
     "toolName": "send-channel-message",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
@@ -1704,7 +1704,7 @@
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-channel-message",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
@@ -1783,7 +1783,7 @@
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChatMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
@@ -2726,7 +2726,7 @@
     "pathPattern": "/me/teamwork/sendActivityNotification",
     "method": "post",
     "toolName": "send-my-activity-notification",
-    "presets": ["teams", "work"],
+    "presets": ["teams", "teams-write", "work"],
     "workScopes": ["TeamsActivity.Send"],
     "contentType": "application/json",
     "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
