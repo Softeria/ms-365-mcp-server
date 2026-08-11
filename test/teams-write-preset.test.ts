@@ -82,12 +82,15 @@ describe('teams-write preset contract', () => {
     }
   });
 
-  it('every endpoint is satisfiable by the documented write-only scope set', () => {
+  it('every endpoint requests write-only scopes by default (primary group)', () => {
     for (const endpoint of presetEndpoints) {
-      const satisfied = scopeGroups(endpoint).some((group) =>
-        group.every((scope) => WRITE_ONLY_SCOPES.has(scope))
-      );
-      expect(satisfied, `${endpoint.toolName} not satisfiable by write-only scopes`).toBe(true);
+      const [primary] = scopeGroups(endpoint);
+      for (const scope of primary) {
+        expect(
+          WRITE_ONLY_SCOPES.has(scope),
+          `${endpoint.toolName} primary scope ${scope} is outside the write-only set`
+        ).toBe(true);
+      }
     }
   });
 

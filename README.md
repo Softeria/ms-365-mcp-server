@@ -553,11 +553,10 @@ npx @softeria/ms-365-mcp-server --preset outlook
 npx @softeria/ms-365-mcp-server --org-mode --preset teams
 ```
 
-The `teams-write` preset is the send-only counterpart to `--read-only`: send/reply in chats and channels, list chats/teams/channels by name, and activity notifications - no message reading and no byte downloaders. Pair it with `--allowed-scopes` so the token cannot read message content either:
+The `teams-write` preset is the send-only counterpart to `--read-only`: send/reply in chats and channels, list chats/teams/channels by name, and activity notifications - no message reading and no byte downloaders. The requested token is minimal by construction (`Chat.ReadBasic`, the `*.Send` scopes, and basic team/channel listing - nothing that can read message content):
 
 ```bash
-npx @softeria/ms-365-mcp-server --org-mode --preset teams-write \
-  --allowed-scopes 'User.Read Chat.ReadBasic ChatMessage.Send ChannelMessage.Send Team.ReadBasic.All Channel.ReadBasic.All TeamsActivity.Send'
+npx @softeria/ms-365-mcp-server --org-mode --preset teams-write
 ```
 
 ## Dynamic Tool Discovery
