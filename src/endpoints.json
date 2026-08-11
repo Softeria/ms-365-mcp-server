@@ -1560,14 +1560,14 @@
     "method": "get",
     "toolName": "list-chats",
     "presets": ["teams", "work"],
-    "workScopes": ["Chat.Read"]
+    "workScopes": [["Chat.Read"], ["Chat.ReadBasic"]]
   },
   {
     "pathPattern": "/chats/{chat-id}",
     "method": "get",
     "toolName": "get-chat",
     "presets": ["teams", "work"],
-    "workScopes": ["Chat.Read"]
+    "workScopes": [["Chat.Read"], ["Chat.ReadBasic"]]
   },
   {
     "pathPattern": "/chats/{chat-id}/members",
