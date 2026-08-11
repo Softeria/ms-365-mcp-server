@@ -15,6 +15,10 @@ describe('Misplaced request body wrapping (issue #620)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // This suite asserts exact sent bodies; keep the Teams message signoff
+    // (message-signoff.test.ts) out of the picture.
+    vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_PREFIX', '');
+    vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_SUFFIX', '');
     mockServer = { tool: vi.fn(), registerTool: vi.fn() };
     mockGraphClient = {
       graphRequest: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{}' }] }),
