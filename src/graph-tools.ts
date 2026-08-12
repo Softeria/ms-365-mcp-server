@@ -4,7 +4,6 @@ import logger from './logger.js';
 import { auditLog, getUserIdentityForAudit } from './audit-log.js';
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
-import { applyMessageSignoff, MessageSignoffError } from './lib/message-signoff.js';
 import { describePathParam } from './lib/path-params.js';
 import AuthManager, {
   getEndpointScopeGroups,
@@ -1238,28 +1237,6 @@ async function executeGraphTool(
     // Route beta-flagged endpoints to the /beta surface; everything else stays on v1.0.
     if (config?.apiVersion) {
       options.apiVersion = config.apiVersion;
-    }
-
-    try {
-      body = applyMessageSignoff(tool.alias, body);
-    } catch (error) {
-      if (!(error instanceof MessageSignoffError)) {
-        throw error;
-      }
-      logger.warn(`Refusing ${tool.alias}: ${error.message}`);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              error: 'message_signoff_failed',
-              tool: tool.alias,
-              message: error.message,
-            }),
-          },
-        ],
-        isError: true,
-      };
     }
 
     if (options.method !== 'GET' && body) {

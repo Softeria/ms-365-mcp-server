@@ -613,8 +613,8 @@ Environment variables:
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
-- `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing Teams messages so recipients can tell they were agent-sent. Default: `🤖`. Set to an empty string to disable. CLI equivalent: `--message-signoff-prefix <text>`
-- `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing Teams messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both.
+- `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
+- `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
@@ -769,6 +769,14 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 ### Optional Dependencies
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
+
+## Message Signoff
+
+Outgoing messages can be wrapped in a configurable signoff (e.g. a `🤖` prefix) so recipients can tell agent-sent messages from ones you typed yourself. Off by default — enable it with `--message-signoff-prefix` / `--message-signoff-suffix` (env: `MS365_MCP_MESSAGE_SIGNOFF_PREFIX` / `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX`); `--no-message-signoff` or an empty env value turns it back off.
+
+Once configured, it applies to all Teams messages (sends, replies and edits, including via `graph-batch`) and to mail drafts as their content is written — `send-draft-message` sends a draft as-is, so a draft you wrote yourself goes out untouched. A message that already carries the marker is not signed twice, and a send whose body cannot take the signoff is refused rather than sent unsigned.
+
+Markers may contain markup (e.g. a coloured `<span>`) as long as it renders visible text. Note that the signoff is a guardrail against an agent misusing the tools it was given, not a hard security boundary — an agent with shell access on the same machine could simply restart the server without it.
 
 ## Production Deployment
 

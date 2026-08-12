@@ -9,6 +9,7 @@ import {
   getSharedBreaker,
   loadResilienceConfig,
 } from './lib/graph-resilience.js';
+import { applyMessageSignoffToRequest } from './lib/message-signoff.js';
 import { open, stat, unlink } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 
@@ -272,6 +273,12 @@ class GraphClient {
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
+    const method = options.method || 'GET';
+    // Signoff gate sits at the outbound chokepoint, keyed on method + path, so
+    // every route to a message write - tool aliases, PATCH edits and $batch
+    // sub-requests alike - passes through it.
+    const body = applyMessageSignoffToRequest(method, endpoint, options.body);
+
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -281,10 +288,10 @@ class GraphClient {
     return fetchWithResilience(
       url,
       {
-        method: options.method || 'GET',
+        method,
         headers,
         // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
-        body: options.body as unknown as string,
+        body: body as unknown as string,
       },
       loadResilienceConfig(),
       getSharedBreaker()

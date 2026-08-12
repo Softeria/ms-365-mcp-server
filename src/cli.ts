@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
+import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -33,13 +34,13 @@ program
   .option('--read-only', 'Start server in read-only mode, disabling write operations')
   .option(
     '--message-signoff-prefix <text>',
-    'Signoff prepended to outgoing Teams messages so recipients can tell they were agent-sent (default: 🤖). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_PREFIX.'
+    'Signoff prepended to outgoing messages (Teams sends, replies and edits, and mail drafts) so recipients can tell they were agent-sent, e.g. 🤖 (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_PREFIX.'
   )
   .option(
     '--message-signoff-suffix <text>',
-    'Signoff appended to outgoing Teams messages (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_SUFFIX.'
+    'Signoff appended to outgoing messages (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_SUFFIX.'
   )
-  .option('--no-message-signoff', 'Disable both Teams message signoffs.')
+  .option('--no-message-signoff', 'Disable both message signoffs, overriding the env vars.')
   .option(
     '--http [address]',
     'Use Streamable HTTP transport instead of stdio. Format: [host:]port (e.g., "localhost:3000", ":3000", "3000"). Default: all interfaces on port 3000'
@@ -166,6 +167,9 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_MESSAGE_SIGNOFF_SUFFIX = '';
     process.env.MS365_MCP_MESSAGE_SIGNOFF_PREFIX = '';
   }
+  // Markup in a marker is allowed (e.g. a coloured <span>), but refuse to start
+  // with one that renders as empty text - html sends would look unsigned.
+  assertSignoffMarkersVisible();
 
   if (options.listPresets) {
     const presets = listPresets();
