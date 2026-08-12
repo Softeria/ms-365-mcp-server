@@ -1783,7 +1783,7 @@
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
     "method": "post",
     "toolName": "reply-to-chat-message",
-    "presets": ["teams", "teams-write", "work"],
+    "presets": ["teams", "work"],
     "workScopes": ["ChatMessage.Send"],
     "llmTip": "Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },

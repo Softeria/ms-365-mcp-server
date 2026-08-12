@@ -30,7 +30,6 @@ const EXPECTED_TOOLS = [
   'list-joined-teams',
   'list-team-channels',
   'reply-to-channel-message',
-  'reply-to-chat-message',
   'send-channel-message',
   'send-chat-message',
   'send-my-activity-notification',
@@ -78,6 +77,10 @@ describe('teams-write preset contract', () => {
       'remove-team-member',
       'update-chat-message',
       'create-chat',
+      // Not a real v1.0 operation - Graph returns 404 "Requested API is not
+      // supported" for the /chats/.../replies path family; excluded until the
+      // endpoint is removed entirely.
+      'reply-to-chat-message',
     ]) {
       expect(tool).not.toMatch(pattern);
     }
