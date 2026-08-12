@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { TOOL_CATEGORIES } from '../src/tool-categories.js';
+import { buildAllowedScopeDiagnostics } from '../src/auth.js';
+import { getCombinedPresetPattern, TOOL_CATEGORIES } from '../src/tool-categories.js';
 
 // Contract tests for the teams-write preset: it is a security boundary
 // (send-only Teams surface), so its exact tool list, the scopes it can be
@@ -106,5 +107,34 @@ describe('teams-write preset contract', () => {
 
   it('requires org mode', () => {
     expect(TOOL_CATEGORIES['teams-write'].requiresOrgMode).toBe(true);
+  });
+
+  // The pins above assert what endpoints.json declares; this one asserts what
+  // the auth layer actually computes from it - the scopes a login for the
+  // preset would request. This is the README claim, CI-enforced end to end.
+  // (User.Read and offline_access are injected at the OAuth layer, not here.)
+  it('computes exactly the write-only token for the preset', () => {
+    const diagnostics = buildAllowedScopeDiagnostics({
+      enabledTools: getCombinedPresetPattern(['teams-write']),
+      orgMode: true,
+    });
+    const endpointDerived = [...WRITE_ONLY_SCOPES].filter((s) => s !== 'User.Read').sort();
+    expect(diagnostics.effectivePermissions).toEqual(endpointDerived);
+    expect(diagnostics.disabledTools).toEqual([]);
+  });
+});
+
+describe('scope hierarchy collapse', () => {
+  it('drops a lower scope even when its siblings are absent', () => {
+    // list-chats brings Chat.ReadBasic, update-chat-message brings Chat.ReadWrite,
+    // and nothing brings Chat.Read - the collapse must still drop ReadBasic
+    // rather than requiring the full lower tier to be present.
+    const diagnostics = buildAllowedScopeDiagnostics({
+      enabledTools: '^(list-chats|update-chat-message)$',
+      orgMode: true,
+    });
+    expect(diagnostics.effectivePermissions).toContain('Chat.ReadWrite');
+    expect(diagnostics.effectivePermissions).not.toContain('Chat.ReadBasic');
+    expect(diagnostics.effectivePermissions).not.toContain('Chat.Read');
   });
 });
