@@ -539,9 +539,9 @@ npx @softeria/ms-365-mcp-server --preset mail
 npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 ```
 
-Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `all`
+Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `teams-write`, `all`
 
-Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
+Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset except `teams-write`, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
 
 The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose exactly one Microsoft app. Use these for "expose exactly one app" deployments:
 
@@ -551,6 +551,12 @@ npx @softeria/ms-365-mcp-server --preset outlook
 
 # Teams only (requires --org-mode)
 npx @softeria/ms-365-mcp-server --org-mode --preset teams
+```
+
+The `teams-write` preset is the send-only counterpart to `--read-only`: send in chats, send/reply in channels, list chats/teams/channels by name, and activity notifications - no message reading and no byte downloaders. The requested token is minimal by construction (`Chat.ReadBasic`, the `*.Send` scopes, and basic team/channel listing - nothing that can read message content):
+
+```bash
+npx @softeria/ms-365-mcp-server --org-mode --preset teams-write
 ```
 
 ## Dynamic Tool Discovery

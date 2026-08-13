@@ -113,6 +113,8 @@ interface ScopeHierarchy {
 }
 
 const SCOPE_HIERARCHY: ScopeHierarchy = {
+  'Chat.ReadWrite': ['Chat.Read', 'Chat.ReadBasic'],
+  'Chat.Read': ['Chat.ReadBasic'],
   'Mail.ReadWrite': ['Mail.Read'],
   'Calendars.ReadWrite': ['Calendars.Read'],
   'Files.ReadWrite': ['Files.Read'],
@@ -267,11 +269,12 @@ function getEndpointEffectiveLoginScopes(
 function collapseRedundantScopes(scopes: string[]): string[] {
   const scopesSet = new Set(scopes);
 
-  // Scope hierarchy: if we have BOTH a higher scope (ReadWrite) AND lower scopes (Read),
-  // keep only the higher scope since it includes the permissions of the lower scopes.
+  // Scope hierarchy: a higher scope (ReadWrite) includes the permissions of its
+  // lower scopes (Read, ReadBasic), so drop every lower scope that is present -
+  // each on its own, since any subset of them is equally redundant.
   // Do NOT upgrade Read to ReadWrite if we only have Read scopes.
   Object.entries(SCOPE_HIERARCHY).forEach(([higherScope, lowerScopes]) => {
-    if (scopesSet.has(higherScope) && lowerScopes.every((scope) => scopesSet.has(scope))) {
+    if (scopesSet.has(higherScope)) {
       lowerScopes.forEach((scope) => scopesSet.delete(scope));
     }
   });
