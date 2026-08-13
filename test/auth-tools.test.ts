@@ -102,6 +102,7 @@ describe('Auth Tools', () => {
         .mockResolvedValueOnce({ success: false, message: 'Not logged in' })
         .mockResolvedValueOnce({
           success: true,
+          message: 'Login successful',
           userData: { displayName: 'Browser User' },
         });
 
@@ -109,8 +110,14 @@ describe('Auth Tools', () => {
 
       expect(authManager.acquireTokenInteractive).toHaveBeenCalled();
       expect(authManager.acquireTokenByDeviceCode).not.toHaveBeenCalled();
-      expect(result.content[0].text).toContain('Login successful');
-      expect(result.content[0].text).toContain('Browser authentication completed');
+      expect(result.content[0].text).toBe(
+        JSON.stringify({
+          status: 'Login successful',
+          success: true,
+          message: 'Login successful',
+          userData: { displayName: 'Browser User' },
+        })
+      );
     });
 
     it('should proceed with login when not already logged in', async () => {
