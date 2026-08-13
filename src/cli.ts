@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
+import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -31,6 +32,15 @@ program
     'Require local MSAL authentication to use this exact MSAL homeAccountId'
   )
   .option('--read-only', 'Start server in read-only mode, disabling write operations')
+  .option(
+    '--message-signoff-prefix <text>',
+    'Signoff prepended to outgoing messages (Teams sends, replies and edits; mail sends and drafts) so recipients can tell they were agent-sent, e.g. 🤖 (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_PREFIX.'
+  )
+  .option(
+    '--message-signoff-suffix <text>',
+    'Signoff appended to outgoing messages (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_SUFFIX.'
+  )
+  .option('--no-message-signoff', 'Disable both message signoffs, overriding the env vars.')
   .option(
     '--http [address]',
     'Use Streamable HTTP transport instead of stdio. Format: [host:]port (e.g., "localhost:3000", ":3000", "3000"). Default: all interfaces on port 3000'
@@ -112,6 +122,9 @@ export interface CommandOptions {
   expectedUsername?: string;
   expectedHomeAccountId?: string;
   readOnly?: boolean;
+  messageSignoff?: boolean;
+  messageSignoffSuffix?: string;
+  messageSignoffPrefix?: string;
   http?: string | boolean;
   enableAuthTools?: boolean;
   enabledTools?: string;
@@ -142,6 +155,21 @@ export interface CommandOptions {
 export function parseArgs(): CommandOptions {
   program.parse();
   const options = program.opts();
+
+  // Fold the signoff flags into the env vars that lib/message-signoff.ts reads at send time
+  if (typeof options.messageSignoffSuffix === 'string') {
+    process.env.MS365_MCP_MESSAGE_SIGNOFF_SUFFIX = options.messageSignoffSuffix;
+  }
+  if (typeof options.messageSignoffPrefix === 'string') {
+    process.env.MS365_MCP_MESSAGE_SIGNOFF_PREFIX = options.messageSignoffPrefix;
+  }
+  if (options.messageSignoff === false) {
+    process.env.MS365_MCP_MESSAGE_SIGNOFF_SUFFIX = '';
+    process.env.MS365_MCP_MESSAGE_SIGNOFF_PREFIX = '';
+  }
+  // Markup in a marker is allowed (e.g. a coloured <span>), but refuse to start
+  // with one that renders as empty text - html sends would look unsigned.
+  assertSignoffMarkersVisible();
 
   if (options.listPresets) {
     const presets = listPresets();
