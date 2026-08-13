@@ -774,7 +774,7 @@ The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) a
 
 Outgoing messages can be wrapped in a configurable signoff (e.g. a `🤖` prefix) so recipients can tell agent-sent messages from ones you typed yourself. Off by default — enable it with `--message-signoff-prefix` / `--message-signoff-suffix` (env: `MS365_MCP_MESSAGE_SIGNOFF_PREFIX` / `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX`); `--no-message-signoff` or an empty env value turns it back off.
 
-Once configured, it applies to all Teams messages (sends, replies and edits, including via `graph-batch`) and to mail drafts as their content is written — `send-draft-message` sends a draft as-is, so a draft you wrote yourself goes out untouched. A message that already carries the marker is not signed twice, and a send whose body cannot take the signoff is refused rather than sent unsigned.
+Once configured, it applies to all Teams messages (sends, replies and edits, including via `graph-batch`), to direct mail sends (`send-mail`, reply/forward, their shared-mailbox variants, and group thread replies), and to mail drafts as their content is written — `send-draft-message` sends a draft as-is, so a draft you wrote yourself goes out untouched. A message that already carries the marker is not signed twice, and a send whose body cannot take the signoff is refused rather than sent unsigned.
 
 Markers may contain markup (e.g. a coloured `<span>`) as long as it renders visible text. Note that the signoff is a guardrail against an agent misusing the tools it was given, not a hard security boundary — an agent with shell access on the same machine could simply restart the server without it.
 

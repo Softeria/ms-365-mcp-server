@@ -34,7 +34,7 @@ program
   .option('--read-only', 'Start server in read-only mode, disabling write operations')
   .option(
     '--message-signoff-prefix <text>',
-    'Signoff prepended to outgoing messages (Teams sends, replies and edits, and mail drafts) so recipients can tell they were agent-sent, e.g. 🤖 (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_PREFIX.'
+    'Signoff prepended to outgoing messages (Teams sends, replies and edits; mail sends and drafts) so recipients can tell they were agent-sent, e.g. 🤖 (default: none). Equivalent env var: MS365_MCP_MESSAGE_SIGNOFF_PREFIX.'
   )
   .option(
     '--message-signoff-suffix <text>',

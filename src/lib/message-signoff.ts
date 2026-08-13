@@ -11,7 +11,9 @@
  * method + path rather than tool alias, so one gate covers the Teams
  * send/reply tools, the PATCH tools that could rewrite an already-signed
  * message, mail draft writes (POST .../send carries no body, so draft content
- * is signed where it is written), and $batch sub-requests.
+ * is signed where it is written), direct mail sends (sendMail, the
+ * reply/replyAll/forward actions, group thread replies - shared-mailbox
+ * variants included), and $batch sub-requests.
  */
 
 import { parseFragment, serialize } from 'parse5';
@@ -174,9 +176,10 @@ function signWhenBodyPresent(
 }
 
 /**
- * createReply/createReplyAll/createForward: sign the comment and any inline
- * message body that seed the draft; later edits go through the PATCH rule and
- * the quoted original is not agent-authored.
+ * Reply/forward actions ({ comment, message? }) - both the draft creators
+ * (createReply/createReplyAll/createForward) and the direct sends
+ * (reply/replyAll/forward): sign the comment and any inline message body;
+ * the quoted original is not agent-authored, so a bare forward passes.
  */
 function signReplyForwardDraft(
   target: string,
@@ -194,6 +197,31 @@ function signReplyForwardDraft(
     signed = { ...signed, message: signItemBodyContainer(target, message, prefix, suffix) };
   }
   return signed;
+}
+
+/**
+ * POST .../sendMail: the outbound message rides in payload.message. Fail
+ * closed - a direct send is the same class as a Teams send, so it must carry
+ * signable content.
+ */
+function signSendMail(target: string, payload: unknown, prefix?: string, suffix?: string): unknown {
+  if (!isPlainObject(payload) || !isPlainObject(payload.message)) {
+    throw new MessageSignoffError(target, 'the body has no message object');
+  }
+  return { ...payload, message: signItemBodyContainer(target, payload.message, prefix, suffix) };
+}
+
+/** POST /groups/.../threads/.../reply: the outbound post rides in payload.post. */
+function signGroupThreadReply(
+  target: string,
+  payload: unknown,
+  prefix?: string,
+  suffix?: string
+): unknown {
+  if (!isPlainObject(payload) || !isPlainObject(payload.post)) {
+    throw new MessageSignoffError(target, 'the body has no post object');
+  }
+  return { ...payload, post: signItemBodyContainer(target, payload.post, prefix, suffix) };
 }
 
 interface SignoffRule {
@@ -244,6 +272,24 @@ const SIGNOFF_RULES: SignoffRule[] = [
     method: 'POST',
     pattern: /^\/(?:me|users\/[^/]+)\/messages\/[^/]+\/create(?:Reply|ReplyAll|Forward)$/,
     apply: signReplyForwardDraft,
+  },
+  // Direct mail sends - straight out with no draft step, so they are signed
+  // (and fail closed) like a Teams send. Covers the /users/{id} shared-mailbox
+  // variants of each
+  {
+    method: 'POST',
+    pattern: /^\/(?:me|users\/[^/]+)\/sendMail$/,
+    apply: signSendMail,
+  },
+  {
+    method: 'POST',
+    pattern: /^\/(?:me|users\/[^/]+)\/messages\/[^/]+\/(?:reply|replyAll|forward)$/,
+    apply: signReplyForwardDraft,
+  },
+  {
+    method: 'POST',
+    pattern: /^\/groups\/[^/]+\/threads\/[^/]+\/reply$/,
+    apply: signGroupThreadReply,
   },
 ];
 

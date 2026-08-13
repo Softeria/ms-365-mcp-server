@@ -267,6 +267,56 @@ describe('applyMessageSignoffToRequest - mail drafts', () => {
   });
 });
 
+describe('applyMessageSignoffToRequest - direct mail sends', () => {
+  it('signs the message body of sendMail, shared mailboxes included', () => {
+    for (const path of ['/me/sendMail', '/users/shared@example.com/sendMail']) {
+      const result = signed('POST', path, {
+        message: { subject: 's', ...chatMessage('report attached', 'text') },
+        saveToSentItems: false,
+      }) as { message: { body: { content: string } }; saveToSentItems: boolean };
+      expect(result.message.body.content).toBe(`${PREFIX} report attached`);
+      expect(result.saveToSentItems).toBe(false);
+    }
+  });
+
+  it('fails closed on a sendMail without signable content', () => {
+    for (const payload of [{}, { message: { subject: 'only a subject' } }]) {
+      expect(() => signed('POST', '/me/sendMail', payload)).toThrow(MessageSignoffError);
+    }
+    expect(() => applyMessageSignoffToRequest('POST', '/me/sendMail', undefined)).toThrow(
+      MessageSignoffError
+    );
+  });
+
+  it('signs the comment of direct reply/replyAll/forward, shared mailboxes included', () => {
+    for (const path of [
+      '/me/messages/AAMk1/reply',
+      '/me/messages/AAMk1/replyAll',
+      '/me/messages/AAMk1/forward',
+      '/users/shared@example.com/messages/AAMk1/reply',
+    ]) {
+      const result = signed('POST', path, { comment: 'looks good' }) as { comment: string };
+      expect(result.comment).toBe(`${PREFIX} looks good`);
+    }
+  });
+
+  it('passes a bare forward - the quoted original is not agent-authored', () => {
+    const payload = { toRecipients: [{ emailAddress: { address: 'a@b.c' } }] };
+    expect(signed('POST', '/me/messages/AAMk1/forward', payload)).toEqual(payload);
+  });
+
+  it('signs a group thread reply and fails closed without a post body', () => {
+    const result = signed('POST', '/groups/g1/threads/t1/reply', {
+      post: chatMessage('<p>update</p>'),
+    }) as { post: { body: { content: string } } };
+    expect(result.post.body.content).toBe(`${PREFIX} <p>update</p>`);
+    expect(() => signed('POST', '/groups/g1/threads/t1/reply', {})).toThrow(MessageSignoffError);
+    expect(() => signed('POST', '/groups/g1/threads/t1/reply', { post: {} })).toThrow(
+      MessageSignoffError
+    );
+  });
+});
+
 describe('applyMessageSignoffToRequest - $batch', () => {
   it('signs matching sub-requests and leaves the rest untouched', () => {
     const result = signed('POST', '/$batch', {
@@ -274,17 +324,29 @@ describe('applyMessageSignoffToRequest - $batch', () => {
         { id: '1', method: 'POST', url: '/chats/x/messages', body: chatMessage('hi') },
         { id: '2', method: 'GET', url: '/me/messages?$top=5' },
         { id: '3', method: 'PATCH', url: '/chats/x/messages/1', body: chatMessage('edit') },
-        { id: '4', method: 'POST', url: '/me/sendMail', body: { message: {} } },
+        {
+          id: '4',
+          method: 'POST',
+          url: '/me/sendMail',
+          body: { message: { subject: 's', ...chatMessage('mail', 'text') } },
+        },
+        { id: '5', method: 'POST', url: '/chats', body: { chatType: 'oneOnOne' } },
       ],
-    }) as { requests: Array<{ id: string; body?: { body?: { content?: string } } }> };
+    }) as {
+      requests: Array<{
+        id: string;
+        body?: { body?: { content?: string }; message?: { body: { content: string } } };
+      }>;
+    };
     expect(result.requests[0].body!.body!.content).toBe(`${PREFIX} hi`);
     expect(result.requests[1]).toEqual({ id: '2', method: 'GET', url: '/me/messages?$top=5' });
     expect(result.requests[2].body!.body!.content).toBe(`${PREFIX} edit`);
-    expect(result.requests[3]).toEqual({
-      id: '4',
+    expect(result.requests[3].body!.message!.body.content).toBe(`${PREFIX} mail`);
+    expect(result.requests[4]).toEqual({
+      id: '5',
       method: 'POST',
-      url: '/me/sendMail',
-      body: { message: {} },
+      url: '/chats',
+      body: { chatType: 'oneOnOne' },
     });
   });
 
