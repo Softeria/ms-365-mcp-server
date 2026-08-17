@@ -262,6 +262,7 @@ describe('GraphClient file downloads', () => {
       expect(result).toEqual({
         contentType: 'application/pdf',
         contentLength: fileBytes.byteLength,
+        httpStatus: 200,
       });
       expect(await readFile(destination)).toEqual(Buffer.from(fileBytes));
     } finally {
