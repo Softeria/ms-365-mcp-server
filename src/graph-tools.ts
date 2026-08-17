@@ -1451,27 +1451,29 @@ async function executeGraphTool(
             }
           }
 
-          if (pageCount >= maxPages) {
-            logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
-          }
-          if (allItems.length >= maxItems) {
-            logger.warn(
-              `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+          if (combinedResponse !== undefined) {
+            if (pageCount >= maxPages) {
+              logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
+            }
+            if (allItems.length >= maxItems) {
+              logger.warn(
+                `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+              );
+            }
+
+            combinedResponse.value = allItems;
+            if (combinedResponse['@odata.count']) {
+              combinedResponse['@odata.count'] = allItems.length;
+            }
+            delete combinedResponse['@odata.nextLink'];
+            if (deltaLink) {
+              combinedResponse['@odata.deltaLink'] = deltaLink;
+            }
+
+            logger.info(
+              `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
             );
           }
-
-          combinedResponse.value = allItems;
-          if (combinedResponse['@odata.count']) {
-            combinedResponse['@odata.count'] = allItems.length;
-          }
-          delete combinedResponse['@odata.nextLink'];
-          if (deltaLink) {
-            combinedResponse['@odata.deltaLink'] = deltaLink;
-          }
-
-          logger.info(
-            `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
-          );
         }
       } catch (e) {
         logger.error(`Error during pagination: ${e}`);

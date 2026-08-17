@@ -9,14 +9,16 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
  * Strategy: mock GraphClient, create a real McpServer, register tools, then invoke them.
  */
 
+const loggerMock = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
 // Mock logger to silence output
 vi.mock('../logger.js', () => ({
-  default: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
+  default: loggerMock,
 }));
 
 const auditLogMock = vi.hoisted(() => vi.fn());
@@ -742,6 +744,9 @@ describe('graph-tools', () => {
       expect(result.isError).toBe(true);
       expect(JSON.parse(result.content[0].text).error).toContain('429 Too Many Requests');
       expect(graphClient.graphRequest).toHaveBeenCalledTimes(2);
+      expect(loggerMock.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Error during pagination')
+      );
       expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'tool.call',
