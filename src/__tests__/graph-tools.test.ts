@@ -134,7 +134,29 @@ function createMockServer() {
     string,
     { description: string; schema: any; handler: (...args: any[]) => any }
   >();
+  const requestHandlers = new Map<string, (request: unknown, extra: unknown) => Promise<unknown>>();
+  const installDefaultToolCallHandler = () => {
+    if (requestHandlers.has('tools/call')) return;
+    requestHandlers.set('tools/call', async (request: unknown) => {
+      const params = (request as { params?: { name?: string; arguments?: unknown } }).params;
+      const toolName = params?.name ?? 'unknown';
+      const tool = tools.get(toolName);
+      if (!tool) {
+        throw new Error(`Tool ${toolName} not found`);
+      }
+      return tool.handler(params?.arguments ?? {});
+    });
+  };
+  const lowLevelServer = {
+    _requestHandlers: requestHandlers,
+    setRequestHandler: vi.fn(
+      (_schema: unknown, handler: (request: unknown, extra: unknown) => Promise<unknown>) => {
+        requestHandlers.set('tools/call', handler);
+      }
+    ),
+  };
   return {
+    server: lowLevelServer,
     tool: vi.fn(
       (
         name: string,
@@ -144,6 +166,7 @@ function createMockServer() {
         handler: (...args: any[]) => any
       ) => {
         tools.set(name, { description, schema, handler });
+        installDefaultToolCallHandler();
       }
     ),
     registerTool: vi.fn(
@@ -158,6 +181,7 @@ function createMockServer() {
           schema: config.inputSchema?.shape ?? config.inputSchema,
           handler,
         });
+        installDefaultToolCallHandler();
       }
     ),
     tools,
@@ -2241,6 +2265,71 @@ describe('graph-tools', () => {
       expect(server.tools.has('list-calendar-events')).toBe(false);
     });
 
+    it('audits direct calls to Graph tools denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        createMockGraphClient() as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        'Mail.Read'
+      );
+      const auditSpy = await spyOnAuditLogger();
+      const handler = server.server._requestHandlers.get('tools/call');
+
+      await expect(
+        handler?.(
+          {
+            method: 'tools/call',
+            params: {
+              name: 'get-drive-item',
+              arguments: { driveId: 'drive-1', driveItemId: 'item-2' },
+            },
+          },
+          {}
+        )
+      ).rejects.toThrow(/not found/);
+
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+      auditSpy.mockRestore();
+    });
+
     it('discovery hides Graph tools outside the allowed scopes', async () => {
       mockEndpoints.push(
         {
@@ -2291,6 +2380,129 @@ describe('graph-tools', () => {
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
       expect(found).toContain('list-mail-messages');
       expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('audits execute-tool attempts denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+      const auditSpy = await spyOnAuditLogger();
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'get-drive-item',
+        parameters: { driveId: 'drive-1', driveItemId: 'item-2' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+      auditSpy.mockRestore();
+    });
+
+    it('audits direct discovery-mode calls to Graph tools denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+      const auditSpy = await spyOnAuditLogger();
+      const handler = server.server._requestHandlers.get('tools/call');
+
+      await expect(
+        handler?.(
+          {
+            method: 'tools/call',
+            params: {
+              name: 'get-drive-item',
+              arguments: { driveId: 'drive-1', driveItemId: 'item-2' },
+            },
+          },
+          {}
+        )
+      ).rejects.toThrow(/not found/);
+
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+      auditSpy.mockRestore();
     });
   });
 
@@ -2416,6 +2628,71 @@ describe('graph-tools', () => {
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
       expect(found).toContain('list-mail-messages');
       expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('audits execute-tool attempts denied by the enabled-tools allow-list', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'get-drive-item',
+          method: 'get',
+          path: '/drives/:driveId/items/:driveItemId',
+          description: 'Get drive item',
+          parameters: [
+            { name: 'driveId', type: 'Path', schema: z.string() },
+            { name: 'driveItemId', type: 'Path', schema: z.string() },
+          ],
+        },
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        },
+        { toolName: 'list-mail-messages', method: 'get', pathPattern: '/me/messages' },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '^list-mail-messages$'
+      );
+      const auditSpy = await spyOnAuditLogger();
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'get-drive-item',
+        parameters: { driveId: 'drive-1', driveItemId: 'item-2' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
+      expect(auditSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'tool_allowlist',
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+      auditSpy.mockRestore();
     });
 
     it('utility tools obey the regex too', async () => {

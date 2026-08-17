@@ -90,6 +90,8 @@ export interface AuditEvent {
   graph_batch_http_status_counts?: Record<string, number>;
   graph_batch_error_code_counts?: Record<string, number>;
   status: AuditStatus;
+  reason?: string;
+  missing_scopes?: string[];
   duration_ms?: number;
   target_resource?: { type: string; id?: string };
   error_type?: string;

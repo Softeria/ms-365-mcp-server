@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { CallToolRequestSchema, type ServerResult } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'crypto';
 import logger from './logger.js';
 import { auditLog, getUserIdentityForAudit, type AuditEvent } from './audit-log.js';
@@ -347,6 +348,15 @@ interface DisabledToolScope {
   missingScopes: string[];
 }
 
+type ToolDeniedReason = 'allowed_scopes' | 'tool_allowlist';
+
+interface DeniedToolPolicy {
+  toolName: string;
+  reason: ToolDeniedReason;
+  missingScopes?: string[];
+  pathPattern?: string;
+}
+
 function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   const shown = disabledTools
     .slice(0, 20)
@@ -354,6 +364,130 @@ function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   const suffix =
     disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
   return `${shown.join('; ')}${suffix}`;
+}
+
+function deniedToolPolicyForGraphTool(
+  tool: (typeof allEndpoints)[number],
+  config: EndpointConfig | undefined,
+  reason: ToolDeniedReason,
+  missingScopes?: string[]
+): DeniedToolPolicy {
+  return {
+    toolName: tool.alias,
+    reason,
+    ...(missingScopes && missingScopes.length > 0 ? { missingScopes } : {}),
+    pathPattern: config?.pathPattern ?? tool.path,
+  };
+}
+
+function collectDeniedToolPolicies(options: {
+  readOnly: boolean;
+  orgMode: boolean;
+  enabledToolsRegex?: RegExp;
+  allowedScopesValue?: string;
+  httpMode: boolean;
+}): Map<string, DeniedToolPolicy> {
+  const deniedTools = new Map<string, DeniedToolPolicy>();
+  const allowedScopes = parseAllowedScopes(options.allowedScopesValue);
+
+  for (const tool of allEndpoints) {
+    const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
+    if (!options.orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+      continue;
+    }
+
+    const method = tool.method.toUpperCase();
+    if (options.readOnly && method !== 'GET' && !(method === 'POST' && endpointConfig?.readOnly)) {
+      continue;
+    }
+
+    if (options.enabledToolsRegex && !options.enabledToolsRegex.test(tool.alias)) {
+      deniedTools.set(
+        tool.alias,
+        deniedToolPolicyForGraphTool(tool, endpointConfig, 'tool_allowlist')
+      );
+      continue;
+    }
+
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, options.orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      deniedTools.set(
+        tool.alias,
+        deniedToolPolicyForGraphTool(tool, endpointConfig, 'allowed_scopes', missingScopes)
+      );
+    }
+  }
+
+  for (const utility of UTILITY_TOOLS) {
+    if (options.readOnly && !utility.readOnlyHint) continue;
+    if (options.httpMode && utility.stdioOnly) continue;
+    if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
+      deniedTools.set(utility.name, {
+        toolName: utility.name,
+        reason: 'tool_allowlist',
+      });
+    }
+  }
+
+  return deniedTools;
+}
+
+function auditToolDenied(policy: DeniedToolPolicy, params: Record<string, unknown> = {}): void {
+  const targetResource = policy.pathPattern
+    ? deriveTargetResource({ pathPattern: policy.pathPattern, params })
+    : undefined;
+
+  auditLog({
+    event: 'tool.denied',
+    request_id: randomUUID(),
+    user_principal_name: getUserIdentityForAudit(getRequestTokens()?.accessToken),
+    tool: policy.toolName,
+    status: 'denied',
+    reason: policy.reason,
+    ...(policy.missingScopes ? { missing_scopes: policy.missingScopes } : {}),
+    ...(targetResource ? { target_resource: targetResource } : {}),
+  });
+}
+
+function installDeniedToolAuditHandler(
+  server: McpServer,
+  deniedTools: ReadonlyMap<string, DeniedToolPolicy>
+): void {
+  if (deniedTools.size === 0) return;
+
+  const lowLevel = server.server;
+  const handlers = (
+    lowLevel as unknown as {
+      _requestHandlers?: Map<
+        string,
+        (request: unknown, extra: unknown) => Promise<ServerResult> | ServerResult
+      >;
+    }
+  )._requestHandlers;
+  const original = handlers?.get('tools/call');
+  if (!original) {
+    logger.warn('Skipping denied-tool audit hook: tools/call handler not found');
+    return;
+  }
+
+  lowLevel.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    const policy = deniedTools.get(request.params.name);
+    if (policy) {
+      const params =
+        request.params.arguments && typeof request.params.arguments === 'object'
+          ? (request.params.arguments as Record<string, unknown>)
+          : {};
+      auditToolDenied(policy, params);
+    }
+
+    return original(request, extra);
+  });
 }
 
 /**
@@ -1632,6 +1766,13 @@ export function registerGraphTools(
   let failedCount = 0;
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
   const disabledByAllowedScopes: DisabledToolScope[] = [];
+  const deniedTools = collectDeniedToolPolicies({
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    httpMode,
+  });
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
@@ -1873,6 +2014,7 @@ export function registerGraphTools(
   logger.info(
     `Tool registration complete: ${registeredCount} registered, ${skippedCount} skipped, ${failedCount} failed`
   );
+  installDeniedToolAuditHandler(server, deniedTools);
   return registeredCount;
 }
 
@@ -2048,6 +2190,13 @@ export function registerDiscoveryTools(
   }
 
   const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const deniedTools = collectDeniedToolPolicies({
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    httpMode,
+  });
   const toolsRegistry = buildToolsRegistry(
     readOnly,
     orgMode,
@@ -2239,6 +2388,10 @@ export function registerDiscoveryTools(
       if (utility) {
         return executeUtilityTool(utility, utilityCtx, parameters);
       }
+      const deniedPolicy = deniedTools.get(tool_name);
+      if (deniedPolicy) {
+        auditToolDenied(deniedPolicy, parameters);
+      }
       return {
         content: [
           {
@@ -2253,6 +2406,8 @@ export function registerDiscoveryTools(
       };
     }
   );
+
+  installDeniedToolAuditHandler(server, deniedTools);
 
   // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }
