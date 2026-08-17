@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, type ServerResult } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'crypto';
 import logger from './logger.js';
 import { auditLog, getUserIdentityForAudit } from './audit-log.js';
@@ -349,7 +349,7 @@ function installDeniedToolAuditHandler(
     lowLevel as unknown as {
       _requestHandlers?: Map<
         string,
-        (request: unknown, extra: unknown) => Promise<unknown> | unknown
+        (request: unknown, extra: unknown) => Promise<ServerResult> | ServerResult
       >;
     }
   )._requestHandlers;
@@ -2039,7 +2039,6 @@ export function registerDiscoveryTools(
   logger.info(
     `Discovery mode: ${totalCount} tools (${toolsRegistry.size} Graph + ${utilityTools.length} utility)`
   );
-  installDeniedToolAuditHandler(server, deniedTools);
 
   const utilityCtx: UtilityToolContext = {
     graphClient,
@@ -2226,6 +2225,8 @@ export function registerDiscoveryTools(
       };
     }
   );
+
+  installDeniedToolAuditHandler(server, deniedTools);
 
   // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }
