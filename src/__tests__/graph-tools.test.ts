@@ -2298,7 +2298,6 @@ describe('graph-tools', () => {
         [],
         'Mail.Read'
       );
-      const auditSpy = await spyOnAuditLogger();
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -2314,7 +2313,7 @@ describe('graph-tools', () => {
         )
       ).rejects.toThrow(/not found/);
 
-      expect(auditSpy).toHaveBeenCalledWith(
+      expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'tool.denied',
           tool: 'get-drive-item',
@@ -2327,7 +2326,6 @@ describe('graph-tools', () => {
           },
         })
       );
-      auditSpy.mockRestore();
     });
 
     it('discovery hides Graph tools outside the allowed scopes', async () => {
@@ -2415,7 +2413,6 @@ describe('graph-tools', () => {
         undefined,
         'Mail.Read'
       );
-      const auditSpy = await spyOnAuditLogger();
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -2424,7 +2421,7 @@ describe('graph-tools', () => {
 
       expect(result.isError).toBe(true);
       expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
-      expect(auditSpy).toHaveBeenCalledWith(
+      expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'tool.denied',
           tool: 'get-drive-item',
@@ -2437,7 +2434,6 @@ describe('graph-tools', () => {
           },
         })
       );
-      auditSpy.mockRestore();
     });
 
     it('audits direct discovery-mode calls to Graph tools denied by allowed scopes', async () => {
@@ -2473,7 +2469,6 @@ describe('graph-tools', () => {
         undefined,
         'Mail.Read'
       );
-      const auditSpy = await spyOnAuditLogger();
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -2489,7 +2484,7 @@ describe('graph-tools', () => {
         )
       ).rejects.toThrow(/not found/);
 
-      expect(auditSpy).toHaveBeenCalledWith(
+      expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'tool.denied',
           tool: 'get-drive-item',
@@ -2502,7 +2497,6 @@ describe('graph-tools', () => {
           },
         })
       );
-      auditSpy.mockRestore();
     });
   });
 
@@ -2671,7 +2665,6 @@ describe('graph-tools', () => {
         [],
         '^list-mail-messages$'
       );
-      const auditSpy = await spyOnAuditLogger();
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -2680,7 +2673,7 @@ describe('graph-tools', () => {
 
       expect(result.isError).toBe(true);
       expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
-      expect(auditSpy).toHaveBeenCalledWith(
+      expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'tool.denied',
           tool: 'get-drive-item',
@@ -2692,7 +2685,6 @@ describe('graph-tools', () => {
           },
         })
       );
-      auditSpy.mockRestore();
     });
 
     it('utility tools obey the regex too', async () => {
