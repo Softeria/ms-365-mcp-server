@@ -212,7 +212,7 @@
     "toolName": "add-mail-attachment",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Max 3MB. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
+    "llmTip": "The only path for attachments under 3MB. contentBytes must carry the complete base64 verbatim; a truncated argument fails with 400 UnableToDeserializePostBody. At 3MB and above use create-mail-attachment-upload-session, which rejects anything smaller. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/createUploadSession",
@@ -220,7 +220,7 @@
     "toolName": "create-mail-attachment-upload-session",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For large attachments (3-150MB). Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl for direct PUT of file bytes."
+    "llmTip": "For attachments 3MB to 150MB. Graph rejects smaller files with ErrorAttachmentSizeShouldNotBeLessThanMinimumSize, so under 3MB use add-mail-attachment instead. Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself in ranges up to 4MB. This server does not perform the PUT."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments",
@@ -607,7 +607,7 @@
     "toolName": "upload-file-content",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Max 4MB inline (use create-upload-session above 4MB). For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Graph accepts up to 250MB here, but the whole string travels as a tool argument and a truncated one decodes to a truncated file with no error, so use create-upload-session rather than emitting a large base64 string. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
@@ -615,7 +615,7 @@
     "toolName": "create-upload-session",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
-    "llmTip": "For large file uploads (no size limit). Returns a pre-authenticated uploadUrl for direct PUT of file bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -2609,7 +2609,7 @@
     "presets": ["personal"],
     "scopes": ["User.ReadWrite"],
     "contentType": "image/jpeg",
-    "llmTip": "Uploads a new profile photo for the signed-in user. Body is a base64-encoded string of the image bytes (the server decodes before PUT). Photo must be JPEG, max 4 MB. Microsoft 365 generates HD downsized variants automatically (48x48, 64x64, 96x96, 120x120, 240x240, 360x360, 432x432, 504x504, 648x648). For work or school accounts, ProfilePhoto.ReadWrite.All is the more granular alternative permission. Use download-bytes with target=/me/photo/$value to retrieve the current photo."
+    "llmTip": "Uploads a new profile photo for the signed-in user. Body is a base64-encoded string of the image bytes (the server decodes before PUT). Photo must be JPEG, max 4 MB; the base64 travels as a tool argument and a truncated one is written without error, so resize before encoding instead of emitting a large string. Microsoft 365 generates HD downsized variants automatically (48x48, 64x64, 96x96, 120x120, 240x240, 360x360, 432x432, 504x504, 648x648). For work or school accounts, ProfilePhoto.ReadWrite.All is the more granular alternative permission. Use download-bytes with target=/me/photo/$value to retrieve the current photo."
   },
   {
     "pathPattern": "/me/todo/lists",
