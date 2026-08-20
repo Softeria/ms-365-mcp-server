@@ -382,7 +382,7 @@
     "toolName": "create-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
-    "descriptionOverride": "Create (schedule) a new calendar event — a meeting or appointment — on the user's calendar. Set subject, start/end times, time zone, location, body, and attendees; supports online meetings and recurrence.",
+    "descriptionOverride": "Create (schedule) a new calendar event — a meeting or appointment — on the user's calendar. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone — those flat fields are silently dropped. For one-off events, UTC is simplest (e.g. 3:30 PM AEDT = 04:30 UTC). For recurring events, use the organizer's own time zone name instead — Graph resolves DST against the zone in start.timeZone, so UTC drifts after DST changes. Get the zone from get-mailbox-settings, or validate one with list-supported-time-zones instead of guessing from memory. Set subject, location, body, and attendees; supports online meetings and recurrence.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
@@ -391,6 +391,7 @@
     "toolName": "update-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
+    "descriptionOverride": "Update an event on the default calendar. Requires eventId (the event's ID from get-calendar-view or list-calendar-events). Times use nested {dateTime, timeZone} objects. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
@@ -452,6 +453,7 @@
     "toolName": "create-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
+    "descriptionOverride": "Create a calendar event on a specific calendar. Requires calendarId (the target calendar's ID). Times use nested {dateTime, timeZone} objects — do NOT use startDateTime/startTimeZone, those flat fields are silently dropped. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
@@ -460,6 +462,7 @@
     "toolName": "update-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
+    "descriptionOverride": "Update a specific calendar event. Requires calendarId (the target calendar's ID) and eventId (the individual event's ID) — get both from get-calendar-view or list-calendar-events results. Times use nested {dateTime, timeZone} objects. UTC is simplest for one-off events; for recurring events use the organizer's own time zone (from get-mailbox-settings or list-supported-time-zones) instead of UTC, since Graph resolves DST against that zone.",
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients. WARNING: Setting attendees replaces the entire attendee list — include all attendees, not just new ones."
   },
   {
@@ -468,6 +471,7 @@
     "toolName": "delete-specific-calendar-event",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
+    "descriptionOverride": "Delete a specific calendar event. Requires calendarId (the target calendar's ID) and eventId (the event's own ID).",
     "llmTip": "Deleting a seriesMaster deletes ALL occurrences. To cancel a single occurrence, use the specific instance ID."
   },
   {
@@ -848,7 +852,7 @@
     "pathPattern": "/me/messages/{message-id}/$value",
     "method": "get",
     "toolName": "get-mail-message-mime",
-    "descriptionOverride": "Download the raw MIME source (RFC 822 .eml content) of an Outlook email message by its message ID. Returns the complete original message including headers and encoded attachments.",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of an Outlook email message by its message ID. Returns the complete original message including headers and encoded attachments.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
@@ -1310,7 +1314,7 @@
     "toolName": "update-planner-task",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority values: 0=Urgent, 1=Important, 3=Medium, 5=Low, 9=unset."
+    "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority is 0-10 (lower = higher priority); Planner's own UI presets are 1=Urgent, 3=Important, 5=Medium, 9=Low."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/details",
@@ -1497,7 +1501,7 @@
     "toolName": "list-relevant-people",
     "presets": ["users", "work"],
     "workScopes": ["People.Read"],
-    "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, emailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
+    "llmTip": "Lists people most relevant to the current user, ordered by relevance. Based on communication patterns, collaboration, and business relationships. Each person has displayName, scoredEmailAddresses, jobTitle, department, officeLocation. Use $search to find specific people by name. Use $top to limit results."
   },
   {
     "pathPattern": "/me/memberOf",
@@ -2063,7 +2067,7 @@
     "toolName": "create-online-meeting",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.ReadWrite"],
-    "llmTip": "Creates a new online meeting. Required body: { subject, startDateTime, endDateTime }. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
+    "llmTip": "Creates a new online meeting. Only endDateTime is documented as required; subject and startDateTime are commonly supplied but optional. Optional: participants (with organizer and attendees), lobbyBypassSettings, isEntryExitAnnounced, allowedPresenters (everyone/organization/roleIsPresenter/organizer). Returns the created meeting with joinWebUrl and meeting ID."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
@@ -2430,7 +2434,7 @@
     "toolName": "extract-drive-item-sensitivity-labels",
     "presets": ["files", "onedrive", "personal"],
     "workScopes": ["Files.Read.All"],
-    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
+    "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
   },
   {
     "pathPattern": "/me/dataSecurityAndGovernance/sensitivityLabels",
@@ -2496,7 +2500,7 @@
     "toolName": "list-supported-time-zones",
     "presets": ["calendar", "mail", "outlook", "personal"],
     "scopes": ["User.Read"],
-    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone — the format must match what the server expects."
+    "llmTip": "Lists time zones the user's mailbox server supports. TimeZoneStandard path parameter must be one of: Windows (default — Windows time zone names like 'Pacific Standard Time'), or Iana (IANA / Olson names like 'America/Los_Angeles'). Note the PascalCase — the values are case-sensitive enums, not lowercase strings. Returns timeZoneInformation objects with alias and displayName. Use the result to validate or look up the value before calling update-mailbox-settings to change the user's preferred timeZone, or before setting timeZone on a calendar event's start/end (especially for recurring events) — don't guess a time zone name from memory, look it up here."
   },
   {
     "pathPattern": "/me/outlook/supportedLanguages()",
