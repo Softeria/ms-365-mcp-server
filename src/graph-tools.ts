@@ -235,6 +235,9 @@ function graphResponseAuditFields(
   | 'graph_batch_subrequest_count'
   | 'graph_batch_http_status_counts'
   | 'graph_batch_error_code_counts'
+  | 'result_count'
+  | 'result_has_more'
+  | 'response_bytes'
 > {
   const httpStatus = auditHttpStatus(response._meta?.http_status);
   const errorCode = response.isError ? auditErrorCode(response._meta?.error_code) : undefined;
@@ -247,8 +250,17 @@ function graphResponseAuditFields(
   const graphBatchErrorCodeCounts = auditStringNumberMap(
     response._meta?.graph_batch_error_code_counts
   );
+  const resultCount = auditNonNegativeInteger(response._meta?.result_count);
+  const responseBytes = auditNonNegativeInteger(response._meta?.response_bytes);
+  const resultHasMore =
+    typeof response._meta?.result_has_more === 'boolean'
+      ? response._meta.result_has_more
+      : undefined;
 
   return {
+    ...(resultCount !== undefined ? { result_count: resultCount } : {}),
+    ...(resultHasMore !== undefined ? { result_has_more: resultHasMore } : {}),
+    ...(responseBytes !== undefined ? { response_bytes: responseBytes } : {}),
     ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
     ...(errorCode !== undefined ? { error_code: errorCode } : {}),
     ...(graphBatchSubrequestCount !== undefined
@@ -785,7 +797,16 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
-          ...(result.httpStatus !== undefined ? { _meta: { http_status: result.httpStatus } } : {}),
+          // response_bytes must describe the file written, not this receipt.
+          // Streaming to disk means the payload never appears in the response,
+          // so without this the most extraction-shaped tool in the server would
+          // audit a 250MB download at the size of an error message.
+          _meta: {
+            ...(result.httpStatus !== undefined ? { http_status: result.httpStatus } : {}),
+            ...(typeof result.contentLength === 'number'
+              ? { response_bytes: result.contentLength }
+              : {}),
+          },
         };
       } catch (error) {
         const metadata = thrownErrorAuditFields(error);
@@ -1649,6 +1670,13 @@ async function executeGraphTool(
               combinedResponse['@odata.count'] = allItems.length;
             }
             delete combinedResponse['@odata.nextLink'];
+            // The client's metadata described page one. Now that pages are
+            // merged, restate the count and the fact that nothing is left.
+            response._meta = {
+              ...response._meta,
+              result_count: allItems.length,
+              result_has_more: false,
+            };
             if (deltaLink) {
               combinedResponse['@odata.deltaLink'] = deltaLink;
             }

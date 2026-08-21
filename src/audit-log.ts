@@ -93,6 +93,9 @@ export interface AuditEvent {
   reason?: string;
   missing_scopes?: string[];
   duration_ms?: number;
+  result_count?: number;
+  result_has_more?: boolean;
+  response_bytes?: number;
   target_resource?: { type: string; id?: string };
   error_type?: string;
   error_code?: string | number;
