@@ -87,6 +87,12 @@ function repointRefs(node: unknown, nameFor: Map<string, string>): void {
   }
 }
 
+// Own keys only. A plain `in` reaches Object.prototype, so `#/$defs/constructor` would
+// look like a def we hoisted and hand structuredClone a function.
+function hasDef(defs: Record<string, unknown>, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(defs, name);
+}
+
 function defRefName(value: unknown): string | null {
   const prefix = '#/$defs/';
   return typeof value === 'string' && value.startsWith(prefix) ? value.slice(prefix.length) : null;
@@ -162,7 +168,7 @@ function inlineDefRefs(
 
   const record = node as Record<string, unknown>;
   const name = defRefName(record.$ref);
-  if (name !== null && name in defs && !pinned.has(name)) {
+  if (name !== null && hasDef(defs, name) && !pinned.has(name)) {
     const siblings: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
       if (key !== '$ref') siblings[key] = inlineDefRefs(value, defs, pinned, expand);
@@ -230,7 +236,8 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   repointRefs(clone, nameFor);
   for (const name of Object.keys(defs)) repointRefs(defs[name], nameFor);
 
-  // Set aside so the inlining walk below doesn't descend into them
+  // Split off the defs we didn't hoist. They stay refs either way, so the walk below
+  // treats them as their own document instead of reaching them from the root.
   const existingDefs = (clone.$defs as Record<string, unknown> | undefined) ?? {};
   delete clone.$defs;
 
@@ -239,6 +246,12 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   const pinned = findCyclicDefs(defs);
   collectSiblingRefNames(clone, pinned);
   for (const value of Object.values(defs)) collectSiblingRefNames(value, pinned);
+  for (const value of Object.values(existingDefs)) collectSiblingRefNames(value, pinned);
+  // Only a def we hoisted can force our hand. Pinning a kept def's name would bail the
+  // whole schema for nothing, since inlining was never on the table for it.
+  for (const name of [...pinned]) {
+    if (!hasDef(defs, name)) pinned.delete(name);
+  }
   if (pinned.size > 0) {
     clone.$defs = { ...existingDefs, ...defs };
     return clone as T;
@@ -254,7 +267,16 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
 
   // inlineDefRefs rebuilds rather than mutates, so `clone` can still be the fallback
   const inlined = inlineDefRefs(clone, defs, pinned, expand) as JsonSchema;
-  if (Object.keys(existingDefs).length > 0) inlined.$defs = existingDefs;
+  // A kept def can still point at one we hoisted, and `defs` doesn't come along here -
+  // so inline those out too rather than hand back a ref to a def that isn't there.
+  if (Object.keys(existingDefs).length > 0) {
+    inlined.$defs = Object.fromEntries(
+      Object.entries(existingDefs).map(([name, value]) => [
+        name,
+        inlineDefRefs(value, defs, pinned, expand),
+      ])
+    );
+  }
   clone.$defs = { ...existingDefs, ...defs };
 
   // Some schemas lean on their refs hard - create-sharepoint-list-item hangs 181 ref

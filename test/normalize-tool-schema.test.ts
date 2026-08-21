@@ -310,6 +310,143 @@ describe('normalizeToolSchemaRefs', () => {
     });
     for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
   });
+
+  it('inlines into a pre-existing def that points at something we hoisted', () => {
+    // `pre` isn't ours to inline, but it reaches `shared`, which is. The hoisted defs
+    // don't survive the inlining, so leaving `pre` alone would dangle its ref.
+    const schema = {
+      type: 'object',
+      properties: {
+        shared: { type: 'object', properties: { email: { type: 'string' } } },
+        a: { $ref: '#/properties/shared' },
+        usesPre: { $ref: '#/$defs/pre' },
+      },
+      $defs: { pre: { type: 'array', items: { $ref: '#/properties/shared' } } },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+    expect((out.$defs as Record<string, unknown>).pre).toEqual({
+      type: 'array',
+      items: { type: 'object', properties: { email: { type: 'string' } } },
+    });
+  });
+
+  it('pins a hoisted def when a pre-existing def refs it with sibling keywords', () => {
+    // Same sibling ambiguity as anywhere else, so it has to pin rather than inline -
+    // and pinning must still leave the hoisted def reachable.
+    const schema = {
+      type: 'object',
+      properties: {
+        shared: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } },
+        usesPre: { $ref: '#/$defs/pre' },
+      },
+      $defs: { pre: { $ref: '#/properties/shared', required: ['b'] } },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    const refs = collectRefs(out);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+    expect((out.$defs as Record<string, { required: string[] }>).pre.required).toEqual(['b']);
+  });
+
+  it('lets a sibling ref between two kept defs through without blocking inlining', () => {
+    // `b` refs `a1` with a sibling, but neither is ours, so neither was ever going to be
+    // inlined. Pinning on their account would bail the schema and strand `shared`.
+    const schema = {
+      type: 'object',
+      $defs: { a1: { type: 'string' }, b: { $ref: '#/$defs/a1', description: 'sibling' } },
+      properties: {
+        shared: { type: 'object', properties: { email: { type: 'string' } } },
+        a: { $ref: '#/properties/shared' },
+        usesB: { $ref: '#/$defs/b' },
+      },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    expect((out.properties as Record<string, unknown>).a).toEqual({
+      type: 'object',
+      properties: { email: { type: 'string' } },
+    });
+    expect(collectRefs(out).every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
+  it('does not mistake an Object.prototype key for a def', () => {
+    // `#/$defs/constructor` resolves through the prototype chain under `in`, which would
+    // hand structuredClone a function and throw out of the whole tools/list.
+    const schema = {
+      type: 'object',
+      properties: {
+        shared: { type: 'object', properties: { email: { type: 'string' } } },
+        a: { $ref: '#/properties/shared' },
+        boom: { $ref: '#/$defs/constructor' },
+      },
+    };
+    let out!: typeof schema;
+    expect(() => (out = normalizeToolSchemaRefs(schema))).not.toThrow();
+    expect((out.properties as Record<string, unknown>).boom).toEqual({
+      $ref: '#/$defs/constructor',
+    });
+  });
+
+  it('terminates on a cycle that runs through a pre-existing def', () => {
+    // findCyclicDefs only sees edges between hoisted defs, so this cycle is invisible to
+    // it. Termination rests on refusing to expand a name we didn't hoist.
+    const schema = {
+      type: 'object',
+      properties: {
+        shared: { type: 'object', properties: { back: { $ref: '#/$defs/pre' } } },
+        a: { $ref: '#/properties/shared' },
+        usesPre: { $ref: '#/$defs/pre' },
+      },
+      $defs: { pre: { type: 'array', items: { $ref: '#/properties/shared' } } },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
+  it('does not mutate an input that carries a pre-existing $defs', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        shared: { type: 'object', properties: { email: { type: 'string' } } },
+        a: { $ref: '#/properties/shared' },
+        usesPre: { $ref: '#/$defs/pre' },
+      },
+      $defs: { pre: { type: 'array', items: { $ref: '#/properties/shared' } } },
+    };
+    const snapshot = JSON.stringify(schema);
+    normalizeToolSchemaRefs(schema);
+    expect(JSON.stringify(schema)).toBe(snapshot);
+  });
+
+  it('is idempotent, since tools/list re-normalizes on every request', () => {
+    for (const schema of [
+      // inlined outright
+      {
+        type: 'object',
+        properties: {
+          from: { type: 'object', properties: { email: { type: 'string' } } },
+          to: { $ref: '#/properties/from' },
+        },
+      },
+      // pinned by recursion, so refs survive the first pass
+      {
+        type: 'object',
+        properties: {
+          body: {
+            type: 'object',
+            properties: { childFolders: { type: 'array', items: { $ref: '#/properties/body' } } },
+          },
+        },
+      },
+    ]) {
+      const once = normalizeToolSchemaRefs(schema);
+      expect(JSON.stringify(normalizeToolSchemaRefs(structuredClone(once)))).toBe(
+        JSON.stringify(once)
+      );
+    }
+  });
 });
 
 describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', () => {
