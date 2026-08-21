@@ -88,6 +88,9 @@ interface GraphResponseMetadata {
   graph_batch_subrequest_count?: number;
   graph_batch_http_status_counts?: Record<string, number>;
   graph_batch_error_code_counts?: Record<string, number>;
+  result_count?: number;
+  result_has_more?: boolean;
+  response_bytes?: number;
 }
 
 interface GraphRequestResult {
@@ -142,6 +145,30 @@ function extractGraphErrorCodeFromBody(body: unknown): string | undefined {
   const error = body.error;
   const code = isRecord(error) ? error.code : body.code;
   return typeof code === 'string' ? code : undefined;
+}
+
+/**
+ * Volume metadata for the audit trail, derived from the already-parsed response.
+ *
+ * Sits beside extractBatchMetadata for the same reason: the object is in hand
+ * here, so this costs nothing and is independent of the output format the caller
+ * eventually serialises to.
+ *
+ * result_has_more is emitted explicitly when the payload is a collection, so a
+ * consumer can tell "complete result" from "not a collection" rather than having
+ * both appear as the same absence.
+ *
+ * Counts the top-level `value` array only. Nested collections under-report:
+ * Microsoft Search returns `value: [{ hitsContainers: [{ hits: [...] }] }]`, so
+ * 500 hits appear as result_count 1, and the semantic `retrieval` tool has no
+ * top-level `value` at all. Do not threshold on result_count for search tools.
+ */
+function extractPayloadMetadata(data: unknown): Partial<GraphResponseMetadata> {
+  if (!isRecord(data) || !Array.isArray(data.value)) return {};
+  return {
+    result_count: data.value.length,
+    result_has_more: typeof data['@odata.nextLink'] === 'string',
+  };
 }
 
 function extractBatchMetadata(data: unknown): Partial<GraphResponseMetadata> {
@@ -237,8 +264,11 @@ class GraphClient {
           contentLength: buffer.byteLength,
           contentBytes: buffer.toString('base64'),
         };
+        // Bytes actually transferred, before base64 inflates them ~1.37x.
+        metadata = { ...metadata, response_bytes: buffer.byteLength };
       } else {
         const text = await response.text();
+        metadata = { ...metadata, response_bytes: Buffer.byteLength(text, 'utf8') };
 
         if (text === '') {
           result = { message: 'OK!' };
@@ -260,6 +290,7 @@ class GraphClient {
       if (endpoint === '/$batch') {
         metadata = { ...metadata, ...extractBatchMetadata(result) };
       }
+      metadata = { ...metadata, ...extractPayloadMetadata(result) };
 
       // If includeHeaders is requested, add response headers to the result
       if (options.includeHeaders) {

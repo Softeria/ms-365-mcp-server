@@ -52,6 +52,67 @@ describe('GraphClient audit metadata', () => {
     expect(JSON.parse(result.content[0].text)).toEqual({ id: 'user-1' });
   });
 
+  it('derives result volume from a collection response', async () => {
+    const body = JSON.stringify({
+      value: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }],
+      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=3',
+    });
+    fetchWithResilienceMock.mockResolvedValue(
+      new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+
+    const result = await createGraphClient().graphRequest('/me/messages');
+
+    expect(result._meta).toMatchObject({
+      result_count: 3,
+      result_has_more: true,
+      response_bytes: Buffer.byteLength(body, 'utf8'),
+    });
+  });
+
+  it('reports result_has_more false, not absent, for a complete collection', async () => {
+    fetchWithResilienceMock.mockResolvedValue(
+      new Response(JSON.stringify({ value: [{ id: 'm1' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+
+    const result = await createGraphClient().graphRequest('/me/messages');
+
+    // Explicitly false so a consumer can distinguish a complete result from a
+    // response that was never a collection.
+    expect(result._meta).toMatchObject({ result_count: 1, result_has_more: false });
+  });
+
+  it('omits result fields for a single-object response but still records size', async () => {
+    const body = JSON.stringify({ id: 'user-1' });
+    fetchWithResilienceMock.mockResolvedValue(
+      new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+
+    const result = await createGraphClient().graphRequest('/me');
+
+    expect(result._meta).toMatchObject({ response_bytes: Buffer.byteLength(body, 'utf8') });
+    expect(result._meta).not.toHaveProperty('result_count');
+    expect(result._meta).not.toHaveProperty('result_has_more');
+  });
+
+  it('records the pre-base64 byte count for binary content', async () => {
+    const raw = Buffer.from('binary-attachment-payload-\u00ff\u00fe');
+    fetchWithResilienceMock.mockResolvedValue(
+      new Response(raw, {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream' },
+      })
+    );
+
+    const result = await createGraphClient().graphRequest('/me/messages/m1/$value');
+
+    // The bytes transferred, not the ~1.37x larger base64 the caller receives.
+    expect(result._meta).toMatchObject({ response_bytes: raw.byteLength });
+  });
+
   it('preserves HTTP status metadata when response headers are requested', async () => {
     fetchWithResilienceMock.mockResolvedValue(
       new Response(JSON.stringify({ id: 'task-1' }), {

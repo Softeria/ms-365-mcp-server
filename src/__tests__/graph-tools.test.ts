@@ -409,6 +409,121 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('audit response volume', () => {
+    it('lifts result volume from _meta onto the audit event', async () => {
+      const endpoint = makeEndpoint({
+        method: 'get',
+        path: '/me/messages',
+        alias: 'list-mail-messages',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'get',
+        toolName: 'list-mail-messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [{ id: 'm1' }] }) }],
+          _meta: {
+            http_status: 200,
+            result_count: 4821,
+            result_has_more: true,
+            response_bytes: 8_412_004,
+          },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('list-mail-messages')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: 'list-mail-messages',
+          status: 'success',
+          result_count: 4821,
+          result_has_more: true,
+          response_bytes: 8_412_004,
+        })
+      );
+    });
+
+    it('keeps result_has_more when it is false rather than dropping it', async () => {
+      const endpoint = makeEndpoint({
+        method: 'get',
+        path: '/me/messages',
+        alias: 'list-mail-messages',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'get',
+        toolName: 'list-mail-messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
+          _meta: { http_status: 200, result_count: 0, result_has_more: false },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('list-mail-messages')!.handler({});
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(0);
+      expect(payload.result_has_more).toBe(false);
+    });
+
+    it('omits the volume fields when the client supplied none', async () => {
+      const endpoint = makeEndpoint({ method: 'get', path: '/me', alias: 'get-current-user' });
+      const config = makeConfig({
+        pathPattern: '/me',
+        method: 'get',
+        toolName: 'get-current-user',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ id: 'user-1' }) }],
+          _meta: { http_status: 200 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('get-current-user')!.handler({});
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).not.toHaveProperty('result_count');
+      expect(payload).not.toHaveProperty('result_has_more');
+      expect(payload).not.toHaveProperty('response_bytes');
+    });
+  });
+
   // ---- 1. $count advanced query mode ----
   describe('$count advanced query mode', () => {
     it('should set ConsistencyLevel: eventual header when $count=true', async () => {
