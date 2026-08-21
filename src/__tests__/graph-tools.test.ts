@@ -409,6 +409,115 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('audit recipient metadata', () => {
+    const draftEndpoint = () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/me/messages',
+        alias: 'create-draft-email',
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'post',
+        toolName: 'create-draft-email',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+    };
+
+    const runDraft = async (body: unknown) => {
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ id: 'draft-1' }) }],
+          _meta: { http_status: 201 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+      await server.tools.get('create-draft-email')!.handler({ body });
+      return auditLogMock.mock.calls[0][0];
+    };
+
+    it('records recipient count and domains, deduplicated and sorted', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'someone@example.com' } },
+          { emailAddress: { address: 'Another@Example.com' } },
+        ],
+        ccRecipients: [{ emailAddress: { address: 'auditor@partner.co.uk' } }],
+      });
+
+      expect(payload).toMatchObject({
+        tool: 'create-draft-email',
+        recipient_count: 3,
+        recipient_domains: ['example.com', 'partner.co.uk'],
+      });
+    });
+
+    it('reads recipients nested under a camelCase message, as createReply sends them', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        comment: 'forwarding this on',
+        message: { toRecipients: [{ emailAddress: { address: 'outside@gmail.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['gmail.com'] });
+    });
+
+    it('reads PascalCase fields, as the Graph action endpoints send them', async () => {
+      draftEndpoint();
+      // POST /me/messages/{id}/forward and /me/sendMail use ToRecipients / Message,
+      // unlike POST /me/messages which uses toRecipients.
+      const payload = await runDraft({
+        Comment: 'fyi',
+        ToRecipients: [{ emailAddress: { address: 'partner@vendor.com' } }],
+        Message: { CcRecipients: [{ emailAddress: { address: 'watcher@vendor.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 2, recipient_domains: ['vendor.com'] });
+    });
+
+    it('records calendar attendees, not just mail recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        subject: 'sync',
+        attendees: [
+          { emailAddress: { address: 'colleague@example.com' }, type: 'required' },
+          { emailAddress: { address: 'guest@external.org' }, type: 'optional' },
+        ],
+      });
+
+      expect(payload).toMatchObject({
+        recipient_count: 2,
+        recipient_domains: ['example.com', 'external.org'],
+      });
+    });
+
+    it('logs domains only, never the local part of an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'confidential.name@example.com' } }],
+      });
+
+      expect(payload.recipient_domains).toEqual(['example.com']);
+      expect(JSON.stringify(payload)).not.toContain('confidential.name');
+    });
+
+    it('omits both fields when a request has no recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ subject: 'a draft with no recipients yet' });
+
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
+  });
+
   // ---- 1. $count advanced query mode ----
   describe('$count advanced query mode', () => {
     it('should set ConsistencyLevel: eventual header when $count=true', async () => {
