@@ -52,7 +52,7 @@ describe('normalizeToolSchemaRefs', () => {
     expect(normalizeToolSchemaRefs(schema)).toBe(schema);
   });
 
-  it('rewrites a root-relative dedup ref into #/$defs and preserves resolution', () => {
+  it('inlines a root-relative dedup ref so no $ref survives', () => {
     // `to` is emitted inline once and referenced by object identity elsewhere.
     const schema = {
       type: 'object',
@@ -62,16 +62,11 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    const refs = collectRefs(out);
-    expect(refs.length).toBeGreaterThan(0);
-    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
-    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
-    // The extracted def is the original `from` schema.
-    const to = (out.properties as Record<string, { $ref: string }>).to;
-    expect(resolvePointer(out, to.$ref)).toMatchObject({
-      type: 'object',
-      properties: { email: { type: 'string' } },
-    });
+    expect(collectRefs(out)).toEqual([]);
+    expect(out.$defs).toBeUndefined();
+    const props = out.properties as Record<string, unknown>;
+    expect(props.to).toEqual({ type: 'object', properties: { email: { type: 'string' } } });
+    expect(props.to).toEqual(props.from);
   });
 
   it('rewrites a recursion ref (target is an ancestor of the ref) into valid #/$defs recursion', () => {
@@ -99,7 +94,104 @@ describe('normalizeToolSchemaRefs', () => {
     expect(items.$ref.startsWith('#/$defs/')).toBe(true);
   });
 
-  it('handles nested targets without leaving dangling refs', () => {
+  it('will not inline a ref that carries sibling keywords', () => {
+    // draft-07 drops the sibling, 2020-12 conjoins it. Picking wrong changes what the
+    // schema accepts, so the ref stays a ref.
+    const schema = {
+      type: 'object',
+      properties: {
+        base: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } },
+        derived: { $ref: '#/properties/base', required: ['b'] },
+      },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    const refs = collectRefs(out);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+    expect((out.properties as Record<string, { required: string[] }>).derived.required).toEqual([
+      'b',
+    ]);
+  });
+
+  it('keeps $defs when inlining would more than double the schema', () => {
+    // One fat def behind many ref sites, the create-sharepoint-list-item shape
+    const shared = {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 40 }, (_, i) => [
+          `field${i}`,
+          { type: 'string', description: 'x'.repeat(40) },
+        ])
+      ),
+    };
+    const properties: Record<string, unknown> = { shared };
+    for (let i = 0; i < 10; i++) properties[`use${i}`] = { $ref: '#/properties/shared' };
+
+    const out = normalizeToolSchemaRefs({ type: 'object', properties });
+    const refs = collectRefs(out);
+    expect(refs.length).toBeGreaterThan(0); // not inlined
+    // Still has to satisfy #571 on the way out.
+    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
+  it('still inlines a small def reused many times', () => {
+    // Same shape, tiny def - 10 copies still fit under the cap
+    const properties: Record<string, unknown> = { shared: { type: 'string' } };
+    for (let i = 0; i < 10; i++) properties[`use${i}`] = { $ref: '#/properties/shared' };
+
+    const out = normalizeToolSchemaRefs({ type: 'object', properties });
+    expect(collectRefs(out)).toEqual([]);
+    expect((out.properties as Record<string, unknown>).use7).toEqual({ type: 'string' });
+  });
+
+  it('skips inlining entirely once any def is cyclic', () => {
+    // `wrapper` would expand fine on its own, but `body` recurses so a ref survives
+    // regardless. Expanding wrapper would just add bytes.
+    const schema = {
+      type: 'object',
+      properties: {
+        body: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            childFolders: { type: 'array', items: { $ref: '#/properties/body' } },
+          },
+        },
+        wrapper: { type: 'object', properties: { folder: { $ref: '#/properties/body' } } },
+        alias: { $ref: '#/properties/wrapper' },
+      },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    expect(Object.keys(out.$defs as object)).toHaveLength(2); // body and wrapper both kept
+    const refs = collectRefs(out);
+    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
+  it('keeps both defs when a nested target sits inside a recursive subtree', () => {
+    // Hoisting `childFolders` out of `body` makes the two point at each other, so both
+    // count as cyclic
+    const schema = {
+      type: 'object',
+      properties: {
+        body: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            childFolders: { type: 'array', items: { $ref: '#/properties/body' } },
+          },
+        },
+        sibling: { $ref: '#/properties/body/properties/childFolders' },
+      },
+    };
+    const out = normalizeToolSchemaRefs(schema);
+    expect(Object.keys(out.$defs as object)).toHaveLength(2);
+    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
+  it('inlines nested targets without leaving dangling refs', () => {
     const inner = { type: 'object', properties: { v: { type: 'string' } } };
     const schema = {
       type: 'object',
@@ -110,10 +202,10 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    const refs = collectRefs(out);
-    expect(refs.length).toBeGreaterThanOrEqual(2);
-    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
-    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+    expect(collectRefs(out)).toEqual([]);
+    const props = out.properties as Record<string, unknown>;
+    expect(props.b).toEqual(props.a);
+    expect(props.c).toEqual(inner);
   });
 
   it('does not mutate the input schema', () => {
@@ -129,7 +221,7 @@ describe('normalizeToolSchemaRefs', () => {
     expect(JSON.stringify(schema)).toBe(snapshot);
   });
 
-  it('collapses multiple refs to the same target onto one def', () => {
+  it('expands every ref to a shared target into an equal but separate schema', () => {
     const schema = {
       type: 'object',
       properties: {
@@ -139,11 +231,13 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    expect(Object.keys(out.$defs as object)).toHaveLength(1);
-    const props = out.properties as Record<string, { $ref: string }>;
-    expect(props.to.$ref).toBe(props.cc.$ref);
-    expect(props.to.$ref.startsWith('#/$defs/')).toBe(true);
-    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+    expect(collectRefs(out)).toEqual([]);
+    expect(out.$defs).toBeUndefined();
+    const props = out.properties as Record<string, unknown>;
+    expect(props.to).toEqual(props.from);
+    expect(props.cc).toEqual(props.from);
+    // Equal, but not one shared object - each site owns its copy
+    expect(props.to).not.toBe(props.cc);
   });
 
   it('resolves JSON-pointer ~0/~1 escapes (keys containing ~ and /)', () => {
@@ -155,12 +249,10 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    const refs = collectRefs(out);
-    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
-    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
-    expect(
-      resolvePointer(out, (out.properties as Record<string, { $ref: string }>).ref.$ref)
-    ).toMatchObject({ properties: { v: { type: 'string' } } });
+    expect(collectRefs(out)).toEqual([]);
+    expect((out.properties as Record<string, unknown>).ref).toMatchObject({
+      properties: { v: { type: 'string' } },
+    });
   });
 
   it('resolves array-index pointer targets (anyOf/0)', () => {
@@ -174,9 +266,11 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    const refs = collectRefs(out);
-    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
-    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+    expect(collectRefs(out)).toEqual([]);
+    expect((out.properties as Record<string, unknown>).alias).toEqual({
+      type: 'object',
+      properties: { x: { type: 'string' } },
+    });
   });
 
   it('leaves an unresolvable ref untouched rather than dangling it', () => {
@@ -189,14 +283,9 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
-    // Every $defs ref we introduce must resolve: we never manufacture a dangling
-    // def ref. A pre-existing unresolvable ref is left exactly as-is (not "fixed"
-    // into a missing $defs target).
-    for (const r of collectRefs(out).filter((x) => x.startsWith('#/$defs/'))) {
-      expect(resolvePointer(out, r)).toBeDefined();
-    }
-    const props = out.properties as Record<string, { $ref: string }>;
-    expect(props.good.$ref.startsWith('#/$defs/')).toBe(true);
+    const props = out.properties as Record<string, { $ref?: string }>;
+    expect(props.good).toEqual({ type: 'object' });
+    // Left exactly as-is, never "fixed" into a $defs target that isn't there
     expect(props.bad.$ref).toBe('#/properties/does/not/exist');
   });
 
@@ -212,11 +301,13 @@ describe('normalizeToolSchemaRefs', () => {
     };
     const out = normalizeToolSchemaRefs(schema);
     const defs = out.$defs as Record<string, unknown>;
-    // The pre-existing def0 must survive intact...
+    // A def we didn't hoist isn't ours to inline, so it and its ref both survive
     expect(defs.def0).toEqual({ const: 'sentinel' });
-    // ...and the newly hoisted schema must land under a different key.
-    const toRef = (out.properties as Record<string, { $ref: string }>).to.$ref;
-    expect(toRef).not.toBe('#/$defs/def0');
+    expect((out.properties as Record<string, { $ref: string }>).existing.$ref).toBe('#/$defs/def0');
+    expect((out.properties as Record<string, unknown>).to).toEqual({
+      type: 'object',
+      properties: { email: { type: 'string' } },
+    });
     for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
   });
 });
