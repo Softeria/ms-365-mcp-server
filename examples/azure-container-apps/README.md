@@ -46,7 +46,7 @@ Create an app registration in your tenant:
 - **Redirect URIs** (initial): `http://localhost:3000/oauth/callback` — update after the first deploy once you know the Container App FQDN
 - **API permissions**: delegated scopes matching your run mode. Print the exact list with:
   ```bash
-  npx @softeria/ms-365-mcp-server --list-permissions [--org-mode] [--read-only]
+  npx @a-impact/ms-365-mcp-server --list-permissions [--org-mode] [--read-only]
   ```
   Grant admin consent in Entra ID for all `*.All` scopes.
 - **Authentication → Allow public client flows**: Yes (if you will not use a client secret)
@@ -56,8 +56,8 @@ Collect `tenantId`, `clientId`, and (optionally) `clientSecret`.
 
 ### 3. Container image
 
-Default: `ghcr.io/softeria/ms-365-mcp-server:latest`.
-Pin a version with `ghcr.io/softeria/ms-365-mcp-server:<tag>`, or push to your own Azure Container Registry and pass the reference via `-ContainerImage`.
+Default: `ghcr.io/a-impact-pavel/ms-365-mcp-server:latest`.
+Pin a version with `ghcr.io/a-impact-pavel/ms-365-mcp-server:<tag>`, or push to your own Azure Container Registry and pass the reference via `-ContainerImage`.
 
 ## Initial deployment
 
@@ -131,7 +131,7 @@ az containerapp update -n <baseName>-app -g <rg> --revision-suffix "manual$(date
 
 ```bash
 az containerapp update -n <baseName>-app -g <rg> \
-  --image ghcr.io/softeria/ms-365-mcp-server:<new-tag>
+  --image ghcr.io/a-impact-pavel/ms-365-mcp-server:<new-tag>
 ```
 
 ### Rotate the client secret

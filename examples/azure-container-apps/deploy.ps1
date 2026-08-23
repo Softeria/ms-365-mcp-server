@@ -33,7 +33,7 @@ param(
   [Parameter(Mandatory)][string]$McpClientId,
 
   [string]$Location = 'eastus',
-  [string]$ContainerImage = 'ghcr.io/softeria/ms-365-mcp-server:latest',
+  [string]$ContainerImage = 'ghcr.io/a-impact-pavel/ms-365-mcp-server:latest',
   [ValidateSet('global', 'gcc-high', 'dod', 'china')]
   [string]$CloudType = 'global',
   [string]$CorsOrigin = 'http://localhost:3000',

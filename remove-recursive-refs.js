@@ -11,11 +11,8 @@ const __dirname = dirname(__filename);
  * Detect if a schema definition creates recursive references
  * Handles complex recursive paths like #/definitions/X/properties/body/anyOf/1
  *
- * I really really hope this solves
- * https://github.com/Softeria/ms-365-mcp-server/issues/36 and perhaps even
- * https://github.com/Softeria/ms-365-mcp-server/issues/62
- *
- * Or any other silly tool that doesn't support recursive $refs
+ * I really really hope this solves the failures reported by tools that don't
+ * support recursive $refs
  *
  * Note - if the tool still struggles with $ref in general, this fix won't help!
  */

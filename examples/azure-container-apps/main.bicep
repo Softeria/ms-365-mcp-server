@@ -19,7 +19,7 @@ param baseName string
 param location string = resourceGroup().location
 
 @description('Container image reference (public image by default).')
-param containerImage string = 'ghcr.io/softeria/ms-365-mcp-server:latest'
+param containerImage string = 'ghcr.io/a-impact-pavel/ms-365-mcp-server:latest'
 
 @description('Entra ID tenant ID (GUID).')
 param tenantId string
