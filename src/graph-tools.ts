@@ -315,6 +315,11 @@ function readAddress(entry: unknown): string | undefined {
 // and Graph tolerates enough junk that subtracting kept losing - "example.com/path" and
 // "evil<script" both got through. Anything that isn't a plain dotted hostname gets dropped.
 const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+// Longest a domain can legally be (RFC 1035). The pattern accepts any length, and the
+// 50-entry cap only bounds how many domains land in a record, not how long each one is -
+// without this one address picks the size of the audit line. Tested before the pattern so
+// a caller can't make us scan a huge string either.
+const MAX_DOMAIN_LENGTH = 253;
 
 function addRecipient(entry: unknown, domains: Set<string>, counter: { count: number }): void {
   // Count the entry, not our ability to parse it
@@ -331,7 +336,7 @@ function addRecipient(entry: unknown, domains: Set<string>, counter: { count: nu
     .split(/\s/)[0]
     .replace(/[>.]+$/, '')
     .toLowerCase();
-  if (DOMAIN_PATTERN.test(domain)) domains.add(domain);
+  if (domain.length <= MAX_DOMAIN_LENGTH && DOMAIN_PATTERN.test(domain)) domains.add(domain);
 }
 
 function collectRecipients(
@@ -356,6 +361,15 @@ function collectRecipients(
     // nested somewhere we didn't think of still sends real mail
     collectRecipients(value, domains, counter, depth + 1);
   }
+}
+
+// A body that failed schema parsing goes to Graph as a raw string, and mail sent that way
+// would record nothing. Only a JSON-shaped string can carry recipients though: the binary
+// upload tools send base64, and parsing that threw on every single upload.
+function bodyForRecipientWalk(body: unknown): unknown {
+  if (typeof body !== 'string') return body;
+  if (!/^\s*[{[]/.test(body)) return undefined;
+  return JSON.parse(body);
 }
 
 /**
@@ -401,9 +415,7 @@ function recipientAuditFields(
   // throwing would cost the audit record AND the caller's error response. Losing the
   // fields beats losing both.
   try {
-    // A body that failed schema parsing goes to Graph as a raw string, and mail sent
-    // that way would record nothing. Non-JSON lands in the catch.
-    collectRecipients(typeof body === 'string' ? JSON.parse(body) : body, domains, counter);
+    collectRecipients(bodyForRecipientWalk(body), domains, counter);
   } catch (error) {
     logger.warn(
       `Skipped recipient audit metadata: ${error instanceof Error ? error.message : 'unknown error'}`

@@ -525,6 +525,21 @@ describe('graph-tools', () => {
       expect(payload.recipient_domains).toEqual(['good.example']);
     });
 
+    it('drops a domain longer than a hostname can be', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: `a@${'x'.repeat(300)}.example` } },
+          { emailAddress: { address: 'b@ext.com' } },
+        ],
+      });
+
+      // The cap bounds how many domains land in a record, not how long each one is, so
+      // without a length check one address picks the size of the audit line
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+    });
+
     it('counts an entry that names someone without an address', async () => {
       draftEndpoint();
       const payload = await runDraft({
@@ -577,6 +592,47 @@ describe('graph-tools', () => {
 
       const payload = auditLogMock.mock.calls[0][0];
       expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('leaves a base64 upload body alone instead of warning on every upload', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'put',
+          path: '/me/photo/$value',
+          alias: 'upload-my-profile-photo',
+          requestFormat: 'binary',
+          parameters: [{ name: 'body', type: 'Body', schema: z.string() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          pathPattern: '/me/photo/$value',
+          method: 'put',
+          toolName: 'upload-my-profile-photo',
+        }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: '{}' }], _meta: { http_status: 200 } },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('upload-my-profile-photo')!.handler({
+        body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('recipient_count');
+      // Base64 is never JSON. Parsing it warned on every upload, and the parse error
+      // carries a slice of the file into the operational log
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Skipped recipient audit metadata')
+      );
     });
 
     it('records driveItem invite recipients, which use email rather than emailAddress', async () => {
