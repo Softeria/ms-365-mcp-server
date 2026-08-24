@@ -509,6 +509,308 @@ describe('graph-tools', () => {
       expect(JSON.stringify(payload)).not.toContain('confidential.name');
     });
 
+    it('rejects a tail that is not a plain hostname', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'a@example.com/path' } },
+          { emailAddress: { address: 'b@evil<script' } },
+          { emailAddress: { address: 'c@example.com,comment' } },
+          { emailAddress: { address: 'd@[IPv6:2001:db8::1]' } },
+          { emailAddress: { address: 'e@good.example' } },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(5);
+      expect(payload.recipient_domains).toEqual(['good.example']);
+    });
+
+    it('drops a domain longer than a hostname can be', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: `a@${'x'.repeat(300)}.example` } },
+          { emailAddress: { address: 'b@ext.com' } },
+        ],
+      });
+
+      // The cap bounds how many domains land in a record, not how long each one is, so
+      // without a length check one address picks the size of the audit line
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+    });
+
+    it('counts an entry that names someone without an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        recipients: [{ alias: 'finance-team' }, { objectId: 'abc-123' }],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
+
+    it('walks a body forwarded to Graph as a raw JSON string', async () => {
+      // Needs a strict schema: a passthrough one wraps the string instead, so the
+      // raw-string path never fires. When both parses fail, real mail goes out.
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'post',
+          path: '/me/sendMail',
+          alias: 'send-mail',
+          parameters: [
+            {
+              name: 'body',
+              type: 'Body',
+              schema: z.object({ message: z.object({}).passthrough() }),
+            },
+          ],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ pathPattern: '/me/sendMail', method: 'post', toolName: 'send-mail' }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ ok: true }) }],
+          _meta: { http_status: 202 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('send-mail')!.handler({
+        body: JSON.stringify({
+          message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+        }),
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('leaves a base64 upload body alone instead of warning on every upload', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'put',
+          path: '/me/photo/$value',
+          alias: 'upload-my-profile-photo',
+          requestFormat: 'binary',
+          parameters: [{ name: 'body', type: 'Body', schema: z.string() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          pathPattern: '/me/photo/$value',
+          method: 'put',
+          toolName: 'upload-my-profile-photo',
+        }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: '{}' }], _meta: { http_status: 200 } },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('upload-my-profile-photo')!.handler({
+        body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('recipient_count');
+      // Base64 is never JSON. Parsing it warned on every upload, and the parse error
+      // carries a slice of the file into the operational log
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Skipped recipient audit metadata')
+      );
+    });
+
+    it('records driveItem invite recipients, which use email rather than emailAddress', async () => {
+      draftEndpoint();
+      // share-drive-item mails an outsider a link to the file
+      const payload = await runDraft({
+        recipients: [{ email: 'outsider@ext.com' }],
+        roles: ['read'],
+        sendInvitation: true,
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('records meeting participants, which use upn', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        participants: { attendees: [{ upn: 'guest@ext.com' }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('survives a deeply nested array without blowing the stack', async () => {
+      draftEndpoint();
+      // Must terminate, not overflow - this walker runs inside the catch handler. 500 is
+      // far past MAX_BODY_DEPTH and still serialises on every Node we support; going
+      // deeper only tests where JSON.stringify gives out, which moves between versions.
+      let nested: unknown = [{ toRecipients: [{ emailAddress: { address: 'deep@ext.com' } }] }];
+      for (let i = 0; i < 500; i++) nested = [nested];
+
+      const payload = await runDraft({ requests: nested });
+
+      // Too deep to reach, but it has to return rather than throw
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload.status).toBe('success');
+    });
+
+    it('still audits a call whose params cannot be serialised for the log', async () => {
+      draftEndpoint();
+      // The params log line runs before the try that writes the audit record, so an
+      // unguarded stringify there escapes the tool entirely: protocol error, no trail.
+      const circular: Record<string, unknown> = { subject: 'loop' };
+      circular.self = circular;
+
+      const payload = await runDraft(circular);
+
+      expect(auditLogMock).toHaveBeenCalledTimes(1);
+      expect(payload).toMatchObject({ tool: 'create-draft-email', status: 'error' });
+    });
+
+    it('still records recipients when the request throws', async () => {
+      draftEndpoint();
+      const graphClient = {
+        graphRequest: vi.fn().mockRejectedValue(new Error('socket hang up')),
+      };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('create-draft-email')!.handler({
+        body: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+      });
+
+      // A timeout is not proof of non-delivery, so the signal has to survive
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload.status).toBe('error');
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('walks recipients nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Routing a send through /$batch used to record nothing at all
+      const payload = await runDraft({
+        requests: [
+          { id: '1', method: 'GET', url: '/me/messages?$top=5' },
+          {
+            id: '2',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: { message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] } },
+          },
+        ],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reaches an itemAttachment nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Deepest shape the docstring promises: 7 levels, one under MAX_BODY_DEPTH. Pinned
+      // so trimming the budget fails here rather than quietly dropping the case.
+      const payload = await runDraft({
+        requests: [
+          {
+            id: '1',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: {
+              message: {
+                toRecipients: [{ emailAddress: { address: 'direct@ext.com' } }],
+                attachments: [
+                  {
+                    '@odata.type': '#microsoft.graph.itemAttachment',
+                    item: {
+                      toRecipients: [{ emailAddress: { address: 'forwarded@deeper.example' } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['deeper.example', 'ext.com']);
+    });
+
+    it('reads a bare string entry, malformed though it is', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ toRecipients: ['a@ext.com'] });
+
+      // Graph rejects this shape, so nothing is delivered - but an attempted send to an
+      // outside domain is exactly what the trail is for
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reads an all-PascalCase recipient entry, as Graph accepts it', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        ToRecipients: [{ EmailAddress: { Address: 'a@ext.com' } }],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('normalises a display-name address down to the bare domain', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'Bob <bob@ext.com>' } },
+          { emailAddress: { address: 'a@ext.com ' } },
+          { emailAddress: { address: 'c@ext.com note' } },
+        ],
+      });
+
+      // Same domain three ways - unnormalised that's three entries, one carrying junk
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+      expect(payload.recipient_count).toBe(3);
+    });
+
+    it('caps the domain list but keeps recipient_count exact', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: Array.from({ length: 60 }, (_, i) => ({
+          emailAddress: { address: `user@d${String(i).padStart(2, '0')}.example` },
+        })),
+      });
+
+      // The count is the detection signal, so it has to survive the cap
+      expect(payload.recipient_count).toBe(60);
+      expect(payload.recipient_domains).toHaveLength(50);
+      expect(payload.recipient_domains_truncated).toBe(true);
+    });
+
+    it('does not flag truncation when the domain list fits', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'a@example.com' } }],
+      });
+
+      expect(payload).not.toHaveProperty('recipient_domains_truncated');
+    });
+
     it('omits both fields when a request has no recipients', async () => {
       draftEndpoint();
       const payload = await runDraft({ subject: 'a draft with no recipients yet' });
