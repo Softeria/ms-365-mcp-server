@@ -263,6 +263,73 @@ function graphResponseAuditFields(
   };
 }
 
+// Graph is inconsistent about casing: entity creation (POST /me/messages) uses
+// camelCase body fields, while action endpoints (POST .../forward, /me/sendMail)
+// use PascalCase. Matched case-insensitively so both are covered.
+const RECIPIENT_FIELDS = new Set(['torecipients', 'ccrecipients', 'bccrecipients', 'attendees']);
+const NESTED_BODY_FIELDS = new Set(['message']);
+const MAX_BODY_DEPTH = 3;
+
+function collectRecipients(
+  node: unknown,
+  domains: Set<string>,
+  counter: { count: number },
+  depth = 0
+): void {
+  if (!node || typeof node !== 'object' || depth > MAX_BODY_DEPTH) return;
+
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    const name = key.toLowerCase();
+
+    if (NESTED_BODY_FIELDS.has(name)) {
+      collectRecipients(value, domains, counter, depth + 1);
+      continue;
+    }
+    if (!RECIPIENT_FIELDS.has(name) || !Array.isArray(value)) continue;
+
+    for (const entry of value) {
+      const address = (entry as { emailAddress?: { address?: unknown } })?.emailAddress?.address;
+      if (typeof address !== 'string') continue;
+      counter.count += 1;
+      const at = address.lastIndexOf('@');
+      if (at > 0 && at < address.length - 1) {
+        domains.add(address.slice(at + 1).toLowerCase());
+      }
+    }
+  }
+}
+
+/**
+ * Derives recipient metadata from an outgoing request body for the audit trail.
+ *
+ * A send, forward or meeting invite records that the tool ran but not who it
+ * reached, so an instruction injected via message content that quietly addresses
+ * something outside the organisation looks identical in the log to a legitimate
+ * reply.
+ *
+ * Domains, not addresses. The detection question is "did this leave the
+ * organisation", which a domain answers; the full address is message content and
+ * logging it by default would be a heavier privacy cost than the signal
+ * justifies. Counts alone cannot distinguish internal from external.
+ *
+ * Covers mail recipients and event attendees, at the top level or nested under
+ * `message`, in either casing. `POST /me/messages/{id}/send` carries no body —
+ * its recipients were recorded when the draft was created.
+ */
+function recipientAuditFields(
+  body: unknown
+): Pick<AuditEvent, 'recipient_count' | 'recipient_domains'> {
+  const domains = new Set<string>();
+  const counter = { count: 0 };
+  collectRecipients(body, domains, counter);
+
+  if (counter.count === 0) return {};
+  return {
+    recipient_count: counter.count,
+    ...(domains.size > 0 ? { recipient_domains: [...domains].sort() } : {}),
+  };
+}
+
 function thrownErrorAuditFields(error: unknown): Pick<AuditEvent, 'http_status' | 'error_code'> {
   const err = error as {
     code?: string | number;
@@ -1703,6 +1770,7 @@ async function executeGraphTool(
       duration_ms: Date.now() - startTime,
       ...(targetResource ? { target_resource: targetResource } : {}),
       ...graphResponseAuditFields(response),
+      ...recipientAuditFields(body),
     });
 
     return {
