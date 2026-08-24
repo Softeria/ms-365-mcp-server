@@ -1294,6 +1294,18 @@ function hasOwn(obj: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+// JSON.stringify recurses, so a params object nested deeply enough overflows the stack -
+// on Node 20 well before Node 26. It runs before the try below, so an unguarded throw
+// escapes executeGraphTool entirely: the caller gets a protocol error instead of a tool
+// error, and no audit record is written at all. Nesting depth is caller-controlled.
+function describeParamsForLog(params: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(params);
+  } catch (error) {
+    return `[unserializable: ${error instanceof Error ? error.name : 'unknown error'}]`;
+  }
+}
+
 async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
@@ -1301,7 +1313,7 @@ async function executeGraphTool(
   params: Record<string, unknown>,
   authManager?: AuthManager
 ): Promise<CallToolResult> {
-  logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+  logger.info(`Tool ${tool.alias} called with params: ${describeParamsForLog(params)}`);
 
   if (
     isConfirmGateEnabled() &&

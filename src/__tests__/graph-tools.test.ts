@@ -658,15 +658,30 @@ describe('graph-tools', () => {
 
     it('survives a deeply nested array without blowing the stack', async () => {
       draftEndpoint();
-      // Must terminate, not overflow - this walker runs inside the catch handler
+      // Must terminate, not overflow - this walker runs inside the catch handler. 500 is
+      // far past MAX_BODY_DEPTH and still serialises on every Node we support; going
+      // deeper only tests where JSON.stringify gives out, which moves between versions.
       let nested: unknown = [{ toRecipients: [{ emailAddress: { address: 'deep@ext.com' } }] }];
-      for (let i = 0; i < 5000; i++) nested = [nested];
+      for (let i = 0; i < 500; i++) nested = [nested];
 
       const payload = await runDraft({ requests: nested });
 
       // Too deep to reach, but it has to return rather than throw
       expect(payload).not.toHaveProperty('recipient_count');
       expect(payload.status).toBe('success');
+    });
+
+    it('still audits a call whose params cannot be serialised for the log', async () => {
+      draftEndpoint();
+      // The params log line runs before the try that writes the audit record, so an
+      // unguarded stringify there escapes the tool entirely: protocol error, no trail.
+      const circular: Record<string, unknown> = { subject: 'loop' };
+      circular.self = circular;
+
+      const payload = await runDraft(circular);
+
+      expect(auditLogMock).toHaveBeenCalledTimes(1);
+      expect(payload).toMatchObject({ tool: 'create-draft-email', status: 'error' });
     });
 
     it('still records recipients when the request throws', async () => {
