@@ -266,9 +266,73 @@ function graphResponseAuditFields(
 // Graph is inconsistent about casing: entity creation (POST /me/messages) uses
 // camelCase body fields, while action endpoints (POST .../forward, /me/sendMail)
 // use PascalCase. Matched case-insensitively so both are covered.
-const RECIPIENT_FIELDS = new Set(['torecipients', 'ccrecipients', 'bccrecipients', 'attendees']);
-const NESTED_BODY_FIELDS = new Set(['message']);
-const MAX_BODY_DEPTH = 3;
+const RECIPIENT_FIELDS = new Set([
+  'torecipients',
+  'ccrecipients',
+  'bccrecipients',
+  'attendees',
+  // driveItem /invite mails an outsider a link to the file
+  'recipients',
+]);
+// Worst real shape is 4 (graph-batch: requests -> body -> message -> toRecipients),
+// rest is headroom. Arrays charge depth too - traversing them for free leaves an
+// array-only path unbounded, and this runs inside the catch handler where a stack
+// overflow would take the audit record with it.
+const MAX_BODY_DEPTH = 8;
+// A big distribution list would otherwise dump every domain into one audit line, at
+// a length the caller picks. recipient_count is untouched, so we never lose how many.
+const MAX_RECIPIENT_DOMAINS = 50;
+
+// Graph matches property names case-insensitively, so we have to as well - or a
+// PascalCase payload sends mail the log never sees
+function lookupCaseInsensitive(node: unknown, lowerName: string): unknown {
+  if (!node || typeof node !== 'object') return undefined;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key.toLowerCase() === lowerName) return value;
+  }
+  return undefined;
+}
+
+// Recipients are not one shape: mail and events use emailAddress.address, driveItem
+// /invite uses email, meeting participants use upn. alias/objectId name someone with
+// no domain at all - those still count, they just don't add one.
+function readAddress(entry: unknown): string | undefined {
+  const emailAddress = lookupCaseInsensitive(entry, 'emailaddress');
+  const candidates = [
+    typeof emailAddress === 'string'
+      ? emailAddress
+      : lookupCaseInsensitive(emailAddress, 'address'),
+    lookupCaseInsensitive(entry, 'email'),
+    lookupCaseInsensitive(entry, 'upn'),
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate) return candidate;
+  }
+  return undefined;
+}
+
+// Positive check, not suffix-stripping. Everything after the last @ is caller-controlled
+// and Graph tolerates enough junk that subtracting kept losing - "example.com/path" and
+// "evil<script" both got through. Anything that isn't a plain dotted hostname gets dropped.
+const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+function addRecipient(entry: unknown, domains: Set<string>, counter: { count: number }): void {
+  // Count the entry, not our ability to parse it
+  counter.count += 1;
+
+  const address = readAddress(entry);
+  if (address === undefined) return;
+  const at = address.lastIndexOf('@');
+  if (at <= 0 || at >= address.length - 1) return;
+  // Peel the wrappers Graph tolerates, then let the pattern decide
+  const domain = address
+    .slice(at + 1)
+    .trim()
+    .split(/\s/)[0]
+    .replace(/[>.]+$/, '')
+    .toLowerCase();
+  if (DOMAIN_PATTERN.test(domain)) domains.add(domain);
+}
 
 function collectRecipients(
   node: unknown,
@@ -278,24 +342,19 @@ function collectRecipients(
 ): void {
   if (!node || typeof node !== 'object' || depth > MAX_BODY_DEPTH) return;
 
-  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-    const name = key.toLowerCase();
+  if (Array.isArray(node)) {
+    for (const item of node) collectRecipients(item, domains, counter, depth + 1);
+    return;
+  }
 
-    if (NESTED_BODY_FIELDS.has(name)) {
-      collectRecipients(value, domains, counter, depth + 1);
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (RECIPIENT_FIELDS.has(key.toLowerCase()) && Array.isArray(value)) {
+      for (const entry of value) addRecipient(entry, domains, counter);
       continue;
     }
-    if (!RECIPIENT_FIELDS.has(name) || !Array.isArray(value)) continue;
-
-    for (const entry of value) {
-      const address = (entry as { emailAddress?: { address?: unknown } })?.emailAddress?.address;
-      if (typeof address !== 'string') continue;
-      counter.count += 1;
-      const at = address.lastIndexOf('@');
-      if (at > 0 && at < address.length - 1) {
-        domains.add(address.slice(at + 1).toLowerCase());
-      }
-    }
+    // Walk everything, not an allowlist of container names - a recipient list
+    // nested somewhere we didn't think of still sends real mail
+    collectRecipients(value, domains, counter, depth + 1);
   }
 }
 
@@ -312,21 +371,53 @@ function collectRecipients(
  * logging it by default would be a heavier privacy cost than the signal
  * justifies. Counts alone cannot distinguish internal from external.
  *
- * Covers mail recipients and event attendees, at the top level or nested under
- * `message`, in either casing. `POST /me/messages/{id}/send` carries no body —
- * its recipients were recorded when the draft was created.
+ * Covers mail recipients, event attendees and driveItem /invite recipients, at
+ * any casing and up to MAX_BODY_DEPTH levels down, including inside a
+ * graph-batch sub-request and inside a body forwarded as a raw JSON string.
+ *
+ * recipient_count is entries in a recipient-shaped array; a driveRecipient given
+ * only as alias or objectId counts but yields no domain. Keyed on body shape,
+ * not on the endpoint, so drafts and event edits count like real sends, and so
+ * does an attached message's own toRecipients inside an itemAttachment. Reads
+ * high rather than low, which is the safe direction for a detection signal.
+ *
+ * Gaps remain, so absence of these fields is NOT evidence that nothing left
+ * the organisation:
+ *  - On `reply` / `replyAll`, recipients added via the optional `Message` are
+ *    recorded, but the original thread's are resolved server-side by Graph and
+ *    never appear. A plain reply-all to a wide external thread records nothing.
+ *  - `POST /me/messages/{id}/send` carries no body. Its recipients were logged
+ *    when the draft was created, but only if the draft was created through this
+ *    server; one composed in Outlook and sent here records nothing.
+ *
+ * Policy-denied attempts (`tool.denied`) also record none, but nothing was sent.
  */
 function recipientAuditFields(
   body: unknown
-): Pick<AuditEvent, 'recipient_count' | 'recipient_domains'> {
+): Pick<AuditEvent, 'recipient_count' | 'recipient_domains' | 'recipient_domains_truncated'> {
   const domains = new Set<string>();
   const counter = { count: 0 };
-  collectRecipients(body, domains, counter);
+  // Broader than a recursion guard on purpose: this also runs on the catch path, where
+  // throwing would cost the audit record AND the caller's error response. Losing the
+  // fields beats losing both.
+  try {
+    // A body that failed schema parsing goes to Graph as a raw string, and mail sent
+    // that way would record nothing. Non-JSON lands in the catch.
+    collectRecipients(typeof body === 'string' ? JSON.parse(body) : body, domains, counter);
+  } catch (error) {
+    logger.warn(
+      `Skipped recipient audit metadata: ${error instanceof Error ? error.message : 'unknown error'}`
+    );
+    return {};
+  }
 
   if (counter.count === 0) return {};
+  const sorted = [...domains].sort();
+  const capped = sorted.slice(0, MAX_RECIPIENT_DOMAINS);
   return {
     recipient_count: counter.count,
-    ...(domains.size > 0 ? { recipient_domains: [...domains].sort() } : {}),
+    ...(capped.length > 0 ? { recipient_domains: capped } : {}),
+    ...(sorted.length > capped.length ? { recipient_domains_truncated: true } : {}),
   };
 }
 
@@ -1231,6 +1322,10 @@ async function executeGraphTool(
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
   const httpMethod = tool.method.toUpperCase();
   let targetResource: AuditTargetResource | undefined;
+  // Hoisted alongside targetResource so the catch-path audit can still report
+  // recipients. A send that times out or trips the breaker is exactly the
+  // ambiguous case: a thrown request is not proof that nothing was delivered.
+  let body: unknown = null;
 
   try {
     const accountParam = params.account as string | undefined;
@@ -1270,7 +1365,6 @@ async function executeGraphTool(
     let path = tool.path;
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
-    let body: unknown = null;
 
     // Body fields the client passed as top-level params (#569) - merged into the
     // request body after the loop
@@ -1792,6 +1886,7 @@ async function executeGraphTool(
       ...(targetResource ? { target_resource: targetResource } : {}),
       error_type: err?.name || 'Error',
       ...thrownErrorAuditFields(error),
+      ...recipientAuditFields(body),
     });
     return {
       content: [
