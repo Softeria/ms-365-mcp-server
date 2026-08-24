@@ -724,6 +724,46 @@ describe('graph-tools', () => {
       expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
     });
 
+    it('reaches an itemAttachment nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Deepest shape the docstring promises: 7 levels, one under MAX_BODY_DEPTH. Pinned
+      // so trimming the budget fails here rather than quietly dropping the case.
+      const payload = await runDraft({
+        requests: [
+          {
+            id: '1',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: {
+              message: {
+                toRecipients: [{ emailAddress: { address: 'direct@ext.com' } }],
+                attachments: [
+                  {
+                    '@odata.type': '#microsoft.graph.itemAttachment',
+                    item: {
+                      toRecipients: [{ emailAddress: { address: 'forwarded@deeper.example' } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['deeper.example', 'ext.com']);
+    });
+
+    it('reads a bare string entry, malformed though it is', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ toRecipients: ['a@ext.com'] });
+
+      // Graph rejects this shape, so nothing is delivered - but an attempted send to an
+      // outside domain is exactly what the trail is for
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
     it('reads an all-PascalCase recipient entry, as Graph accepts it', async () => {
       draftEndpoint();
       const payload = await runDraft({

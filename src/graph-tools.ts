@@ -274,10 +274,13 @@ const RECIPIENT_FIELDS = new Set([
   // driveItem /invite mails an outsider a link to the file
   'recipients',
 ]);
-// Worst real shape is 4 (graph-batch: requests -> body -> message -> toRecipients),
-// rest is headroom. Arrays charge depth too - traversing them for free leaves an
-// array-only path unbounded, and this runs inside the catch handler where a stack
-// overflow would take the audit record with it.
+// Worst shape the docstring below promises to cover is 7, not 4: a graph-batch
+// sub-request carrying an itemAttachment lands at requests -> request -> body -> message
+// -> attachments -> attachment -> item, and the attached message's own toRecipients match
+// there. That leaves one level spare, so this can't be trimmed without giving that case
+// up - there's a test pinning it. Arrays charge depth too - traversing them for free
+// leaves an array-only path unbounded, and this runs inside the catch handler where a
+// stack overflow would take the audit record with it.
 const MAX_BODY_DEPTH = 8;
 // A big distribution list would otherwise dump every domain into one audit line, at
 // a length the caller picks. recipient_count is untouched, so we never lose how many.
@@ -297,6 +300,10 @@ function lookupCaseInsensitive(node: unknown, lowerName: string): unknown {
 // /invite uses email, meeting participants use upn. alias/objectId name someone with
 // no domain at all - those still count, they just don't add one.
 function readAddress(entry: unknown): string | undefined {
+  // Graph 400s a bare string in a recipient array, but the attempt is the signal and
+  // everything else here reads high - this shouldn't be the one place that reads low
+  if (typeof entry === 'string') return entry;
+
   const emailAddress = lookupCaseInsensitive(entry, 'emailaddress');
   const candidates = [
     typeof emailAddress === 'string'
