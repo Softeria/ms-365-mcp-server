@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import { dedupeRefreshTokens } from './lib/cache-dedupe.js';
 import {
   createTokenCacheStorage,
   DefaultTokenCacheStorage,
@@ -56,6 +57,77 @@ function createMsalConfig(secrets: AppSecrets): Configuration {
 }
 
 /**
+ * Duplicate refresh tokens are a property of the cache, not of one read, so the warning
+ * belongs to the process rather than to every access that reloads the same file.
+ */
+const warnedDuplicateRefreshTokens = new Set<string>();
+
+/** Test seam: the warnings above are deduplicated for the process lifetime. */
+export function resetRefreshTokenWarningsForTests(): void {
+  warnedDuplicateRefreshTokens.clear();
+}
+
+function pruneDuplicateRefreshTokens(data: string): string {
+  const result = dedupeRefreshTokens(data);
+
+  for (const drop of result.dropped) {
+    const signature = `${drop.environment}->${drop.keptEnvironment}`;
+    if (warnedDuplicateRefreshTokens.has(signature)) continue;
+    warnedDuplicateRefreshTokens.add(signature);
+    logger.warn(
+      `Dropped a stale refresh token cached under ${drop.environment}, keeping the one under ` +
+        `${drop.keptEnvironment}. MSAL treats those as the same account and spends whichever it ` +
+        `finds first, which is what strands a sign-in on a months-old token (issue #648).`
+    );
+  }
+
+  if (result.ambiguous > 0 && !warnedDuplicateRefreshTokens.has('ambiguous')) {
+    warnedDuplicateRefreshTokens.add('ambiguous');
+    logger.warn(
+      `The auth cache holds ${result.ambiguous} set(s) of duplicate refresh tokens with nothing to ` +
+        `say which is current, so they were left alone. If silent refresh keeps failing for an ` +
+        `account, log out and sign in again to clear them.`
+    );
+  }
+
+  return result.data;
+}
+
+/** How long to wait before a second look at the cache, when the first came up short. */
+const PERSISTENCE_RECHECK_MS = 150;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Refresh token secrets a serialized cache holds for one account. `undefined` means the
+ * blob did not read back as a cache at all, which is not the same as holding no tokens.
+ */
+function persistedRefreshTokens(cacheJson: string, homeAccountId: string): Set<string> | undefined {
+  let refreshTokens: unknown;
+  try {
+    const parsed: unknown = JSON.parse(cacheJson);
+    if (typeof parsed !== 'object' || parsed === null) return undefined;
+    refreshTokens = (parsed as { RefreshToken?: unknown }).RefreshToken;
+  } catch {
+    return undefined;
+  }
+
+  const secrets = new Set<string>();
+  // A cache with no refresh tokens at all is readable and simply empty.
+  if (typeof refreshTokens !== 'object' || refreshTokens === null) return secrets;
+
+  for (const entity of Object.values(refreshTokens as Record<string, unknown>)) {
+    if (typeof entity !== 'object' || entity === null) continue;
+    const credential = entity as { home_account_id?: string; secret?: string };
+    if (credential.home_account_id !== homeAccountId) continue;
+    if (credential.secret) secrets.add(credential.secret);
+  }
+  return secrets;
+}
+
+/**
  * Builds an MSAL cache plugin that keeps the file-backed token cache coherent across
  * concurrent processes. In the common stdio deployment several MCP server processes share
  * one token cache file. Microsoft rotates refresh tokens on silent refresh, so without this
@@ -63,7 +135,8 @@ function createMsalConfig(secrets: AppSecrets): Configuration {
  * refresh token on disk (invalid_grant / no_tokens_found). See issue #545.
  *
  * MSAL invokes beforeCacheAccess/afterCacheAccess around every cache operation, so:
- *  - beforeCacheAccess reloads the newest persisted cache into MSAL right before each access
+ *  - beforeCacheAccess reloads the newest persisted cache into MSAL right before each access,
+ *    collapsing duplicate refresh tokens on the way in (see cache-dedupe, issue #648)
  *  - afterCacheAccess persists (atomically, via storage) only when MSAL changed the cache
  * This preserves the existing cache envelope (wrapCache) and the storage provider's
  * fail-closed semantics.
@@ -83,7 +156,7 @@ export function buildDiskCoherencyCachePlugin(storage: TokenCacheStorage): ICach
       try {
         const cacheRaw = await storage.load('token-cache');
         if (cacheRaw) {
-          context.tokenCache.deserialize(unwrapCache(cacheRaw).data);
+          context.tokenCache.deserialize(pruneDuplicateRefreshTokens(unwrapCache(cacheRaw).data));
         }
       } catch (error) {
         logger.error(`Error reloading token cache: ${(error as Error).message}`);
@@ -606,6 +679,7 @@ class AuthManager {
   private expectedUsername: string | null;
   private expectedHomeAccountId: string | null;
   private storage: TokenCacheStorage;
+  private loginPersistenceError: string | null;
 
   constructor(
     config: Configuration,
@@ -630,6 +704,7 @@ class AuthManager {
     this.tokenExpiry = null;
     this.selectedAccountId = null;
     this.useInteractiveAuth = false;
+    this.loginPersistenceError = null;
     this.expectedUsername = this.normalizeExpectedUsername(expectedAccount?.expectedUsername);
     this.expectedHomeAccountId = this.normalizeExpectedHomeAccountId(
       expectedAccount?.expectedHomeAccountId
@@ -661,7 +736,9 @@ class AuthManager {
     try {
       const cacheRaw = await this.storage.load('token-cache');
       if (cacheRaw) {
-        this.msalApp.getTokenCache().deserialize(unwrapCache(cacheRaw).data);
+        this.msalApp
+          .getTokenCache()
+          .deserialize(pruneDuplicateRefreshTokens(unwrapCache(cacheRaw).data));
       }
 
       // Load selected account
@@ -853,6 +930,127 @@ class AuthManager {
     );
   }
 
+  private async readPersistedRefreshTokens(
+    homeAccountId: string
+  ): Promise<Set<string> | undefined> {
+    const cacheRaw = await this.storage.load('token-cache');
+    return cacheRaw
+      ? persistedRefreshTokens(unwrapCache(cacheRaw).data, homeAccountId)
+      : new Set<string>();
+  }
+
+  /**
+   * Records why a sign-in could not be confirmed, then throws.
+   *
+   * The message has to outlive the throw. On the MCP `login` path the tool has already
+   * returned - it resolves as soon as there is a device code to show - so this rejection
+   * has nowhere to go, and `verify login` is where the user looks next. Clearing the
+   * in-memory token stops that check from answering out of memory and calling it a
+   * success (issue #648).
+   */
+  private failLoginPersistence(account: AccountInfo, reason: string): never {
+    const message = `Signed in as '${this.describeAccount(account)}', but ${reason}`;
+    this.loginPersistenceError = message;
+    this.accessToken = null;
+    this.tokenExpiry = null;
+    logger.error(message);
+    throw new Error(message);
+  }
+
+  /** Refresh token secrets MSAL holds for an account right now, before anything reloads. */
+  private inMemoryRefreshTokens(homeAccountId: string): Set<string> {
+    const secrets = new Set<string>();
+    const cache = this.msalApp.getTokenCache() as {
+      getKVStore?: () => Record<string, unknown>;
+    };
+    // Absent on a stubbed cache, and on any MSAL that stops exposing it. Returning
+    // nothing turns the check below into a no-op rather than a false alarm.
+    const store = cache.getKVStore?.();
+    if (!store) return secrets;
+
+    for (const entity of Object.values(store)) {
+      if (typeof entity !== 'object' || entity === null) continue;
+      const credential = entity as {
+        credentialType?: string;
+        homeAccountId?: string;
+        secret?: string;
+      };
+      if (credential.credentialType !== 'RefreshToken') continue;
+      if (credential.homeAccountId !== homeAccountId) continue;
+      if (credential.secret) secrets.add(credential.secret);
+    }
+    return secrets;
+  }
+
+  /**
+   * Confirms the refresh token MSAL just issued actually reached the cache.
+   *
+   * Persistence is best-effort by design: DefaultTokenCacheStorage is not fail-closed, so
+   * afterCacheAccess swallows a refused or failed write and the sign-in still reports
+   * success. The account then works for exactly one access token lifetime - the one held
+   * in memory - and every silent refresh afterwards falls back to whatever stale token is
+   * still on disk. Nothing surfaces that until it has been happening for weeks, by which
+   * point the stale token has aged past Entra's 90-day inactivity limit and the account is
+   * dead (issue #648). Cheaper to read the cache back once than to debug that later.
+   */
+  private async assertLoginPersisted(account: AccountInfo | null | undefined): Promise<void> {
+    // A new attempt supersedes whatever the last one concluded.
+    this.loginPersistenceError = null;
+    if (!account) return;
+
+    // Everything MSAL holds for the account, which after a cache reload is the disk
+    // contents plus whatever this sign-in just added. The whole set has to survive the
+    // write: checking that *some* of it did would be satisfied by the very stale token
+    // this exists to catch, since that one is already on disk.
+    const issued = this.inMemoryRefreshTokens(account.homeAccountId);
+    if (issued.size === 0) return;
+
+    let persisted: Set<string> | undefined;
+    try {
+      persisted = await this.readPersistedRefreshTokens(account.homeAccountId);
+      if (persisted && ![...issued].every((secret) => persisted!.has(secret))) {
+        // The cache is last-writer-wins across processes rather than locked (issue #545),
+        // so this read can land between a sibling's save and its own reload. One more look
+        // is cheaper than telling someone a good sign-in was lost.
+        await delay(PERSISTENCE_RECHECK_MS);
+        persisted = await this.readPersistedRefreshTokens(account.homeAccountId);
+      }
+    } catch (error) {
+      this.failLoginPersistence(
+        account,
+        `the auth cache could not be read back (${(error as Error).message}), so the sign-in cannot ` +
+          `be confirmed as saved. It would stop working when this access token expires. Fix the cache ` +
+          `location, then log in again.`
+      );
+    }
+
+    if (persisted === undefined) {
+      this.failLoginPersistence(
+        account,
+        `the auth cache did not read back as a usable cache, so the sign-in cannot be confirmed as ` +
+          `saved. It would stop working when this access token expires. Check the log for ` +
+          `'Not persisting token-cache'.`
+      );
+    }
+
+    if (![...issued].every((secret) => persisted.has(secret))) {
+      this.failLoginPersistence(
+        account,
+        `the refresh token was not written to the auth cache, so access would stop working when this ` +
+          `access token expires. The log says why - look for 'Not persisting token-cache' or ` +
+          `'Error saving token cache'.`
+      );
+    }
+
+    if (persisted.size > 1) {
+      logger.warn(
+        `The auth cache holds ${persisted.size} refresh tokens for '${this.describeAccount(account)}'. ` +
+          `MSAL spends whichever it finds first, so a stale one can win (issue #648). Log out and sign ` +
+          `in again if silent refresh starts failing.`
+      );
+    }
+  }
+
   async setOAuthToken(token: string): Promise<void> {
     this.oauthToken = token;
     this.isOAuthMode = true;
@@ -949,6 +1147,7 @@ class AuthManager {
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
       await this.rejectUnexpectedLoginAccount(response?.account);
+      await this.assertLoginPersisted(response?.account);
 
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
@@ -1001,6 +1200,7 @@ class AuthManager {
       this.accessToken = response?.accessToken || null;
       this.tokenExpiry = response?.expiresOn ? new Date(response.expiresOn).getTime() : null;
       await this.rejectUnexpectedLoginAccount(response?.account);
+      await this.assertLoginPersisted(response?.account);
 
       // Set the newly authenticated account as selected if no account is currently selected
       if (!this.selectedAccountId && response?.account) {
@@ -1021,6 +1221,14 @@ class AuthManager {
   async testLogin(): Promise<LoginTestResult> {
     try {
       logger.info('Testing login...');
+      // A sign-in whose tokens never reached the cache reports its failure here: on the
+      // MCP login path the tool had already returned by the time that was known, and this
+      // is where the user is told to look next (issue #648).
+      if (this.loginPersistenceError) {
+        logger.error(`Login test failed - ${this.loginPersistenceError}`);
+        return { success: false, message: this.loginPersistenceError };
+      }
+
       const token = await this.getToken();
 
       if (!token) {

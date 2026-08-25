@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import AuthManager from './auth.js';
+import logger from './logger.js';
 import { getRequestTokens } from './request-context.js';
 
 export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
@@ -45,8 +46,16 @@ export function registerAuthTools(server: McpServer, authManager: AuthManager): 
           };
         }
 
+        // resolve() is the device-code callback: it fires as soon as there is a code to
+        // show, because the user cannot enter a code this tool is still holding. Anything
+        // that fails after that - a rejected account, a cache write that never landed -
+        // arrives with this promise already settled, so reject() is a no-op. The log and
+        // the failure `verify login` reports are what surface it (issue #648).
         const text = await new Promise<string>((resolve, reject) => {
-          authManager.acquireTokenByDeviceCode(resolve).catch(reject);
+          authManager.acquireTokenByDeviceCode(resolve).catch((error: Error) => {
+            logger.error(`Device code login failed after the code was issued: ${error.message}`);
+            reject(error);
+          });
         });
         return {
           content: [
