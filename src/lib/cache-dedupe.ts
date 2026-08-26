@@ -12,13 +12,12 @@
  * crosses Entra's 90-day inactivity limit (issue #648).
  *
  * The survivor is the entry in whatever environment MSAL last wrote under *for that same
- * credential owner*. Access tokens carry `cached_at` and a `client_id`, so the newest one
- * belonging to the owner names it; a family (FOCI) refresh token is shared across clients
- * and has no single owner's access tokens to rank it, so it falls back to the account
- * entities. Deleting a live credential costs a re-login, so every case that does not point
- * at exactly one winner - no signal, two environments stamped at the same instant, a
- * preferred environment matching no entry - leaves the group exactly as it is. A duplicate
- * left alone is no worse off than it already was.
+ * credential owner*, ranked by `cached_at` on that owner's access tokens - the only dated
+ * signal in the cache. Account entities are deliberately not a fallback: no recency, no
+ * link to the last rotation, so ranking by them is a guess, and a wrong guess here is
+ * invisible - the user is signed out, signs back in, and never reports it. So anything
+ * that doesn't point at exactly one winner is left exactly as it is. A duplicate left
+ * alone is no worse off than it already was.
  */
 
 interface SerializedEntity {
@@ -28,6 +27,10 @@ interface SerializedEntity {
   family_id?: string;
   cached_at?: string;
   secret?: string;
+  /** All three take part in MSAL's credential key, so all three must reach the resolver. */
+  realm?: string;
+  target?: string;
+  token_type?: string;
 }
 
 type EntityDict = Record<string, SerializedEntity>;
@@ -39,6 +42,8 @@ interface SerializedCache {
 }
 
 export interface DroppedRefreshToken {
+  /** Removing it from the blob is not enough on its own - see dropFromKVStore in auth.ts. */
+  key: string;
   environment: string;
   keptEnvironment: string;
 }
@@ -48,6 +53,11 @@ export interface RefreshTokenDedupe {
   dropped: DroppedRefreshToken[];
   /** Groups holding several tokens that no signal could rank. Left untouched. */
   ambiguous: number;
+  /**
+   * home_account_ids owning those groups - one account can own several. Warning about a
+   * cache is one thing, telling a *particular* account to log out is another.
+   */
+  ambiguousAccounts: string[];
 }
 
 interface EnvironmentChoice {
@@ -57,12 +67,8 @@ interface EnvironmentChoice {
   tied: boolean;
 }
 
-interface EnvironmentPreferences {
-  /** Keyed `${home_account_id} ${client_id}`: where that one client last wrote. */
-  byOwner: Map<string, EnvironmentChoice>;
-  /** Keyed home_account_id, and only where the account entities agree on one environment. */
-  byAccount: Map<string, string>;
-}
+/** Keyed `${home_account_id} ${client_id}`: where that one client last wrote. */
+type EnvironmentPreferences = Map<string, EnvironmentChoice>;
 
 /** A refresh token group: every entry MSAL would consider interchangeable. */
 interface RefreshTokenGroup {
@@ -113,41 +119,76 @@ function environmentPreferences(cache: SerializedCache): EnvironmentPreferences 
     }
   }
 
-  // Accounts are rewritten on every login, so their environment is a decent second
-  // opinion - but only where the account itself was not left duplicated across aliases.
-  const byAccount = new Map<string, string>();
-  if (isDict(cache.Account)) {
-    const seen = new Map<string, Set<string>>();
-    for (const entity of Object.values(cache.Account)) {
-      const home = entity?.home_account_id;
-      const environment = entity?.environment;
-      if (!home || !environment) continue;
-      let environments = seen.get(home);
-      if (!environments) seen.set(home, (environments = new Set()));
-      environments.add(environment);
-    }
-    for (const [home, environments] of seen) {
-      const only = [...environments][0];
-      if (environments.size === 1 && only) byAccount.set(home, only);
-    }
-  }
-
-  return { byOwner, byAccount };
+  return byOwner;
 }
 
 function preferredEnvironment(
   preferences: EnvironmentPreferences,
   group: RefreshTokenGroup
 ): string | undefined {
-  const choice = preferences.byOwner.get(groupKey(group.homeAccountId, group.owner));
-  if (choice && !choice.tied) return choice.environment;
-  // Nothing owner-specific: either a family token, a client with no access tokens left,
-  // or a tie. The account entities are the only account-wide signal remaining.
-  return preferences.byAccount.get(group.homeAccountId);
+  const choice = preferences.get(groupKey(group.homeAccountId, group.owner));
+  // No dated signal (family token, or the access tokens are gone), or a tie, which says
+  // just as little. Both leave the group alone - there is deliberately no fallback
+  if (!choice || choice.tied) return undefined;
+  return choice.environment;
 }
 
-export function dedupeRefreshTokens(cacheJson: string): RefreshTokenDedupe {
-  const unchanged: RefreshTokenDedupe = { data: cacheJson, dropped: [], ambiguous: 0 };
+/** The key MSAL would write for an entity now, or undefined. The caller owns MSAL, not us. */
+export type CanonicalKeyFor = (entity: SerializedEntity) => string | undefined;
+
+/**
+ * Collapse entries that are the same credential written under two different MSAL key
+ * formats.
+ *
+ * MSAL's credential key changed shape across majors: msal-node 3.x wrote
+ * `<home>-<env>-refreshtoken-<client>----`, 5.x writes one dash fewer. An upgrade leaves
+ * the old entry behind, MSAL still matches it (the filter tests fields, not key shape),
+ * and `getRefreshToken` returns whichever comes first - so every login after that writes a
+ * token the account never gets to use. Same dead end as the environment aliases below, and
+ * the environment ranking is blind to it since both entries share an environment.
+ *
+ * The key format is the recency signal: identical fields resolve to one canonical key, so
+ * whoever is stored *at* it is what today's MSAL wrote and the rest are leftovers. Nothing
+ * goes unless that occupant is really there - a lone old-format entry is the only copy of
+ * a working credential, and MSAL reads it fine.
+ */
+function dropSupersededKeyFormats(
+  refreshTokens: EntityDict,
+  canonicalKeyFor: CanonicalKeyFor
+): DroppedRefreshToken[] {
+  const byCanonical = new Map<string, string[]>();
+  for (const [key, entity] of Object.entries(refreshTokens)) {
+    if (!isEntity(entity)) continue;
+    const canonical = canonicalKeyFor(entity);
+    if (!canonical) continue;
+    byCanonical.set(canonical, [...(byCanonical.get(canonical) ?? []), key]);
+  }
+
+  const dropped: DroppedRefreshToken[] = [];
+  for (const [canonical, keys] of byCanonical) {
+    if (keys.length < 2 || !keys.includes(canonical)) continue;
+    for (const key of keys) {
+      if (key === canonical) continue;
+      dropped.push({
+        key,
+        environment: refreshTokens[key]?.environment ?? 'unknown',
+        keptEnvironment: refreshTokens[canonical]?.environment ?? 'unknown',
+      });
+    }
+  }
+  return dropped;
+}
+
+export function dedupeRefreshTokens(
+  cacheJson: string,
+  canonicalKeyFor?: CanonicalKeyFor
+): RefreshTokenDedupe {
+  const unchanged: RefreshTokenDedupe = {
+    data: cacheJson,
+    dropped: [],
+    ambiguous: 0,
+    ambiguousAccounts: [],
+  };
 
   let cache: SerializedCache;
   try {
@@ -160,6 +201,13 @@ export function dedupeRefreshTokens(cacheJson: string): RefreshTokenDedupe {
 
   const refreshTokens = cache.RefreshToken;
   if (!isDict(refreshTokens)) return unchanged;
+
+  // First, because a superseded key format is a fact about the entry, not a guess about
+  // which credential is newer. Leaves the ranking below less to guess at
+  const supersededDrops = canonicalKeyFor
+    ? dropSupersededKeyFormats(refreshTokens, canonicalKeyFor)
+    : [];
+  for (const drop of supersededDrops) delete refreshTokens[drop.key];
 
   // A family (FOCI) token and an app-specific one are separate credentials that MSAL
   // looks up separately, so they group apart rather than competing.
@@ -177,12 +225,21 @@ export function dedupeRefreshTokens(cacheJson: string): RefreshTokenDedupe {
   // Duplicates are the rare case, so nothing walks the access tokens - the bulk of a real
   // cache - until there is a group that actually needs ranking.
   const duplicated = [...groups.values()].filter((group) => group.keys.length > 1);
-  if (duplicated.length === 0) return unchanged;
+  if (duplicated.length === 0) {
+    return supersededDrops.length > 0
+      ? {
+          data: JSON.stringify(cache),
+          dropped: supersededDrops,
+          ambiguous: 0,
+          ambiguousAccounts: [],
+        }
+      : unchanged;
+  }
 
   const preferences = environmentPreferences(cache);
-  const dropped: DroppedRefreshToken[] = [];
-  const remove: string[] = [];
+  const dropped: DroppedRefreshToken[] = [...supersededDrops];
   let ambiguous = 0;
+  const ambiguousAccounts = new Set<string>();
 
   for (const group of duplicated) {
     const keep = preferredEnvironment(preferences, group);
@@ -191,21 +248,25 @@ export function dedupeRefreshTokens(cacheJson: string): RefreshTokenDedupe {
       : [];
     if (!keep || winners.length !== 1) {
       ambiguous += 1;
+      ambiguousAccounts.add(group.homeAccountId);
       continue;
     }
 
     for (const key of group.keys) {
       if (key === winners[0]) continue;
-      remove.push(key);
       dropped.push({
+        key,
         environment: refreshTokens[key]?.environment ?? 'unknown',
         keptEnvironment: keep,
       });
     }
   }
 
-  if (remove.length === 0) return { data: cacheJson, dropped, ambiguous };
+  const unranked = [...ambiguousAccounts];
+  if (dropped.length === 0) {
+    return { data: cacheJson, dropped, ambiguous, ambiguousAccounts: unranked };
+  }
 
-  for (const key of remove) delete refreshTokens[key];
-  return { data: JSON.stringify(cache), dropped, ambiguous };
+  for (const drop of dropped) delete refreshTokens[drop.key];
+  return { data: JSON.stringify(cache), dropped, ambiguous, ambiguousAccounts: unranked };
 }
