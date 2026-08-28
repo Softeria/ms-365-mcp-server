@@ -667,6 +667,16 @@ Parent directories are created automatically. Files are written with `0600` perm
 
 **Without a credential store** (headless Linux, most containers) the key is written to `.cache-key` next to the cache file, with `0600` permissions. That stops the tokens showing up in a stray `cat`, a backup or an accidental commit. It does not protect against anyone who can already read the directory - the key is right there. Use `MS365_MCP_AUTH_CACHE_COMMAND` below if you need the cache in a real secret store.
 
+**Skipping the credential store on purpose:**
+
+```bash
+export MS365_MCP_USE_KEYTAR=0   # also accepts false or no
+```
+
+The key then goes to `.cache-key` on every platform, exactly as it does where no credential store exists, and nothing in the server calls keytar. Useful when the credential store prompts on each start - macOS re-asks whenever the calling binary changes, which under `npx` is every version bump - or when the native module misbehaves on your platform rather than simply failing to load.
+
+Switching it off strands a cache that was encrypted under a key already in the credential store, since nothing can reach that key any more. The server says so, replaces the cache on the next sign-in, and you sign in once. Unset the variable first if that cache is worth keeping.
+
 If the cache cannot be decrypted - key lost, keychain locked, file modified - you are asked to sign in again rather than the server failing to start. The cache file is left exactly as it was: not deleted, and not overwritten by that new sign-in either. A keychain that is merely locked usually reads fine on the next start, and the cache is still there when it does.
 
 The cost is that the new session is not saved while this lasts, so each start asks you to sign in again. If the key is genuinely gone and the cache will never open, delete `.token-cache.json` to start over - the log says so, and names the path.

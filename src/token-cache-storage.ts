@@ -40,6 +40,7 @@ const TOKEN_CACHE_ACCOUNT = 'msal-token-cache';
 const SELECTED_ACCOUNT_KEY = 'selected-account';
 const AUTH_CACHE_COMMAND_ENV = 'MS365_MCP_AUTH_CACHE_COMMAND';
 const AUTH_CACHE_COMMAND_TIMEOUT_ENV = 'MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS';
+const USE_KEYTAR_ENV = 'MS365_MCP_USE_KEYTAR';
 const DEFAULT_AUTH_CACHE_COMMAND_TIMEOUT_MS = 10_000;
 const STDERR_LIMIT = 2048;
 const COMMAND_KILL_GRACE_MS = 1000;
@@ -55,8 +56,35 @@ const __filename = fileURLToPath(import.meta.url);
 const LEGACY_DIR = path.join(path.dirname(__filename), '..');
 
 let keytar: typeof import('keytar') | null | undefined = null;
+let loggedKeytarOptOut = false;
+
+/**
+ * Keytar is used when it loads, unless it is explicitly switched off.
+ *
+ * The escape hatch exists because the native module has broken in ways the caller cannot
+ * do anything about: writes that always fail on Windows (#602), an ESM import that
+ * returns the wrong shape on Node 24 (#418), a musl build that will not load at all
+ * (#124). Where it merely fails to import, the catch below already falls through to
+ * files. Where it imports and then misbehaves, or where reaching the credential store
+ * pops a prompt on every version bump, there was no way out short of breaking the import
+ * on purpose.
+ *
+ * Not read once into a constant: tests stub the variable per case, and the cost of an
+ * env lookup is nothing next to the keychain round-trip it guards.
+ */
+export function keytarEnabled(): boolean {
+  const value = process.env[USE_KEYTAR_ENV]?.trim().toLowerCase();
+  return !(value === 'false' || value === '0' || value === 'no');
+}
 
 async function getKeytar() {
+  if (!keytarEnabled()) {
+    if (!loggedKeytarOptOut) {
+      loggedKeytarOptOut = true;
+      logger.info(`${USE_KEYTAR_ENV} is off, using file-based credential storage`);
+    }
+    return null;
+  }
   if (keytar === undefined) {
     return null;
   }
@@ -302,6 +330,7 @@ export function resetCacheKeyForTests(): void {
   legacyKeytarEntries.clear();
   warnedUndecryptable.clear();
   legacyPathsMigrated = false;
+  loggedKeytarOptOut = false;
 }
 
 async function clearLegacyKeytarEntry(key: TokenCacheStorageKey): Promise<void> {
@@ -539,7 +568,10 @@ type CacheFileState =
   | { status: 'absent' }
   | { status: 'plaintext'; raw: string }
   | { status: 'decrypted'; raw: string }
-  | { status: 'unreadable'; reason: string };
+  // `noKeyMatched` marks the one unreadable case that is a missing key rather than a
+  // damaged file: a well-formed envelope that no key on hand opens. Flagged rather than
+  // matched on `reason`, which is prose meant for a log line.
+  | { status: 'unreadable'; reason: string; noKeyMatched?: boolean };
 
 async function readCacheFile(
   key: TokenCacheStorageKey,
@@ -570,7 +602,7 @@ async function readCacheFile(
     // refusal below makes that permanent.
     keyStatePromise = undefined;
     encryptionKeyPromise = undefined;
-    return { status: 'unreadable', reason: 'no known key opens it' };
+    return { status: 'unreadable', reason: 'no known key opens it', noKeyMatched: true };
   }
 
   // Plaintext has to be positively identified. A truncated or corrupt ciphertext also
@@ -618,6 +650,27 @@ async function assertOverwritable(key: TokenCacheStorageKey, cachePath: string):
   const state = await readCacheFile(key, cachePath);
   if (state.status !== 'unreadable') {
     warnedUndecryptable.delete(key);
+    return;
+  }
+
+  // Switching keytar off strands any cache encrypted under a keychain key: this run
+  // cannot reach that key, and no later run will either while the switch stays off. The
+  // refusal below is for a key that is temporarily out of reach, which this is not, so
+  // applying it here would turn the switch into a server that can never save again.
+  // Narrow on purpose - a damaged or unrecognisable file still has something to lose and
+  // is still left alone.
+  if (state.noKeyMatched && !keytarEnabled()) {
+    // Same one-shot guard as below: save() checks twice around resolving the key, and the
+    // set is cleared again as soon as the cache reads back cleanly.
+    if (!warnedUndecryptable.has(key)) {
+      warnedUndecryptable.add(key);
+      logger.warn(
+        `Replacing ${cachePath}: it was encrypted with a key held in the system keychain ` +
+          `and ${USE_KEYTAR_ENV} is off, so nothing here can open it. Signing in again ` +
+          `rewrites it against the key file instead. Unset ${USE_KEYTAR_ENV} first if the ` +
+          'old cache is worth keeping.'
+      );
+    }
     return;
   }
 
