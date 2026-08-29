@@ -166,6 +166,38 @@
     "llmTip": "Forward a message from a shared mailbox preserving full HTML formatting and attachments. The 'user-id' is the shared mailbox email address. 'toRecipients' is required. The 'comment' field adds text above the forwarded content. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/createReply",
+    "method": "post",
+    "toolName": "create-shared-mailbox-reply-draft",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/createReplyAll",
+    "method": "post",
+    "toolName": "create-shared-mailbox-reply-all-draft",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/createForward",
+    "method": "post",
+    "toolName": "create-shared-mailbox-forward-draft",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out. Requires delegated access to the shared mailbox."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/send",
+    "method": "post",
+    "toolName": "send-shared-mailbox-draft",
+    "presets": ["work"],
+    "workScopes": ["Mail.Send.Shared"],
+    "llmTip": "Send an existing draft from a shared mailbox. No request body needed — just call with the message ID and the shared mailbox user-id. Draft must exist in the shared mailbox's Drafts folder. Requires Send As permission on the shared mailbox in Exchange."
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
