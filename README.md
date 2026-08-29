@@ -670,12 +670,14 @@ Parent directories are created automatically. Files are written with `0600` perm
 **Skipping the credential store on purpose:**
 
 ```bash
-export MS365_MCP_USE_KEYTAR=0   # also accepts false or no
+export MS365_MCP_USE_KEYTAR=0   # also accepts false, no or off
 ```
 
-The key then goes to `.cache-key` on every platform, exactly as it does where no credential store exists, and nothing in the server calls keytar. Useful when the credential store prompts on each start - macOS re-asks whenever the calling binary changes, which under `npx` is every version bump - or when the native module misbehaves on your platform rather than simply failing to load.
+The key then goes to `.cache-key` on every platform, exactly as it does where no credential store exists, and nothing in the server calls keytar. Useful when the credential store prompts on each start - macOS re-asks whenever the calling binary changes, which under `npx` is every version bump - or when the native module misbehaves on your platform rather than simply failing to load. Any other value leaves the credential store in use, and an unrecognised one is warned about rather than passed over silently.
 
-Switching it off strands a cache that was encrypted under a key already in the credential store, since nothing can reach that key any more. The server says so, replaces the cache on the next sign-in, and you sign in once. Unset the variable first if that cache is worth keeping.
+Switching it off strands a cache that was encrypted under a key already in the credential store, since nothing can reach that key any more. The server says so and replaces that cache on the next sign-in, which signs out **every** account it held, not just the one you sign back in as. Unset the variable first if that cache is worth keeping.
+
+Two things it deliberately does not do. It never deletes what this server already put in the credential store, on logout or otherwise, because reaching the store is the thing you just asked it to stop doing - clear the `ms-365-mcp-server` entries by hand if you want them gone. And a `.cache-key` that exists but cannot be read (wrong owner on a bind-mounted config directory, say) is still treated as recoverable: the server refuses to overwrite the cache and asks you to sign in again each start, rather than replacing a key that would work again once the permissions are fixed.
 
 If the cache cannot be decrypted - key lost, keychain locked, file modified - you are asked to sign in again rather than the server failing to start. The cache file is left exactly as it was: not deleted, and not overwritten by that new sign-in either. A keychain that is merely locked usually reads fine on the next start, and the cache is still there when it does.
 

@@ -57,6 +57,10 @@ const LEGACY_DIR = path.join(path.dirname(__filename), '..');
 
 let keytar: typeof import('keytar') | null | undefined = null;
 let loggedKeytarOptOut = false;
+let warnedKeytarValue = false;
+
+const KEYTAR_OFF_VALUES = new Set(['0', 'false', 'no', 'off']);
+const KEYTAR_ON_VALUES = new Set(['1', 'true', 'yes', 'on']);
 
 /**
  * Keytar is used when it loads, unless it is explicitly switched off.
@@ -71,17 +75,39 @@ let loggedKeytarOptOut = false;
  *
  * Not read once into a constant: tests stub the variable per case, and the cost of an
  * env lookup is nothing next to the keychain round-trip it guards.
+ *
+ * Anything unrecognised keeps the credential store, so a typo cannot quietly move the key
+ * to disk, but it is warned about rather than passed over: the variable gets set when
+ * keytar is already misbehaving, and a switch that silently does nothing is worse there
+ * than anywhere else.
  */
 export function keytarEnabled(): boolean {
-  const value = process.env[USE_KEYTAR_ENV]?.trim().toLowerCase();
-  return !(value === 'false' || value === '0' || value === 'no');
+  const raw = process.env[USE_KEYTAR_ENV];
+  if (raw === undefined) return true;
+
+  const value = raw.trim().toLowerCase();
+  if (KEYTAR_OFF_VALUES.has(value)) return false;
+  if (value !== '' && !KEYTAR_ON_VALUES.has(value) && !warnedKeytarValue) {
+    warnedKeytarValue = true;
+    logger.warn(
+      `${USE_KEYTAR_ENV} is set to ${JSON.stringify(raw)}, which is not a value this ` +
+        `understands, so the system credential store stays in use. Set it to one of ` +
+        `${[...KEYTAR_OFF_VALUES].join(', ')} to turn it off.`
+    );
+  }
+  return true;
 }
 
 async function getKeytar() {
   if (!keytarEnabled()) {
     if (!loggedKeytarOptOut) {
       loggedKeytarOptOut = true;
-      logger.info(`${USE_KEYTAR_ENV} is off, using file-based credential storage`);
+      logger.info(
+        `${USE_KEYTAR_ENV} is off, using file-based credential storage. Anything this ` +
+          `server previously stored under "${SERVICE_NAME}" in the system credential ` +
+          'store is now left alone, including on logout, so clear it by hand if you ' +
+          'want it gone.'
+      );
     }
     return null;
   }
@@ -306,6 +332,15 @@ interface CacheKeyState {
    * merely could not read.
    */
   canUseKeychain: boolean;
+  /**
+   * Whether a key file is there but could not be read this run - EACCES on a bind mount
+   * whose UID moved, a truncated write, a half-restored backup. The counterpart to
+   * `canUseKeychain` on the file side: absent and unreadable look identical in `keys`,
+   * and only one of them means the key is really gone. Anything deciding a cache is
+   * unopenable has to tell them apart, because an unreadable key usually reads fine once
+   * whatever broke is fixed.
+   */
+  fileKeyUnreadable: boolean;
 }
 
 // Both memoize the in-flight promise rather than the resolved value: several MSAL cache
@@ -331,6 +366,7 @@ export function resetCacheKeyForTests(): void {
   warnedUndecryptable.clear();
   legacyPathsMigrated = false;
   loggedKeytarOptOut = false;
+  warnedKeytarValue = false;
 }
 
 async function clearLegacyKeytarEntry(key: TokenCacheStorageKey): Promise<void> {
@@ -398,17 +434,19 @@ async function readCacheKeys(): Promise<CacheKeyState> {
   }
 
   let fileKeyIndex: number | undefined;
+  let fileKeyUnreadable = false;
   const keyPath = getCacheKeyPath();
   if (existsSync(keyPath)) {
     try {
       keys.push(parseCacheKey(readFileSync(keyPath, 'utf8')));
       fileKeyIndex = keys.length - 1;
     } catch (error) {
+      fileKeyUnreadable = true;
       logger.warn(`Ignoring unusable auth cache key file: ${(error as Error).message}`);
     }
   }
 
-  return { keys, fileKeyIndex, canUseKeychain };
+  return { keys, fileKeyIndex, canUseKeychain, fileKeyUnreadable };
 }
 
 /** The key to encrypt with: an existing one if there is any, otherwise a fresh one. */
@@ -590,8 +628,8 @@ async function readCacheFile(
   if (onDisk === '') return { status: 'absent' };
 
   if (isEncryptedCache(onDisk)) {
-    const { keys } = await loadKeyState();
-    const decrypted = decryptWithAnyKey(onDisk, keys, key);
+    const state = await loadKeyState();
+    const decrypted = decryptWithAnyKey(onDisk, state.keys, key);
     if (decrypted !== undefined) return { status: 'decrypted', raw: decrypted };
 
     // Drop the memoized key state so the next attempt re-reads the keychain instead of
@@ -602,7 +640,16 @@ async function readCacheFile(
     // refusal below makes that permanent.
     keyStatePromise = undefined;
     encryptionKeyPromise = undefined;
-    return { status: 'unreadable', reason: 'no known key opens it', noKeyMatched: true };
+    // A key file that exists but would not read is the one case that must not count as a
+    // missing key: it is the recoverable one, and calling it missing is what would let a
+    // stray EACCES be mistaken for "there was never a key here".
+    return {
+      status: 'unreadable',
+      reason: state.fileKeyUnreadable
+        ? 'a key file is present but could not be read'
+        : 'no known key opens it',
+      noKeyMatched: !state.fileKeyUnreadable,
+    };
   }
 
   // Plaintext has to be positively identified. A truncated or corrupt ciphertext also
@@ -657,8 +704,12 @@ async function assertOverwritable(key: TokenCacheStorageKey, cachePath: string):
   // cannot reach that key, and no later run will either while the switch stays off. The
   // refusal below is for a key that is temporarily out of reach, which this is not, so
   // applying it here would turn the switch into a server that can never save again.
-  // Narrow on purpose - a damaged or unrecognisable file still has something to lose and
-  // is still left alone.
+  //
+  // Rests entirely on `noKeyMatched` meaning no key was *there*, rather than none of the
+  // ones on hand worked. A key file that exists and would not read is the recoverable
+  // case and does not set the flag, so it still falls through to the refusal - which is
+  // what keeps a stray EACCES on `.cache-key` from being read as "no key ever existed"
+  // and costing the cache and, once persistCacheKey replaces the file, the key with it.
   if (state.noKeyMatched && !keytarEnabled()) {
     // Same one-shot guard as below: save() checks twice around resolving the key, and the
     // set is cleared again as soon as the cache reads back cleanly.

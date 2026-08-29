@@ -55,7 +55,7 @@ describe('keytarEnabled', () => {
     expect(keytarEnabled()).toBe(true);
   });
 
-  for (const value of ['0', 'false', 'no', 'FALSE', ' 0 ']) {
+  for (const value of ['0', 'false', 'no', 'off', 'FALSE', 'Off', ' 0 ']) {
     it(`is off for ${JSON.stringify(value)}`, () => {
       vi.stubEnv('MS365_MCP_USE_KEYTAR', value);
       expect(keytarEnabled()).toBe(false);
@@ -64,12 +64,28 @@ describe('keytarEnabled', () => {
 
   // Anything else keeps the credential store, so a typo cannot quietly move the key to
   // disk. Only the documented off values turn it off.
-  for (const value of ['1', 'true', 'yes', '']) {
+  for (const value of ['1', 'true', 'yes', 'on', '']) {
     it(`stays on for ${JSON.stringify(value)}`, () => {
       vi.stubEnv('MS365_MCP_USE_KEYTAR', value);
       expect(keytarEnabled()).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   }
+
+  // A switch that silently does nothing is worst precisely here, where it gets set
+  // because keytar is already misbehaving.
+  it('warns once about a value it does not understand, and keeps keytar on', () => {
+    vi.stubEnv('MS365_MCP_USE_KEYTAR', 'disabled');
+
+    expect(keytarEnabled()).toBe(true);
+    expect(keytarEnabled()).toBe(true);
+
+    const warnings = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([m]) => String(m).includes('not a value this understands'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0][0]).toContain('"disabled"');
+  });
 });
 
 describe('DefaultTokenCacheStorage with keytar off', () => {
@@ -154,13 +170,73 @@ describe('opting out with a cache already encrypted under a keychain key', () =>
     expect(fs.readFileSync(cachePath, 'utf8')).toBe('not json and not an envelope');
   });
 
-  it('still refuses when keytar is on and the keychain is simply unreachable', async () => {
+  it('still refuses when keytar is on and the keychain is locked', async () => {
     await seedKeychainEncryptedCache();
-    keychain.clear();
-    getPassword.mockRejectedValueOnce(new Error('keyring is locked'));
+    // Left populated on purpose: clearing it would refuse via the empty-key path and the
+    // rejection below would prove nothing.
+    getPassword.mockRejectedValue(new Error('keyring is locked'));
 
     await expect(
       new DefaultTokenCacheStorage().save('token-cache', '{"account":"fresh"}')
     ).rejects.toThrow(/Refusing to overwrite/);
+    expect(vi.mocked(logger.warn).mock.calls.map(([m]) => String(m))).toContainEqual(
+      expect.stringContaining('Keychain access failed')
+    );
+  });
+});
+
+describe('opting out with a key file that exists but will not read', () => {
+  // The escape must not read an unreadable key file as "there was never a key here".
+  // Getting this wrong loses the cache and then, via persistCacheKey's replace path, the
+  // key that would have opened it once the permissions were fixed.
+  async function seedFileEncryptedCache() {
+    vi.stubEnv('MS365_MCP_USE_KEYTAR', '0');
+    await new DefaultTokenCacheStorage().save('token-cache', '{"account":"seeded"}');
+    expect(fs.existsSync(keyFile())).toBe(true);
+    resetCacheKeyForTests();
+  }
+
+  it('refuses to overwrite, and leaves both the cache and the key file alone', async () => {
+    await seedFileEncryptedCache();
+    const encryptedCache = fs.readFileSync(cachePath, 'utf8');
+    const goodKey = fs.readFileSync(keyFile(), 'utf8');
+    fs.writeFileSync(keyFile(), 'not a key', { mode: 0o600 });
+
+    await expect(
+      new DefaultTokenCacheStorage().save('token-cache', '{"account":"fresh"}')
+    ).rejects.toThrow(/Refusing to overwrite/);
+
+    expect(fs.readFileSync(cachePath, 'utf8')).toBe(encryptedCache);
+    expect(fs.readFileSync(keyFile(), 'utf8')).toBe('not a key');
+
+    // Recoverable: putting the real key back opens the original cache again.
+    fs.writeFileSync(keyFile(), goodKey, { mode: 0o600 });
+    resetCacheKeyForTests();
+    await expect(new DefaultTokenCacheStorage().load('token-cache')).resolves.toBe(
+      '{"account":"seeded"}'
+    );
+  });
+
+  it('says the key file is the problem rather than blaming a missing key', async () => {
+    await seedFileEncryptedCache();
+    fs.writeFileSync(keyFile(), 'not a key', { mode: 0o600 });
+
+    await expect(new DefaultTokenCacheStorage().save('token-cache', '{"a":1}')).rejects.toThrow();
+
+    expect(vi.mocked(logger.warn).mock.calls.map(([m]) => String(m))).toContainEqual(
+      expect.stringContaining('a key file is present but could not be read')
+    );
+  });
+
+  it('still replaces the cache when the key file is genuinely gone', async () => {
+    await seedFileEncryptedCache();
+    fs.rmSync(keyFile());
+
+    await new DefaultTokenCacheStorage().save('token-cache', '{"account":"fresh"}');
+
+    resetCacheKeyForTests();
+    await expect(new DefaultTokenCacheStorage().load('token-cache')).resolves.toBe(
+      '{"account":"fresh"}'
+    );
   });
 });
