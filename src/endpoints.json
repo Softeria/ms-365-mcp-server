@@ -510,7 +510,7 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for the default calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Use get-specific-calendar-view if you need a non-default calendar. To find Teams meetings, use $filter=isOnlineMeeting eq true. To search by subject, use $filter=contains(subject,'keyword'). Teams meetings expose their join link as onlineMeeting/joinUrl (select it with $select=onlineMeeting); the event resource has no joinWebUrl property. Pass that joinUrl to list-online-meetings as $filter=JoinWebUrl eq '{url}' to reach transcripts."
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/calendarView",
@@ -521,7 +521,7 @@
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
     "supportsExpandExtendedProperties": true,
-    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings include a joinWebUrl property needed for transcript access via list-online-meetings."
+    "llmTip": "Returns expanded recurring event instances (not just seriesMaster) within a date range for a specific calendar. Requires startDateTime and endDateTime query parameters in ISO 8601 format (e.g., 2024-01-01T00:00:00Z). Each instance includes seriesMasterId and type (occurrence/exception) fields for recurring event linkage. Use fetchAllPages=true to retrieve all results when there are many events. To find Teams meetings, use $filter=isOnlineMeeting eq true. Teams meetings expose their join link as onlineMeeting/joinUrl (select it with $select=onlineMeeting); the event resource has no joinWebUrl property. Pass that joinUrl to list-online-meetings as $filter=JoinWebUrl eq '{url}' to reach transcripts."
   },
   {
     "pathPattern": "/me/calendar/getSchedule",
@@ -1592,7 +1592,8 @@
     "method": "get",
     "toolName": "list-chats",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Chat.ReadBasic"]
+    "workScopes": ["Chat.ReadBasic"],
+    "llmTip": "Lists the signed-in user's chats. $search is not supported (400 'Query option Search is not allowed') and $orderby on lastUpdatedDateTime is rejected (400 BadRequest) - retrieve with $top/$select and match the topic client-side. Meeting chats have chatType=meeting and carry the meeting subject in topic."
   },
   {
     "pathPattern": "/chats/{chat-id}",
@@ -1614,7 +1615,8 @@
     "method": "get",
     "toolName": "list-chat-messages",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "llmTip": "Lists messages in a chat. $top is capped at 50 (higher values return 400) and $orderby accepts only descending order on createdDateTime or lastModifiedDateTime - ascending is rejected. Meeting chats mostly hold system events; transcripts are not available here, use list-meeting-transcripts instead."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
@@ -2079,7 +2081,7 @@
     "toolName": "list-online-meetings",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "List online meetings. Use $filter=joinWebUrl eq '{url}' to find a specific meeting by its Teams join link. Returns meeting IDs needed for transcript access."
+    "llmTip": "Look up a meeting with $filter=JoinWebUrl eq '{url}', using the joinUrl from an event's onlineMeeting property. This filter is required: the collection cannot be listed or paged, and $search/$orderby are not supported. Without it Graph returns 400 InvalidArgument ('One of the required parameters to lookup meeting by QueryOptions is null or empty'). Returns the meeting ID needed for transcript access."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
