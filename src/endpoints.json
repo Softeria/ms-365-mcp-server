@@ -1593,7 +1593,7 @@
     "toolName": "list-chats",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Chat.ReadBasic"],
-    "llmTip": "Lists the signed-in user's chats. $search is not supported (400 'Query option Search is not allowed') and $orderby on lastUpdatedDateTime is rejected (400 BadRequest) - retrieve with $top/$select and match the topic client-side. Meeting chats have chatType=meeting and carry the meeting subject in topic."
+    "llmTip": "Lists the signed-in user's chats. Only $filter, $top (max 50), $expand (members, lastMessagePreview) and $orderby are supported; $orderby accepts just lastMessagePreview/createdDateTime in descending order. Other options are rejected: $search returns 400 'Query option Search is not allowed', and ordering by lastUpdatedDateTime returns 400 BadRequest. Meeting chats have chatType=meeting and carry the meeting subject in topic."
   },
   {
     "pathPattern": "/chats/{chat-id}",
