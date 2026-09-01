@@ -108,6 +108,14 @@ export const TIMEZONE_PARAM_DESCRIPTION =
 export const EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION =
   'When true, expands singleValueExtendedProperties on each event. Use this to retrieve custom extended properties (e.g., sync metadata) stored on calendar events.';
 
+export function getAcceptParamDescription(acceptType: string): string {
+  return (
+    `Accept header for the response representation. Defaults to "${acceptType}". ` +
+    'Only set this when Graph asks for a different format — e.g. a 403 SpeakerAttributionNotAllowed ' +
+    'on transcript content names the media type to retry with.'
+  );
+}
+
 /**
  * Layer 2 of multi-account support: account names are surfaced in the description
  * (not as a strict enum) so the LLM sees available accounts upfront without a

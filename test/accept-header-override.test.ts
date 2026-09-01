@@ -24,7 +24,6 @@ vi.mock('../src/generated/client.js', () => ({
         parameters: [
           { name: 'onlineMeetingId', type: 'Path', schema: z.string() },
           { name: 'callTranscriptId', type: 'Path', schema: z.string() },
-          { name: 'Accept', type: 'Header', schema: z.string().optional() },
         ],
       },
     ],
@@ -45,18 +44,38 @@ describe('explicit Accept header', () => {
     } as unknown as GraphClient;
   });
 
-  function getToolHandler(toolName: string) {
+  function getRegistration(toolName: string) {
     // transcript tools are work-scoped only, so they need org mode to register
     registerGraphTools(mockServer, mockGraphClient, false, undefined, true);
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
-    return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
+    return call!;
+  }
+
+  function getToolHandler(toolName: string) {
+    const call = getRegistration(toolName);
+    return call[call.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
+  }
+
+  function getParamSchema(toolName: string) {
+    const call = getRegistration(toolName);
+    const { inputSchema } = call[1] as { inputSchema: z.ZodObject<z.ZodRawShape> };
+    return inputSchema.shape;
   }
 
   function sentHeaders() {
     const call = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock.calls[0];
     return (call[1] as { headers: Record<string, string> }).headers;
   }
+
+  it('exposes an Accept param for tools with a configured acceptType', () => {
+    // The generated client declares no Accept header on any endpoint, so without the
+    // synthetic param the caller has no way to send one and the override is unreachable.
+    const schema = getParamSchema('get-meeting-transcript-content');
+
+    expect(schema['Accept']).toBeDefined();
+    expect(schema['Accept'].isOptional()).toBe(true);
+  });
 
   it('falls back to the configured acceptType when the caller sends none', async () => {
     const handler = getToolHandler('get-meeting-transcript-content');

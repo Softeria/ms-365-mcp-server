@@ -218,6 +218,23 @@ describe('describeToolSchema parity with registerGraphTools (discovery-mode drif
     expect(discovery?.description).toBe(expected);
   });
 
+  it('matches Accept description exactly for an endpoint with a configured acceptType', () => {
+    const entry = registry.get('get-meeting-transcript-content');
+    if (!entry) throw new Error('registry missing get-meeting-transcript-content');
+    const s = describeToolSchema(entry.tool, entry.config);
+    const discovery = s.parameters.find((p) => p.name === 'Accept');
+    const expected = registeredDescription('get-meeting-transcript-content', 'Accept');
+    expect(expected).toBeDefined();
+    expect(discovery?.in).toBe('Header');
+    expect(discovery?.description).toBe(expected);
+  });
+
+  it('adds no Accept param to endpoints without a configured acceptType', () => {
+    const s = schemaFor('list-mail-messages');
+    expect(s.parameters.find((p) => p.name === 'Accept')).toBeUndefined();
+    expect(registered.get('list-mail-messages')).not.toHaveProperty('Accept');
+  });
+
   it('matches confirm description exactly (already shared logic, guarded against future drift)', () => {
     const entry = registry.get('delete-mail-message');
     if (!entry) throw new Error('registry missing delete-mail-message');
