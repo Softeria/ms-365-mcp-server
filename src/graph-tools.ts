@@ -52,6 +52,7 @@ import {
   CONFIRM_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
+  getAcceptParamDescription,
   getAccountParamDescription,
   getFetchAllPagesParamDescription,
 } from './lib/param-descriptions.js';
@@ -1524,6 +1525,11 @@ async function executeGraphTool(
           .replace(`{${camelCaseParamName}}`, encodedValue)
           .replace(`:${camelCaseParamName}`, encodedValue);
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
+      } else if (paramName.toLowerCase() === 'accept' && config?.acceptType) {
+        // The synthetic Accept param added for acceptType endpoints. It has no entry in
+        // the generated client's parameter list, so it lands here rather than in the
+        // 'Header' case above.
+        headers['Accept'] = `${paramValue}`;
       } else if (isOdataParam) {
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
@@ -1656,7 +1662,7 @@ async function executeGraphTool(
       logger.info(`Setting custom Content-Type: ${config.contentType}`);
     }
 
-    if (config?.acceptType) {
+    if (config?.acceptType && !headers['Accept']) {
       headers['Accept'] = config.acceptType;
       logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
@@ -2026,6 +2032,17 @@ export function registerGraphTools(
       if (!(pathParamName in paramSchema)) {
         paramSchema[pathParamName] = z.string().describe(describePathParam(pathParamName));
       }
+    }
+
+    // Endpoints with a configured acceptType get a synthetic, optional `Accept` param.
+    // The generated client declares no Accept header anywhere, so without this the
+    // caller has no way to reach the alternate representation of the resource — the
+    // configured default would be the only value the server can ever send.
+    if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
+      paramSchema['Accept'] = z
+        .string()
+        .describe(getAcceptParamDescription(endpointConfig.acceptType))
+        .optional();
     }
 
     if (isFetchAllPagesApplicable(tool)) {
