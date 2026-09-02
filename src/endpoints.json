@@ -2141,6 +2141,24 @@
     "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
   },
   {
+    "pathPattern": "/me/adhocCalls/getAllTranscripts(userId='{userId}',startDateTime={startDateTime},endDateTime={endDateTime})",
+    "method": "get",
+    "toolName": "list-adhoc-call-transcripts",
+    "presets": ["teams", "work"],
+    "workScopes": ["CallTranscripts.Read.All"],
+    "skipEncoding": ["startDateTime", "endDateTime"],
+    "llmTip": "Lists transcripts of ad hoc calls (PSTN, 1:1 and group calls) started by the signed-in user. Use this for calls that have no calendar event and no online meeting, e.g. recordings named 'Anruf mit ...'. userId must be the signed-in user's object id (from get-current-user), not an email. startDateTime and endDateTime are required ISO 8601 UTC timestamps such as 2026-08-01T00:00:00Z. Each item carries callId and id (the transcript id) for get-adhoc-call-transcript-content; contentCorrelationId ends with the yyyyMMdd_HHmmss stamp that also appears in the recording file name in OneDrive. Do not use $filter, $orderby or $top."
+  },
+  {
+    "pathPattern": "/me/adhocCalls/{adhocCall-id}/transcripts/{callTranscript-id}/content",
+    "method": "get",
+    "toolName": "get-adhoc-call-transcript-content",
+    "presets": ["teams", "work"],
+    "workScopes": ["CallTranscripts.Read.All"],
+    "acceptType": "text/vtt",
+    "llmTip": "Returns the transcript of an ad hoc call as WebVTT with speaker tags and timestamps. Take adhocCallId (the callId) and callTranscriptId (the id) from list-adhoc-call-transcripts; copy both exactly. On 403 SpeakerAttributionNotAllowed retry with Accept set to application/vnd.microsoft.graph.transcript+text."
+  },
+  {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings",
     "method": "get",
     "toolName": "list-meeting-recordings",
