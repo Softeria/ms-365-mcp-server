@@ -28,6 +28,11 @@ import { getRequestTokens } from './request-context.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
 import { deriveTargetResource, type AuditTargetResource } from './audit-target-resource.js';
+import {
+  CONNECTOR_DEFINITION_BUDGET,
+  fitToolDefinitionToBudget,
+  getToolDefinitionBudget,
+} from './lib/body-schema-budget.js';
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -1973,6 +1978,16 @@ export function registerGraphTools(
     allowedScopesValue,
     httpMode,
   });
+  // What the connector budget is charged for the Graph tools, summed as they register.
+  let servedSchemaBytes = 0;
+  const prunedForBudget: {
+    toolName: string;
+    depth: number;
+    describeDepth: number;
+    bytesBefore: number;
+    bytesAfter: number;
+    bodyWentOpaque: boolean;
+  }[] = [];
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
@@ -2014,13 +2029,16 @@ export function registerGraphTools(
     }
 
     const paramSchema: Record<string, z.ZodTypeAny> = {};
+    const bodyParamNames: string[] = [];
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
         // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
-        paramSchema[param.name] =
-          param.type === 'Body' && param.schema
-            ? lenientBodySchema(param.schema as z.ZodTypeAny)
-            : param.schema || z.any();
+        if (param.type === 'Body' && param.schema) {
+          paramSchema[param.name] = lenientBodySchema(param.schema as z.ZodTypeAny);
+          bodyParamNames.push(param.name);
+        } else {
+          paramSchema[param.name] = param.schema || z.any();
+        }
       }
     }
 
@@ -2163,6 +2181,28 @@ export function registerGraphTools(
     // read-only query lands as destructiveHint:true and clients mis-rank it.
     const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
+    // A connector is served a bounded total of input-schema bytes, charged in
+    // alphabetical order, and a tool that no longer fits is skipped whole - so an
+    // oversized write schema costs us unrelated tools later in the alphabet. Trim the
+    // body depth of the few tools that overflow our per-tool ration; the rest register
+    // byte-for-byte unchanged.
+    const budgeted = fitToolDefinitionToBudget(
+      paramSchema,
+      bodyParamNames,
+      getToolDefinitionBudget()
+    );
+    servedSchemaBytes += budgeted.bytesAfter;
+    if (budgeted.appliedStrategy !== null) {
+      prunedForBudget.push({
+        toolName: tool.alias,
+        depth: budgeted.appliedStrategy.maxDepth,
+        describeDepth: budgeted.appliedStrategy.describeDepth,
+        bytesBefore: budgeted.bytesBefore,
+        bytesAfter: budgeted.bytesAfter,
+        bodyWentOpaque: budgeted.bodyWentOpaque,
+      });
+    }
+
     try {
       // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
       // and strips unknown keys before the handler runs, which is exactly how #569's
@@ -2172,7 +2212,7 @@ export function registerGraphTools(
         {
           title: tool.alias,
           description: toolDescription,
-          inputSchema: z.object(paramSchema).passthrough(),
+          inputSchema: z.object(budgeted.paramSchema).passthrough(),
           annotations: {
             title: tool.alias,
             readOnlyHint: isReadOnlyTool,
@@ -2198,6 +2238,57 @@ export function registerGraphTools(
     logger.info(
       `Allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
     );
+  }
+
+  // The per-tool ration is a means; this total is the constraint that actually decides
+  // whether a tool is served, so report it on every start rather than only when pruning
+  // happened.
+  const connectorShare = ((servedSchemaBytes / CONNECTOR_DEFINITION_BUDGET) * 100).toFixed(1);
+  logger.info(
+    `Graph tool schemas total ${servedSchemaBytes} bytes, ${connectorShare}% of the ${CONNECTOR_DEFINITION_BUDGET}-byte connector budget`
+  );
+  if (servedSchemaBytes > CONNECTOR_DEFINITION_BUDGET) {
+    logger.warn(
+      `Served tool schemas exceed the ${CONNECTOR_DEFINITION_BUDGET}-byte connector budget by ${servedSchemaBytes - CONNECTOR_DEFINITION_BUDGET} bytes. ` +
+        `Tools are admitted alphabetically, so the tail of the alphabet will be silently omitted. ` +
+        `Lower MS365_MCP_TOOL_DEFINITION_BUDGET, narrow --enabled-tools, or split the surface across two connectors.`
+    );
+  }
+
+  if (prunedForBudget.length > 0) {
+    const saved = prunedForBudget.reduce((n, p) => n + (p.bytesBefore - p.bytesAfter), 0);
+    const budget = getToolDefinitionBudget();
+    const stillOver = prunedForBudget.filter((p) => p.bytesAfter > budget);
+    logger.info(
+      `Body schemas trimmed on ${prunedForBudget.length} tools to fit the ${budget}-byte definition budget, saving ${saved} bytes: ` +
+        prunedForBudget
+          .map(
+            (p) =>
+              `${p.toolName}(d${p.depth}/desc${p.describeDepth} ${p.bytesBefore}->${p.bytesAfter})`
+          )
+          .join(', ')
+    );
+
+    // Losing field names is the only outcome that leaves a model guessing what the body
+    // accepts, so it is reported separately from ordinary depth trimming.
+    const opaque = prunedForBudget.filter((p) => p.bodyWentOpaque);
+    if (opaque.length > 0) {
+      logger.warn(
+        `${opaque.length} tools had their body collapsed to an open object, so callers see no field names: ` +
+          opaque.map((p) => p.toolName).join(', ') +
+          `. Raise MS365_MCP_TOOL_DEFINITION_BUDGET to keep their schemas.`
+      );
+    }
+
+    if (stillOver.length > 0) {
+      // Registered anyway - a working oversized tool beats a missing one. Overshooting
+      // the per-tool ration is not itself fatal; it eats into the connector total, which
+      // the aggregate line above is what actually reports on.
+      logger.warn(
+        `${stillOver.length} tools remain above the ${budget}-byte ration at minimum depth and spend more of the connector budget than planned: ` +
+          stillOver.map((p) => `${p.toolName}(${p.bytesAfter})`).join(', ')
+      );
+    }
   }
 
   const utilityCtx: UtilityToolContext = {
