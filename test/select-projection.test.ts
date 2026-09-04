@@ -20,7 +20,30 @@ describe('parseSelectFields', () => {
 
   // $expand carries nested options; only the navigation property itself matters here.
   it('reduces an $expand with nested options to the property name', () => {
-    expect(parseSelectFields('attachments($select=id)')).toContain('attachments');
+    expect(parseSelectFields('attachments($select=id)')).toEqual(['attachments']);
+  });
+
+  // A comma inside the option group separates the nested select, not two expands.
+  // Splitting on it would yield a stray `name` that keeps the parent's own top-level
+  // name field, which nobody selected.
+  it('does not split on a comma inside an $expand option group', () => {
+    expect(parseSelectFields('attachments($select=id,name),subject')).toEqual([
+      'attachments',
+      'subject',
+    ]);
+  });
+
+  it('handles nested option groups', () => {
+    expect(parseSelectFields('members($expand=user($select=id,displayName)),subject')).toEqual([
+      'members',
+      'subject',
+    ]);
+  });
+
+  // Graph would reject these, but they must not cost us the fields that follow.
+  it('recovers from unbalanced parentheses', () => {
+    expect(parseSelectFields('attachments($select=id')).toEqual(['attachments']);
+    expect(parseSelectFields('a),subject')).toEqual(['a', 'subject']);
   });
 
   it('de-duplicates', () => {

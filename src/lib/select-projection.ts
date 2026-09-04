@@ -14,6 +14,35 @@
  */
 
 /**
+ * Splits a comma-separated list on the commas that separate its entries, ignoring the
+ * ones inside an $expand option group. `attachments($select=id,name)` is one entry, not
+ * two: splitting it naively yields a stray `name` that would then keep a top-level `name`
+ * on the parent entity nobody asked for.
+ */
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (const char of value) {
+    if (char === '(') depth++;
+    // Clamped so an unbalanced ')' cannot drive depth negative and swallow every
+    // remaining comma.
+    else if (char === ')') depth = Math.max(0, depth - 1);
+
+    if (char === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+
+  return parts;
+}
+
+/**
  * Splits a `$select` or `$expand` value into the top-level property names to keep.
  *
  * Nested paths (`onlineMeeting/joinUrl`) and $expand's nested options
@@ -25,9 +54,8 @@ export function parseSelectFields(value: string | undefined): string[] {
   if (!value) return [];
   return [
     ...new Set(
-      value
-        .split(',')
-        .map((field) => field.trim().split(/[/(]/)[0].trim())
+      splitTopLevel(value)
+        .map((field) => field.trim().split(/[/()]/)[0].trim())
         .filter(Boolean)
     ),
   ];
