@@ -6,6 +6,12 @@ import { auditLog, getUserIdentityForAudit, type AuditEvent } from './audit-log.
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
+import {
+  anyFieldPresent,
+  isTransportEnvelope,
+  parseSelectFields,
+  projectSelectedFields,
+} from './lib/select-projection.js';
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
@@ -1667,6 +1673,16 @@ async function executeGraphTool(
       logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
 
+    // Captured before the query string is built so the same value can be reapplied to
+    // the response for the operations where Graph ignores it (#660). $select is what
+    // triggers projection; $expand only widens what survives it, since in OData an
+    // expanded navigation property comes back in addition to the selected fields
+    // (supportsExpandExtendedProperties adds one of its own just above).
+    const requestedSelect = parseSelectFields(queryParams['$select']);
+    const keepFields = [
+      ...new Set([...requestedSelect, ...parseSelectFields(queryParams['$expand'])]),
+    ];
+
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
         .map(([key, value]) => `${key}=${encodeURIComponent(value).replace(/%2C/gi, ',')}`)
@@ -1764,11 +1780,35 @@ async function executeGraphTool(
     // be TOON and JSON.parse would throw, silently returning only page one (#560).
     // The merged result gets re-encoded once at the end.
     const mergePages = fetchAllPages && paginationEnabled;
-    if (mergePages) {
+    // Projecting means parsing the body, and under --toon JSON.parse would throw and
+    // leave the response untrimmed. Same reason the merge below forces JSON (#560).
+    const willProject = requestedSelect.length > 0 && params.excludeResponse !== true;
+    if (mergePages || willProject) {
       options.forceJsonOutput = true;
     }
 
     let response = await graphClient.graphRequest(path, options);
+
+    const shouldProject = willProject && !response?.isError;
+    let projectionHandled = false;
+    const applyProjection = (body: unknown): unknown => {
+      // Binary, raw-text and ack payloads are wrapped in an envelope of this server's
+      // own making. Projecting one strips every key and hands back {}, losing the
+      // transcript or file outright.
+      if (isTransportEnvelope(body)) {
+        logger.info('Skipping $select projection: body is a transport envelope, not a resource');
+        return body;
+      }
+      // Graph never rejects a misspelled property on the endpoints that ignore $select,
+      // so without this a typo would silently empty the response instead of erroring.
+      if (!anyFieldPresent(body, requestedSelect)) {
+        logger.warn(
+          `None of the requested $select fields (${requestedSelect.join(',')}) appear in the response; returning it untrimmed`
+        );
+        return body;
+      }
+      return projectSelectedFields(body, keepFields);
+    };
 
     if (mergePages && response?.content?.[0]?.text) {
       type ODataPage = {
@@ -1864,7 +1904,22 @@ async function executeGraphTool(
       // (non-collection skip and mid-loop abort included), so a --toon client
       // never gets handed the forced-JSON body.
       if (combinedResponse !== undefined) {
-        response.content[0].text = graphClient.serialize(combinedResponse);
+        // Project before serialize(), not after: under --toon serialize() emits TOON and
+        // parsing that back as JSON would throw, silently skipping the projection.
+        const merged = shouldProject ? applyProjection(combinedResponse) : combinedResponse;
+        projectionHandled = shouldProject;
+        response.content[0].text = graphClient.serialize(merged);
+      }
+    }
+
+    // isError is re-tested: a failing page inside the merge loop replaces `response`
+    // with the error result, which shouldProject (computed before the request) misses.
+    if (shouldProject && !projectionHandled && !response?.isError && response?.content?.[0]?.text) {
+      try {
+        const parsed = JSON.parse(response.content[0].text);
+        response.content[0].text = graphClient.serialize(applyProjection(parsed));
+      } catch {
+        // Body was not JSON after all; nothing to project.
       }
     }
 

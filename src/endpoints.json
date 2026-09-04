@@ -2081,7 +2081,7 @@
     "toolName": "list-online-meetings",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "Look up a meeting with $filter=JoinWebUrl eq '{url}', using the joinUrl from an event's onlineMeeting property. This filter is required: the collection cannot be listed or paged, and $search/$orderby are not supported. Without it Graph returns 400 InvalidArgument ('One of the required parameters to lookup meeting by QueryOptions is null or empty'). Returns the meeting ID needed for transcript access."
+    "llmTip": "Look up a meeting with $filter=JoinWebUrl eq '{url}', using the joinUrl from an event's onlineMeeting property. This filter is required: the collection cannot be listed or paged, and $search/$orderby are not supported. Without it Graph returns 400 InvalidArgument ('One of the required parameters to lookup meeting by QueryOptions is null or empty'). Returns the meeting ID needed for transcript access. The full meeting object is large and can include the invite HTML and the meeting passcode, so pass select=id,subject,joinWebUrl unless you need more."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}",
@@ -2089,7 +2089,7 @@
     "toolName": "get-online-meeting",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID."
+    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID. The full meeting object is large and can include the invite HTML and the meeting passcode, so pass select=id,subject,joinWebUrl unless you need more."
   },
   {
     "pathPattern": "/me/onlineMeetings",
