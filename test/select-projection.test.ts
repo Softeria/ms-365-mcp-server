@@ -98,6 +98,13 @@ describe('anyFieldPresent', () => {
     expect(anyFieldPresent({ id: '1', joinWebUrl: 'u' }, ['id', 'joinWebUrl'])).toBe(true);
   });
 
+  // select is free text, so the casing is the model's. A capitalised Id used to miss the
+  // always-kept filter, match the response's own id, and leave the guard inert.
+  it('ignores always-kept names whatever their case', () => {
+    expect(anyFieldPresent({ id: '1', joinWebUrl: 'u' }, ['Id', 'joinUrl'])).toBe(false);
+    expect(anyFieldPresent({ id: '1', joinWebUrl: 'u' }, ['ID', 'joinWebUrl'])).toBe(true);
+  });
+
   it('allows a select that asks only for always-kept fields', () => {
     expect(anyFieldPresent({ id: '1', subject: 'a' }, ['id'])).toBe(true);
   });

@@ -38,9 +38,11 @@ export function parseSelectFields(value: string | undefined): string[] {
 // fetchAllPages and manual paging resume from, and delta tombstones carry @removed.
 // Underscore keys are this server's own additions rather than Graph properties: _etag is
 // what --includeHeaders surfaces the ETag as, and dropping it would break read-then-PATCH
-// for any caller that also passed select.
+// for any caller that also passed select. Matched case-insensitively because this also
+// runs over the names the model asked for, and a capitalised Id would otherwise slip past
+// and make the anyFieldPresent guard inert.
 function isAlwaysKept(key: string): boolean {
-  return key === 'id' || key.startsWith('@') || key.startsWith('_');
+  return key.toLowerCase() === 'id' || key.startsWith('@') || key.startsWith('_');
 }
 
 /**
