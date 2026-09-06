@@ -2089,7 +2089,7 @@
     "toolName": "get-online-meeting",
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetings.Read"],
-    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID. The full meeting object is large and can include the invite HTML and the meeting passcode, so pass select=id,subject,joinWebUrl unless you need more."
+    "llmTip": "Gets a specific online meeting by ID. Returns full details including subject, startDateTime, endDateTime, joinWebUrl, chatInfo (threadId for meeting chat), participants (organizer, attendees), lobbyBypassSettings, and videoTeleconferenceId. Use list-online-meetings first to find the meeting ID. The full meeting object is large and can include the invite HTML and the meeting passcode, so pass select with the fields you came here for, e.g. select=id,chatInfo,participants."
   },
   {
     "pathPattern": "/me/onlineMeetings",
