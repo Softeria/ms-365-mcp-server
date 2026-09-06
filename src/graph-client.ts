@@ -10,6 +10,7 @@ import {
   loadResilienceConfig,
 } from './lib/graph-resilience.js';
 import { applyMessageSignoffToRequest } from './lib/message-signoff.js';
+import { TRANSPORT_OK_MESSAGE } from './lib/select-projection.js';
 import { open, stat, unlink } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 
@@ -231,7 +232,7 @@ class GraphClient {
         // raw bytes and return them as base64 so callers can reconstruct them.
         const buffer = Buffer.from(await response.arrayBuffer());
         result = {
-          message: 'OK!',
+          message: TRANSPORT_OK_MESSAGE,
           contentType: contentTypeHeader,
           encoding: 'base64',
           contentLength: buffer.byteLength,
@@ -241,18 +242,18 @@ class GraphClient {
         const text = await response.text();
 
         if (text === '') {
-          result = { message: 'OK!' };
+          result = { message: TRANSPORT_OK_MESSAGE };
         } else if (options.rawResponse) {
           // download-bytes on /content wants the body verbatim. A JSON body
           // would otherwise round-trip through JSON.parse -> JSON.stringify,
           // which is lossy (whitespace, trailing newline, key order, number
           // formatting). Return the raw text instead. (issue #546)
-          result = { message: 'OK!', rawResponse: text };
+          result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
         } else {
           try {
             result = JSON.parse(text);
           } catch {
-            result = { message: 'OK!', rawResponse: text };
+            result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
           }
         }
       }

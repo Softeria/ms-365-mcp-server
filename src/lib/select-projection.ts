@@ -74,6 +74,14 @@ function isAlwaysKept(key: string): boolean {
 }
 
 /**
+ * The sentinel GraphClient stamps on every wrapper it builds around a payload that is not
+ * a Graph entity. Shared with the producer rather than repeated here: isTransportEnvelope
+ * is the only thing keeping a transcript or a downloaded file from being projected down to
+ * `{}`, so the two drifting apart would cost the payload with no error to show for it.
+ */
+export const TRANSPORT_OK_MESSAGE = 'OK!';
+
+/**
  * True for the wrappers GraphClient puts around payloads that are not Graph entities:
  * binary content, a verbatim non-JSON body, an empty 200, or an excludeResponse ack.
  * Projecting one of these would strip every key and hand the caller `{}`, losing a
@@ -82,11 +90,11 @@ function isAlwaysKept(key: string): boolean {
 export function isTransportEnvelope(data: unknown): boolean {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
   const body = data as Record<string, unknown>;
-  // Every wrapper GraphClient builds stamps message: 'OK!' - the binary one, the verbatim
+  // Every wrapper GraphClient builds stamps this message - the binary one, the verbatim
   // text one and the empty-200 ack alike. Keying on that value rather than on property
   // names keeps real resources out of the guard: a fileAttachment carries contentBytes,
   // and plenty of resources carry a message.
-  if (body.message === 'OK!') return true;
+  if (body.message === TRANSPORT_OK_MESSAGE) return true;
   // excludeResponse and the delete path return exactly { success: true }.
   return body.success === true && Object.keys(body).length === 1;
 }
