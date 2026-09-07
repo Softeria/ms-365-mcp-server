@@ -129,12 +129,14 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
-// Outlook mail only, and the collection must hang directly off the mailbox owner. Graph
-// also has /me/chats/{id}/messages, so testing the owner prefix and the collection name
-// separately would pull Teams chat into a mail-only rewrite. /chats, /teams and /planner
-// messages, and directory search, each have their own quoting convention and are left
-// alone.
-const OUTLOOK_MAIL_PATH = /^\/(?:me|users\/[^/]+)\/(?:messages|mailFolders)(?:\/|$)/i;
+// Outlook message collections only. The path has to be a mailbox owner, optionally some
+// mailFolders/childFolders nesting, and then end at messages. Matching the owner prefix and
+// the collection name separately would catch /me/chats/{id}/messages, and matching any
+// mailFolders descendant would catch list-mail-folders, list-mail-child-folders,
+// list-mail-rules and list-mail-attachments, none of which take message KQL. /chats, /teams
+// and /planner messages, and directory search, have their own conventions and are untouched.
+const OUTLOOK_MAIL_PATH =
+  /^\/(?:me|users\/[^/]+)(?:\/(?:mailFolders|childFolders)\/[^/]+)*\/messages(?:\/delta\(\))?$/i;
 
 function isOutlookMailPath(path: string): boolean {
   return OUTLOOK_MAIL_PATH.test(path);
@@ -148,6 +150,13 @@ function readQuotedSegment(
   let j = start + 1;
   let segment = '';
   while (j < expr.length) {
+    // Consume an escaped backslash as a unit, otherwise the second slash pairs with a real
+    // delimiter behind it and the scan runs off the end of a well-formed string.
+    if (expr[j] === '\\' && expr[j + 1] === '\\') {
+      segment += '\\\\';
+      j += 2;
+      continue;
+    }
     if (expr[j] === '\\' && expr[j + 1] === '"') {
       segment += '\\"';
       j += 2;
@@ -199,8 +208,14 @@ const CLAUSE_HEAD = /^([A-Za-z]+)(?::|<=|>=|<>|=|<|>)\S/;
  * that merely opens with a word and a colon — keeps its grouping quotes. Erring this way
  * leaves an unrecognised property unrepaired rather than silently changing what a valid
  * phrase search means.
+ *
+ * Whitespace anywhere in the run is disqualifying, because a restriction binds only the
+ * token after its operator: unwrapping "subject:quarterly report" would leave subject
+ * matching `quarterly` and `report` loose as free text, quietly widening the search the
+ * caller asked for. Those quotes are doing the grouping and have to survive.
  */
 function isPropertyClause(segment: string): boolean {
+  if (/\s/.test(segment)) return false;
   const head = CLAUSE_HEAD.exec(segment);
   return head ? MAIL_SEARCH_PROPERTIES.has(head[1].toLowerCase()) : false;
 }
@@ -221,6 +236,11 @@ function rewriteMailSearchQuotes(expr: string): string {
   let out = '';
   let i = 0;
   while (i < expr.length) {
+    if (expr[i] === '\\' && expr[i + 1] === '\\') {
+      out += '\\\\';
+      i += 2;
+      continue;
+    }
     if (expr[i] === '\\' && expr[i + 1] === '"') {
       out += '\\"';
       i += 2;
@@ -231,15 +251,16 @@ function rewriteMailSearchQuotes(expr: string): string {
       i += 1;
       continue;
     }
+    // An unterminated run is read as a missing closing quote rather than a stray opening
+    // one. Dropping the delimiter instead would shed the grouping and widen the search:
+    // `subject:"quarterly report` would go out as subject matching `quarterly` with
+    // `report` loose.
     const run = readQuotedSegment(expr, i);
-    if (!run) {
-      // Unbalanced quote: keep the text, drop the stray delimiter.
-      out += expr.slice(i + 1);
-      break;
-    }
+    const segment = run ? run.segment : expr.slice(i + 1);
     const introducedByProperty = i > 0 && expr[i - 1] === ':';
-    const isPhrase = introducedByProperty || !isPropertyClause(run.segment);
-    out += isPhrase ? `\\"${run.segment}\\"` : run.segment;
+    const isPhrase = introducedByProperty || !isPropertyClause(segment);
+    out += isPhrase ? `\\"${segment}\\"` : segment;
+    if (!run) break;
     i = run.end + 1;
   }
   const rewritten = out.trim();

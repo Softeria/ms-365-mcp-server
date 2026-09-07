@@ -1626,9 +1626,53 @@ describe('graph-tools', () => {
       expect(url).toContain(`$search=${encodeURIComponent('"from:john\\\\"')}`);
     });
 
-    it('repairs an unbalanced quote rather than sending it', async () => {
-      const url = await callWithSearch('from:"john');
-      expect(url).toContain(`$search=${encodeURIComponent('"from:john"')}`);
+    // An unterminated run is a missing closing quote, not a stray opening one. Dropping the
+    // delimiter would shed the grouping: `subject:"quarterly report` would go out as subject
+    // matching `quarterly` with `report` loose, which is a wider search than was asked for.
+    it.each([
+      ['from:"john', '"from:\\"john\\""'],
+      ['subject:"quarterly report', '"subject:\\"quarterly report\\""'],
+    ])('closes an unterminated quote rather than dropping it (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A restriction binds only the token after its operator, so unwrapping a multi-word
+    // value would leave the property matching the first word and the rest loose as free
+    // text. These quotes are doing the grouping and have to survive.
+    it.each([
+      [
+        '"subject:quarterly report" AND from:john',
+        '"\\"subject:quarterly report\\" AND from:john"',
+      ],
+      ['"from:john" AND "subject:the big report"', '"from:john AND \\"subject:the big report\\""'],
+    ])('keeps grouping on a multi-word clause value (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // An escaped backslash must be consumed as a unit, or its second slash pairs with the
+    // real delimiter behind it and the scan runs off the end of a well-formed string.
+    it('reads an escaped backslash before a closing quote', async () => {
+      const url = await callWithSearch('from:"a\\\\"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:\\"a\\\\\\""')}`);
+    });
+
+    // Every repair has to be a fixed point, otherwise a retry or a second pass corrupts a
+    // value this code just declared correct.
+    it.each([
+      'from:john AND subject:meeting',
+      '"from:john" AND subject:meeting',
+      'subject:"quarterly report',
+      '"subject:quarterly report" AND from:john',
+      'from:john\\',
+      'from:"a\\\\"',
+      '"quarterly report"',
+    ])('normalizing twice is a no-op (%s)', async (query) => {
+      const once = await callWithSearch(query);
+      const search = new URL(once, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      const twice = await callWithSearch(search);
+      expect(twice).toContain(`$search=${encodeURIComponent(search)}`);
     });
 
     // Dropping $search would turn a search into an unfiltered listing of the whole mailbox
@@ -1647,6 +1691,11 @@ describe('graph-tools', () => {
     // destroy: collapsing the quotes below changes an OR of two clauses into one.
     it.each([
       ['/users', '"displayName:john" OR "displayName:jane"'],
+      // Mail-adjacent, but none of these take message KQL.
+      ['/me/mailFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/childFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/messageRules', 'foo OR bar'],
+      ['/me/messages/:messageId/attachments', 'foo OR bar'],
       ['/planner/tasks/:plannerTaskId/messages', 'foo OR bar'],
       ['/chats/:chatId/messages', 'foo OR bar'],
       ['/teams/:teamId/channels/:channelId/messages', 'foo OR bar'],
