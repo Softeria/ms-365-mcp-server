@@ -73,7 +73,7 @@ export const FILTER_PARAM_DESCRIPTION =
 // short. Mail quoting is repaired server-side by normalizeSearchQueryParam, which is why
 // this no longer spells the mail rule out; directory has no such repair, so it gets a clause.
 export const SEARCH_PARAM_DESCRIPTION =
-  'KQL search query in double quotes. Directory (users/groups) quotes each clause separately. Cannot combine with $filter.';
+  'KQL search query in one pair of double quotes; directory (users/groups) instead quotes each clause with no outer pair. Cannot combine with $filter.';
 
 export const SELECT_PARAM_DESCRIPTION =
   'Comma-separated fields to return, e.g. id,subject,from,receivedDateTime';

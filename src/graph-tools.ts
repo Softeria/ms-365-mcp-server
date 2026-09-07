@@ -203,34 +203,53 @@ const MAIL_SEARCH_PROPERTIES = new Set([
  */
 const CLAUSE_HEAD = /^([A-Za-z]+)(?::|<=|>=|<>|=|<|>)\S/;
 
-/**
- * True only for a quoted run that really is a clause. Anything else — including a phrase
- * that merely opens with a word and a colon — keeps its grouping quotes. Erring this way
- * leaves an unrecognised property unrepaired rather than silently changing what a valid
- * phrase search means.
- *
- * Whitespace anywhere in the run is disqualifying, because a restriction binds only the
- * token after its operator: unwrapping "subject:quarterly report" would leave subject
- * matching `quarterly` and `report` loose as free text, quietly widening the search the
- * caller asked for. Those quotes are doing the grouping and have to survive.
- */
-function isPropertyClause(segment: string): boolean {
-  if (/\s/.test(segment)) return false;
+/** KQL's boolean operators: uppercase and free-standing, per the KQL syntax reference. */
+const BOOLEAN_JOIN = /\s(?:AND|OR|NOT)\s/;
+
+/** The recognised `property:`/comparison head of a run, or null if it does not open with one. */
+function clauseHead(segment: string): RegExpExecArray | null {
   const head = CLAUSE_HEAD.exec(segment);
-  return head ? MAIL_SEARCH_PROPERTIES.has(head[1].toLowerCase()) : false;
+  return head && MAIL_SEARCH_PROPERTIES.has(head[1].toLowerCase()) ? head : null;
+}
+
+/** Append a slash when the trailing run is odd, so it cannot escape a quote placed after it. */
+function balanceTrailingSlashes(text: string): string {
+  const slashes = text.length - text.replace(/\\+$/, '').length;
+  return slashes % 2 === 1 ? `${text}\\` : text;
+}
+
+/**
+ * How a quoted run should be emitted once the whole expression gains its enclosing pair.
+ *
+ * - `phrase` keeps the quotes where they are, escaped as \". A run holding the value of a
+ *   restriction is always this, even when its text contains a colon
+ *   (subject:"RE: quarterly report"), as is anything that does not open with a recognised
+ *   property at all ("quarterly report", "RE: quarterly report").
+ * - `clause` drops the quotes: either one bare restriction the caller quoted by mistake
+ *   ("from:john" AND subject:meeting), or several joined by boolean operators and quoted as
+ *   a group ("from:john AND subject:meeting" OR from:jane). Both are per-clause quoting,
+ *   which is the directory convention and a 400 here.
+ * - `restriction-value` moves the quotes past the operator: "subject:quarterly report"
+ *   becomes subject:\"quarterly report\". Escaping in place would leave `subject:` inside
+ *   the phrase as literal text and lose the restriction entirely, and dropping the quotes
+ *   would bind only `quarterly` to subject and let `report` float as free text. Only moving
+ *   them keeps both the property and the grouping.
+ */
+type RunKind = 'phrase' | 'clause' | 'restriction-value';
+
+function classifyRun(segment: string, introducedByProperty: boolean): RunKind {
+  if (introducedByProperty) return 'phrase';
+  const head = clauseHead(segment);
+  if (!head) return 'phrase';
+  if (BOOLEAN_JOIN.test(segment) || !/\s/.test(segment)) return 'clause';
+  return 'restriction-value';
 }
 
 /**
  * Rewrite the interior of a mail KQL expression so it can be wrapped in one pair of
- * double quotes.
- *
- * A quoted run is either a phrase, whose quotes group the words and must survive, or a
- * whole clause the caller quoted by mistake, whose quotes must go. Phrase quotes are
- * escaped as \" by analogy with the rule Microsoft documents for directory search; mail's
- * own docs never show an embedded quote, so that form is inferred rather than published.
- * Two signals separate them: a run introduced by `property:` is always a phrase, even
- * when its own text contains a colon (subject:"RE: quarterly report"); otherwise a run
- * that itself starts with `property:` is the mistake ("from:john" AND subject:meeting).
+ * double quotes. Phrase quotes are escaped as \" by analogy with the rule Microsoft
+ * documents for directory search; mail's own docs never show an embedded quote, so that
+ * form is inferred rather than published.
  */
 function rewriteMailSearchQuotes(expr: string): string {
   let out = '';
@@ -252,22 +271,29 @@ function rewriteMailSearchQuotes(expr: string): string {
       continue;
     }
     // An unterminated run is read as a missing closing quote rather than a stray opening
-    // one. Dropping the delimiter instead would shed the grouping and widen the search:
-    // `subject:"quarterly report` would go out as subject matching `quarterly` with
-    // `report` loose.
+    // one; dropping the delimiter would shed the grouping and widen the search. Its tail is
+    // balanced first, because the closer synthesized below would otherwise pair with a
+    // trailing backslash and let the next quote end the string early.
     const run = readQuotedSegment(expr, i);
-    const segment = run ? run.segment : expr.slice(i + 1);
+    const segment = run ? run.segment : balanceTrailingSlashes(expr.slice(i + 1));
     const introducedByProperty = i > 0 && expr[i - 1] === ':';
-    const isPhrase = introducedByProperty || !isPropertyClause(segment);
-    out += isPhrase ? `\\"${segment}\\"` : segment;
+    switch (classifyRun(segment, introducedByProperty)) {
+      case 'clause':
+        out += segment;
+        break;
+      case 'restriction-value': {
+        const head = clauseHead(segment)!;
+        const valueAt = head[0].length - 1;
+        out += `${segment.slice(0, valueAt)}\\"${segment.slice(valueAt)}\\"`;
+        break;
+      }
+      default:
+        out += `\\"${segment}\\"`;
+    }
     if (!run) break;
     i = run.end + 1;
   }
-  const rewritten = out.trim();
-  // A trailing lone backslash would escape the closing quote the caller wraps around this,
-  // handing Graph an unterminated string. Balance it instead of dropping the character.
-  const trailingSlashes = rewritten.length - rewritten.replace(/\\+$/, '').length;
-  return trailingSlashes % 2 === 1 ? `${rewritten}\\` : rewritten;
+  return balanceTrailingSlashes(out.trim());
 }
 
 /**
@@ -322,7 +348,11 @@ function normalizeSearchQueryParam(
   let expr = trimmed;
   if (expr.startsWith('"')) {
     const whole = readQuotedSegment(expr, 0);
-    if (whole && whole.end === expr.length - 1) expr = whole.segment;
+    // No closing quote at all means the caller dropped it off the enclosing pair, not that
+    // they opened a phrase. Reading it as a phrase would send a literal search for the whole
+    // expression, which matches nothing and gives the model no error to correct against.
+    if (!whole) expr = expr.slice(1);
+    else if (whole.end === expr.length - 1) expr = whole.segment;
   }
 
   const inner = rewriteMailSearchQuotes(expr);

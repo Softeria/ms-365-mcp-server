@@ -1637,18 +1637,44 @@ describe('graph-tools', () => {
       expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
     });
 
-    // A restriction binds only the token after its operator, so unwrapping a multi-word
-    // value would leave the property matching the first word and the rest loose as free
-    // text. These quotes are doing the grouping and have to survive.
+    // A restriction binds only the token after its operator, so unwrapping a multi-word value
+    // would bind the first word and leave the rest as free text. Escaping the run in place is
+    // no better: `subject:` would end up inside the phrase as literal text and the restriction
+    // would be lost. Only moving the quotes past the operator keeps both.
     it.each([
       [
         '"subject:quarterly report" AND from:john',
-        '"\\"subject:quarterly report\\" AND from:john"',
+        '"subject:\\"quarterly report\\" AND from:john"',
       ],
-      ['"from:john" AND "subject:the big report"', '"from:john AND \\"subject:the big report\\""'],
-    ])('keeps grouping on a multi-word clause value (%s)', async (query, expected) => {
+      ['"from:john" AND "subject:the big report"', '"from:john AND subject:\\"the big report\\""'],
+    ])('moves quotes past the operator on a multi-word value (%s)', async (query, expected) => {
       const url = await callWithSearch(query);
       expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // Per-clause quoting of a whole boolean group is the same directory-style mistake as
+    // quoting one clause, so it unwraps too. Escaping it would turn live restrictions into
+    // literal text and leave only the clauses outside the quotes doing any work.
+    it.each([
+      [
+        '"from:john AND subject:meeting" OR from:jane',
+        '"from:john AND subject:meeting OR from:jane"',
+      ],
+      [
+        '"from:john OR from:jane" AND hasAttachments:true',
+        '"from:john OR from:jane AND hasAttachments:true"',
+      ],
+    ])('unwraps a quoted group of clauses (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A missing closing quote on the enclosing pair is a dropped character, not the start of
+    // a phrase. Reading it as a phrase would search for the expression literally and match
+    // nothing, leaving the model no error to correct against.
+    it('recovers a dropped closing quote on the enclosing pair', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
     });
 
     // An escaped backslash must be consumed as a unit, or its second slash pairs with the
@@ -1660,15 +1686,38 @@ describe('graph-tools', () => {
 
     // Every repair has to be a fixed point, otherwise a retry or a second pass corrupts a
     // value this code just declared correct.
-    it.each([
+    const CORPUS = [
       'from:john AND subject:meeting',
       '"from:john" AND subject:meeting',
       'subject:"quarterly report',
       '"subject:quarterly report" AND from:john',
+      '"from:john AND subject:meeting" OR from:jane',
+      '"from:john AND subject:meeting',
       'from:john\\',
       'from:"a\\\\"',
+      'subject:"abc\\',
       '"quarterly report"',
-    ])('normalizing twice is a no-op (%s)', async (query) => {
+    ];
+
+    // The value Graph receives must be one well-formed escaped string: an opening quote, no
+    // unescaped quote before the final one, and no trailing backslash that would escape it.
+    // Asserting the shape catches a class of scanner bugs that enumerating cases misses.
+    it.each(CORPUS)('emits a balanced escaped string (%s)', async (query) => {
+      const url = await callWithSearch(query);
+      const value = new URL(url, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      expect(value.startsWith('"') && value.endsWith('"')).toBe(true);
+      let unescaped = 0;
+      for (let i = 0; i < value.length; i++) {
+        if (value[i] === '\\') {
+          i++;
+          continue;
+        }
+        if (value[i] === '"') unescaped++;
+      }
+      expect(unescaped).toBe(2);
+    });
+
+    it.each(CORPUS)('normalizing twice is a no-op (%s)', async (query) => {
       const once = await callWithSearch(query);
       const search = new URL(once, 'https://graph.microsoft.com').searchParams.get('$search')!;
       const twice = await callWithSearch(search);
