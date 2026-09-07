@@ -37,6 +37,12 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      # tsup strips types without checking them, so build alone cannot catch type errors
+      # Node 18 skips the @azure/* optional deps (engines >=20), so tsc can't find them
+      - name: Type check
+        if: matrix.node-version != '18.x'
+        run: npm run typecheck
+
       - name: Build TypeScript
         run: npm run build
 

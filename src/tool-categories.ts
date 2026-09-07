@@ -19,7 +19,10 @@ const endpointEntries = JSON.parse(
 // which presets it belongs to via its `presets` array, so presets are exact
 // tool-name allow-lists that can't over-match across apps the way the old
 // loose name regexes could (e.g. "mail" also matching shared-mailbox tools).
-const PRESET_META: Record<string, { description: string; requiresOrgMode?: boolean }> = {
+const PRESET_META: Record<
+  string,
+  { description: string; requiresOrgMode?: boolean; omitUniversalUtilities?: boolean }
+> = {
   mail: {
     description: 'Email operations (read, send, manage folders, attachments)',
   },
@@ -66,6 +69,13 @@ const PRESET_META: Record<string, { description: string; requiresOrgMode?: boole
     description: 'Teams app only: chats, channels, meetings and presence',
     requiresOrgMode: true,
   },
+  'teams-write': {
+    description:
+      'Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading',
+    requiresOrgMode: true,
+    // A write-only preset must not include the generic byte readers.
+    omitUniversalUtilities: true,
+  },
 };
 
 // Utility tools (graph-tools.ts UTILITY_TOOLS) are code-defined, not in endpoints.json, so they
@@ -85,7 +95,7 @@ const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
 // universal download-bytes still reads the bytes. parse-teams-url only parses Teams meeting URLs.
 const SCOPED_UTILITY_TOOLS: Record<string, string[]> = {
   'get-download-url': ['files', 'onedrive', 'personal', 'work', 'search'],
-  'parse-teams-url': ['teams', 'work'],
+  'parse-teams-url': ['teams', 'teams-write', 'work'],
 };
 
 // Fail fast if a scoped utility references a preset that does not exist (e.g. a typo like
@@ -111,7 +121,7 @@ function presetPattern(preset: string): RegExp {
   }
   const names = [
     ...endpointNames,
-    ...UNIVERSAL_UTILITY_TOOLS,
+    ...(PRESET_META[preset]?.omitUniversalUtilities ? [] : UNIVERSAL_UTILITY_TOOLS),
     ...Object.entries(SCOPED_UTILITY_TOOLS)
       .filter(([, presets]) => presets.includes(preset))
       .map(([name]) => name),

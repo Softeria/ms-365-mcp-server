@@ -9,15 +9,26 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
  * Strategy: mock GraphClient, create a real McpServer, register tools, then invoke them.
  */
 
+const loggerMock = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
 // Mock logger to silence output
 vi.mock('../logger.js', () => ({
-  default: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
+  default: loggerMock,
 }));
+
+const auditLogMock = vi.hoisted(() => vi.fn());
+vi.mock('../audit-log.js', async () => {
+  const actual = await vi.importActual<typeof import('../audit-log.js')>('../audit-log.js');
+  return {
+    ...actual,
+    auditLog: auditLogMock,
+  };
+});
 
 // Mock the generated client — we supply our own endpoint definitions per test
 const mockEndpoints: any[] = [];
@@ -64,6 +75,7 @@ function makeEndpoint(overrides: Partial<any> = {}) {
       { name: 'search', type: 'Query', schema: z.string().optional() },
       { name: 'select', type: 'Query', schema: z.string().optional() },
       { name: 'orderby', type: 'Query', schema: z.string().optional() },
+      { name: 'expand', type: 'Query', schema: z.string().optional() },
       { name: 'count', type: 'Query', schema: z.boolean().optional() },
       { name: 'top', type: 'Query', schema: z.number().optional() },
       { name: 'skip', type: 'Query', schema: z.number().optional() },
@@ -122,7 +134,29 @@ function createMockServer() {
     string,
     { description: string; schema: any; handler: (...args: any[]) => any }
   >();
+  const requestHandlers = new Map<string, (request: unknown, extra: unknown) => Promise<unknown>>();
+  const installDefaultToolCallHandler = () => {
+    if (requestHandlers.has('tools/call')) return;
+    requestHandlers.set('tools/call', async (request: unknown) => {
+      const params = (request as { params?: { name?: string; arguments?: unknown } }).params;
+      const toolName = params?.name ?? 'unknown';
+      const tool = tools.get(toolName);
+      if (!tool) {
+        throw new Error(`Tool ${toolName} not found`);
+      }
+      return tool.handler(params?.arguments ?? {});
+    });
+  };
+  const lowLevelServer = {
+    _requestHandlers: requestHandlers,
+    setRequestHandler: vi.fn(
+      (_schema: unknown, handler: (request: unknown, extra: unknown) => Promise<unknown>) => {
+        requestHandlers.set('tools/call', handler);
+      }
+    ),
+  };
   return {
+    server: lowLevelServer,
     tool: vi.fn(
       (
         name: string,
@@ -132,6 +166,7 @@ function createMockServer() {
         handler: (...args: any[]) => any
       ) => {
         tools.set(name, { description, schema, handler });
+        installDefaultToolCallHandler();
       }
     ),
     registerTool: vi.fn(
@@ -146,6 +181,7 @@ function createMockServer() {
           schema: config.inputSchema?.shape ?? config.inputSchema,
           handler,
         });
+        installDefaultToolCallHandler();
       }
     ),
     tools,
@@ -164,6 +200,624 @@ describe('graph-tools', () => {
     mockEndpoints.length = 0;
     mockEndpointsJson = [];
     vi.clearAllMocks();
+  });
+
+  // ---- 0. Audit outcome metadata ----
+  describe('audit outcome metadata', () => {
+    it('includes HTTP status on successful Graph tool calls', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
+          _meta: { http_status: 200 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'success',
+          http_status: 200,
+        })
+      );
+    });
+
+    it('includes HTTP status and Graph error code on failed Graph tool calls', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 403 Forbidden' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 403, error_code: 'accessDenied' },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'error',
+          http_status: 403,
+          error_code: 'accessDenied',
+        })
+      );
+    });
+
+    it('includes HTTP status on utility tool calls that reach Graph', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                contentType: 'image/jpeg',
+                encoding: 'base64',
+                contentBytes: 'aGk=',
+              }),
+            },
+          ],
+          _meta: { http_status: 200 },
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('download-bytes')!.handler({ target: '/me/photo/$value' });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes',
+          status: 'success',
+          http_method: 'GET',
+          http_status: 200,
+        })
+      );
+    });
+
+    it('includes HTTP status and Graph error code on failed utility Graph calls', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const graphClient = {
+        graphRequest: vi.fn().mockResolvedValue({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 403 Forbidden' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 403, error_code: 'accessDenied' },
+        }),
+      };
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('download-bytes')!.handler({ target: '/me/photo/$value' });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes',
+          status: 'error',
+          http_status: 403,
+          error_code: 'accessDenied',
+        })
+      );
+    });
+
+    it('copies Graph batch outcome metadata into audit events', async () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/$batch',
+        alias: 'graph-batch',
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/$batch',
+        method: 'post',
+        toolName: 'graph-batch',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                responses: [
+                  { id: '1', status: 200, body: { id: 'message-1' } },
+                  {
+                    id: '2',
+                    status: 403,
+                    body: { error: { code: 'accessDenied', message: 'Access denied' } },
+                  },
+                ],
+              }),
+            },
+          ],
+          _meta: {
+            http_status: 200,
+            graph_batch_subrequest_count: 2,
+            graph_batch_http_status_counts: { '200': 1, '403': 1 },
+            graph_batch_error_code_counts: { accessDenied: 1 },
+          },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('graph-batch')!.handler({
+        body: { requests: [{ id: '1', method: 'GET', url: '/me' }] },
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'graph-batch',
+          status: 'success',
+          http_status: 200,
+          graph_batch_subrequest_count: 2,
+          graph_batch_http_status_counts: { '200': 1, '403': 1 },
+          graph_batch_error_code_counts: { accessDenied: 1 },
+        })
+      );
+    });
+  });
+
+  describe('audit recipient metadata', () => {
+    const draftEndpoint = () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/me/messages',
+        alias: 'create-draft-email',
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'post',
+        toolName: 'create-draft-email',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+    };
+
+    const runDraft = async (body: unknown) => {
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ id: 'draft-1' }) }],
+          _meta: { http_status: 201 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+      await server.tools.get('create-draft-email')!.handler({ body });
+      return auditLogMock.mock.calls[0][0];
+    };
+
+    it('records recipient count and domains, deduplicated and sorted', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'someone@example.com' } },
+          { emailAddress: { address: 'Another@Example.com' } },
+        ],
+        ccRecipients: [{ emailAddress: { address: 'auditor@partner.co.uk' } }],
+      });
+
+      expect(payload).toMatchObject({
+        tool: 'create-draft-email',
+        recipient_count: 3,
+        recipient_domains: ['example.com', 'partner.co.uk'],
+      });
+    });
+
+    it('reads recipients nested under a camelCase message, as createReply sends them', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        comment: 'forwarding this on',
+        message: { toRecipients: [{ emailAddress: { address: 'outside@gmail.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['gmail.com'] });
+    });
+
+    it('reads PascalCase fields, as the Graph action endpoints send them', async () => {
+      draftEndpoint();
+      // POST /me/messages/{id}/forward and /me/sendMail use ToRecipients / Message,
+      // unlike POST /me/messages which uses toRecipients.
+      const payload = await runDraft({
+        Comment: 'fyi',
+        ToRecipients: [{ emailAddress: { address: 'partner@vendor.com' } }],
+        Message: { CcRecipients: [{ emailAddress: { address: 'watcher@vendor.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 2, recipient_domains: ['vendor.com'] });
+    });
+
+    it('records calendar attendees, not just mail recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        subject: 'sync',
+        attendees: [
+          { emailAddress: { address: 'colleague@example.com' }, type: 'required' },
+          { emailAddress: { address: 'guest@external.org' }, type: 'optional' },
+        ],
+      });
+
+      expect(payload).toMatchObject({
+        recipient_count: 2,
+        recipient_domains: ['example.com', 'external.org'],
+      });
+    });
+
+    it('logs domains only, never the local part of an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'confidential.name@example.com' } }],
+      });
+
+      expect(payload.recipient_domains).toEqual(['example.com']);
+      expect(JSON.stringify(payload)).not.toContain('confidential.name');
+    });
+
+    it('rejects a tail that is not a plain hostname', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'a@example.com/path' } },
+          { emailAddress: { address: 'b@evil<script' } },
+          { emailAddress: { address: 'c@example.com,comment' } },
+          { emailAddress: { address: 'd@[IPv6:2001:db8::1]' } },
+          { emailAddress: { address: 'e@good.example' } },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(5);
+      expect(payload.recipient_domains).toEqual(['good.example']);
+    });
+
+    it('drops a domain longer than a hostname can be', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: `a@${'x'.repeat(300)}.example` } },
+          { emailAddress: { address: 'b@ext.com' } },
+        ],
+      });
+
+      // The cap bounds how many domains land in a record, not how long each one is, so
+      // without a length check one address picks the size of the audit line
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+    });
+
+    it('counts an entry that names someone without an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        recipients: [{ alias: 'finance-team' }, { objectId: 'abc-123' }],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
+
+    it('walks a body forwarded to Graph as a raw JSON string', async () => {
+      // Needs a strict schema: a passthrough one wraps the string instead, so the
+      // raw-string path never fires. When both parses fail, real mail goes out.
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'post',
+          path: '/me/sendMail',
+          alias: 'send-mail',
+          parameters: [
+            {
+              name: 'body',
+              type: 'Body',
+              schema: z.object({ message: z.object({}).passthrough() }),
+            },
+          ],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ pathPattern: '/me/sendMail', method: 'post', toolName: 'send-mail' }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ ok: true }) }],
+          _meta: { http_status: 202 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('send-mail')!.handler({
+        body: JSON.stringify({
+          message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+        }),
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('leaves a base64 upload body alone instead of warning on every upload', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'put',
+          path: '/me/photo/$value',
+          alias: 'upload-my-profile-photo',
+          requestFormat: 'binary',
+          parameters: [{ name: 'body', type: 'Body', schema: z.string() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          pathPattern: '/me/photo/$value',
+          method: 'put',
+          toolName: 'upload-my-profile-photo',
+        }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: '{}' }], _meta: { http_status: 200 } },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('upload-my-profile-photo')!.handler({
+        body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('recipient_count');
+      // Base64 is never JSON. Parsing it warned on every upload, and the parse error
+      // carries a slice of the file into the operational log
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Skipped recipient audit metadata')
+      );
+    });
+
+    it('records driveItem invite recipients, which use email rather than emailAddress', async () => {
+      draftEndpoint();
+      // share-drive-item mails an outsider a link to the file
+      const payload = await runDraft({
+        recipients: [{ email: 'outsider@ext.com' }],
+        roles: ['read'],
+        sendInvitation: true,
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('records meeting participants, which use upn', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        participants: { attendees: [{ upn: 'guest@ext.com' }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('survives a deeply nested array without blowing the stack', async () => {
+      draftEndpoint();
+      // Must terminate, not overflow - this walker runs inside the catch handler. 500 is
+      // far past MAX_BODY_DEPTH and still serialises on every Node we support; going
+      // deeper only tests where JSON.stringify gives out, which moves between versions.
+      let nested: unknown = [{ toRecipients: [{ emailAddress: { address: 'deep@ext.com' } }] }];
+      for (let i = 0; i < 500; i++) nested = [nested];
+
+      const payload = await runDraft({ requests: nested });
+
+      // Too deep to reach, but it has to return rather than throw
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload.status).toBe('success');
+    });
+
+    it('still audits a call whose params cannot be serialised for the log', async () => {
+      draftEndpoint();
+      // The params log line runs before the try that writes the audit record, so an
+      // unguarded stringify there escapes the tool entirely: protocol error, no trail.
+      const circular: Record<string, unknown> = { subject: 'loop' };
+      circular.self = circular;
+
+      const payload = await runDraft(circular);
+
+      expect(auditLogMock).toHaveBeenCalledTimes(1);
+      expect(payload).toMatchObject({ tool: 'create-draft-email', status: 'error' });
+    });
+
+    it('still records recipients when the request throws', async () => {
+      draftEndpoint();
+      const graphClient = {
+        graphRequest: vi.fn().mockRejectedValue(new Error('socket hang up')),
+      };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('create-draft-email')!.handler({
+        body: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+      });
+
+      // A timeout is not proof of non-delivery, so the signal has to survive
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload.status).toBe('error');
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('walks recipients nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Routing a send through /$batch used to record nothing at all
+      const payload = await runDraft({
+        requests: [
+          { id: '1', method: 'GET', url: '/me/messages?$top=5' },
+          {
+            id: '2',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: { message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] } },
+          },
+        ],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reaches an itemAttachment nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Deepest shape the docstring promises: 7 levels, one under MAX_BODY_DEPTH. Pinned
+      // so trimming the budget fails here rather than quietly dropping the case.
+      const payload = await runDraft({
+        requests: [
+          {
+            id: '1',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: {
+              message: {
+                toRecipients: [{ emailAddress: { address: 'direct@ext.com' } }],
+                attachments: [
+                  {
+                    '@odata.type': '#microsoft.graph.itemAttachment',
+                    item: {
+                      toRecipients: [{ emailAddress: { address: 'forwarded@deeper.example' } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['deeper.example', 'ext.com']);
+    });
+
+    it('reads a bare string entry, malformed though it is', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ toRecipients: ['a@ext.com'] });
+
+      // Graph rejects this shape, so nothing is delivered - but an attempted send to an
+      // outside domain is exactly what the trail is for
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reads an all-PascalCase recipient entry, as Graph accepts it', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        ToRecipients: [{ EmailAddress: { Address: 'a@ext.com' } }],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('normalises a display-name address down to the bare domain', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'Bob <bob@ext.com>' } },
+          { emailAddress: { address: 'a@ext.com ' } },
+          { emailAddress: { address: 'c@ext.com note' } },
+        ],
+      });
+
+      // Same domain three ways - unnormalised that's three entries, one carrying junk
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+      expect(payload.recipient_count).toBe(3);
+    });
+
+    it('caps the domain list but keeps recipient_count exact', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: Array.from({ length: 60 }, (_, i) => ({
+          emailAddress: { address: `user@d${String(i).padStart(2, '0')}.example` },
+        })),
+      });
+
+      // The count is the detection signal, so it has to survive the cap
+      expect(payload.recipient_count).toBe(60);
+      expect(payload.recipient_domains).toHaveLength(50);
+      expect(payload.recipient_domains_truncated).toBe(true);
+    });
+
+    it('does not flag truncation when the domain list fits', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'a@example.com' } }],
+      });
+
+      expect(payload).not.toHaveProperty('recipient_domains_truncated');
+    });
+
+    it('omits both fields when a request has no recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ subject: 'a draft with no recipients yet' });
+
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
   });
 
   // ---- 1. $count advanced query mode ----
@@ -192,6 +846,246 @@ describe('graph-tools', () => {
       const [url] = graphClient.graphRequest.mock.calls[0];
       // $count=true should appear in query string
       expect(url).toContain('$count=true');
+    });
+  });
+
+  describe('audit target resources', () => {
+    it('adds target_resource to generated Graph tool audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'item-2' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+        driveItemId: 'item-2',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-drive-item',
+          status: 'success',
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
+    it('adds target_resource to failed generated Graph tool audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient();
+      graphClient.graphRequest.mockRejectedValueOnce(
+        Object.assign(new Error('Forbidden'), { status: 403 })
+      );
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      const result = await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+        driveItemId: 'item-2',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-drive-item',
+          status: 'error',
+          error_code: 403,
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
+    it('derives target_resource from generic ID path parameters', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-mail-message',
+        path: '/me/messages/:messageId',
+        parameters: [{ name: 'messageId', type: 'Path', schema: z.string() }],
+      });
+      const config = makeConfig({
+        toolName: 'get-mail-message',
+        pathPattern: '/me/messages/{message-id}',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'message-1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-mail-message')!.handler({
+        messageId: 'message-1',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-mail-message',
+          status: 'success',
+          target_resource: {
+            type: 'message',
+            id: '/me/messages/message-1',
+          },
+        })
+      );
+    });
+
+    it('omits target_resource when an ID path parameter is missing', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-drive-item',
+        path: '/drives/:driveId/items/:driveItemId',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-drive-item',
+        pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        scopes: ['Files.Read'],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'item-2' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-drive-item')!.handler({
+        driveId: 'drive-1',
+      });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).toMatchObject({
+        event: 'tool.call',
+        tool: 'get-drive-item',
+        status: 'success',
+      });
+      expect(payload).not.toHaveProperty('target_resource');
+    });
+
+    it('omits SharePoint path parameters from target_resource', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'get-sharepoint-site-by-path',
+        path: "/sites/:siteId/getByPath(path=':path')",
+        parameters: [
+          { name: 'siteId', type: 'Path', schema: z.string() },
+          { name: 'path', type: 'Path', schema: z.string() },
+        ],
+      });
+      const config = makeConfig({
+        toolName: 'get-sharepoint-site-by-path',
+        pathPattern: '/sites/{site-id}:/{path}',
+        scopes: [['Sites.Read.All'], ['Sites.Selected']],
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'site-1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('get-sharepoint-site-by-path')!.handler({
+        siteId: 'contoso.sharepoint.com',
+        path: '/sites/Finance',
+      });
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-sharepoint-site-by-path',
+          status: 'success',
+          target_resource: {
+            type: 'site',
+            id: '/sites/contoso.sharepoint.com',
+          },
+        })
+      );
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(JSON.stringify(payload)).not.toContain('Finance');
+    });
+
+    it('omits target_resource for generated broad list/search audit events', async () => {
+      const endpoint = makeEndpoint({
+        alias: 'list-mail-messages',
+        path: '/me/messages',
+      });
+      const config = makeConfig({
+        toolName: 'list-mail-messages',
+        pathPattern: '/me/messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('list-mail-messages')!.handler({ search: 'budget' });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).toMatchObject({
+        event: 'tool.call',
+        tool: 'list-mail-messages',
+        status: 'success',
+      });
+      expect(payload).not.toHaveProperty('target_resource');
     });
   });
 
@@ -243,6 +1137,60 @@ describe('graph-tools', () => {
       expect(parsed.value.map((v: any) => v.id)).toEqual(['1', '2', '3']);
       // nextLink should be removed from final response
       expect(parsed['@odata.nextLink']).toBeUndefined();
+    });
+
+    it('returns and audits a later-page Graph error instead of partial success', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+              }),
+            },
+          ],
+          _meta: { http_status: 200 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Microsoft Graph API error: 429 Too Many Requests' }),
+            },
+          ],
+          isError: true,
+          _meta: { http_status: 429, error_code: 'tooManyRequests' },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toContain('429 Too Many Requests');
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(2);
+      expect(loggerMock.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Error during pagination')
+      );
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'test-tool',
+          status: 'error',
+          http_status: 429,
+          error_code: 'tooManyRequests',
+        })
+      );
     });
 
     it('merges all pages under --toon and encodes the combined result once (#560)', async () => {
@@ -511,6 +1459,44 @@ describe('graph-tools', () => {
 
       expect(schema['top'].description).toContain('Start small');
       expect(schema['top'].description).toContain('$select');
+    });
+    it('should describe $expand as navigation-properties-only', async () => {
+      const endpoint = makeEndpoint();
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      const schema = server.tools.get('test-tool')!.schema;
+
+      expect(schema['expand']).toBeDefined();
+      // Must not be Microsoft's uninformative "Expand related entities".
+      expect(schema['expand'].description).not.toBe('Expand related entities');
+      expect(schema['expand'].description).toContain('navigation');
+      // Names at least one real navigation property so the model has something to copy.
+      expect(schema['expand'].description).toContain('attachments');
+    });
+
+    // graph-tools synthesizes path params only for endpoints where the generated
+    // client (via hack.ts) has not already supplied one — mostly function-style paths.
+    it('should describe path params it synthesizes itself', async () => {
+      const endpoint = makeEndpoint({ path: '/me/messages/:messageId' });
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      const schema = server.tools.get('test-tool')!.schema;
+
+      expect(schema['messageId']).toBeDefined();
+      expect(schema['messageId'].description).not.toBe('Path parameter: messageId');
+      expect(schema['messageId'].description).toContain("not as 'id'");
     });
   });
 
@@ -1113,6 +2099,7 @@ describe('graph-tools', () => {
         downloadToFile: vi.fn().mockResolvedValue({
           contentType: 'image/jpeg',
           contentLength: 2,
+          httpStatus: 200,
         }),
       };
 
@@ -1135,6 +2122,15 @@ describe('graph-tools', () => {
       expect(result.isError).toBeUndefined();
       const payload = JSON.parse(result.content[0].text);
       expect(payload).toEqual({ path: outputPath, contentType: 'image/jpeg', bytesWritten: 2 });
+      expect(result._meta).toMatchObject({ http_status: 200 });
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'download-bytes-to-file',
+          status: 'success',
+          http_status: 200,
+        })
+      );
     });
 
     it('rejects a relative outputPath', async () => {
@@ -1318,6 +2314,7 @@ describe('graph-tools', () => {
               }),
             },
           ],
+          _meta: { http_status: 200 },
         }),
       };
 
@@ -1341,6 +2338,15 @@ describe('graph-tools', () => {
       expect(payload.name).toBe('report.pdf');
       expect(payload.size).toBe(12727);
       expect(payload.contentType).toBe('application/pdf');
+      expect(result._meta).toMatchObject({ http_status: 200 });
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.call',
+          tool: 'get-download-url',
+          status: 'success',
+          http_status: 200,
+        })
+      );
     });
 
     it('forces a JSON body on the metadata request so it works under --toon (#560)', async () => {
@@ -1795,6 +2801,69 @@ describe('graph-tools', () => {
       expect(server.tools.has('list-calendar-events')).toBe(false);
     });
 
+    it('audits direct calls to Graph tools denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        createMockGraphClient() as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        'Mail.Read'
+      );
+      const handler = server.server._requestHandlers.get('tools/call');
+
+      await expect(
+        handler?.(
+          {
+            method: 'tools/call',
+            params: {
+              name: 'get-drive-item',
+              arguments: { driveId: 'drive-1', driveItemId: 'item-2' },
+            },
+          },
+          {}
+        )
+      ).rejects.toThrow(/not found/);
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
     it('discovery hides Graph tools outside the allowed scopes', async () => {
       mockEndpoints.push(
         {
@@ -1845,6 +2914,125 @@ describe('graph-tools', () => {
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
       expect(found).toContain('list-mail-messages');
       expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('audits execute-tool attempts denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'get-drive-item',
+        parameters: { driveId: 'drive-1', driveItemId: 'item-2' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
+    });
+
+    it('audits direct discovery-mode calls to Graph tools denied by allowed scopes', async () => {
+      mockEndpoints.push({
+        alias: 'get-drive-item',
+        method: 'get',
+        path: '/drives/:driveId/items/:driveItemId',
+        description: 'Get drive item',
+        parameters: [
+          { name: 'driveId', type: 'Path', schema: z.string() },
+          { name: 'driveItemId', type: 'Path', schema: z.string() },
+        ],
+      });
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+          scopes: ['Files.Read'],
+        },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        'Mail.Read'
+      );
+      const handler = server.server._requestHandlers.get('tools/call');
+
+      await expect(
+        handler?.(
+          {
+            method: 'tools/call',
+            params: {
+              name: 'get-drive-item',
+              arguments: { driveId: 'drive-1', driveItemId: 'item-2' },
+            },
+          },
+          {}
+        )
+      ).rejects.toThrow(/not found/);
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'allowed_scopes',
+          missing_scopes: ['Files.Read'],
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
     });
   });
 
@@ -1970,6 +3158,69 @@ describe('graph-tools', () => {
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
       expect(found).toContain('list-mail-messages');
       expect(found).not.toContain('list-calendar-events');
+    });
+
+    it('audits execute-tool attempts denied by the enabled-tools allow-list', async () => {
+      mockEndpoints.push(
+        {
+          alias: 'get-drive-item',
+          method: 'get',
+          path: '/drives/:driveId/items/:driveItemId',
+          description: 'Get drive item',
+          parameters: [
+            { name: 'driveId', type: 'Path', schema: z.string() },
+            { name: 'driveItemId', type: 'Path', schema: z.string() },
+          ],
+        },
+        {
+          alias: 'list-mail-messages',
+          method: 'get',
+          path: '/me/messages',
+          description: 'List mail',
+          parameters: [],
+        }
+      );
+      mockEndpointsJson = [
+        {
+          toolName: 'get-drive-item',
+          method: 'get',
+          pathPattern: '/drives/{drive-id}/items/{driveItem-id}',
+        },
+        { toolName: 'list-mail-messages', method: 'get', pathPattern: '/me/messages' },
+      ];
+
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(
+        server as any,
+        {} as any,
+        false,
+        false,
+        undefined,
+        false,
+        [],
+        '^list-mail-messages$'
+      );
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'get-drive-item',
+        parameters: { driveId: 'drive-1', driveItemId: 'item-2' },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toMatch(/not found/i);
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'tool.denied',
+          tool: 'get-drive-item',
+          status: 'denied',
+          reason: 'tool_allowlist',
+          target_resource: {
+            type: 'drive_item',
+            id: '/drives/drive-1/items/item-2',
+          },
+        })
+      );
     });
 
     it('utility tools obey the regex too', async () => {
@@ -2287,6 +3538,237 @@ describe('graph-tools', () => {
 
       expect(server.tools.get('test-tool')!.schema).not.toHaveProperty('confirm');
       expect(server.tools.get('destructive-tool')!.schema).toHaveProperty('confirm');
+    });
+  });
+
+  // ---- 13. Server-side $select projection (#660) ----
+  describe('$select projection', () => {
+    // The onlineMeeting shape from #660: the caller asked for three fields and Graph
+    // sent the whole resource back, invite HTML and passcode included.
+    const untrimmed = {
+      value: [
+        {
+          id: 'MSo',
+          subject: 'Standup',
+          joinWebUrl: 'https://teams/x',
+          joinInformation: { content: '<div>invite</div>' },
+          joinMeetingIdSettings: { passcode: '123456' },
+        },
+      ],
+    };
+
+    async function run(
+      args: Record<string, unknown>,
+      responses?: any[],
+      outputFormat: 'json' | 'toon' = 'json'
+    ) {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const graphClient = createMockGraphClient(
+        responses ?? [{ content: [{ type: 'text', text: JSON.stringify(untrimmed) }] }],
+        outputFormat
+      );
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools.get('test-tool')!.handler(args);
+      return { result, graphClient };
+    }
+
+    it('narrows the body to the requested fields when Graph ignored $select', async () => {
+      const { result } = await run({ select: 'id,subject,joinWebUrl' });
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: 'MSo',
+        subject: 'Standup',
+        joinWebUrl: 'https://teams/x',
+      });
+    });
+
+    it('leaves the body untouched when no select was passed', async () => {
+      const { result } = await run({});
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
+    });
+
+    it('forces JSON so a --toon client still gets a trimmed body', async () => {
+      const { result, graphClient } = await run({ select: 'id,subject' }, undefined, 'toon');
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ forceJsonOutput: true })
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+    });
+
+    // Regression: the merge re-encodes to TOON, so projecting after it would JSON.parse
+    // a TOON string, throw, and silently ship the untrimmed body.
+    it('still projects when --toon and fetchAllPages are combined', async () => {
+      const { result } = await run(
+        { select: 'id,subject', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a', joinInformation: { content: 'huge' } }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '2', subject: 'b', joinInformation: { content: 'huge' } }],
+                }),
+              },
+            ],
+          },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+      const merged = JSON.parse(result.content[0].text.slice('TOON:'.length));
+      expect(merged.value).toEqual([
+        { id: '1', subject: 'a' },
+        { id: '2', subject: 'b' },
+      ]);
+    });
+
+    // Binary and raw-text payloads are wrapped in an envelope; projecting one would
+    // strip every key and lose the file or transcript.
+    it('does not project a raw-text transport envelope', async () => {
+      const envelope = { message: 'OK!', rawResponse: 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000' };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    it('does not project a binary transport envelope', async () => {
+      const envelope = {
+        message: 'OK!',
+        contentType: 'video/mp4',
+        encoding: 'base64',
+        contentLength: 3,
+        contentBytes: 'AAA',
+      };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    // $select and $expand are independent in OData: the expanded property arrives in
+    // addition to the selected fields and has to survive the projection.
+    it('keeps an $expand-ed navigation property that was not selected', async () => {
+      const { result } = await run({ select: 'subject', expand: 'attachments' }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: '1',
+                subject: 'a',
+                attachments: [{ id: 'att1' }],
+                bodyPreview: 'huge',
+              }),
+            },
+          ],
+        },
+      ]);
+      const body = JSON.parse(result.content[0].text);
+      expect(body.attachments).toEqual([{ id: 'att1' }]);
+      expect(body).not.toHaveProperty('bodyPreview');
+    });
+
+    // Graph never rejects a bad property name on the endpoints that ignore $select, so
+    // a typo would otherwise silently reduce the response to {id}.
+    it('returns the body untrimmed when no requested field is present', async () => {
+      const body = { id: '1', joinWebUrl: 'u', joinInformation: { content: 'huge' } };
+      const { result } = await run({ select: 'joinUrl' }, [
+        { content: [{ type: 'text', text: JSON.stringify(body) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(body);
+    });
+
+    it('keeps the _etag that includeHeaders adds to a single resource', async () => {
+      const { result } = await run({ select: 'subject', includeHeaders: true }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ id: '1', subject: 'a', _etag: 'W/"1"', bodyPreview: 'huge' }),
+            },
+          ],
+        },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: '1',
+        subject: 'a',
+        _etag: 'W/"1"',
+      });
+    });
+
+    // Asserting on the body alone passed even with the excludeResponse clause removed,
+    // because { success: true } trips the envelope guard anyway. forceJsonOutput is the
+    // signal that projection was never armed in the first place.
+    it('does not arm projection when excludeResponse was requested', async () => {
+      const { result, graphClient } = await run({ select: 'id', excludeResponse: true }, [
+        { content: [{ type: 'text', text: JSON.stringify({ success: true }) }] },
+      ]);
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.objectContaining({ forceJsonOutput: true })
+      );
+      expect(JSON.parse(result.content[0].text)).toEqual({ success: true });
+    });
+
+    // An error body still reaches the merge block, which parses and re-serializes it, so
+    // shouldProject is the only thing standing between it and the projection. Two keys
+    // with one selected: if the guard goes, `code` disappears.
+    it('does not project an error body on the merge path', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 403 Forbidden', code: 'accessDenied' };
+      const { result } = await run({ select: 'error', fetchAllPages: true }, [
+        { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // A page failing mid-merge replaces `response` with the error, which the guard
+    // computed before the request cannot see.
+    it('leaves an error from a later page alone', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 503 Service Unavailable' };
+      const { result } = await run(
+        { select: 'error', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a' }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(false);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // The llmTips tell the model to pass select=id,subject,joinWebUrl, so id is in the
+    // list nearly every time; counting it as a match made the typo guard inert.
+    it('returns the body untrimmed when the only real field is a typo alongside id', async () => {
+      const { result } = await run({ select: 'id,joinUrl' });
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
     });
   });
 

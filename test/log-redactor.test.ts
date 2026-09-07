@@ -74,9 +74,9 @@ describe('redactionEnabled', () => {
     else process.env.MS365_MCP_REDACT_PII = prev;
   });
 
-  it('is off by default', () => {
+  it('is on by default', () => {
     delete process.env.MS365_MCP_REDACT_PII;
-    expect(redactionEnabled()).toBe(false);
+    expect(redactionEnabled()).toBe(true);
   });
 
   it('is on for "true" and "1"', () => {
@@ -86,8 +86,15 @@ describe('redactionEnabled', () => {
     expect(redactionEnabled()).toBe(true);
   });
 
-  it('is off for any other value', () => {
-    process.env.MS365_MCP_REDACT_PII = 'yes';
+  it('is off for "false" and "0"', () => {
+    process.env.MS365_MCP_REDACT_PII = 'false';
     expect(redactionEnabled()).toBe(false);
+    process.env.MS365_MCP_REDACT_PII = '0';
+    expect(redactionEnabled()).toBe(false);
+  });
+
+  it('is on for any other value', () => {
+    process.env.MS365_MCP_REDACT_PII = 'yes';
+    expect(redactionEnabled()).toBe(true);
   });
 });

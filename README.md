@@ -149,6 +149,21 @@ CLI value takes precedence over `MS365_MCP_ALLOWED_SCOPES`; if neither is set, t
 
 Scope coverage is hierarchy-aware: for example, `Mail.ReadWrite` covers tools that require `Mail.Read`, and `Files.ReadWrite.All` covers tools that require `Files.Read`.
 
+SharePoint supports two enterprise permission models:
+
+- Broad tenant scopes such as `Sites.Read.All`, `Sites.ReadWrite.All`, and `Sites.Manage.All`.
+- Microsoft Graph `Sites.Selected`, where SharePoint site access is granted to the app on specific site collections and Graph evaluates the signed-in user's own permissions at request time.
+
+The default org-mode behavior continues to request the broad SharePoint scopes used by existing deployments. Enterprises that want selected-site SharePoint access can set an allowlist containing `Sites.Selected` instead of broad `Sites.*.All` scopes. Direct site/list/item tools that target an explicit SharePoint site can run with `Sites.Selected`; tenant-wide SharePoint discovery and search tools still require broad SharePoint scopes.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --read-only \
+  --enabled-tools 'sharepoint|site|drive|planner' \
+  --allowed-scopes 'User.Read Files.Read Notes.Read Tasks.Read Sites.Selected'
+```
+
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
 ### Requesting extra scopes
@@ -186,7 +201,9 @@ account features (email, calendar, OneDrive, etc.) are available.
 To access shared mailboxes, you need:
 
 1. **Organization mode**: Shared mailbox tools require `--org-mode` flag (work/school accounts only)
-2. **Delegated permissions**: `Mail.Read.Shared` or `Mail.Send.Shared` scopes
+2. **Delegated permissions**: `Mail.Read.Shared` to read, `Mail.ReadWrite.Shared` to create, update or move
+   messages, `Mail.Send.Shared` to send, reply or forward, and `Calendars.Read.Shared` for the shared calendar
+   tools
 3. **Exchange permissions**: The signed-in user must have been granted access to the shared mailbox
 4. **Usage**: Use the shared mailbox's email address as the `user-id` parameter in the shared mailbox tools
 
@@ -425,6 +442,11 @@ registration:
 
 With these configured, the server will use your custom Azure app instead of the built-in one.
 
+> **Note**: `.env` is read from the directory the server is started in, and the MCP client decides what
+> that is. Only `MS365_MCP_CLIENT_ID`, `MS365_MCP_CLIENT_SECRET`, `MS365_MCP_TENANT_ID` and
+> `MS365_MCP_CLOUD_TYPE` are read from it. Every other variable listed above must be set in your shell
+> or MCP client config; anything else found in a `.env` is ignored with a warning on stderr.
+
 #### 3. Bring Your Own Token (BYOT)
 
 If you are running ms-365-mcp-server as part of a larger system that manages Microsoft OAuth tokens externally, you can
@@ -517,9 +539,9 @@ npx @softeria/ms-365-mcp-server --preset mail
 npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 ```
 
-Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `all`
+Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `teams-write`, `all`
 
-Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
+Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset except `teams-write`, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
 
 The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose exactly one Microsoft app. Use these for "expose exactly one app" deployments:
 
@@ -529,6 +551,12 @@ npx @softeria/ms-365-mcp-server --preset outlook
 
 # Teams only (requires --org-mode)
 npx @softeria/ms-365-mcp-server --org-mode --preset teams
+```
+
+The `teams-write` preset is the send-only counterpart to `--read-only`: send in chats, send/reply in channels, list chats/teams/channels by name, and activity notifications - no message reading and no byte downloaders. The requested token is minimal by construction (`Chat.ReadBasic`, the `*.Send` scopes, and basic team/channel listing - nothing that can read message content):
+
+```bash
+npx @softeria/ms-365-mcp-server --org-mode --preset teams-write
 ```
 
 ## Dynamic Tool Discovery
@@ -591,12 +619,14 @@ Environment variables:
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
+- `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
+- `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
-- `MS365_MCP_REDACT_PII=true|1`: Scrub JWTs, Bearer headers, OAuth token fields, and email addresses from log messages before they are written (default: disabled). Useful when logs are shipped to a central store or shared host.
+- `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant). **Personal Microsoft accounts should set this to `consumers`** - as of June 2026, refresh tokens issued via the default 'common' authority are rejected at the first refresh, so sessions die roughly an hour after login
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
@@ -610,11 +640,23 @@ Environment variables:
 
 ## Token Storage
 
-Authentication tokens are stored using the OS credential store (via keytar) when available. If keytar is not installed or fails (common on headless Linux), the server falls back to file-based storage.
+Authentication tokens are stored in an encrypted file (AES-256-GCM). Only the 32-byte encryption key goes to the OS credential store via keytar.
 
-**Default fallback paths** are relative to the installed package directory. This means tokens can be lost when the package is reinstalled or updated via npm.
+The cache itself is too big for some credential stores to hold - a Windows Credential Manager blob caps out at 2560 bytes and a real token cache is several times that, so on Windows the write could never succeed. A key is 32 bytes regardless of how many accounts are signed in, so this works the same way on every platform.
 
-To persist tokens across updates, set custom paths outside the package directory:
+**Default paths** are in the per-user config directory:
+
+| Platform | Location                                                                  |
+| -------- | ------------------------------------------------------------------------- |
+| Windows  | `%APPDATA%\ms-365-mcp-server\`                                            |
+| macOS    | `~/Library/Application Support/ms-365-mcp-server/`                        |
+| Linux    | `$XDG_CONFIG_HOME/ms-365-mcp-server/` (or `~/.config/ms-365-mcp-server/`) |
+
+Earlier versions defaulted to a path inside the installed package, which under `npx` resolves to a content-hashed cache directory that `npm cache clean` or a version bump throws away. A cache still sitting in the package directory is moved to the new location on first run.
+
+That covers global and local installs, and `npx` when the hash has not changed. It cannot reach a cache left behind in a _previous_ `npx` hash directory, so upgrading an `npx` install one last time means signing in again. Adopting a cache from another directory would mean trusting a directory this package cannot prove it wrote, which is not worth one saved sign-in.
+
+Override the paths if you need to:
 
 ```bash
 export MS365_MCP_TOKEN_CACHE_PATH="$HOME/.config/ms365-mcp/.token-cache.json"
@@ -623,7 +665,25 @@ export MS365_MCP_SELECTED_ACCOUNT_PATH="$HOME/.config/ms365-mcp/.selected-accoun
 
 Parent directories are created automatically. Files are written with `0600` permissions.
 
-> **Security note**: File-based token storage writes sensitive credentials to disk. Ensure the chosen directory has appropriate access controls. The OS credential store (keytar) is preferred when available.
+**Without a credential store** (headless Linux, most containers) the key is written to `.cache-key` next to the cache file, with `0600` permissions. That stops the tokens showing up in a stray `cat`, a backup or an accidental commit. It does not protect against anyone who can already read the directory - the key is right there. Use `MS365_MCP_AUTH_CACHE_COMMAND` below if you need the cache in a real secret store.
+
+**Skipping the credential store on purpose:**
+
+```bash
+export MS365_MCP_USE_KEYTAR=0   # also accepts false, no or off
+```
+
+The key then goes to `.cache-key` on every platform, exactly as it does where no credential store exists, and nothing in the server calls keytar. Useful when the credential store prompts on each start - macOS re-asks whenever the calling binary changes, which under `npx` is every version bump - or when the native module misbehaves on your platform rather than simply failing to load. Any other value leaves the credential store in use, and an unrecognised one is warned about rather than passed over silently.
+
+Switching it off strands a cache that was encrypted under a key already in the credential store, since nothing can reach that key any more. The server says so and replaces that cache on the next sign-in, which signs out **every** account it held, not just the one you sign back in as. Unset the variable first if that cache is worth keeping.
+
+Only a cache that nothing on the machine can open is replaced. One that fails to decrypt while a usable key is sitting right there - a truncated file, a downgrade to an older build, a cache from somewhere else - is damage rather than a stranded cache, and is left alone exactly as it is by default.
+
+Two things it deliberately does not do. It never deletes what this server already put in the credential store, on logout or otherwise, because reaching the store is the thing you just asked it to stop doing - clear the `ms-365-mcp-server` entries by hand if you want them gone. And a `.cache-key` that exists but cannot be read (wrong owner on a bind-mounted config directory, say) is treated as recoverable rather than missing: the server refuses both to overwrite a cache and to mint a replacement key, and says so, rather than deleting a key that would work again once the permissions are fixed. Fix the permissions, or delete `.cache-key` yourself to start over - which does mean signing in again.
+
+If the cache cannot be decrypted - key lost, keychain locked, file modified - you are asked to sign in again rather than the server failing to start. The cache file is left exactly as it was: not deleted, and not overwritten by that new sign-in either. A keychain that is merely locked usually reads fine on the next start, and the cache is still there when it does.
+
+The cost is that the new session is not saved while this lasts, so each start asks you to sign in again. If the key is genuinely gone and the cache will never open, delete `.token-cache.json` to start over - the log says so, and names the path.
 
 > **Hosted/sandboxed environments** (e.g. Anthropic Cowork): Set `MS365_MCP_TOKEN_CACHE_PATH` and `MS365_MCP_SELECTED_ACCOUNT_PATH` to a persistent mount so tokens survive between sessions.
 
@@ -729,6 +789,14 @@ The Key Vault integration uses `DefaultAzureCredential` from the Azure Identity 
 ### Optional Dependencies
 
 The Azure Key Vault packages (`@azure/identity` and `@azure/keyvault-secrets`) are optional dependencies. They are only loaded when `MS365_MCP_KEYVAULT_URL` is configured. If you don't use Key Vault, these packages are not required.
+
+## Message Signoff
+
+Outgoing messages can be wrapped in a configurable signoff (e.g. a `🤖` prefix) so recipients can tell agent-sent messages from ones you typed yourself. Off by default — enable it with `--message-signoff-prefix` / `--message-signoff-suffix` (env: `MS365_MCP_MESSAGE_SIGNOFF_PREFIX` / `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX`); `--no-message-signoff` or an empty env value turns it back off.
+
+Once configured, it applies to all Teams messages (sends, replies and edits, including via `graph-batch`), to direct mail sends (`send-mail`, reply/forward, their shared-mailbox variants, and group thread replies), and to mail drafts as their content is written — `send-draft-message` sends a draft as-is, so a draft you wrote yourself goes out untouched. A message that already carries the marker is not signed twice, and a send whose body cannot take the signoff is refused rather than sent unsigned.
+
+Markers may contain markup (e.g. a coloured `<span>`) as long as it renders visible text. Note that the signoff is a guardrail against an agent misusing the tools it was given, not a hard security boundary — an agent with shell access on the same machine could simply restart the server without it.
 
 ## Production Deployment
 

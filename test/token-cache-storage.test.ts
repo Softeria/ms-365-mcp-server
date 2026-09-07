@@ -85,7 +85,7 @@ describe('token cache storage', () => {
       const storage = await createTokenCacheStorage();
 
       expect(storage).toBeInstanceOf(DefaultTokenCacheStorage);
-      expect(storage.description).toBe('default (keytar+file)');
+      expect(storage.description).toBe('default (encrypted file)');
     });
 
     it('rejects a whitespace-only command for local auth flows', async () => {
@@ -100,6 +100,21 @@ describe('token cache storage', () => {
       const storage = await createTokenCacheStorage({ allowCommandStorage: false });
 
       expect(storage).toBeInstanceOf(DefaultTokenCacheStorage);
+    });
+
+    it('rejects a relative command path', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ms365-cache-test-'));
+      fs.writeFileSync(path.join(dir, 'store'), '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+      const cwd = process.cwd();
+      process.chdir(dir);
+
+      try {
+        vi.stubEnv('MS365_MCP_AUTH_CACHE_COMMAND', './store');
+
+        await expect(createTokenCacheStorage()).rejects.toThrow(/absolute path/);
+      } finally {
+        process.chdir(cwd);
+      }
     });
 
     it('rejects a missing command path for local auth flows', async () => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import { loadEnvFile } from './load-env.js';
 import { parseArgs } from './cli.js';
 import logger from './logger.js';
 import AuthManager, { buildAllowedScopeDiagnostics, resolveAuthScopes } from './auth.js';
@@ -40,6 +40,8 @@ process.on('uncaughtException', (err, origin) => {
 
 async function main(): Promise<void> {
   try {
+    loadEnvFile();
+
     const args = parseArgs();
 
     const includeWorkScopes = args.orgMode || false;

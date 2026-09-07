@@ -9,6 +9,8 @@ import {
   getSharedBreaker,
   loadResilienceConfig,
 } from './lib/graph-resilience.js';
+import { applyMessageSignoffToRequest } from './lib/message-signoff.js';
+import { TRANSPORT_OK_MESSAGE } from './lib/select-projection.js';
 import { open, stat, unlink } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 
@@ -81,9 +83,98 @@ interface McpResponse {
   [key: string]: unknown;
 }
 
+interface GraphResponseMetadata {
+  http_status: number;
+  error_code?: string;
+  graph_batch_subrequest_count?: number;
+  graph_batch_http_status_counts?: Record<string, number>;
+  graph_batch_error_code_counts?: Record<string, number>;
+}
+
+interface GraphRequestResult {
+  data: unknown;
+  metadata: GraphResponseMetadata;
+}
+
 export interface GraphDownloadResult {
   contentType: string;
   contentLength: number;
+  httpStatus: number;
+}
+
+export class GraphApiError extends Error {
+  readonly httpStatus: number;
+  readonly graphErrorCode?: string;
+
+  constructor(message: string, httpStatus: number, graphErrorCode?: string) {
+    super(message);
+    this.name = 'GraphApiError';
+    this.httpStatus = httpStatus;
+    this.graphErrorCode = graphErrorCode;
+  }
+}
+
+function extractGraphErrorCode(errorText: string): string | undefined {
+  try {
+    const body = JSON.parse(errorText) as { error?: { code?: unknown }; code?: unknown };
+    const code = body.error?.code ?? body.code;
+    return typeof code === 'string' ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function definedMetadata(metadata: Partial<GraphResponseMetadata>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined)
+  ) as Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function incrementCount(counts: Record<string, number>, key: string): void {
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
+function extractGraphErrorCodeFromBody(body: unknown): string | undefined {
+  if (!isRecord(body)) return undefined;
+  const error = body.error;
+  const code = isRecord(error) ? error.code : body.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+function extractBatchMetadata(data: unknown): Partial<GraphResponseMetadata> {
+  if (!isRecord(data) || !Array.isArray(data.responses)) return {};
+
+  const httpStatusCounts: Record<string, number> = {};
+  const errorCodeCounts: Record<string, number> = {};
+
+  for (const item of data.responses) {
+    if (!isRecord(item)) continue;
+    const status = item.status;
+    if (typeof status !== 'number' || !Number.isInteger(status)) continue;
+
+    incrementCount(httpStatusCounts, String(status));
+
+    if (status >= 400) {
+      const errorCode = extractGraphErrorCodeFromBody(item.body);
+      if (errorCode) {
+        incrementCount(errorCodeCounts, errorCode);
+      }
+    }
+  }
+
+  return {
+    graph_batch_subrequest_count: data.responses.length,
+    ...(Object.keys(httpStatusCounts).length > 0
+      ? { graph_batch_http_status_counts: httpStatusCounts }
+      : {}),
+    ...(Object.keys(errorCodeCounts).length > 0
+      ? { graph_batch_error_code_counts: errorCodeCounts }
+      : {}),
+  };
 }
 
 class GraphClient {
@@ -102,6 +193,13 @@ class GraphClient {
   }
 
   async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<unknown> {
+    return (await this.makeRequestWithMetadata(endpoint, options)).data;
+  }
+
+  private async makeRequestWithMetadata(
+    endpoint: string,
+    options: GraphRequestOptions = {}
+  ): Promise<GraphRequestResult> {
     const contextTokens = getRequestTokens();
     const accessToken =
       options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
@@ -114,25 +212,16 @@ class GraphClient {
       const response = await this.performRequest(endpoint, accessToken, options);
 
       if (response.status === 403) {
-        const errorText = await response.text();
-        if (errorText.includes('scope') || errorText.includes('permission')) {
-          throw new Error(
-            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
-          );
-        }
-        throw new Error(
-          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
+        throw await this.createGraphApiError(response);
       }
 
       if (!response.ok) {
-        throw new Error(
-          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
-        );
+        throw await this.createGraphApiError(response);
       }
 
       const contentTypeHeader = response.headers?.get?.('content-type') || '';
       const isBinaryResponse = isBinaryContentType(contentTypeHeader);
+      let metadata: GraphResponseMetadata = { http_status: response.status };
 
       let result: any;
 
@@ -143,7 +232,7 @@ class GraphClient {
         // raw bytes and return them as base64 so callers can reconstruct them.
         const buffer = Buffer.from(await response.arrayBuffer());
         result = {
-          message: 'OK!',
+          message: TRANSPORT_OK_MESSAGE,
           contentType: contentTypeHeader,
           encoding: 'base64',
           contentLength: buffer.byteLength,
@@ -153,20 +242,24 @@ class GraphClient {
         const text = await response.text();
 
         if (text === '') {
-          result = { message: 'OK!' };
+          result = { message: TRANSPORT_OK_MESSAGE };
         } else if (options.rawResponse) {
           // download-bytes on /content wants the body verbatim. A JSON body
           // would otherwise round-trip through JSON.parse -> JSON.stringify,
           // which is lossy (whitespace, trailing newline, key order, number
           // formatting). Return the raw text instead. (issue #546)
-          result = { message: 'OK!', rawResponse: text };
+          result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
         } else {
           try {
             result = JSON.parse(text);
           } catch {
-            result = { message: 'OK!', rawResponse: text };
+            result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
           }
         }
+      }
+
+      if (endpoint === '/$batch') {
+        metadata = { ...metadata, ...extractBatchMetadata(result) };
       }
 
       // If includeHeaders is requested, add response headers to the result
@@ -176,13 +269,16 @@ class GraphClient {
         // Simple approach: just add ETag to the result if it's an object
         if (result && typeof result === 'object' && !Array.isArray(result)) {
           return {
-            ...result,
-            _etag: etag || 'no-etag-found',
+            data: {
+              ...result,
+              _etag: etag || 'no-etag-found',
+            },
+            metadata,
           };
         }
       }
 
-      return result;
+      return { data: result, metadata };
     } catch (error) {
       logger.error('Microsoft Graph API request failed:', error);
       throw error;
@@ -214,20 +310,10 @@ class GraphClient {
 
       const response = await this.performRequest(endpoint, accessToken, options);
       if (response.status === 403) {
-        const errorText = await response.text();
-        if (errorText.includes('scope') || errorText.includes('permission')) {
-          throw new Error(
-            `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
-          );
-        }
-        throw new Error(
-          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
+        throw await this.createGraphApiError(response);
       }
       if (!response.ok) {
-        throw new Error(
-          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
-        );
+        throw await this.createGraphApiError(response);
       }
       if (!response.body) {
         throw new Error('Microsoft Graph returned an empty response body');
@@ -249,6 +335,7 @@ class GraphClient {
       return {
         contentType: response.headers.get('content-type') || 'application/octet-stream',
         contentLength,
+        httpStatus: response.status,
       };
     } catch (error) {
       logger.error('Microsoft Graph file download failed:', error);
@@ -259,6 +346,27 @@ class GraphClient {
         await unlink(destinationPath).catch(() => undefined);
       }
     }
+  }
+
+  private async createGraphApiError(response: Response): Promise<GraphApiError> {
+    const errorText = await response.text();
+    const graphErrorCode = extractGraphErrorCode(errorText);
+    const isPermissionOrScopeError =
+      errorText.includes('scope') || errorText.includes('permission');
+
+    if (response.status === 403 && isPermissionOrScopeError) {
+      return new GraphApiError(
+        `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`,
+        response.status,
+        graphErrorCode
+      );
+    }
+
+    return new GraphApiError(
+      `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`,
+      response.status,
+      graphErrorCode
+    );
   }
 
   private async performRequest(
@@ -272,6 +380,12 @@ class GraphClient {
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
+    const method = options.method || 'GET';
+    // Signoff gate sits at the outbound chokepoint, keyed on method + path, so
+    // every route to a message write - tool aliases, PATCH edits and $batch
+    // sub-requests alike - passes through it.
+    const body = applyMessageSignoffToRequest(method, endpoint, options.body);
+
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -281,10 +395,10 @@ class GraphClient {
     return fetchWithResilience(
       url,
       {
-        method: options.method || 'GET',
+        method,
         headers,
         // Node's fetch accepts Buffer/Uint8Array; TS BodyInit doesn't.
-        body: options.body as unknown as string,
+        body: body as unknown as string,
       },
       loadResilienceConfig(),
       getSharedBreaker()
@@ -314,28 +428,54 @@ class GraphClient {
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
-      logger.info(`Calling ${endpoint} with options: ${JSON.stringify(options)}`);
+      // Redact accessToken from log output to prevent credential leakage (#601)
+      const { accessToken: _redacted, ...safeOptions } = options;
+      logger.info(
+        `Calling ${endpoint} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+      );
 
       // Use new OAuth-aware request method
-      const result = await this.makeRequest(endpoint, options);
+      const { data, metadata } = await this.makeRequestWithMetadata(endpoint, options);
 
       // forceJsonOutput keeps this body JSON so the fetchAllPages merge can parse
       // it; otherwise --toon would make the merge's JSON.parse throw (#560).
       const outputFormat = options.forceJsonOutput ? 'json' : this.outputFormat;
 
-      return this.formatJsonResponse(
-        result,
-        options.rawResponse,
-        options.excludeResponse,
-        outputFormat
+      return this.withResponseMetadata(
+        this.formatJsonResponse(data, options.rawResponse, options.excludeResponse, outputFormat),
+        metadata
       );
     } catch (error) {
       logger.error(`Error in Graph API request: ${error}`);
+      const metadata =
+        error instanceof GraphApiError
+          ? definedMetadata({
+              http_status: error.httpStatus,
+              error_code: error.graphErrorCode,
+            })
+          : undefined;
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
         isError: true,
+        ...(metadata && Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
       };
     }
+  }
+
+  private withResponseMetadata(
+    response: McpResponse,
+    metadata: Partial<GraphResponseMetadata>
+  ): McpResponse {
+    const cleanMetadata = definedMetadata(metadata);
+    if (Object.keys(cleanMetadata).length === 0) return response;
+
+    return {
+      ...response,
+      _meta: {
+        ...response._meta,
+        ...cleanMetadata,
+      },
+    };
   }
 
   formatJsonResponse(

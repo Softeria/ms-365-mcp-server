@@ -108,3 +108,82 @@ describe('copilot-retrieve login + gate (real endpoints.json)', () => {
     expect(scopes).not.toContain('ExternalItem.Read.All');
   });
 });
+
+describe('Sites.Selected SharePoint login + gate (real endpoints.json)', () => {
+  const effective = (allowedScopes?: string, enabledTools = '^get-sharepoint-site$') =>
+    resolveAuthScopes({
+      orgMode: true,
+      readOnly: true,
+      enabledTools,
+      allowedScopes,
+    });
+
+  const disabledTool = (toolName: string, allowedScopes: string) =>
+    buildAllowedScopeDiagnostics({
+      orgMode: true,
+      readOnly: true,
+      enabledTools: `^${toolName}$`,
+      allowedScopes,
+    }).disabledTools.find((t) => t.toolName === toolName);
+
+  it('keeps broad SharePoint scopes as the default login group', () => {
+    const scopes = effective();
+
+    expect(scopes).toEqual(['Sites.Read.All']);
+    expect(scopes).not.toContain('Sites.Selected');
+  });
+
+  it('keeps existing broad-scope deployments enabled', () => {
+    expect(disabledTool('get-sharepoint-site', 'Sites.Read.All')).toBeUndefined();
+    expect(effective('Sites.Read.All')).toEqual(['Sites.Read.All']);
+  });
+
+  it('enables direct SharePoint site tools with selected-site scopes', () => {
+    const scopes = effective('Sites.Selected');
+
+    expect(disabledTool('get-sharepoint-site', 'Sites.Selected')).toBeUndefined();
+    expect(scopes).toEqual(['Sites.Selected']);
+  });
+
+  it('enables selected-site read-only SharePoint tools without requesting broad scopes', () => {
+    const diagnostics = buildAllowedScopeDiagnostics({
+      orgMode: true,
+      readOnly: true,
+      enabledTools:
+        '^(get-sharepoint-site|list-sharepoint-site-drives|get-sharepoint-site-list|get-sharepoint-list-column)$',
+      allowedScopes: 'Sites.Selected',
+    });
+
+    expect(diagnostics.disabledTools).toEqual([]);
+    expect(diagnostics.effectivePermissions).toEqual(['Sites.Selected']);
+    expect(diagnostics.effectivePermissions).not.toContain('Sites.Read.All');
+  });
+
+  it('leaves tenant-wide SharePoint discovery disabled without broad scopes', () => {
+    for (const toolName of [
+      'search-sharepoint-sites',
+      'get-sharepoint-sites-delta',
+      'list-trending-insights',
+    ]) {
+      const disabled = disabledTool(toolName, 'Sites.Selected');
+
+      expect(disabled, toolName).toBeDefined();
+      expect(disabled?.missingScopes, toolName).toContain('Sites.Read.All');
+    }
+  });
+
+  it('leaves Microsoft Search disabled for SharePoint search without broad scopes', () => {
+    const coreSearchScopes = [
+      'Mail.Read',
+      'Calendars.Read',
+      'Files.Read.All',
+      'People.Read',
+      'Chat.Read',
+      'ChannelMessage.Read.All',
+    ].join(' ');
+    const disabled = disabledTool('search-query', `${coreSearchScopes} Sites.Selected`);
+
+    expect(disabled).toBeDefined();
+    expect(disabled?.missingScopes).toContain('Sites.Read.All');
+  });
+});
