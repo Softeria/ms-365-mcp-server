@@ -69,8 +69,11 @@ export function isFetchAllPagesApplicable(tool: { method: string; path: string }
 export const FILTER_PARAM_DESCRIPTION =
   'OData filter expression. Add $count=true for advanced filters (flag/flagStatus, contains()). Cannot combine with $search.';
 
+// Reaches ~100 tools, most of them calendar/OneNote/SharePoint/Teams/Planner, so it stays
+// short. Mail quoting is repaired server-side by normalizeSearchQueryParam, which is why
+// this no longer spells the mail rule out; directory has no such repair, so it gets a clause.
 export const SEARCH_PARAM_DESCRIPTION =
-  'KQL search query — wrap value in double quotes. Cannot combine with $filter.';
+  'KQL search query in one pair of double quotes; directory (users/groups) instead quotes each clause with no outer pair. Cannot combine with $filter.';
 
 export const SELECT_PARAM_DESCRIPTION =
   'Comma-separated fields to return, e.g. id,subject,from,receivedDateTime';

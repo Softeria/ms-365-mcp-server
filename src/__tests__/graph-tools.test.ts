@@ -1500,6 +1500,269 @@ describe('graph-tools', () => {
     });
   });
 
+  // ---- $search KQL quote normalization ----
+  describe('$search quote normalization', () => {
+    async function callSearch(
+      search: string,
+      path = '/me/messages'
+    ): Promise<{ result: any; graphClient: any }> {
+      const endpoint = makeEndpoint({ path });
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ search });
+      return { result, graphClient };
+    }
+
+    async function callWithSearch(search: string, path = '/me/messages'): Promise<string> {
+      const { graphClient } = await callSearch(search, path);
+      return graphClient.graphRequest.mock.calls[0][0] as string;
+    }
+
+    it('wraps a bare KQL expression in one pair of double quotes', async () => {
+      const url = await callWithSearch('from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('collapses per-term quoting into a single enclosing pair', async () => {
+      const url = await callWithSearch('"from:john" AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('leaves an already correctly quoted expression untouched', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    // Graph rejects a property phrase that has no enclosing pair, so add one and escape the
+    // phrase quotes. Microsoft documents that escaping for directory search only; mail's own
+    // docs never show an embedded quote, so this form is inferred.
+    it('adds the enclosing pair around a property phrase', async () => {
+      const url = await callWithSearch('subject:"quarterly report"');
+      expect(url).toContain(`$search=${encodeURIComponent('"subject:\\"quarterly report\\""')}`);
+    });
+
+    it('keeps a standalone phrase grouped', async () => {
+      const url = await callWithSearch('"quarterly report" AND from:john');
+      expect(url).toContain(
+        `$search=${encodeURIComponent('"\\"quarterly report\\" AND from:john"')}`
+      );
+    });
+
+    it('leaves an already escaped phrase untouched', async () => {
+      const query = '"subject:\\"quarterly report\\""';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Already correctly wrapped free text is a multi-term search, not a phrase — escaping
+    // its quotes would narrow it to messages containing the exact phrase.
+    it('leaves already-wrapped free text as a multi-term search', async () => {
+      const query = '"quarterly report"';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Date and size restrictions use comparison operators rather than a colon; they are
+    // clauses too, so per-clause quoting must be undone rather than escaped as a phrase.
+    it.each([
+      ['"received>=2024-01-01" AND from:john', '"received>=2024-01-01 AND from:john"'],
+      ['"size>1000" AND subject:meeting', '"size>1000 AND subject:meeting"'],
+      ['"received<2024-01-01"', '"received<2024-01-01"'],
+    ])('undoes per-clause quoting on a comparison clause (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A phrase can open with a word and a colon without being a clause. RE and Q3 are not
+    // mail properties, so the grouping quotes have to survive.
+    it.each([
+      ['"RE: quarterly report" AND from:john', '"\\"RE: quarterly report\\" AND from:john"'],
+      ['"Q3: plan.pdf" AND subject:budget', '"\\"Q3: plan.pdf\\" AND subject:budget"'],
+    ])('keeps phrase quotes on a clause-shaped phrase (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // The colon inside the phrase is part of the text, not a property separator.
+    it.each([
+      ['subject:"RE: quarterly report"', '"subject:\\"RE: quarterly report\\""'],
+      ['attachment:"Q3: plan.pdf"', '"attachment:\\"Q3: plan.pdf\\""'],
+    ])('keeps phrase quotes when the phrase contains a colon (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // KQL demotes a restriction with whitespace around the operator to free text, so these
+    // are phrases. Unwrapping them would search a bare `from:`/`subject:` and quietly drop
+    // the words the caller was actually looking for.
+    it.each([
+      [
+        '"from: the desk of the CEO" AND subject:report',
+        '"\\"from: the desk of the CEO\\" AND subject:report"',
+      ],
+      [
+        '"subject: quarterly report" AND from:john',
+        '"\\"subject: quarterly report\\" AND from:john"',
+      ],
+    ])('keeps phrase quotes when a space follows the property (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A trailing lone backslash would escape the enclosing pair's closing quote and hand
+    // Graph an unterminated string.
+    it('balances a trailing backslash so it cannot escape the closing quote', async () => {
+      const url = await callWithSearch('from:john\\');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john\\\\"')}`);
+    });
+
+    // An unterminated run is a missing closing quote, not a stray opening one. Dropping the
+    // delimiter would shed the grouping: `subject:"quarterly report` would go out as subject
+    // matching `quarterly` with `report` loose, which is a wider search than was asked for.
+    it.each([
+      ['from:"john', '"from:\\"john\\""'],
+      ['subject:"quarterly report', '"subject:\\"quarterly report\\""'],
+    ])('closes an unterminated quote rather than dropping it (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A restriction binds only the token after its operator, so unwrapping a multi-word value
+    // would bind the first word and leave the rest as free text. Escaping the run in place is
+    // no better: `subject:` would end up inside the phrase as literal text and the restriction
+    // would be lost. Only moving the quotes past the operator keeps both.
+    it.each([
+      [
+        '"subject:quarterly report" AND from:john',
+        '"subject:\\"quarterly report\\" AND from:john"',
+      ],
+      ['"from:john" AND "subject:the big report"', '"from:john AND subject:\\"the big report\\""'],
+    ])('moves quotes past the operator on a multi-word value (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // Per-clause quoting of a whole boolean group is the same directory-style mistake as
+    // quoting one clause, so it unwraps too. Escaping it would turn live restrictions into
+    // literal text and leave only the clauses outside the quotes doing any work.
+    it.each([
+      [
+        '"from:john AND subject:meeting" OR from:jane',
+        '"from:john AND subject:meeting OR from:jane"',
+      ],
+      [
+        '"from:john OR from:jane" AND hasAttachments:true',
+        '"from:john OR from:jane AND hasAttachments:true"',
+      ],
+    ])('unwraps a quoted group of clauses (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A missing closing quote on the enclosing pair is a dropped character, not the start of
+    // a phrase. Reading it as a phrase would search for the expression literally and match
+    // nothing, leaving the model no error to correct against.
+    it('recovers a dropped closing quote on the enclosing pair', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    // An escaped backslash must be consumed as a unit, or its second slash pairs with the
+    // real delimiter behind it and the scan runs off the end of a well-formed string.
+    it('reads an escaped backslash before a closing quote', async () => {
+      const url = await callWithSearch('from:"a\\\\"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:\\"a\\\\\\""')}`);
+    });
+
+    // Every repair has to be a fixed point, otherwise a retry or a second pass corrupts a
+    // value this code just declared correct.
+    const CORPUS = [
+      'from:john AND subject:meeting',
+      '"from:john" AND subject:meeting',
+      'subject:"quarterly report',
+      '"subject:quarterly report" AND from:john',
+      '"from:john AND subject:meeting" OR from:jane',
+      '"from:john AND subject:meeting',
+      'from:john\\',
+      'from:"a\\\\"',
+      'subject:"abc\\',
+      '"quarterly report"',
+    ];
+
+    // The value Graph receives must be one well-formed escaped string: an opening quote, no
+    // unescaped quote before the final one, and no trailing backslash that would escape it.
+    // Asserting the shape catches a class of scanner bugs that enumerating cases misses.
+    it.each(CORPUS)('emits a balanced escaped string (%s)', async (query) => {
+      const url = await callWithSearch(query);
+      const value = new URL(url, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      expect(value.startsWith('"') && value.endsWith('"')).toBe(true);
+      let unescaped = 0;
+      for (let i = 0; i < value.length; i++) {
+        if (value[i] === '\\') {
+          i++;
+          continue;
+        }
+        if (value[i] === '"') unescaped++;
+      }
+      expect(unescaped).toBe(2);
+    });
+
+    it.each(CORPUS)('normalizing twice is a no-op (%s)', async (query) => {
+      const once = await callWithSearch(query);
+      const search = new URL(once, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      const twice = await callWithSearch(search);
+      expect(twice).toContain(`$search=${encodeURIComponent(search)}`);
+    });
+
+    // Dropping $search would turn a search into an unfiltered listing of the whole mailbox
+    // and return it as though it were the result, which is worse than the 400 Graph sends.
+    it.each([' ', '   ', '"', '""""'])(
+      'refuses an unsearchable $search value %j',
+      async (query) => {
+        const { result, graphClient } = await callSearch(query);
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text).error).toBe('invalid_search');
+        expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      }
+    );
+
+    // Directory search advertises clause-level quoting, which mail's convention would
+    // destroy: collapsing the quotes below changes an OR of two clauses into one.
+    it.each([
+      ['/users', '"displayName:john" OR "displayName:jane"'],
+      // Mail-adjacent, but none of these take message KQL.
+      ['/me/mailFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/childFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/messageRules', 'foo OR bar'],
+      ['/me/messages/:messageId/attachments', 'foo OR bar'],
+      ['/planner/tasks/:plannerTaskId/messages', 'foo OR bar'],
+      ['/chats/:chatId/messages', 'foo OR bar'],
+      ['/teams/:teamId/channels/:channelId/messages', 'foo OR bar'],
+    ])('does not touch $search on %s', async (path, query) => {
+      const url = await callWithSearch(query, path);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    it.each([
+      '/me/mailFolders/:mailFolderId/messages',
+      '/users/:userId/messages',
+      '/me/mailFolders/:mailFolderId/childFolders/:childFolderId/messages',
+    ])('still normalizes on %s', async (path) => {
+      const url = await callWithSearch('"from:john" AND subject:meeting', path);
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+  });
+
   describe('MS365_MCP_MAX_TOP', () => {
     const prevMaxTop = process.env.MS365_MCP_MAX_TOP;
 
