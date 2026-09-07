@@ -3416,6 +3416,237 @@ describe('graph-tools', () => {
     });
   });
 
+  // ---- 13. Server-side $select projection (#660) ----
+  describe('$select projection', () => {
+    // The onlineMeeting shape from #660: the caller asked for three fields and Graph
+    // sent the whole resource back, invite HTML and passcode included.
+    const untrimmed = {
+      value: [
+        {
+          id: 'MSo',
+          subject: 'Standup',
+          joinWebUrl: 'https://teams/x',
+          joinInformation: { content: '<div>invite</div>' },
+          joinMeetingIdSettings: { passcode: '123456' },
+        },
+      ],
+    };
+
+    async function run(
+      args: Record<string, unknown>,
+      responses?: any[],
+      outputFormat: 'json' | 'toon' = 'json'
+    ) {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const graphClient = createMockGraphClient(
+        responses ?? [{ content: [{ type: 'text', text: JSON.stringify(untrimmed) }] }],
+        outputFormat
+      );
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools.get('test-tool')!.handler(args);
+      return { result, graphClient };
+    }
+
+    it('narrows the body to the requested fields when Graph ignored $select', async () => {
+      const { result } = await run({ select: 'id,subject,joinWebUrl' });
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: 'MSo',
+        subject: 'Standup',
+        joinWebUrl: 'https://teams/x',
+      });
+    });
+
+    it('leaves the body untouched when no select was passed', async () => {
+      const { result } = await run({});
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
+    });
+
+    it('forces JSON so a --toon client still gets a trimmed body', async () => {
+      const { result, graphClient } = await run({ select: 'id,subject' }, undefined, 'toon');
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ forceJsonOutput: true })
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+    });
+
+    // Regression: the merge re-encodes to TOON, so projecting after it would JSON.parse
+    // a TOON string, throw, and silently ship the untrimmed body.
+    it('still projects when --toon and fetchAllPages are combined', async () => {
+      const { result } = await run(
+        { select: 'id,subject', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a', joinInformation: { content: 'huge' } }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '2', subject: 'b', joinInformation: { content: 'huge' } }],
+                }),
+              },
+            ],
+          },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+      const merged = JSON.parse(result.content[0].text.slice('TOON:'.length));
+      expect(merged.value).toEqual([
+        { id: '1', subject: 'a' },
+        { id: '2', subject: 'b' },
+      ]);
+    });
+
+    // Binary and raw-text payloads are wrapped in an envelope; projecting one would
+    // strip every key and lose the file or transcript.
+    it('does not project a raw-text transport envelope', async () => {
+      const envelope = { message: 'OK!', rawResponse: 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000' };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    it('does not project a binary transport envelope', async () => {
+      const envelope = {
+        message: 'OK!',
+        contentType: 'video/mp4',
+        encoding: 'base64',
+        contentLength: 3,
+        contentBytes: 'AAA',
+      };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    // $select and $expand are independent in OData: the expanded property arrives in
+    // addition to the selected fields and has to survive the projection.
+    it('keeps an $expand-ed navigation property that was not selected', async () => {
+      const { result } = await run({ select: 'subject', expand: 'attachments' }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: '1',
+                subject: 'a',
+                attachments: [{ id: 'att1' }],
+                bodyPreview: 'huge',
+              }),
+            },
+          ],
+        },
+      ]);
+      const body = JSON.parse(result.content[0].text);
+      expect(body.attachments).toEqual([{ id: 'att1' }]);
+      expect(body).not.toHaveProperty('bodyPreview');
+    });
+
+    // Graph never rejects a bad property name on the endpoints that ignore $select, so
+    // a typo would otherwise silently reduce the response to {id}.
+    it('returns the body untrimmed when no requested field is present', async () => {
+      const body = { id: '1', joinWebUrl: 'u', joinInformation: { content: 'huge' } };
+      const { result } = await run({ select: 'joinUrl' }, [
+        { content: [{ type: 'text', text: JSON.stringify(body) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(body);
+    });
+
+    it('keeps the _etag that includeHeaders adds to a single resource', async () => {
+      const { result } = await run({ select: 'subject', includeHeaders: true }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ id: '1', subject: 'a', _etag: 'W/"1"', bodyPreview: 'huge' }),
+            },
+          ],
+        },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: '1',
+        subject: 'a',
+        _etag: 'W/"1"',
+      });
+    });
+
+    // Asserting on the body alone passed even with the excludeResponse clause removed,
+    // because { success: true } trips the envelope guard anyway. forceJsonOutput is the
+    // signal that projection was never armed in the first place.
+    it('does not arm projection when excludeResponse was requested', async () => {
+      const { result, graphClient } = await run({ select: 'id', excludeResponse: true }, [
+        { content: [{ type: 'text', text: JSON.stringify({ success: true }) }] },
+      ]);
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.objectContaining({ forceJsonOutput: true })
+      );
+      expect(JSON.parse(result.content[0].text)).toEqual({ success: true });
+    });
+
+    // An error body still reaches the merge block, which parses and re-serializes it, so
+    // shouldProject is the only thing standing between it and the projection. Two keys
+    // with one selected: if the guard goes, `code` disappears.
+    it('does not project an error body on the merge path', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 403 Forbidden', code: 'accessDenied' };
+      const { result } = await run({ select: 'error', fetchAllPages: true }, [
+        { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // A page failing mid-merge replaces `response` with the error, which the guard
+    // computed before the request cannot see.
+    it('leaves an error from a later page alone', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 503 Service Unavailable' };
+      const { result } = await run(
+        { select: 'error', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a' }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(false);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // The llmTips tell the model to pass select=id,subject,joinWebUrl, so id is in the
+    // list nearly every time; counting it as a match made the typo guard inert.
+    it('returns the body untrimmed when the only real field is a typo alongside id', async () => {
+      const { result } = await run({ select: 'id,joinUrl' });
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
+    });
+  });
+
   // ---- isDestructiveOperation helper ----
   describe('isDestructiveOperation', () => {
     it('returns true for POST, PATCH, PUT, DELETE', async () => {
