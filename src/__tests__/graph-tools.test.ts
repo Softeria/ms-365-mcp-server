@@ -1502,7 +1502,10 @@ describe('graph-tools', () => {
 
   // ---- $search KQL quote normalization ----
   describe('$search quote normalization', () => {
-    async function callWithSearch(search: string, path = '/me/messages'): Promise<string> {
+    async function callSearch(
+      search: string,
+      path = '/me/messages'
+    ): Promise<{ result: any; graphClient: any }> {
       const endpoint = makeEndpoint({ path });
       const config = makeConfig();
       mockEndpoints.push(endpoint);
@@ -1516,7 +1519,12 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, graphClient as any);
 
-      await server.tools.get('test-tool')!.handler({ search });
+      const result = await server.tools.get('test-tool')!.handler({ search });
+      return { result, graphClient };
+    }
+
+    async function callWithSearch(search: string, path = '/me/messages'): Promise<string> {
+      const { graphClient } = await callSearch(search, path);
       return graphClient.graphRequest.mock.calls[0][0] as string;
     }
 
@@ -1535,8 +1543,9 @@ describe('graph-tools', () => {
       expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
     });
 
-    // Graph rejects a property phrase that has no enclosing pair, so add one and escape
-    // the phrase quotes — the form Microsoft documents for embedded quotes.
+    // Graph rejects a property phrase that has no enclosing pair, so add one and escape the
+    // phrase quotes. Microsoft documents that escaping for directory search only; mail's own
+    // docs never show an embedded quote, so this form is inferred.
     it('adds the enclosing pair around a property phrase', async () => {
       const url = await callWithSearch('subject:"quarterly report"');
       expect(url).toContain(`$search=${encodeURIComponent('"subject:\\"quarterly report\\""')}`);
@@ -1549,7 +1558,7 @@ describe('graph-tools', () => {
       );
     });
 
-    it('leaves the documented escaped form untouched', async () => {
+    it('leaves an already escaped phrase untouched', async () => {
       const query = '"subject:\\"quarterly report\\""';
       const url = await callWithSearch(query);
       expect(url).toContain(`$search=${encodeURIComponent(query)}`);
@@ -1593,15 +1602,46 @@ describe('graph-tools', () => {
       expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
     });
 
+    // KQL demotes a restriction with whitespace around the operator to free text, so these
+    // are phrases. Unwrapping them would search a bare `from:`/`subject:` and quietly drop
+    // the words the caller was actually looking for.
+    it.each([
+      [
+        '"from: the desk of the CEO" AND subject:report',
+        '"\\"from: the desk of the CEO\\" AND subject:report"',
+      ],
+      [
+        '"subject: quarterly report" AND from:john',
+        '"\\"subject: quarterly report\\" AND from:john"',
+      ],
+    ])('keeps phrase quotes when a space follows the property (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A trailing lone backslash would escape the enclosing pair's closing quote and hand
+    // Graph an unterminated string.
+    it('balances a trailing backslash so it cannot escape the closing quote', async () => {
+      const url = await callWithSearch('from:john\\');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john\\\\"')}`);
+    });
+
     it('repairs an unbalanced quote rather than sending it', async () => {
       const url = await callWithSearch('from:"john');
       expect(url).toContain(`$search=${encodeURIComponent('"from:john"')}`);
     });
 
-    it.each([' ', '   ', '"', '""""'])('drops an unsearchable $search value %j', async (query) => {
-      const url = await callWithSearch(query);
-      expect(url).not.toContain('$search');
-    });
+    // Dropping $search would turn a search into an unfiltered listing of the whole mailbox
+    // and return it as though it were the result, which is worse than the 400 Graph sends.
+    it.each([' ', '   ', '"', '""""'])(
+      'refuses an unsearchable $search value %j',
+      async (query) => {
+        const { result, graphClient } = await callSearch(query);
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text).error).toBe('invalid_search');
+        expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      }
+    );
 
     // Directory search advertises clause-level quoting, which mail's convention would
     // destroy: collapsing the quotes below changes an OR of two clauses into one.

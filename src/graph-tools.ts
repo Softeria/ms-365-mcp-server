@@ -129,14 +129,15 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
-// Outlook mail lives under a mailbox owner. /chats, /teams and /planner also have
-// /messages collections, and directory search has neither prefix — none of them share
-// mail's quoting convention, so all are left alone.
-const MAILBOX_OWNER_PATH = /^\/(?:me|users\/[^/]+)\//i;
-const MAIL_COLLECTION_PATH = /\/(?:messages|mailFolders)(?:\/|$)/i;
+// Outlook mail only, and the collection must hang directly off the mailbox owner. Graph
+// also has /me/chats/{id}/messages, so testing the owner prefix and the collection name
+// separately would pull Teams chat into a mail-only rewrite. /chats, /teams and /planner
+// messages, and directory search, each have their own quoting convention and are left
+// alone.
+const OUTLOOK_MAIL_PATH = /^\/(?:me|users\/[^/]+)\/(?:messages|mailFolders)(?:\/|$)/i;
 
 function isOutlookMailPath(path: string): boolean {
-  return MAILBOX_OWNER_PATH.test(path) && MAIL_COLLECTION_PATH.test(path);
+  return OUTLOOK_MAIL_PATH.test(path);
 }
 
 /** A quoted run starting at `start` (an opening quote), with escapes preserved. */
@@ -159,8 +160,12 @@ function readQuotedSegment(
   return undefined;
 }
 
-// The properties KQL recognises on a message. Shape alone is not enough to tell a clause
-// from a phrase: "RE: quarterly report" and "Q3: plan.pdf" both look like property:value.
+// The properties KQL recognises on a message, from the searchable-email-property table at
+// learn.microsoft.com/en-us/graph/search-query-parameter. `category` is documented only on
+// the Exchange page that table links to, and both spellings of hasAttachment(s) are here
+// because that table and its own example disagree. Shape alone is not enough to tell a
+// clause from a phrase: "RE: quarterly report" and "Q3: plan.pdf" both look like
+// property:value.
 const MAIL_SEARCH_PROPERTIES = new Set([
   'attachment',
   'bcc',
@@ -171,7 +176,6 @@ const MAIL_SEARCH_PROPERTIES = new Set([
   'hasattachment',
   'hasattachments',
   'importance',
-  'isread',
   'kind',
   'participants',
   'received',
@@ -182,8 +186,13 @@ const MAIL_SEARCH_PROPERTIES = new Set([
   'to',
 ]);
 
-/** `property:` or a comparison — `received>=2024-01-01`, `size>1000`. */
-const CLAUSE_HEAD = /^([A-Za-z]+)\s*(?::|<=|>=|<>|=|<|>)/;
+/**
+ * `property:` or a comparison — `received>=2024-01-01`, `size>1000`. The value must follow
+ * the operator immediately: KQL demotes a restriction with whitespace around the operator
+ * to free text, so `from: the desk of the CEO` is a phrase that has to keep its quotes,
+ * not a clause to unwrap.
+ */
+const CLAUSE_HEAD = /^([A-Za-z]+)(?::|<=|>=|<>|=|<|>)\S/;
 
 /**
  * True only for a quoted run that really is a clause. Anything else — including a phrase
@@ -200,8 +209,10 @@ function isPropertyClause(segment: string): boolean {
  * Rewrite the interior of a mail KQL expression so it can be wrapped in one pair of
  * double quotes.
  *
- * A quoted run is either a phrase, whose quotes group the words and must survive
- * (escaped as \"), or a whole clause the caller quoted by mistake, whose quotes must go.
+ * A quoted run is either a phrase, whose quotes group the words and must survive, or a
+ * whole clause the caller quoted by mistake, whose quotes must go. Phrase quotes are
+ * escaped as \" by analogy with the rule Microsoft documents for directory search; mail's
+ * own docs never show an embedded quote, so that form is inferred rather than published.
  * Two signals separate them: a run introduced by `property:` is always a phrase, even
  * when its own text contains a colon (subject:"RE: quarterly report"); otherwise a run
  * that itself starts with `property:` is the mistake ("from:john" AND subject:meeting).
@@ -231,7 +242,11 @@ function rewriteMailSearchQuotes(expr: string): string {
     out += isPhrase ? `\\"${run.segment}\\"` : run.segment;
     i = run.end + 1;
   }
-  return out.trim();
+  const rewritten = out.trim();
+  // A trailing lone backslash would escape the closing quote the caller wraps around this,
+  // handing Graph an unterminated string. Balance it instead of dropping the character.
+  const trailingSlashes = rewritten.length - rewritten.replace(/\\+$/, '').length;
+  return trailingSlashes % 2 === 1 ? `${rewritten}\\` : rewritten;
 }
 
 /**
@@ -245,19 +260,39 @@ function rewriteMailSearchQuotes(expr: string): string {
  * succeed; 'subject:"quarterly report"' and '"quarterly report" AND from:x' are both
  * rejected until the enclosing pair is added.
  */
-function normalizeSearchQueryParam(queryParams: Record<string, string>, path: string): void {
+function normalizeSearchQueryParam(
+  queryParams: Record<string, string>,
+  path: string,
+  toolAlias: string
+): CallToolResult | undefined {
   if (!isOutlookMailPath(path)) return;
 
   const raw = queryParams['$search'];
   if (raw === undefined) return;
   const trimmed = raw.trim();
 
-  // Nothing searchable — Graph rejects it, and sending it cannot be what was meant.
-  if (trimmed === '' || /^["'\s]+$/.test(trimmed)) {
-    delete queryParams['$search'];
-    logger.warn("Dropping empty '$search' parameter");
-    return;
-  }
+  // Nothing searchable. Deleting $search would widen the request into an unfiltered listing
+  // of the whole mailbox and hand it back as though it were the search result, which is a
+  // worse answer than the 400 Graph would have returned, so refuse instead.
+  const noSearchableText = (): CallToolResult => {
+    logger.warn(`Refusing ${toolAlias}: '$search' has no searchable text`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'invalid_search',
+            tool: toolAlias,
+            message:
+              'The $search parameter has no searchable text. Supply a KQL expression such as "from:john" or "subject:budget", or omit $search to list messages unfiltered.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  };
+
+  if (trimmed === '' || /^["'\s]+$/.test(trimmed)) return noSearchableText();
 
   // An expression already inside one enclosing pair is unwrapped first, so its interior
   // is judged on its own terms and re-wrapped unchanged. Without this, a correctly
@@ -270,7 +305,9 @@ function normalizeSearchQueryParam(queryParams: Record<string, string>, path: st
   }
 
   const inner = rewriteMailSearchQuotes(expr);
-  if (inner === '') return;
+  // Unreachable while the guard above catches every all-quote/whitespace value; kept so a
+  // later change to the rewriter cannot quietly send Graph $search="".
+  if (inner === '') return noSearchableText();
   const normalized = `"${inner}"`;
   if (normalized !== raw) {
     logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
@@ -1783,7 +1820,8 @@ async function executeGraphTool(
     }
 
     clampTopQueryParam(queryParams);
-    normalizeSearchQueryParam(queryParams, tool.path);
+    const searchError = normalizeSearchQueryParam(queryParams, tool.path, tool.alias);
+    if (searchError) return searchError;
 
     const preferValues: string[] = [];
 

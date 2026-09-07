@@ -69,8 +69,12 @@ export function isFetchAllPagesApplicable(tool: { method: string; path: string }
 export const FILTER_PARAM_DESCRIPTION =
   'OData filter expression. Add $count=true for advanced filters (flag/flagStatus, contains()). Cannot combine with $search.';
 
+// The two conventions are structurally different and Microsoft documents them in separate
+// sections: mail keeps the operators inside a single pair, directory closes and reopens the
+// quotes around every clause. Saying only "wrap value in double quotes" is what makes models
+// quote each mail clause and get a 400.
 export const SEARCH_PARAM_DESCRIPTION =
-  'KQL search query — wrap value in double quotes. Cannot combine with $filter.';
+  'KQL search query. Mail: put the whole expression inside ONE pair of double quotes, operators included ("from:john AND subject:budget"). Directory (users/groups): quote each clause separately with the operators outside ("displayName:john" OR "mail:john"). Cannot combine with $filter.';
 
 export const SELECT_PARAM_DESCRIPTION =
   'Comma-separated fields to return, e.g. id,subject,from,receivedDateTime';
