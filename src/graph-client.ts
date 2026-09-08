@@ -292,6 +292,75 @@ class GraphClient {
    * memory or hit V8's max string length. Creates the file with wx + 0o600 (never
    * overwrites) and removes a partial file if the transfer fails.
    */
+  /**
+   * Fetch Graph binary content and hand back the undrained response stream.
+   *
+   * Same auth, same resilience and the same error mapping as `downloadToFile`,
+   * which is the reason this exists rather than the attachment route calling
+   * `fetch` for itself: token acquisition, the OBO/bearer context tokens, retry
+   * and the 403-scope special case are all in `performRequest`, which is
+   * private. Splitting them would give the route a second, quietly divergent
+   * copy of the auth path.
+   *
+   * The caller owns the body from here and MUST consume or cancel it -- an
+   * abandoned stream holds a socket open until the agent times out.
+   */
+  async downloadStream(
+    endpoint: string,
+    options: Pick<GraphRequestOptions, 'accessToken' | 'apiVersion'> = {}
+  ): Promise<{
+    body: NonNullable<Response['body']>;
+    contentType: string;
+    contentLength: number | null;
+    contentDisposition: string | null;
+  }> {
+    const contextTokens = getRequestTokens();
+    const accessToken =
+      options.accessToken ?? contextTokens?.accessToken ?? (await this.authManager.getToken());
+    if (!accessToken) {
+      throw new Error('No access token available');
+    }
+
+    const response = await this.performRequest(endpoint, accessToken, options);
+    if (response.status === 403) {
+      const errorText = await response.text();
+      if (errorText.includes('scope') || errorText.includes('permission')) {
+        throw new Error(
+          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+        );
+      }
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${await response.text()}`
+      );
+    }
+    if (!response.body) {
+      throw new Error('Microsoft Graph returned an empty response body');
+    }
+
+    // Absent is null, and `Number(null)` is 0, which `Number.isFinite` accepts -- so
+    // reading this with Number() alone reports a length of zero for a response that has
+    // one and simply did not declare it, and the route then sends `content-length: 0`
+    // ahead of a body it goes on to stream. Only an actual digit string is a length.
+    const rawLength = response.headers.get('content-length');
+    // fetch requests gzip by default and undici decodes the body, but leaves the header at
+    // the *compressed* size. Forwarding that caps the response short of the bytes actually
+    // being streamed, and the peer sees a 200 with a truncated file and no error anywhere,
+    // so a declared length is only usable when the body was not decoded on the way in.
+    const decoded = response.headers.get('content-encoding') !== null;
+    const declaredLength = !decoded && rawLength !== null && /^\d+$/.test(rawLength.trim());
+    return {
+      body: response.body,
+      contentType: response.headers.get('content-type') || 'application/octet-stream',
+      contentLength: declaredLength ? Number(rawLength) : null,
+      contentDisposition: response.headers.get('content-disposition'),
+    };
+  }
+
   async downloadToFile(
     endpoint: string,
     destinationPath: string,

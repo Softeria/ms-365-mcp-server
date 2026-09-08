@@ -6,6 +6,12 @@ import { auditLog, getUserIdentityForAudit, type AuditEvent } from './audit-log.
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
+import { getAttachmentMinting } from './lib/attachment-minting.js';
+import {
+  buildAttachmentUrl,
+  isPlainGraphPath,
+  TicketStoreFullError,
+} from './lib/attachment-tickets.js';
 import {
   anyFieldPresent,
   isTransportEnvelope,
@@ -940,6 +946,116 @@ async function checkAccountParamInBearerMode(
   );
 }
 
+/**
+ * Mint a server-served download URL for a Graph byte resource Graph itself
+ * exposes no pre-authenticated URL for, or return null if minting is off.
+ *
+ * **This grants no authority the calling agent did not already hold.** Every
+ * target that reaches here is one `download-bytes` would fetch for the same
+ * caller on the same account; the ticket only moves those bytes out of the
+ * agent's context window and into a direct transfer. That is the whole
+ * security argument for the feature, and it is why minting is scoped to the
+ * byte endpoints below rather than to any Graph path.
+ *
+ * Returns null when the feature is disabled, so the caller falls through to
+ * the refusal it would have given before -- the tool's behaviour is unchanged
+ * for anyone not running with `--enable-attachment-urls`.
+ */
+async function mintDownloadUrl(
+  target: string,
+  accountParam: string | undefined,
+  authManager: AuthManager | undefined
+): Promise<CallToolResult | null> {
+  const minting = getAttachmentMinting();
+  if (!minting) return null;
+
+  // Refuse whenever this request's Graph identity comes from the caller rather
+  // than from this server's own token cache.
+  //
+  // **Both halves of this predicate are load-bearing, and checking only the
+  // first is an authority escalation, not merely a broken feature.**
+  // `isOAuthModeEnabled()` is true only for MS365_MCP_OAUTH_TOKEN and the
+  // oauth-provider path; it is *false* in plain `--http` bearer mode and in
+  // `--obo`, both of which still run the tool inside a request context holding
+  // the caller's token. In those modes `download-bytes` reads as the caller
+  // while a redeemed ticket reads as whatever account this server has cached --
+  // so minting would let a caller ask under one identity and have the bytes
+  // fetched under another. Every other token site in this file pairs these two
+  // checks (see the `getRequestTokens()` guards below); this one must too.
+  if (authManager?.isOAuthModeEnabled() || getRequestTokens()) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error:
+              'Server-minted download URLs are unavailable when Graph identity comes from the request (OAuth, OBO, or bearer mode): the URL is redeemed later without an Authorization header, so the bytes would be fetched as a different identity than the one that asked for them. Use download-bytes.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Validated here rather than left to the caller further down: the three
+  // early mint sites return before the tool reaches its own account check, so
+  // without this an unusable `account` would be baked into a ticket and only
+  // surface as a 502 at redemption, long after the agent could act on it.
+  const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+  if (accountModeError) {
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+      isError: true,
+    };
+  }
+
+  // The suffix checks at the call sites say nothing about what precedes the suffix, so a
+  // fragment or a dot segment gets past them and resolves elsewhere once the path is
+  // concatenated onto the Graph origin. Refuse rather than mint a ticket that names one
+  // resource and fetches another.
+  if (!isPlainGraphPath(target)) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error:
+              'target must be a plain relative Graph path: no fragment, no query, no "." or ".." segments, and no percent-encoded separators.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  let ticket: { id: string; expiresAtMs: number };
+  try {
+    ticket = minting.store.mint(target, accountParam);
+  } catch (error) {
+    if (error instanceof TicketStoreFullError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: error.message }) }],
+        isError: true,
+      };
+    }
+    throw error;
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          downloadUrl: buildAttachmentUrl(minting.config, ticket.id),
+          expiresAt: new Date(ticket.expiresAtMs).toISOString(),
+          singleUse: true,
+          note: 'Served by this server, not by Microsoft Graph. Valid for one fetch until it expires.',
+        }),
+      },
+    ],
+  };
+}
+
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
   {
     name: 'parse-teams-url',
@@ -1225,7 +1341,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'download file download drive file download onedrive file sharepoint file download large drive file large sharepoint file large file out-of-band download pre-authenticated url',
     description:
-      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. NOTE: mail file attachments (/messages/{id}/attachments/{id}/$value) and meeting recordings do NOT expose a pre-authenticated URL — Graph offers no such link for them; use download-bytes for small ones.',
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1305,6 +1421,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         /^\/groups\/[^/]+\/messages\/[^/]+\/attachments\//.test(pathPart) ||
         /^\/groups\/[^/]+\/events\/[^/]+\/attachments\//.test(pathPart)
       ) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -1325,6 +1443,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         ) ||
         /^\/communications\/calls\/[^/]+\/recordings\/[^/]+(?:\/content)?$/.test(pathPart)
       ) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -1340,6 +1460,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       }
       // Other /$value byte endpoints (profile photo, Teams hosted content) likewise have no URL.
       if (pathPart.endsWith('/$value')) {
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        if (minted) return minted;
         return {
           content: [
             {
@@ -1426,6 +1548,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         }
         const downloadUrl = item?.['@microsoft.graph.downloadUrl'] as string | undefined;
         if (!downloadUrl) {
+          // The metadata path carries no downloadUrl, but the bytes are still
+          // reachable at its /content sub-resource -- which is what a ticket
+          // has to name, since that is what the redemption route will GET.
+          const minted = await mintDownloadUrl(`${itemPath}/content`, accountParam, authManager);
+          if (minted) return minted;
           return {
             content: [
               {
