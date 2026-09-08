@@ -1,5 +1,6 @@
 {
   "name": "@softeria/ms-365-mcp-server",
+  "mcpName": "io.github.Softeria/ms-365-mcp-server",
   "version": "0.0.0-development",
   "description": " A Model Context Protocol (MCP) server for interacting with Microsoft 365 and Office services through the Graph API",
   "type": "module",
@@ -18,7 +19,8 @@
     "format:check": "prettier --check \"**/*.{ts,mts,js,mjs,json,md}\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "verify": "npm run generate && npm run lint && npm run format:check && npm run build && npm run test",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run generate && npm run lint && npm run format:check && npm run typecheck && npm run build && npm run test",
     "inspector": "npx @modelcontextprotocol/inspector tsx src/index.ts"
   },
   "keywords": [
@@ -35,7 +37,7 @@
   "dependencies": {
     "@azure/msal-node": "^5.2.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@toon-format/toon": "^0.8.0",
+    "@toon-format/toon": "^2.3.1",
     "commander": "^11.1.0",
     "dotenv": "^17.0.1",
     "express": "^5.2.1",
@@ -43,6 +45,7 @@
     "helmet": "^8.1.0",
     "js-yaml": "^4.1.0",
     "open": "^11.0.0",
+    "parse5": "^8.0.1",
     "winston": "^3.17.0",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.25.1"

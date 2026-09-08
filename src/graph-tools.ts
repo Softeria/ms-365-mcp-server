@@ -1,7 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { CallToolRequestSchema, type ServerResult } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'crypto';
 import logger from './logger.js';
-import { auditLog, getUserIdentityForAudit } from './audit-log.js';
+import { auditLog, getUserIdentityForAudit, type AuditEvent } from './audit-log.js';
 import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
@@ -11,6 +12,12 @@ import {
   isPlainGraphPath,
   TicketStoreFullError,
 } from './lib/attachment-tickets.js';
+import {
+  anyFieldPresent,
+  isTransportEnvelope,
+  parseSelectFields,
+  projectSelectedFields,
+} from './lib/select-projection.js';
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
@@ -57,6 +64,7 @@ import {
   CONFIRM_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
+  getAcceptParamDescription,
   getAccountParamDescription,
   getFetchAllPagesParamDescription,
 } from './lib/param-descriptions.js';
@@ -125,6 +133,243 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   if (!Number.isFinite(requested) || requested <= cap) return;
   logger.info(`Clamping $top from ${requested} to ${cap} (MS365_MCP_MAX_TOP)`);
   queryParams['$top'] = String(cap);
+}
+
+// Outlook message collections only. The path has to be a mailbox owner, optionally some
+// mailFolders/childFolders nesting, and then end at messages. Matching the owner prefix and
+// the collection name separately would catch /me/chats/{id}/messages, and matching any
+// mailFolders descendant would catch list-mail-folders, list-mail-child-folders,
+// list-mail-rules and list-mail-attachments, none of which take message KQL. /chats, /teams
+// and /planner messages, and directory search, have their own conventions and are untouched.
+const OUTLOOK_MAIL_PATH =
+  /^\/(?:me|users\/[^/]+)(?:\/(?:mailFolders|childFolders)\/[^/]+)*\/messages(?:\/delta\(\))?$/i;
+
+function isOutlookMailPath(path: string): boolean {
+  return OUTLOOK_MAIL_PATH.test(path);
+}
+
+/** A quoted run starting at `start` (an opening quote), with escapes preserved. */
+function readQuotedSegment(
+  expr: string,
+  start: number
+): { segment: string; end: number } | undefined {
+  let j = start + 1;
+  let segment = '';
+  while (j < expr.length) {
+    // Consume an escaped backslash as a unit, otherwise the second slash pairs with a real
+    // delimiter behind it and the scan runs off the end of a well-formed string.
+    if (expr[j] === '\\' && expr[j + 1] === '\\') {
+      segment += '\\\\';
+      j += 2;
+      continue;
+    }
+    if (expr[j] === '\\' && expr[j + 1] === '"') {
+      segment += '\\"';
+      j += 2;
+      continue;
+    }
+    if (expr[j] === '"') return { segment, end: j };
+    segment += expr[j];
+    j += 1;
+  }
+  return undefined;
+}
+
+// The properties KQL recognises on a message, from the searchable-email-property table at
+// learn.microsoft.com/en-us/graph/search-query-parameter. `category` is documented only on
+// the Exchange page that table links to, and both spellings of hasAttachment(s) are here
+// because that table and its own example disagree. Shape alone is not enough to tell a
+// clause from a phrase: "RE: quarterly report" and "Q3: plan.pdf" both look like
+// property:value.
+const MAIL_SEARCH_PROPERTIES = new Set([
+  'attachment',
+  'bcc',
+  'body',
+  'category',
+  'cc',
+  'from',
+  'hasattachment',
+  'hasattachments',
+  'importance',
+  'kind',
+  'participants',
+  'received',
+  'recipients',
+  'sent',
+  'size',
+  'subject',
+  'to',
+]);
+
+/**
+ * `property:` or a comparison — `received>=2024-01-01`, `size>1000`. The value must follow
+ * the operator immediately: KQL demotes a restriction with whitespace around the operator
+ * to free text, so `from: the desk of the CEO` is a phrase that has to keep its quotes,
+ * not a clause to unwrap.
+ */
+const CLAUSE_HEAD = /^([A-Za-z]+)(?::|<=|>=|<>|=|<|>)\S/;
+
+/** KQL's boolean operators: uppercase and free-standing, per the KQL syntax reference. */
+const BOOLEAN_JOIN = /\s(?:AND|OR|NOT)\s/;
+
+/** The recognised `property:`/comparison head of a run, or null if it does not open with one. */
+function clauseHead(segment: string): RegExpExecArray | null {
+  const head = CLAUSE_HEAD.exec(segment);
+  return head && MAIL_SEARCH_PROPERTIES.has(head[1].toLowerCase()) ? head : null;
+}
+
+/** Append a slash when the trailing run is odd, so it cannot escape a quote placed after it. */
+function balanceTrailingSlashes(text: string): string {
+  const slashes = text.length - text.replace(/\\+$/, '').length;
+  return slashes % 2 === 1 ? `${text}\\` : text;
+}
+
+/**
+ * How a quoted run should be emitted once the whole expression gains its enclosing pair.
+ *
+ * - `phrase` keeps the quotes where they are, escaped as \". A run holding the value of a
+ *   restriction is always this, even when its text contains a colon
+ *   (subject:"RE: quarterly report"), as is anything that does not open with a recognised
+ *   property at all ("quarterly report", "RE: quarterly report").
+ * - `clause` drops the quotes: either one bare restriction the caller quoted by mistake
+ *   ("from:john" AND subject:meeting), or several joined by boolean operators and quoted as
+ *   a group ("from:john AND subject:meeting" OR from:jane). Both are per-clause quoting,
+ *   which is the directory convention and a 400 here.
+ * - `restriction-value` moves the quotes past the operator: "subject:quarterly report"
+ *   becomes subject:\"quarterly report\". Escaping in place would leave `subject:` inside
+ *   the phrase as literal text and lose the restriction entirely, and dropping the quotes
+ *   would bind only `quarterly` to subject and let `report` float as free text. Only moving
+ *   them keeps both the property and the grouping.
+ */
+type RunKind = 'phrase' | 'clause' | 'restriction-value';
+
+function classifyRun(segment: string, introducedByProperty: boolean): RunKind {
+  if (introducedByProperty) return 'phrase';
+  const head = clauseHead(segment);
+  if (!head) return 'phrase';
+  if (BOOLEAN_JOIN.test(segment) || !/\s/.test(segment)) return 'clause';
+  return 'restriction-value';
+}
+
+/**
+ * Rewrite the interior of a mail KQL expression so it can be wrapped in one pair of
+ * double quotes. Phrase quotes are escaped as \" by analogy with the rule Microsoft
+ * documents for directory search; mail's own docs never show an embedded quote, so that
+ * form is inferred rather than published.
+ */
+function rewriteMailSearchQuotes(expr: string): string {
+  let out = '';
+  let i = 0;
+  while (i < expr.length) {
+    if (expr[i] === '\\' && expr[i + 1] === '\\') {
+      out += '\\\\';
+      i += 2;
+      continue;
+    }
+    if (expr[i] === '\\' && expr[i + 1] === '"') {
+      out += '\\"';
+      i += 2;
+      continue;
+    }
+    if (expr[i] !== '"') {
+      out += expr[i];
+      i += 1;
+      continue;
+    }
+    // An unterminated run is read as a missing closing quote rather than a stray opening
+    // one; dropping the delimiter would shed the grouping and widen the search. Its tail is
+    // balanced first, because the closer synthesized below would otherwise pair with a
+    // trailing backslash and let the next quote end the string early.
+    const run = readQuotedSegment(expr, i);
+    const segment = run ? run.segment : balanceTrailingSlashes(expr.slice(i + 1));
+    const introducedByProperty = i > 0 && expr[i - 1] === ':';
+    switch (classifyRun(segment, introducedByProperty)) {
+      case 'clause':
+        out += segment;
+        break;
+      case 'restriction-value': {
+        const head = clauseHead(segment)!;
+        const valueAt = head[0].length - 1;
+        out += `${segment.slice(0, valueAt)}\\"${segment.slice(valueAt)}\\"`;
+        break;
+      }
+      default:
+        out += `\\"${segment}\\"`;
+    }
+    if (!run) break;
+    i = run.end + 1;
+  }
+  return balanceTrailingSlashes(out.trim());
+}
+
+/**
+ * Outlook mail wants the whole KQL expression inside one pair of double quotes
+ * ($search="from:x AND subject:y"). Models quote each clause instead
+ * ($search='"from:x" AND subject:y'), or send a phrase with no enclosing pair
+ * ($search='subject:"quarterly report"'). Both are 400s. Normalize to one enclosing
+ * pair, mirroring the Body auto-wrap already done in executeGraphTool.
+ *
+ * Verified against Graph: a bare single term and a correctly wrapped expression both
+ * succeed; 'subject:"quarterly report"' and '"quarterly report" AND from:x' are both
+ * rejected until the enclosing pair is added.
+ */
+function normalizeSearchQueryParam(
+  queryParams: Record<string, string>,
+  path: string,
+  toolAlias: string
+): CallToolResult | undefined {
+  if (!isOutlookMailPath(path)) return;
+
+  const raw = queryParams['$search'];
+  if (raw === undefined) return;
+  const trimmed = raw.trim();
+
+  // Nothing searchable. Deleting $search would widen the request into an unfiltered listing
+  // of the whole mailbox and hand it back as though it were the search result, which is a
+  // worse answer than the 400 Graph would have returned, so refuse instead.
+  const noSearchableText = (): CallToolResult => {
+    logger.warn(`Refusing ${toolAlias}: '$search' has no searchable text`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'invalid_search',
+            tool: toolAlias,
+            message:
+              'The $search parameter has no searchable text. Supply a KQL expression such as "from:john" or "subject:budget", or omit $search to list messages unfiltered.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  };
+
+  if (trimmed === '' || /^["'\s]+$/.test(trimmed)) return noSearchableText();
+
+  // An expression already inside one enclosing pair is unwrapped first, so its interior
+  // is judged on its own terms and re-wrapped unchanged. Without this, a correctly
+  // wrapped free-text search ("quarterly report") would be read as a phrase and become
+  // a phrase search ("\"quarterly report\"").
+  let expr = trimmed;
+  if (expr.startsWith('"')) {
+    const whole = readQuotedSegment(expr, 0);
+    // No closing quote at all means the caller dropped it off the enclosing pair, not that
+    // they opened a phrase. Reading it as a phrase would send a literal search for the whole
+    // expression, which matches nothing and gives the model no error to correct against.
+    if (!whole) expr = expr.slice(1);
+    else if (whole.end === expr.length - 1) expr = whole.segment;
+  }
+
+  const inner = rewriteMailSearchQuotes(expr);
+  // Unreachable while the guard above catches every all-quote/whitespace value; kept so a
+  // later change to the rewriter cannot quietly send Graph $search="".
+  if (inner === '') return noSearchableText();
+  const normalized = `"${inner}"`;
+  if (normalized !== raw) {
+    logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
+    queryParams['$search'] = normalized;
+  }
 }
 
 const DEFAULT_MAX_ITEMS = 10_000;
@@ -206,6 +451,300 @@ interface CallToolResult {
   [key: string]: unknown;
 }
 
+function auditHttpStatus(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function auditErrorCode(value: unknown): string | number | undefined {
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
+}
+
+function auditNonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function auditStringNumberMap(value: unknown): Record<string, number> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, number] =>
+      typeof entry[1] === 'number' && Number.isInteger(entry[1]) && entry[1] >= 0
+  );
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function graphResponseAuditFields(
+  response: Pick<CallToolResult, '_meta' | 'isError'>
+): Pick<
+  AuditEvent,
+  | 'http_status'
+  | 'error_code'
+  | 'graph_batch_subrequest_count'
+  | 'graph_batch_http_status_counts'
+  | 'graph_batch_error_code_counts'
+> {
+  const httpStatus = auditHttpStatus(response._meta?.http_status);
+  const errorCode = response.isError ? auditErrorCode(response._meta?.error_code) : undefined;
+  const graphBatchSubrequestCount = auditNonNegativeInteger(
+    response._meta?.graph_batch_subrequest_count
+  );
+  const graphBatchHttpStatusCounts = auditStringNumberMap(
+    response._meta?.graph_batch_http_status_counts
+  );
+  const graphBatchErrorCodeCounts = auditStringNumberMap(
+    response._meta?.graph_batch_error_code_counts
+  );
+
+  return {
+    ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
+    ...(errorCode !== undefined ? { error_code: errorCode } : {}),
+    ...(graphBatchSubrequestCount !== undefined
+      ? { graph_batch_subrequest_count: graphBatchSubrequestCount }
+      : {}),
+    ...(graphBatchHttpStatusCounts !== undefined
+      ? { graph_batch_http_status_counts: graphBatchHttpStatusCounts }
+      : {}),
+    ...(graphBatchErrorCodeCounts !== undefined
+      ? { graph_batch_error_code_counts: graphBatchErrorCodeCounts }
+      : {}),
+  };
+}
+
+// Graph is inconsistent about casing: entity creation (POST /me/messages) uses
+// camelCase body fields, while action endpoints (POST .../forward, /me/sendMail)
+// use PascalCase. Matched case-insensitively so both are covered.
+const RECIPIENT_FIELDS = new Set([
+  'torecipients',
+  'ccrecipients',
+  'bccrecipients',
+  'attendees',
+  // driveItem /invite mails an outsider a link to the file
+  'recipients',
+]);
+// Worst shape the docstring below promises to cover is 7, not 4: a graph-batch
+// sub-request carrying an itemAttachment lands at requests -> request -> body -> message
+// -> attachments -> attachment -> item, and the attached message's own toRecipients match
+// there. That leaves one level spare, so this can't be trimmed without giving that case
+// up - there's a test pinning it. Arrays charge depth too - traversing them for free
+// leaves an array-only path unbounded, and this runs inside the catch handler where a
+// stack overflow would take the audit record with it.
+const MAX_BODY_DEPTH = 8;
+// A big distribution list would otherwise dump every domain into one audit line, at
+// a length the caller picks. recipient_count is untouched, so we never lose how many.
+const MAX_RECIPIENT_DOMAINS = 50;
+
+// Graph matches property names case-insensitively, so we have to as well - or a
+// PascalCase payload sends mail the log never sees
+function lookupCaseInsensitive(node: unknown, lowerName: string): unknown {
+  if (!node || typeof node !== 'object') return undefined;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key.toLowerCase() === lowerName) return value;
+  }
+  return undefined;
+}
+
+// Recipients are not one shape: mail and events use emailAddress.address, driveItem
+// /invite uses email, meeting participants use upn. alias/objectId name someone with
+// no domain at all - those still count, they just don't add one.
+function readAddress(entry: unknown): string | undefined {
+  // Graph 400s a bare string in a recipient array, but the attempt is the signal and
+  // everything else here reads high - this shouldn't be the one place that reads low
+  if (typeof entry === 'string') return entry;
+
+  const emailAddress = lookupCaseInsensitive(entry, 'emailaddress');
+  const candidates = [
+    typeof emailAddress === 'string'
+      ? emailAddress
+      : lookupCaseInsensitive(emailAddress, 'address'),
+    lookupCaseInsensitive(entry, 'email'),
+    lookupCaseInsensitive(entry, 'upn'),
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate) return candidate;
+  }
+  return undefined;
+}
+
+// Positive check, not suffix-stripping. Everything after the last @ is caller-controlled
+// and Graph tolerates enough junk that subtracting kept losing - "example.com/path" and
+// "evil<script" both got through. Anything that isn't a plain dotted hostname gets dropped.
+const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+// Longest a domain can legally be (RFC 1035). The pattern accepts any length, and the
+// 50-entry cap only bounds how many domains land in a record, not how long each one is -
+// without this one address picks the size of the audit line. Tested before the pattern so
+// a caller can't make us scan a huge string either.
+const MAX_DOMAIN_LENGTH = 253;
+
+function addRecipient(entry: unknown, domains: Set<string>, counter: { count: number }): void {
+  // Count the entry, not our ability to parse it
+  counter.count += 1;
+
+  const address = readAddress(entry);
+  if (address === undefined) return;
+  const at = address.lastIndexOf('@');
+  if (at <= 0 || at >= address.length - 1) return;
+  // Peel the wrappers Graph tolerates, then let the pattern decide
+  const domain = address
+    .slice(at + 1)
+    .trim()
+    .split(/\s/)[0]
+    .replace(/[>.]+$/, '')
+    .toLowerCase();
+  if (domain.length <= MAX_DOMAIN_LENGTH && DOMAIN_PATTERN.test(domain)) domains.add(domain);
+}
+
+function collectRecipients(
+  node: unknown,
+  domains: Set<string>,
+  counter: { count: number },
+  depth = 0
+): void {
+  if (!node || typeof node !== 'object' || depth > MAX_BODY_DEPTH) return;
+
+  if (Array.isArray(node)) {
+    for (const item of node) collectRecipients(item, domains, counter, depth + 1);
+    return;
+  }
+
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (RECIPIENT_FIELDS.has(key.toLowerCase()) && Array.isArray(value)) {
+      for (const entry of value) addRecipient(entry, domains, counter);
+      continue;
+    }
+    // Walk everything, not an allowlist of container names - a recipient list
+    // nested somewhere we didn't think of still sends real mail
+    collectRecipients(value, domains, counter, depth + 1);
+  }
+}
+
+// A body that failed schema parsing goes to Graph as a raw string, and mail sent that way
+// would record nothing. Only a JSON-shaped string can carry recipients though: the binary
+// upload tools send base64, and parsing that threw on every single upload.
+function bodyForRecipientWalk(body: unknown): unknown {
+  if (typeof body !== 'string') return body;
+  if (!/^\s*[{[]/.test(body)) return undefined;
+  return JSON.parse(body);
+}
+
+/**
+ * Derives recipient metadata from an outgoing request body for the audit trail.
+ *
+ * A send, forward or meeting invite records that the tool ran but not who it
+ * reached, so an instruction injected via message content that quietly addresses
+ * something outside the organisation looks identical in the log to a legitimate
+ * reply.
+ *
+ * Domains, not addresses. The detection question is "did this leave the
+ * organisation", which a domain answers; the full address is message content and
+ * logging it by default would be a heavier privacy cost than the signal
+ * justifies. Counts alone cannot distinguish internal from external.
+ *
+ * Covers mail recipients, event attendees and driveItem /invite recipients, at
+ * any casing and up to MAX_BODY_DEPTH levels down, including inside a
+ * graph-batch sub-request and inside a body forwarded as a raw JSON string.
+ *
+ * recipient_count is entries in a recipient-shaped array; a driveRecipient given
+ * only as alias or objectId counts but yields no domain. Keyed on body shape,
+ * not on the endpoint, so drafts and event edits count like real sends, and so
+ * does an attached message's own toRecipients inside an itemAttachment. Reads
+ * high rather than low, which is the safe direction for a detection signal.
+ *
+ * Gaps remain, so absence of these fields is NOT evidence that nothing left
+ * the organisation:
+ *  - On `reply` / `replyAll`, recipients added via the optional `Message` are
+ *    recorded, but the original thread's are resolved server-side by Graph and
+ *    never appear. A plain reply-all to a wide external thread records nothing.
+ *  - `POST /me/messages/{id}/send` carries no body. Its recipients were logged
+ *    when the draft was created, but only if the draft was created through this
+ *    server; one composed in Outlook and sent here records nothing.
+ *
+ * Policy-denied attempts (`tool.denied`) also record none, but nothing was sent.
+ */
+function recipientAuditFields(
+  body: unknown
+): Pick<AuditEvent, 'recipient_count' | 'recipient_domains' | 'recipient_domains_truncated'> {
+  const domains = new Set<string>();
+  const counter = { count: 0 };
+  // Broader than a recursion guard on purpose: this also runs on the catch path, where
+  // throwing would cost the audit record AND the caller's error response. Losing the
+  // fields beats losing both.
+  try {
+    collectRecipients(bodyForRecipientWalk(body), domains, counter);
+  } catch (error) {
+    logger.warn(
+      `Skipped recipient audit metadata: ${error instanceof Error ? error.message : 'unknown error'}`
+    );
+    return {};
+  }
+
+  if (counter.count === 0) return {};
+  const sorted = [...domains].sort();
+  const capped = sorted.slice(0, MAX_RECIPIENT_DOMAINS);
+  return {
+    recipient_count: counter.count,
+    ...(capped.length > 0 ? { recipient_domains: capped } : {}),
+    ...(sorted.length > capped.length ? { recipient_domains_truncated: true } : {}),
+  };
+}
+
+function thrownErrorAuditFields(error: unknown): Pick<AuditEvent, 'http_status' | 'error_code'> {
+  const err = error as {
+    code?: string | number;
+    status?: string | number;
+    httpStatus?: string | number;
+    graphErrorCode?: string | number;
+  };
+  const httpStatus = auditHttpStatus(err?.httpStatus ?? err?.status);
+  const errorCode = auditErrorCode(err?.graphErrorCode ?? err?.code ?? err?.status);
+
+  return {
+    ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
+    ...(errorCode !== undefined ? { error_code: errorCode } : {}),
+  };
+}
+
+async function executeUtilityTool(
+  utility: UtilityTool,
+  ctx: UtilityToolContext,
+  params: Record<string, unknown>
+): Promise<CallToolResult> {
+  const requestId = randomUUID();
+  const startTime = Date.now();
+  const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
+
+  try {
+    const response = await utility.execute(params, ctx);
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: utility.name,
+      http_method: utility.method.toUpperCase(),
+      status: response.isError ? 'error' : 'success',
+      duration_ms: Date.now() - startTime,
+      ...graphResponseAuditFields(response),
+    });
+    return response;
+  } catch (error) {
+    const err = error as { name?: string };
+    auditLog({
+      event: 'tool.call',
+      request_id: requestId,
+      user_principal_name: upn,
+      tool: utility.name,
+      http_method: utility.method.toUpperCase(),
+      status: 'error',
+      duration_ms: Date.now() - startTime,
+      error_type: err?.name || 'Error',
+      ...thrownErrorAuditFields(error),
+    });
+    throw error;
+  }
+}
+
 interface UtilityToolContext {
   graphClient: GraphClient;
   authManager?: AuthManager;
@@ -236,6 +775,15 @@ interface DisabledToolScope {
   missingScopes: string[];
 }
 
+type ToolDeniedReason = 'allowed_scopes' | 'tool_allowlist';
+
+interface DeniedToolPolicy {
+  toolName: string;
+  reason: ToolDeniedReason;
+  missingScopes?: string[];
+  pathPattern?: string;
+}
+
 function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   const shown = disabledTools
     .slice(0, 20)
@@ -243,6 +791,130 @@ function formatDisabledToolsForLog(disabledTools: DisabledToolScope[]): string {
   const suffix =
     disabledTools.length > shown.length ? `, ... +${disabledTools.length - shown.length} more` : '';
   return `${shown.join('; ')}${suffix}`;
+}
+
+function deniedToolPolicyForGraphTool(
+  tool: (typeof allEndpoints)[number],
+  config: EndpointConfig | undefined,
+  reason: ToolDeniedReason,
+  missingScopes?: string[]
+): DeniedToolPolicy {
+  return {
+    toolName: tool.alias,
+    reason,
+    ...(missingScopes && missingScopes.length > 0 ? { missingScopes } : {}),
+    pathPattern: config?.pathPattern ?? tool.path,
+  };
+}
+
+function collectDeniedToolPolicies(options: {
+  readOnly: boolean;
+  orgMode: boolean;
+  enabledToolsRegex?: RegExp;
+  allowedScopesValue?: string;
+  httpMode: boolean;
+}): Map<string, DeniedToolPolicy> {
+  const deniedTools = new Map<string, DeniedToolPolicy>();
+  const allowedScopes = parseAllowedScopes(options.allowedScopesValue);
+
+  for (const tool of allEndpoints) {
+    const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
+    if (!options.orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+      continue;
+    }
+
+    const method = tool.method.toUpperCase();
+    if (options.readOnly && method !== 'GET' && !(method === 'POST' && endpointConfig?.readOnly)) {
+      continue;
+    }
+
+    if (options.enabledToolsRegex && !options.enabledToolsRegex.test(tool.alias)) {
+      deniedTools.set(
+        tool.alias,
+        deniedToolPolicyForGraphTool(tool, endpointConfig, 'tool_allowlist')
+      );
+      continue;
+    }
+
+    const missingScopes =
+      allowedScopes !== undefined && !endpointConfig
+        ? ['endpoint scope metadata']
+        : getMissingAllowedScopesForGroups(
+            getEndpointScopeGroups(endpointConfig, options.orgMode),
+            allowedScopes
+          );
+    if (missingScopes.length > 0) {
+      deniedTools.set(
+        tool.alias,
+        deniedToolPolicyForGraphTool(tool, endpointConfig, 'allowed_scopes', missingScopes)
+      );
+    }
+  }
+
+  for (const utility of UTILITY_TOOLS) {
+    if (options.readOnly && !utility.readOnlyHint) continue;
+    if (options.httpMode && utility.stdioOnly) continue;
+    if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
+      deniedTools.set(utility.name, {
+        toolName: utility.name,
+        reason: 'tool_allowlist',
+      });
+    }
+  }
+
+  return deniedTools;
+}
+
+function auditToolDenied(policy: DeniedToolPolicy, params: Record<string, unknown> = {}): void {
+  const targetResource = policy.pathPattern
+    ? deriveTargetResource({ pathPattern: policy.pathPattern, params })
+    : undefined;
+
+  auditLog({
+    event: 'tool.denied',
+    request_id: randomUUID(),
+    user_principal_name: getUserIdentityForAudit(getRequestTokens()?.accessToken),
+    tool: policy.toolName,
+    status: 'denied',
+    reason: policy.reason,
+    ...(policy.missingScopes ? { missing_scopes: policy.missingScopes } : {}),
+    ...(targetResource ? { target_resource: targetResource } : {}),
+  });
+}
+
+function installDeniedToolAuditHandler(
+  server: McpServer,
+  deniedTools: ReadonlyMap<string, DeniedToolPolicy>
+): void {
+  if (deniedTools.size === 0) return;
+
+  const lowLevel = server.server;
+  const handlers = (
+    lowLevel as unknown as {
+      _requestHandlers?: Map<
+        string,
+        (request: unknown, extra: unknown) => Promise<ServerResult> | ServerResult
+      >;
+    }
+  )._requestHandlers;
+  const original = handlers?.get('tools/call');
+  if (!original) {
+    logger.warn('Skipping denied-tool audit hook: tools/call handler not found');
+    return;
+  }
+
+  lowLevel.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    const policy = deniedTools.get(request.params.name);
+    if (policy) {
+      const params =
+        request.params.arguments && typeof request.params.arguments === 'object'
+          ? (request.params.arguments as Record<string, unknown>)
+          : {};
+      auditToolDenied(policy, params);
+    }
+
+    return original(request, extra);
+  });
 }
 
 /**
@@ -650,11 +1322,14 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
+          ...(result.httpStatus !== undefined ? { _meta: { http_status: result.httpStatus } } : {}),
         };
       } catch (error) {
+        const metadata = thrownErrorAuditFields(error);
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
           isError: true,
+          ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
         };
       }
     },
@@ -889,6 +1564,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               },
             ],
             isError: true,
+            _meta: response._meta,
           };
         }
         const file = item?.file as { mimeType?: string } | undefined;
@@ -904,11 +1580,14 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
+          _meta: response._meta,
         };
       } catch (error) {
+        const metadata = thrownErrorAuditFields(error);
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
           isError: true,
+          ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
         };
       }
     },
@@ -929,8 +1608,14 @@ function registerUtilityToolWithMcp(
       readOnlyHint: utility.readOnlyHint ?? true,
       openWorldHint: utility.openWorldHint ?? true,
     },
-    async (params) => utility.execute(params, ctx)
+    async (params) => executeUtilityTool(utility, ctx, params)
   );
+}
+
+// Every nested `body` field in the generated clients is an itemBody, so an @odata.type
+// naming it is the only one that belongs inside a body we just moved fields into
+function namesNestedBodyType(value: unknown): boolean {
+  return typeof value === 'string' && value.toLowerCase().endsWith('itembody');
 }
 
 // Dig out the object shape of a Body schema so flattened top-level params can be
@@ -987,6 +1672,18 @@ function hasOwn(obj: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+// JSON.stringify recurses, so a params object nested deeply enough overflows the stack -
+// on Node 20 well before Node 26. It runs before the try below, so an unguarded throw
+// escapes executeGraphTool entirely: the caller gets a protocol error instead of a tool
+// error, and no audit record is written at all. Nesting depth is caller-controlled.
+function describeParamsForLog(params: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(params);
+  } catch (error) {
+    return `[unserializable: ${error instanceof Error ? error.name : 'unknown error'}]`;
+  }
+}
+
 async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
@@ -994,7 +1691,7 @@ async function executeGraphTool(
   params: Record<string, unknown>,
   authManager?: AuthManager
 ): Promise<CallToolResult> {
-  logger.info(`Tool ${tool.alias} called with params: ${JSON.stringify(params)}`);
+  logger.info(`Tool ${tool.alias} called with params: ${describeParamsForLog(params)}`);
 
   if (
     isConfirmGateEnabled() &&
@@ -1027,6 +1724,10 @@ async function executeGraphTool(
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
   const httpMethod = tool.method.toUpperCase();
   let targetResource: AuditTargetResource | undefined;
+  // Hoisted alongside targetResource so the catch-path audit can still report
+  // recipients. A send that times out or trips the breaker is exactly the
+  // ambiguous case: a thrown request is not proof that nothing was delivered.
+  let body: unknown = null;
 
   try {
     const accountParam = params.account as string | undefined;
@@ -1066,7 +1767,6 @@ async function executeGraphTool(
     let path = tool.path;
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
-    let body: unknown = null;
 
     // Body fields the client passed as top-level params (#569) - merged into the
     // request body after the loop
@@ -1195,6 +1895,11 @@ async function executeGraphTool(
           .replace(`{${camelCaseParamName}}`, encodedValue)
           .replace(`:${camelCaseParamName}`, encodedValue);
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
+      } else if (paramName.toLowerCase() === 'accept' && config?.acceptType) {
+        // The synthetic Accept param added for acceptType endpoints. It has no entry in
+        // the generated client's parameter list, so it lands here rather than in the
+        // 'Header' case above.
+        headers['Accept'] = `${paramValue}`;
       } else if (isOdataParam) {
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
@@ -1218,18 +1923,61 @@ async function executeGraphTool(
       }
     }
 
+    // The client passed the nested itemBody's own fields as the whole request body - move
+    // them under the schema's `body` field (#620). Graph body schemas are all-optional, so
+    // the safeParse wrap in `case 'Body'` can't catch this: the inner itemBody parses clean
+    // as the outer type. A key only moves if it belongs to the nested field's own shape;
+    // being unknown to the outer shape means nothing, because generated schemas are trimmed
+    // subsets that passthrough real fields (message.isRead isn't in the shape). Keys are
+    // matched case-insensitively, and anything left behind stays top-level so a stray
+    // sibling can't cost us the repair - or get buried in the body and silently lost
+    if (
+      isPlainObject(body) &&
+      bodyShape != null &&
+      hasOwn(bodyShape, 'body') &&
+      !Object.keys(body).some((k) => k.toLowerCase() === 'body')
+    ) {
+      const nestedShape = bodySchemaShape(bodyShape.body as z.ZodTypeAny);
+      if (nestedShape != null) {
+        const nestedKeys = new Set(Object.keys(nestedShape).map((k) => k.toLowerCase()));
+        const outerKeys = new Set(Object.keys(bodyShape).map((k) => k.toLowerCase()));
+        // Null-prototype accumulators: a literal would route a '__proto__' key through the
+        // legacy setter, dropping the field instead of storing it
+        const nested: Record<string, unknown> = Object.create(null);
+        const kept: Record<string, unknown> = Object.create(null);
+        const annotations: Record<string, unknown> = Object.create(null);
+
+        for (const [key, value] of Object.entries(body)) {
+          const lower = key.toLowerCase();
+          if (key.startsWith('@')) {
+            // An annotation belongs to whatever it names, so only an @odata.type naming the
+            // nested type travels with the moved fields. An outer @odata.type (or an
+            // @odata.etag) describes the entity it is already on and stays put
+            if (lower === '@odata.type' && namesNestedBodyType(value)) {
+              annotations[key] = value;
+            } else {
+              kept[key] = value;
+            }
+          } else if (nestedKeys.has(lower) && !outerKeys.has(lower)) {
+            nested[key] = value;
+          } else {
+            kept[key] = value;
+          }
+        }
+
+        if (Object.keys(nested).length > 0) {
+          body = { ...kept, body: { ...nested, ...annotations } };
+          logger.info(
+            `Moved misplaced fields into nested 'body' for ${tool.alias}: ${Object.keys(nested).join(', ')}`
+          );
+        }
+      }
+    }
+
     if (Object.keys(strayBodyFields).length > 0) {
       if (isPlainObject(body)) {
-        // If none of body's keys are schema fields but the schema has a `body` field
-        // (message.body), the client meant it as that field - nest it. Spread order lets
-        // an explicit body win over stray duplicates in both branches
-        const keys = Object.keys(body);
-        const bodyIsNestedField =
-          bodyShape != null &&
-          hasOwn(bodyShape, 'body') &&
-          keys.length > 0 &&
-          keys.every((k) => !hasOwn(bodyShape, k));
-        body = bodyIsNestedField ? { ...strayBodyFields, body } : { ...strayBodyFields, ...body };
+        // Spread order lets an explicit body win over stray duplicates
+        body = { ...strayBodyFields, ...body };
         logger.info(`Merged flattened body fields: ${Object.keys(strayBodyFields).join(', ')}`);
       } else if (body == null) {
         body = strayBodyFields;
@@ -1250,6 +1998,8 @@ async function executeGraphTool(
     }
 
     clampTopQueryParam(queryParams);
+    const searchError = normalizeSearchQueryParam(queryParams, tool.path, tool.alias);
+    if (searchError) return searchError;
 
     const preferValues: string[] = [];
 
@@ -1284,10 +2034,20 @@ async function executeGraphTool(
       logger.info(`Setting custom Content-Type: ${config.contentType}`);
     }
 
-    if (config?.acceptType) {
+    if (config?.acceptType && !headers['Accept']) {
       headers['Accept'] = config.acceptType;
       logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
+
+    // Captured before the query string is built so the same value can be reapplied to
+    // the response for the operations where Graph ignores it (#660). $select is what
+    // triggers projection; $expand only widens what survives it, since in OData an
+    // expanded navigation property comes back in addition to the selected fields
+    // (supportsExpandExtendedProperties adds one of its own just above).
+    const requestedSelect = parseSelectFields(queryParams['$select']);
+    const keepFields = [
+      ...new Set([...requestedSelect, ...parseSelectFields(queryParams['$expand'])]),
+    ];
 
     if (Object.keys(queryParams).length > 0) {
       const queryString = Object.entries(queryParams)
@@ -1386,11 +2146,35 @@ async function executeGraphTool(
     // be TOON and JSON.parse would throw, silently returning only page one (#560).
     // The merged result gets re-encoded once at the end.
     const mergePages = fetchAllPages && paginationEnabled;
-    if (mergePages) {
+    // Projecting means parsing the body, and under --toon JSON.parse would throw and
+    // leave the response untrimmed. Same reason the merge below forces JSON (#560).
+    const willProject = requestedSelect.length > 0 && params.excludeResponse !== true;
+    if (mergePages || willProject) {
       options.forceJsonOutput = true;
     }
 
     let response = await graphClient.graphRequest(path, options);
+
+    const shouldProject = willProject && !response?.isError;
+    let projectionHandled = false;
+    const applyProjection = (body: unknown): unknown => {
+      // Binary, raw-text and ack payloads are wrapped in an envelope of this server's
+      // own making. Projecting one strips every key and hands back {}, losing the
+      // transcript or file outright.
+      if (isTransportEnvelope(body)) {
+        logger.info('Skipping $select projection: body is a transport envelope, not a resource');
+        return body;
+      }
+      // Graph never rejects a misspelled property on the endpoints that ignore $select,
+      // so without this a typo would silently empty the response instead of erroring.
+      if (!anyFieldPresent(body, requestedSelect)) {
+        logger.warn(
+          `None of the requested $select fields (${requestedSelect.join(',')}) appear in the response; returning it untrimmed`
+        );
+        return body;
+      }
+      return projectSelectedFields(body, keepFields);
+    };
 
     if (mergePages && response?.content?.[0]?.text) {
       type ODataPage = {
@@ -1434,6 +2218,11 @@ async function executeGraphTool(
             const nextOptions = { ...options };
 
             const nextResponse = await graphClient.graphRequest(nextPath, nextOptions);
+            if (nextResponse?.isError) {
+              response = nextResponse;
+              combinedResponse = undefined;
+              break;
+            }
             if (nextResponse?.content?.[0]?.text) {
               const nextJsonResponse = JSON.parse(nextResponse.content[0].text) as ODataPage;
               if (Array.isArray(nextJsonResponse.value)) {
@@ -1449,27 +2238,29 @@ async function executeGraphTool(
             }
           }
 
-          if (pageCount >= maxPages) {
-            logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
-          }
-          if (allItems.length >= maxItems) {
-            logger.warn(
-              `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+          if (combinedResponse !== undefined) {
+            if (pageCount >= maxPages) {
+              logger.warn(`Reached maximum page limit (${maxPages}) for pagination`);
+            }
+            if (allItems.length >= maxItems) {
+              logger.warn(
+                `Reached maximum item limit (${maxItems}) for pagination — truncated at ${allItems.length} items`
+              );
+            }
+
+            combinedResponse.value = allItems;
+            if (combinedResponse['@odata.count']) {
+              combinedResponse['@odata.count'] = allItems.length;
+            }
+            delete combinedResponse['@odata.nextLink'];
+            if (deltaLink) {
+              combinedResponse['@odata.deltaLink'] = deltaLink;
+            }
+
+            logger.info(
+              `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
             );
           }
-
-          combinedResponse.value = allItems;
-          if (combinedResponse['@odata.count']) {
-            combinedResponse['@odata.count'] = allItems.length;
-          }
-          delete combinedResponse['@odata.nextLink'];
-          if (deltaLink) {
-            combinedResponse['@odata.deltaLink'] = deltaLink;
-          }
-
-          logger.info(
-            `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
-          );
         }
       } catch (e) {
         logger.error(`Error during pagination: ${e}`);
@@ -1479,7 +2270,22 @@ async function executeGraphTool(
       // (non-collection skip and mid-loop abort included), so a --toon client
       // never gets handed the forced-JSON body.
       if (combinedResponse !== undefined) {
-        response.content[0].text = graphClient.serialize(combinedResponse);
+        // Project before serialize(), not after: under --toon serialize() emits TOON and
+        // parsing that back as JSON would throw, silently skipping the projection.
+        const merged = shouldProject ? applyProjection(combinedResponse) : combinedResponse;
+        projectionHandled = shouldProject;
+        response.content[0].text = graphClient.serialize(merged);
+      }
+    }
+
+    // isError is re-tested: a failing page inside the merge loop replaces `response`
+    // with the error result, which shouldProject (computed before the request) misses.
+    if (shouldProject && !projectionHandled && !response?.isError && response?.content?.[0]?.text) {
+      try {
+        const parsed = JSON.parse(response.content[0].text);
+        response.content[0].text = graphClient.serialize(applyProjection(parsed));
+      } catch {
+        // Body was not JSON after all; nothing to project.
       }
     }
 
@@ -1515,6 +2321,8 @@ async function executeGraphTool(
       status: response.isError ? 'error' : 'success',
       duration_ms: Date.now() - startTime,
       ...(targetResource ? { target_resource: targetResource } : {}),
+      ...graphResponseAuditFields(response),
+      ...recipientAuditFields(body),
     });
 
     return {
@@ -1535,7 +2343,8 @@ async function executeGraphTool(
       duration_ms: Date.now() - startTime,
       ...(targetResource ? { target_resource: targetResource } : {}),
       error_type: err?.name || 'Error',
-      error_code: err?.status ?? err?.code,
+      ...thrownErrorAuditFields(error),
+      ...recipientAuditFields(body),
     });
     return {
       content: [
@@ -1578,6 +2387,13 @@ export function registerGraphTools(
   let failedCount = 0;
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
   const disabledByAllowedScopes: DisabledToolScope[] = [];
+  const deniedTools = collectDeniedToolPolicies({
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    httpMode,
+  });
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
@@ -1637,6 +2453,17 @@ export function registerGraphTools(
       if (!(pathParamName in paramSchema)) {
         paramSchema[pathParamName] = z.string().describe(describePathParam(pathParamName));
       }
+    }
+
+    // Endpoints with a configured acceptType get a synthetic, optional `Accept` param.
+    // The generated client declares no Accept header anywhere, so without this the
+    // caller has no way to reach the alternate representation of the resource — the
+    // configured default would be the only value the server can ever send.
+    if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
+      paramSchema['Accept'] = z
+        .string()
+        .describe(getAcceptParamDescription(endpointConfig.acceptType))
+        .optional();
     }
 
     if (isFetchAllPagesApplicable(tool)) {
@@ -1819,6 +2646,7 @@ export function registerGraphTools(
   logger.info(
     `Tool registration complete: ${registeredCount} registered, ${skippedCount} skipped, ${failedCount} failed`
   );
+  installDeniedToolAuditHandler(server, deniedTools);
   return registeredCount;
 }
 
@@ -1994,6 +2822,13 @@ export function registerDiscoveryTools(
   }
 
   const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const deniedTools = collectDeniedToolPolicies({
+    readOnly,
+    orgMode,
+    enabledToolsRegex,
+    allowedScopesValue,
+    httpMode,
+  });
   const toolsRegistry = buildToolsRegistry(
     readOnly,
     orgMode,
@@ -2183,7 +3018,11 @@ export function registerDiscoveryTools(
       }
       const utility = utilityByName.get(tool_name);
       if (utility) {
-        return utility.execute(parameters, utilityCtx);
+        return executeUtilityTool(utility, utilityCtx, parameters);
+      }
+      const deniedPolicy = deniedTools.get(tool_name);
+      if (deniedPolicy) {
+        auditToolDenied(deniedPolicy, parameters);
       }
       return {
         content: [
@@ -2199,6 +3038,8 @@ export function registerDiscoveryTools(
       };
     }
   );
+
+  installDeniedToolAuditHandler(server, deniedTools);
 
   // Layer 3 (list-accounts) is registered by registerAuthTools — no duplicate here.
 }

@@ -2,6 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
+/**
+ * Converts single-quoted `path:` strings that contain function-style OData segments with
+ * quoted parameters (e.g. `range(address=':address')`) into template literals, so the
+ * nested single quotes no longer break the generated TypeScript. A function may take
+ * several parameters, quoted or not, in any order:
+ * `getAllTranscripts(userId=':userId',startDateTime=:startDateTime)`.
+ */
+export function fixFunctionStylePaths(clientCode) {
+  return clientCode.replace(/(path:\s*)'(\/[^']*\([^)]*=':[\w]+'[^)]*\)[^']*)'/g, '$1`$2`');
+}
+
 export function generateMcpTools(openapiTrimmedFile, clientFilePath) {
   try {
     console.log(
@@ -47,7 +58,7 @@ export function generateMcpTools(openapiTrimmedFile, clientFilePath) {
     // to backticks (template literal) so single quotes can remain inside.
     // Match: path: '/...range(param=':value')...',
     // Replace with: path: `/...range(param=':value')...`,
-    clientCode = clientCode.replace(/(path:\s*)'(\/[^']*\([^)]*=':[\w]+'\)[^']*)'/g, '$1`$2`');
+    clientCode = fixFunctionStylePaths(clientCode);
 
     // openapi-zod-client emits z.instanceof(File) for `format: binary` bodies; MCP
     // transports JSON so no caller produces File. Body marshaller decodes the string.

@@ -55,10 +55,22 @@ export function createAndSaveSimplifiedOpenAPI(
         description: `Path parameter: ${paramName}`,
         schema: { type: 'string' },
       }));
+      // The fallback used to be the llmTip, then the tool name itself, which reached the
+      // model as the whole description ("update-sharepoint-site-onenote-page-content
+      // (synthesized)"). Prefer a real sentence built from the same name.
+      //
+      // The synthesized sentence goes ahead of the llmTip on purpose: graph-tools appends
+      // the llmTip to the description at registration, so using it here too shipped it
+      // twice in the same tool description. The llmTip stays as the fallback for the tool
+      // names with no verb to synthesize from (graph-batch).
+      const synthesizedDescription =
+        synthesizeDescriptionFromToolName(endpoint.toolName) ||
+        endpoint.llmTip ||
+        `${endpoint.toolName} (synthesized)`;
       pathSpec[methodLower] = {
         tags: ['drives.driveItem'],
-        summary: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
-        description: endpoint.llmTip || `${endpoint.toolName} (synthesized)`,
+        summary: synthesizedDescription,
+        description: synthesizedDescription,
         operationId: endpoint.toolName,
         parameters: synthesizedParameters,
         requestBody:
@@ -126,6 +138,7 @@ export function createAndSaveSimplifiedOpenAPI(
           if (!operation.description && operation.summary) {
             operation.description = operation.summary;
           }
+          operation.description = replaceNavPropertyStub(operation.description, eo.toolName);
           if (operation.parameters) {
             operation.parameters = operation.parameters.map((param) => {
               if (param.$ref && param.$ref.startsWith('#/components/parameters/')) {
@@ -164,6 +177,147 @@ export function createAndSaveSimplifiedOpenAPI(
   pruneUnusedSchemas(openApiSpec, usedSchemas);
 
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
+}
+
+// Microsoft's spec is generated from CSDL, so operations that are plain CRUD over a
+// navigation property never get prose. They get scaffolding naming the property and its
+// parent instead - "Create new navigation property to messages for users" - which
+// describes neither the operation nor the resource it acts on. Actions and functions get
+// the same treatment in a different shape ("Invoke action setReaction"). That string is
+// what the model sees as the tool description.
+//
+// Only these prose-free shapes are replaced, and each is anchored at both ends so a stub
+// prefix followed by real text is never swallowed. Descriptions carrying real prose are
+// left alone, including the ones that describe the property rather than the operation
+// ("The messages in a mailbox or folder. Read-only. Nullable."): those are the wrong
+// subject but often carry detail worth keeping, and descriptionOverride is the right tool
+// when they aren't.
+const NAV_PROPERTY_STUB =
+  /^(?:Create new navigation property(?: to \S+)?(?: for \S+)?|Update the navigation property \S+ in \S+|Delete navigation property \S+ for \S+|Get \S+ from \S+|Invoke (?:action|function) \S+)\.?$/i;
+
+// Leading tool-name tokens that read as verbs. The tool name is a better source than the
+// HTTP method: sort-excel-range is a PATCH, and "Update" would lose the point of it.
+// Listed explicitly rather than inferred: an unknown leading token means we leave
+// Microsoft's text alone, which is the safe direction. `copilot` and `graph` are the only
+// tool-name leads that aren't verbs, and both fall out of this map on purpose.
+const TOOL_NAME_VERBS = {
+  accept: 'Accept',
+  add: 'Add',
+  cancel: 'Cancel',
+  clear: 'Clear',
+  copy: 'Copy',
+  create: 'Create',
+  decline: 'Decline',
+  delete: 'Delete',
+  dismiss: 'Dismiss',
+  extract: 'Extract',
+  find: 'Find',
+  format: 'Format',
+  forward: 'Forward',
+  get: 'Get',
+  insert: 'Insert',
+  list: 'List',
+  merge: 'Merge',
+  move: 'Move',
+  pin: 'Pin',
+  reauthorize: 'Reauthorize',
+  remove: 'Remove',
+  rename: 'Rename',
+  reply: 'Reply to',
+  search: 'Search',
+  send: 'Send',
+  set: 'Set',
+  share: 'Share',
+  snooze: 'Snooze',
+  sort: 'Sort',
+  unmerge: 'Unmerge',
+  unpin: 'Unpin',
+  unset: 'Unset',
+  update: 'Update',
+  upload: 'Upload',
+};
+
+// Multi-word verbs, matched before the single-token map. Chaining tokens generically
+// would read "Tentatively or accept" for tentatively-accept-event.
+//
+// reply-all has to live here rather than fall through: "all" reads as a possessive lead
+// (see POSSESSIVE_LEADS), so reply-all-mail-message would render "Reply to all mail
+// message" - which says reply to every message in the mailbox, the opposite of what the
+// tool does.
+const COMPOUND_VERBS = {
+  'move-rename': 'Move or rename',
+  'reply-all': 'Reply to all recipients of',
+  'tentatively-accept': 'Tentatively accept',
+};
+
+const PRODUCT_NAMES = {
+  excel: 'Excel',
+  onedrive: 'OneDrive',
+  onenote: 'OneNote',
+  outlook: 'Outlook',
+  planner: 'Planner',
+  sharepoint: 'SharePoint',
+};
+
+// "my calendar permission" already says whose it is.
+const POSSESSIVE_LEADS = new Set(['my', 'your', 'all']);
+
+// Deliberately conservative: a false "singular" only costs an article that reads slightly
+// off, while a false "plural" drops an article the sentence needed. Words like status,
+// series and news end in s without being plural.
+function isPlural(word) {
+  return /s$/i.test(word) && !/(ss|us|is|ews)$/i.test(word);
+}
+
+// Mass nouns take no article: "Send a mail" and "Upload a file content" both read wrong.
+// Only the tail is checked, since that is the noun the article has to agree with - a
+// leading "content" would be a modifier ("content type"), which is countable again.
+const UNCOUNTABLE_TAILS = new Set(['content', 'mail', 'mime', 'delta']);
+
+// Sound, not spelling. OneDrive/OneNote open with a consonant sound, and so does the
+// "yoo" class of u-words (user, unit, unique) - but not upload or update, which really do
+// take "an". Listing the yoo- prefixes is narrower and safer than a blanket /^u/.
+const CONSONANT_SOUNDING_VOWEL = /^(?:one|use|user|uni|uti|ubi|eu)/i;
+
+function articleFor(word) {
+  if (CONSONANT_SOUNDING_VOWEL.test(word)) return 'a ';
+  return /^[aeiou]/i.test(word) ? 'an ' : 'a ';
+}
+
+export function synthesizeDescriptionFromToolName(toolName) {
+  const parts = toolName.split('-');
+
+  let verb = null;
+  const compound = Object.keys(COMPOUND_VERBS).find((prefix) => toolName.startsWith(`${prefix}-`));
+  if (compound) {
+    verb = COMPOUND_VERBS[compound];
+    parts.splice(0, compound.split('-').length);
+  } else if (parts.length > 1 && TOOL_NAME_VERBS[parts[0]]) {
+    verb = TOOL_NAME_VERBS[parts.shift()];
+  }
+  if (!verb) return null;
+
+  // reply-to-chat-message: the verb phrase already ends in that preposition.
+  if (parts[0] === 'to' && verb.endsWith(' to')) parts.shift();
+  if (parts.length === 0) return null;
+
+  const words = parts.map((word) => PRODUCT_NAMES[word] ?? word);
+  // The article is chosen for the head word, so a plural head has to suppress it too -
+  // "a presences by user id" otherwise. The tail matters as well, since that is the noun
+  // the phrase is actually about ("Excel table rows").
+  const skipArticle =
+    verb === 'List' ||
+    POSSESSIVE_LEADS.has(parts[0]) ||
+    isPlural(parts[0]) ||
+    isPlural(parts[parts.length - 1]) ||
+    UNCOUNTABLE_TAILS.has(parts[parts.length - 1]);
+
+  return `${verb} ${skipArticle ? '' : articleFor(words[0])}${words.join(' ')}.`;
+}
+
+export function replaceNavPropertyStub(description, toolName) {
+  if (!description || !NAV_PROPERTY_STUB.test(description.trim())) return description;
+  return synthesizeDescriptionFromToolName(toolName) ?? description;
 }
 
 function normalizeWildcardSuccessResponses(paths) {

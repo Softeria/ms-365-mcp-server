@@ -18,11 +18,24 @@ import os from 'os';
  *  - `user_principal_name` is the *identity claim* from the bearer token and
  *    is required for the audit trail to be useful. It IS personal data.
  *  - `target_resource.id` points at the affected Graph resource but does
- *    not expose its contents (e.g. a message-id, not the message body).
+ *    not expose its contents (e.g. a message-id, not the message body). It is
+ *    built by substituting ID-like path parameters, so on a `/users/{user-id}`
+ *    tool it records whatever identifier the caller passed, which may be a full
+ *    email address.
  *  - `error_type` / `error_code` are recorded but raw error messages are NOT,
  *    because upstream library errors can incidentally include token fragments
  *    or query-string PII.
- *  - Tool parameters and Graph response bodies are NEVER written here.
+ *  - `recipient_count` / `recipient_domains` / `recipient_domains_truncated` are
+ *    derived from any request body carrying recipient-shaped arrays, several
+ *    levels down: sends, invites and file shares, but also drafts, edits and
+ *    findMeetingTimes, since it keys on body shape rather than the endpoint.
+ *    Domain part only, and only when it parses as a plain hostname: never the
+ *    local part of an address, never a subject or message body. Deliberate, so
+ *    that mail leaving the organisation is distinguishable in the trail from an
+ *    ordinary internal reply.
+ *  - Apart from that and `target_resource.id` above, tool parameters and Graph
+ *    response bodies are NEVER written to THIS log. The operational logger is
+ *    separate and does log them.
  *
  * Opt-out: set `MS365_MCP_AUDIT_LOG=false` to disable when audit is
  * collected through a separate sink (sidecar, OpenTelemetry, etc.).
@@ -85,8 +98,17 @@ export interface AuditEvent {
   user_principal_name?: string;
   tool: string;
   http_method?: string;
+  http_status?: number;
+  graph_batch_subrequest_count?: number;
+  graph_batch_http_status_counts?: Record<string, number>;
+  graph_batch_error_code_counts?: Record<string, number>;
   status: AuditStatus;
+  reason?: string;
+  missing_scopes?: string[];
   duration_ms?: number;
+  recipient_count?: number;
+  recipient_domains?: string[];
+  recipient_domains_truncated?: boolean;
   target_resource?: { type: string; id?: string };
   error_type?: string;
   error_code?: string | number;

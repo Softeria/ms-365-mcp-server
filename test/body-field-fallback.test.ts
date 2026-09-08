@@ -25,6 +25,8 @@ vi.mock('../src/generated/client.js', async () => {
             {
               name: 'body',
               type: 'Body',
+              // Trimmed like the generated schemas: `isRead` is a real message field that
+              // the spec-derived shape omits and passthrough carries to Graph anyway
               schema: z.object({
                 id: z.string().optional(),
                 createdDateTime: z.string().optional(),
@@ -171,5 +173,169 @@ describe('Flattened body field fallback (issue #569)', () => {
     await handler({ subject: 'Hello', body: {} });
 
     expect(sentBody()).toEqual({ subject: 'Hello' });
+  });
+
+  it('nests a misplaced itemBody when there are no stray fields to merge (issue #620)', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { contentType: 'html', content: '<p>test</p>' } });
+
+    expect(sentBody()).toEqual({ body: { contentType: 'html', content: '<p>test</p>' } });
+  });
+
+  it('leaves a non-object body alone when there are no stray fields', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: 'raw string body' });
+
+    const options = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock.calls[0][1] as {
+      body: string;
+    };
+    expect(options.body).toBe('raw string body');
+  });
+
+  it('leaves an empty body object alone when there are no stray fields', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: {} });
+
+    expect(sentBody()).toEqual({});
+  });
+
+  it('leaves a passthrough field the trimmed schema omits unwrapped (isRead stays top-level)', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { isRead: true } });
+
+    expect(sentBody()).toEqual({ isRead: true });
+  });
+
+  it('moves only the itemBody keys and leaves a foreign sibling top-level', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { contentType: 'html', content: 'Hi', isRead: true } });
+
+    expect(sentBody()).toEqual({ isRead: true, body: { contentType: 'html', content: 'Hi' } });
+  });
+
+  it('nests a misplaced itemBody whose keys arrive in PascalCase', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ subject: 'Hello', body: { Content: 'Hi', ContentType: 'html' } });
+
+    expect(sentBody()).toEqual({
+      subject: 'Hello',
+      body: { Content: 'Hi', ContentType: 'html' },
+    });
+  });
+
+  it('moves an @odata.type that names the itemBody into the body', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({
+      body: { content: 'Hi', contentType: 'html', '@odata.type': '#microsoft.graph.itemBody' },
+    });
+
+    expect(sentBody()).toEqual({
+      body: { content: 'Hi', contentType: 'html', '@odata.type': '#microsoft.graph.itemBody' },
+    });
+  });
+
+  it('leaves an @odata.type that names the outer entity top-level', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({
+      body: { content: 'Hi', '@odata.type': '#microsoft.graph.message' },
+    });
+
+    expect(sentBody()).toEqual({
+      '@odata.type': '#microsoft.graph.message',
+      body: { content: 'Hi' },
+    });
+  });
+
+  it('leaves other OData annotations on the entity they came from', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { content: 'Hi', '@odata.etag': 'W/"abc"' } });
+
+    expect(sentBody()).toEqual({ '@odata.etag': 'W/"abc"', body: { content: 'Hi' } });
+  });
+
+  it('preserves a __proto__ key instead of dropping it through the legacy setter', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: JSON.parse('{"content":"Hi","__proto__":{"polluted":true}}') });
+
+    // Built with JSON.parse on both sides: a '__proto__' key in an object literal sets the
+    // prototype instead of becoming an own property, so a literal can't express this
+    expect(sentBody()).toEqual(
+      JSON.parse('{"__proto__":{"polluted":true},"body":{"content":"Hi"}}')
+    );
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it('declines to repair when the body carries a case-variant body key', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    const payload = { BODY: { content: 'wrong' }, content: 'intended' };
+    await handler({ body: payload });
+
+    expect(sentBody()).toEqual(payload);
+  });
+
+  it('never clobbers a body that already carries its own body field', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    const message = { body: { contentType: 'text', content: 'real body' }, content: 'stray' };
+    await handler({ body: message });
+
+    expect(sentBody()).toEqual(message);
+  });
+
+  it('leaves a passthrough field unwrapped even when stray fields are present', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ subject: 'Hello', body: { isRead: true } });
+
+    expect(sentBody()).toEqual({ subject: 'Hello', isRead: true });
+  });
+
+  it('nests a misplaced itemBody carrying only content', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { content: 'Hi' } });
+
+    expect(sentBody()).toEqual({ body: { content: 'Hi' } });
+  });
+
+  it('nests a misplaced itemBody carrying only contentType', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { contentType: 'html' } });
+
+    expect(sentBody()).toEqual({ body: { contentType: 'html' } });
+  });
+
+  it('nests a misplaced itemBody while still merging stray fields (issue #569 + #620)', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({
+      subject: 'Hello',
+      body: { contentType: 'html', content: 'Hi' },
+    });
+
+    expect(sentBody()).toEqual({
+      subject: 'Hello',
+      body: { contentType: 'html', content: 'Hi' },
+    });
+  });
+
+  it('does not double-wrap a body the case-Body safeParse already corrected', async () => {
+    const handler = getToolHandler('create-draft-email');
+
+    await handler({ body: { body: { contentType: 'html', content: 'Hi' } } });
+
+    expect(sentBody()).toEqual({ body: { contentType: 'html', content: 'Hi' } });
   });
 });

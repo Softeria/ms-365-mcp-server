@@ -12,6 +12,7 @@ import {
   CONFIRM_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
+  getAcceptParamDescription,
 } from './param-descriptions.js';
 
 type ToolEndpoint = (typeof api.endpoints)[number];
@@ -26,6 +27,7 @@ export interface ToolSchemaConfig extends DestructiveCheckConfig {
   descriptionOverride?: string;
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
+  acceptType?: string;
 }
 
 /**
@@ -164,6 +166,19 @@ export function describeToolSchema(
       required: false,
       description: EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
       schema: { type: 'boolean' },
+    });
+  }
+
+  // Mirrors registerGraphTools: endpoints with a configured acceptType get a
+  // synthetic, optional `Accept` header param so the configured default can be
+  // overridden when Graph asks for a different representation.
+  if (config?.acceptType && !params.some((p) => p.name.toLowerCase() === 'accept')) {
+    params.push({
+      name: 'Accept',
+      in: 'Header',
+      required: false,
+      description: getAcceptParamDescription(config.acceptType),
+      schema: { type: 'string' },
     });
   }
 

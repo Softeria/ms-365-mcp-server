@@ -203,7 +203,21 @@ function describeBoundAddress(bound: AddressInfo): { label: string; authority: s
   }
   return { label: authority, authority };
 }
+// How long an unclaimed two-leg PKCE mapping is kept. This is memory cleanup,
+// not PKCE validity: createdAt is stamped at /authorize, so it measures how long
+// the user has been on the Microsoft login page, not the age of the code they
+// come back with. A sign-in behind MFA enrollment, admin consent or a password
+// reset can outlast any window worth calling short, and sweeping such an entry
+// costs that user their mapping and hands them AADSTS501481. Entra decides
+// whether the code is still good; the 1000-entry cap below is what actually
+// bounds the store.
+const PKCE_MAX_AGE_MS = 60 * 60 * 1000;
 
+type PkceEntry = {
+  clientCodeChallenge: string;
+  serverCodeVerifier: string;
+  createdAt: number;
+};
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -226,15 +240,7 @@ class MicrosoftGraphServer {
   private httpServers: HttpServer[] = [];
 
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
-  private pkceStore: Map<
-    string,
-    {
-      clientCodeChallenge: string;
-      clientCodeChallengeMethod: string;
-      serverCodeVerifier: string;
-      createdAt: number;
-    }
-  > = new Map();
+  private pkceStore: Map<string, PkceEntry> = new Map();
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -682,6 +688,26 @@ class MicrosoftGraphServer {
           }
         });
 
+        // Drop what this authorization makes obsolete, whichever leg follows:
+        // entries past their retention window, and any earlier mapping for this
+        // same challenge. /token sees the code but never the state, so it cannot
+        // tell two flows sharing a verifier apart; keeping only the newest is a
+        // bet, and it loses if two are genuinely in flight and the user finishes
+        // the older one. The stateless path below needs this too, since it sends
+        // the client's own challenge upstream and a leftover mapping would answer
+        // that with our server verifier.
+        if (clientCodeChallenge) {
+          const now = Date.now();
+          for (const [key, value] of this.pkceStore) {
+            if (
+              now - value.createdAt > PKCE_MAX_AGE_MS ||
+              value.clientCodeChallenge === clientCodeChallenge
+            ) {
+              this.pkceStore.delete(key);
+            }
+          }
+        }
+
         // Two-leg PKCE: if the client sent a code_challenge, store it and generate
         // a separate PKCE pair for the server↔Microsoft leg
         if (clientCodeChallenge && state) {
@@ -691,15 +717,7 @@ class MicrosoftGraphServer {
             .update(serverCodeVerifier)
             .digest('base64url');
 
-          // Clean up expired entries before adding new ones
-          const now = Date.now();
-          const maxAge = 10 * 60 * 1000; // 10 minutes
           const maxEntries = 1000;
-          for (const [key, value] of this.pkceStore) {
-            if (now - value.createdAt > maxAge) {
-              this.pkceStore.delete(key);
-            }
-          }
 
           // Reject if store is still at capacity after cleanup (prevents memory exhaustion)
           if (this.pkceStore.size >= maxEntries) {
@@ -715,7 +733,6 @@ class MicrosoftGraphServer {
 
           this.pkceStore.set(state, {
             clientCodeChallenge,
-            clientCodeChallengeMethod: clientCodeChallengeMethod || 'S256',
             serverCodeVerifier,
             createdAt: Date.now(),
           });
@@ -820,7 +837,8 @@ class MicrosoftGraphServer {
             // We need to find the matching state — it's not sent in the token request,
             // but the code is unique per authorization, so we verify the client's
             // code_verifier against all stored challenges and use the server's verifier
-            let serverCodeVerifier: string | undefined;
+            let matchedPkceState: string | undefined;
+            let matchedPkceEntry: PkceEntry | undefined;
 
             if (body.code_verifier) {
               // Look through pkceStore for a matching client code_challenge
@@ -830,11 +848,16 @@ class MicrosoftGraphServer {
                 .update(clientVerifier)
                 .digest('base64url');
 
+              // Age deliberately plays no part here. If a mapping really is
+              // stale so is the code arriving with it, and Entra answers that
+              // with AADSTS70008, which is the authority giving the right
+              // answer. Evicting on age instead would take the mapping away
+              // from a slow but perfectly valid sign-in.
               for (const [state, pkceData] of this.pkceStore) {
                 if (pkceData.clientCodeChallenge === clientChallengeComputed) {
                   // Client's code_verifier matches stored code_challenge — two-leg PKCE
-                  serverCodeVerifier = pkceData.serverCodeVerifier;
-                  this.pkceStore.delete(state);
+                  matchedPkceState = state;
+                  matchedPkceEntry = pkceData;
                   logger.info('Two-leg PKCE: matched client verifier, using server verifier', {
                     state: state.substring(0, 8) + '...',
                   });
@@ -849,9 +872,21 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              serverCodeVerifier || (body.code_verifier as string | undefined),
+              matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
               this.secrets!.cloudType
             );
+
+            // Hold the mapping until the exchange succeeds. Dropping it on a
+            // failed attempt leaves a retry sending the client's verifier
+            // upstream, where we registered the server's challenge — a PKCE
+            // mismatch (AADSTS501481) that buries whatever actually failed.
+            // Match on identity rather than the key alone: an /authorize that
+            // reused this state while we were awaiting has already replaced the
+            // entry, and that newer mapping is still needed.
+            if (matchedPkceState && this.pkceStore.get(matchedPkceState) === matchedPkceEntry) {
+              this.pkceStore.delete(matchedPkceState);
+            }
+
             res.json(result);
           } else if (body.grant_type === 'refresh_token') {
             const tenantId = this.secrets?.tenantId || 'common';
@@ -910,50 +945,16 @@ class MicrosoftGraphServer {
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
         publicUrl: publicBase,
       });
-      app.get(
-        '/mcp',
-        mcpAuth,
-        async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
-          const handler = async () => {
-            const server = this.createMcpServer();
-            const transport = new StreamableHTTPServerTransport({
-              sessionIdGenerator: undefined, // Stateless mode
-            });
-
-            res.on('close', () => {
-              transport.close();
-              server.close();
-            });
-
-            await server.connect(transport);
-            await transport.handleRequest(req as any, res as any, undefined);
-          };
-
-          try {
-            if (req.microsoftAuth) {
-              let accessToken = req.microsoftAuth.accessToken;
-              if (this.oboClient) {
-                accessToken = await this.oboClient.exchangeToken(accessToken);
-              }
-              await requestContext.run({ accessToken }, handler);
-            } else {
-              await handler();
-            }
-          } catch (error) {
-            logger.error('Error handling MCP GET request:', error);
-            if (!res.headersSent) {
-              res.status(500).json({
-                jsonrpc: '2.0',
-                error: {
-                  code: -32603,
-                  message: 'Internal server error',
-                },
-                id: null,
-              });
-            }
-          }
-        }
-      );
+      app.get('/mcp', (req: Request, res: Response) => {
+        res.status(405).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Method not allowed.',
+          },
+          id: null,
+        });
+      });
 
       app.post(
         '/mcp',
@@ -963,6 +964,7 @@ class MicrosoftGraphServer {
             const server = this.createMcpServer();
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
+              enableJsonResponse: true, // Reply to POSTs with plain JSON, not one-shot SSE
             });
 
             res.on('close', () => {

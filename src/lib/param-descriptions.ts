@@ -69,8 +69,11 @@ export function isFetchAllPagesApplicable(tool: { method: string; path: string }
 export const FILTER_PARAM_DESCRIPTION =
   'OData filter expression. Add $count=true for advanced filters (flag/flagStatus, contains()). Cannot combine with $search.';
 
+// Reaches ~100 tools, most of them calendar/OneNote/SharePoint/Teams/Planner, so it stays
+// short. Mail quoting is repaired server-side by normalizeSearchQueryParam, which is why
+// this no longer spells the mail rule out; directory has no such repair, so it gets a clause.
 export const SEARCH_PARAM_DESCRIPTION =
-  'KQL search query — wrap value in double quotes. Cannot combine with $filter.';
+  'KQL search query in one pair of double quotes; directory (users/groups) instead quotes each clause with no outer pair. Cannot combine with $filter.';
 
 export const SELECT_PARAM_DESCRIPTION =
   'Comma-separated fields to return, e.g. id,subject,from,receivedDateTime';
@@ -107,6 +110,14 @@ export const TIMEZONE_PARAM_DESCRIPTION =
 
 export const EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION =
   'When true, expands singleValueExtendedProperties on each event. Use this to retrieve custom extended properties (e.g., sync metadata) stored on calendar events.';
+
+export function getAcceptParamDescription(acceptType: string): string {
+  return (
+    `Accept header for the response representation. Defaults to "${acceptType}". ` +
+    'Only set this when Graph asks for a different format — e.g. a 403 SpeakerAttributionNotAllowed ' +
+    'on transcript content names the media type to retry with.'
+  );
+}
 
 /**
  * Layer 2 of multi-account support: account names are surfaced in the description
