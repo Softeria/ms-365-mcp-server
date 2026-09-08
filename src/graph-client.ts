@@ -246,11 +246,16 @@ class GraphClient {
       throw new Error('Microsoft Graph returned an empty response body');
     }
 
-    const headerLength = Number(response.headers.get('content-length'));
+    // Absent is null, and `Number(null)` is 0, which `Number.isFinite` accepts -- so
+    // reading this with Number() alone reports a length of zero for a response that has
+    // one and simply did not declare it, and the route then sends `content-length: 0`
+    // ahead of a body it goes on to stream. Only an actual digit string is a length.
+    const rawLength = response.headers.get('content-length');
+    const declaredLength = rawLength !== null && /^\d+$/.test(rawLength.trim());
     return {
       body: response.body,
       contentType: response.headers.get('content-type') || 'application/octet-stream',
-      contentLength: Number.isFinite(headerLength) ? headerLength : null,
+      contentLength: declaredLength ? Number(rawLength) : null,
       contentDisposition: response.headers.get('content-disposition'),
     };
   }
