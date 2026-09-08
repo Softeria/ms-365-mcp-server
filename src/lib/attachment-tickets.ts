@@ -45,31 +45,44 @@ export function buildAttachmentUrl(
   );
 }
 
+/** Any origin and version prefix will do; only whether parsing changes the path matters. */
+const PROBE_ORIGIN = 'https://graph.invalid';
+const PROBE_PREFIX = '/v1.0';
+
 /**
- * Whether a minted target is a plain, forward-only relative Graph path.
+ * Whether a minted target survives URL parsing unchanged.
  *
- * The mint-site checks match on a suffix (`/$value`, `/content`), which says nothing about
- * what precedes it. Two shapes get past a suffix match and then resolve somewhere else
- * entirely once `performRequest` concatenates `${graphApi}/${apiVersion}${endpoint}` and
- * WHATWG parses the result:
+ * The mint-site checks match on a suffix, which says nothing about what precedes it, and
+ * `performRequest` later concatenates the target onto the Graph origin and lets WHATWG
+ * parse the result. Anything the parser rewrites on the way makes the path that was
+ * validated and the path that gets fetched two different things.
  *
- *   - a fragment is never sent on the wire, so `/me/messages#/$value` matches the suffix
- *     and fetches `/v1.0/me/messages`;
- *   - dot segments are resolved away, and enough of them climb out of the version prefix,
- *     so `/me/x/../../../beta/me/messages/$value` fetches `/beta/...` in a server that is
- *     v1.0 only by design.
+ * This asks that question directly rather than enumerating the ways it can happen, because
+ * enumerating them kept coming up short: dot segments resolve away, a fragment never
+ * reaches the wire, and TAB, LF and CR are *deleted before* dot segments resolve, so a `..`
+ * split by one of them survives a segment comparison and is reassembled by the parser.
+ * Round-tripping catches that class whole, including the encoded and control-character
+ * spellings, and stays correct if the parser grows another normalisation.
  *
- * Neither grants authority the caller lacks -- `download-bytes` takes any relative path for
- * the same identity -- but a ticket is supposed to name the one resource it was validated
- * for, and the out-of-band channel is the one that never passes back through the agent.
- * Encoded spellings are rejected too: the check runs before any decoding, so `%2e%2e` and
- * `%2f` would otherwise slip a segment past it.
+ * `//` is rejected separately. With the version prefix in front it stays an ordinary path
+ * segment, so the round trip accepts it, but it is only inert for as long as the caller
+ * keeps prefixing something -- without that it parses as an authority and points off-origin.
  */
 export function isPlainGraphPath(target: string): boolean {
   if (!target.startsWith('/')) return false;
-  if (/[#?\\]/.test(target)) return false;
-  if (/%2e|%2f|%5c/i.test(target)) return false;
-  return !target.split('/').includes('..') && !target.split('/').includes('.');
+  if (target.includes('//')) return false;
+  let resolved: URL;
+  try {
+    resolved = new URL(PROBE_ORIGIN + PROBE_PREFIX + target);
+  } catch {
+    return false;
+  }
+  return (
+    resolved.origin === PROBE_ORIGIN &&
+    resolved.search === '' &&
+    resolved.hash === '' &&
+    resolved.pathname === PROBE_PREFIX + target
+  );
 }
 
 export interface AttachmentTicket {

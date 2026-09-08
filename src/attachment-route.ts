@@ -50,6 +50,64 @@ export interface AttachmentRouteDeps {
  */
 const NOT_FOUND_BODY = 'Not found';
 
+/**
+ * Re-emit an upstream `content-disposition` as an attachment carrying at most its filename.
+ *
+ * Always `attachment`: this serves untrusted bytes from a mailbox, and on the shared
+ * listener it does so from the same origin as `/mcp`, where a browser would happily render
+ * an upstream `inline` text/html. `nosniff` does not stop that.
+ *
+ * Parsed rather than pattern-matched off the end of the header, because a `;` inside a
+ * quoted parameter value ends a naive match in the wrong place -- emitting unbalanced
+ * quotes and a filename lifted out of some other parameter -- and `filename = "x"` with
+ * spaces around the `=` gets dropped. One parameter goes out, whatever came in.
+ */
+export function forceAttachment(header: string | null): string {
+  if (!header) return 'attachment';
+  const params: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < header.length; i += 1) {
+    const char = header[i];
+    if (quoted && char === '\\' && i + 1 < header.length) {
+      current += char + header[i + 1];
+      i += 1;
+      continue;
+    }
+    if (char === '"') quoted = !quoted;
+    else if (char === ';' && !quoted) {
+      params.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  params.push(current);
+
+  let filename: string | undefined;
+  let extended: string | undefined;
+  for (const param of params.slice(1)) {
+    const eq = param.indexOf('=');
+    if (eq === -1) continue;
+    const name = param.slice(0, eq).trim().toLowerCase();
+    // Controls would be refused by setHeader anyway; dropping them keeps the refusal here,
+    // where it costs a filename rather than the whole response.
+    const value = Array.from(param.slice(eq + 1).trim())
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        return code > 0x1f && code !== 0x7f;
+      })
+      .join('');
+    if (!value) continue;
+    if (name === 'filename*') extended = value;
+    else if (name === 'filename') filename = value;
+  }
+  // RFC 5987 wins where both are present, which is what it exists for.
+  if (extended) return `attachment; filename*=${extended}`;
+  if (filename) return `attachment; filename=${filename}`;
+  return 'attachment';
+}
+
 function refuse(res: Response): void {
   res.status(404).type('text/plain').send(NOT_FOUND_BODY);
 }
@@ -127,12 +185,7 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
     // endpoint serves untrusted bytes from a mailbox, and a browser that
     // wandered onto the URL must not render an inline text/html attachment as
     // a page on this origin.
-    // Graph's filename when it gave one, but always as an attachment. `?? 'attachment'`
-    // only supplied a default, so an upstream `inline` came straight through, and nosniff
-    // does not stop a browser rendering a declared text/html. On the shared listener that
-    // is the same origin as /mcp.
-    const filename = /(;\s*filename\*?=.*)$/i.exec(stream.contentDisposition ?? '')?.[1] ?? '';
-    res.setHeader('content-disposition', `attachment${filename}`);
+    res.setHeader('content-disposition', forceAttachment(stream.contentDisposition));
     res.setHeader('cache-control', 'no-store');
     res.setHeader('x-content-type-options', 'nosniff');
 

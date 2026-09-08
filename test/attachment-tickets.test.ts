@@ -12,7 +12,7 @@ import {
   AttachmentUrlConfigError,
 } from '../src/lib/attachment-url-config.js';
 import { canonicalString, digest } from '../src/lib/url-signing.js';
-import { createAttachmentHandler } from '../src/attachment-route.js';
+import { createAttachmentHandler, forceAttachment } from '../src/attachment-route.js';
 
 describe('AttachmentTicketStore', () => {
   const NOW = 1_780_000_000_000;
@@ -94,6 +94,11 @@ describe('AttachmentTicketStore', () => {
   });
 });
 
+const TAB = String.fromCharCode(9);
+const LF = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+const NUL = String.fromCharCode(0);
+
 describe('isPlainGraphPath', () => {
   it.each([
     '/me/messages/1/attachments/2/$value',
@@ -108,6 +113,14 @@ describe('isPlainGraphPath', () => {
   // climb out of the version prefix into /beta.
   it.each([
     ['fragment', '/me/messages#/$value'],
+    // WHATWG deletes TAB, LF and CR before it resolves dot segments, so a `..` split by one
+    // survives any segment comparison and is put back together by the parser.
+    ['tab-split traversal', '/me/x/.' + TAB + './.' + TAB + './beta/x/$value'],
+    ['lf-split traversal', '/me/x/.' + LF + './.' + LF + './beta/x/$value'],
+    ['cr-split traversal', '/me/x/.' + CR + './users/victim/messages/$value'],
+    ['lf-split encoded traversal', '/me/x/%2' + LF + 'e%2' + LF + 'e/beta/x/$value'],
+    ['nul byte', '/me/messages/' + NUL + '/$value'],
+    ['empty segment', '//evil.example/a/$value'],
     ['traversal', '/me/x/../../../beta/me/messages/$value'],
     ['encoded traversal', '/me/%2e%2e/beta/x/$value'],
     ['backslash', '/me\\x/$value'],
@@ -116,6 +129,45 @@ describe('isPlainGraphPath', () => {
     ['query', '/me/x/$value?select=id'],
   ])('rejects %s', (_label, target) => {
     expect(isPlainGraphPath(target)).toBe(false);
+  });
+
+  // The rule exists to keep the validated path and the fetched path identical, so assert
+  // that rather than the predicate alone: anything accepted must resolve to itself.
+  it.each([
+    '/me/messages/AAMkAGI2THVSAAA=/attachments/AAMkAGI2=/$value',
+    '/users/max@contoso.onmicrosoft.com/messages/AAMk/$value',
+    '/me/photo/$value',
+  ])('an accepted target resolves to itself (%s)', (target) => {
+    expect(isPlainGraphPath(target)).toBe(true);
+    expect(new URL('https://graph.microsoft.com/v1.0' + target).pathname).toBe('/v1.0' + target);
+  });
+});
+
+describe('forceAttachment', () => {
+  it.each([
+    [null, 'attachment'],
+    ['inline', 'attachment'],
+    ['inline; filename="q.pdf"', 'attachment; filename="q.pdf"'],
+    ['inline; filename = "space.pdf"', 'attachment; filename="space.pdf"'],
+    ["attachment; filename*=UTF-8''r%C3%A9.pdf", "attachment; filename*=UTF-8''r%C3%A9.pdf"],
+    ['attachment; size=123; filename="a.pdf"', 'attachment; filename="a.pdf"'],
+    // A `;` inside a quoted value ended a naive tail match in the wrong place, emitting
+    // unbalanced quotes and a filename taken out of a different parameter.
+    [
+      'inline; note="see ; filename=evil.html"; filename="real.pdf"',
+      'attachment; filename="real.pdf"',
+    ],
+    [
+      'inline; foo="x; filename=bogus.txt"; filename*=UTF-8\'\'real.pdf',
+      "attachment; filename*=UTF-8''real.pdf",
+    ],
+  ])('normalizes %j', (input, expected) => {
+    expect(forceAttachment(input)).toBe(expected);
+  });
+
+  it('drops control characters from a filename rather than losing the header', () => {
+    const injected = 'inline; filename="a' + CR + LF + 'X-Evil: 1.pdf"';
+    expect(forceAttachment(injected)).toBe('attachment; filename="aX-Evil: 1.pdf"');
   });
 });
 

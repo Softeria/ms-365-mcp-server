@@ -73,6 +73,7 @@ vi.mock('../src/logger.js', () => ({
 
 function mockAuthManager(): AuthManager {
   return {
+    isOAuthModeEnabled: () => false,
     isMultiAccount: vi.fn().mockResolvedValue(false),
     listAccounts: vi.fn().mockResolvedValue([]),
   } as unknown as AuthManager;

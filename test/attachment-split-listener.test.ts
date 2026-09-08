@@ -527,6 +527,52 @@ describe('--attachment-port (split attachment listener)', () => {
     });
   });
 
+  // Minting is refused whenever Graph identity comes from the request, so outside
+  // --trust-proxy-auth the feature is configured, logged at startup, and unable to mint
+  // anything. The condition has to follow that guard rather than the flags: inferring it
+  // got --obo backwards, since OBO installs a request token on every call.
+  describe('warns when minting can never succeed', () => {
+    const WARNING = /minting is refused whenever it does/;
+
+    async function warningsFor(options: CommandOptions): Promise<string[]> {
+      const [port] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+      await start({ http: `127.0.0.1:${port}`, enableAttachmentUrls: true, ...options });
+      return vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+    }
+
+    it('warns in plain --http, where every call carries a bearer token', async () => {
+      expect((await warningsFor({})).some((w) => WARNING.test(w))).toBe(true);
+    });
+
+    // The old condition was inferred from CLI flags and so missed this one entirely:
+    // MS365_MCP_OAUTH_TOKEN makes the guard refuse regardless of --trust-proxy-auth.
+    it('warns in OAuth mode even under --trust-proxy-auth', async () => {
+      const [port] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+      const server = new MicrosoftGraphServer(
+        { ...fakeAuthManager(), isOAuthModeEnabled: () => true } as unknown as AuthManager,
+        {
+          http: `127.0.0.1:${port}`,
+          trustProxyAuth: true,
+          enableAttachmentUrls: true,
+        } as CommandOptions
+      );
+      await server.initialize('0.0.0-test');
+      started.push(server);
+      await server.start();
+
+      const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+      expect(warnings.some((w) => WARNING.test(w))).toBe(true);
+    });
+
+    it('stays silent under --trust-proxy-auth, the one mode that can mint', async () => {
+      expect((await warningsFor({ trustProxyAuth: true })).some((w) => WARNING.test(w))).toBe(
+        false
+      );
+    });
+  });
+
   describe('shutdown', () => {
     it('closes both listeners', async () => {
       const [mcpPort, attachmentPort] = await reserveFreePorts(2);
