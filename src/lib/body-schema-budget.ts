@@ -1,16 +1,18 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { normalizeToolSchemaRefs } from '../normalize-tool-schema.js';
 import { positiveIntFromEnv } from './param-descriptions.js';
 
 /**
- * Keeps served tool definitions under a byte budget by flattening deep request-body
- * schemas.
+ * Measures the input-schema bytes a connector is charged for the served tools, and —
+ * when opted in — keeps each tool definition under a byte ration by flattening deep
+ * request-body schemas.
  *
  * Why this exists: a connector is served a fixed total amount of tool-definition data.
  * The list is walked alphabetically, each tool is charged on admission, and one that no
  * longer fits is skipped *entirely* — so a handful of very large write schemas silently
- * cost us whole tools further down the alphabet. Unrationed, the 327-tool surface serves
- * 1 666 197 bytes of schema — 1.6× the budget, 78 tools skipped — and a handful of write
+ * cost us whole tools further down the alphabet. Unrationed, a 327-tool org surface
+ * serves ~1.67 MB of schema — 1.6× the budget, 78 tools skipped — and a handful of write
  * schemas carry it: `create-sharepoint-list` alone expands from 670 bytes of endpoint
  * config into ~84 KB served, because the generated client inlines the Graph OpenAPI body
  * shape.
@@ -26,22 +28,32 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  *   organization cannot evict this one's tools, and splitting a surface across two
  *   connectors is a genuine mitigation.
  *
- * The per-definition ceiling below is ours, not the platform's — a ration that keeps the
- * aggregate comfortably under the connector budget without needing to know the final
- * tool count.
+ * Measurement mirrors the wire exactly: the SDK's own Zod→JSON-Schema conversion for
+ * `tools/list`, then `normalizeToolSchemaRefs`, which is what a connector receives. It
+ * always runs, and the aggregate is logged at registration whether or not anything is
+ * pruned — the total is what decides whether a tool is served, and until now nothing
+ * reported it.
  *
- * Only the body is pruned, only for tools that actually exceed the ration, and only as
- * far as needed — the least destructive strategy that fits wins, so most tools are
- * untouched byte for byte. Graph validates the body server-side anyway and bodies
- * already go through `lenientBodySchema` + passthrough, so pruning costs schema-level
- * guidance, not the ability to make the call.
+ * Pruning is **opt-in**: set `MS365_MCP_TOOL_DEFINITION_BUDGET=<bytes>` (4096 is the
+ * value measured to keep a full org surface at ~64 % of the connector budget). Unset,
+ * every tool registers byte for byte as generated. The ration is ours, not the platform's
+ * — a per-tool ceiling that keeps the aggregate under the connector budget without
+ * needing to know the final tool count.
  *
- * Field *names* are what a model needs to compose a request, and the per-field
- * description text is what actually consumes the budget — so descriptions go before
- * structure, and the body itself only as a last resort (see `PRUNE_STRATEGIES`). At the
- * 4 KiB default that leaves every body's field names visible. The eight bodies that
- * show no field names are opaque at any budget, unlimited included; that is inherent to
- * the Graph spec, not caused by pruning.
+ * When it runs, only the body is pruned, only for tools that actually exceed the ration,
+ * and only as far as needed — the least destructive strategy that fits wins, so most
+ * tools are untouched. Graph validates the body server-side anyway and bodies already go
+ * through `lenientBodySchema` + passthrough, so pruning costs schema-level guidance, not
+ * the ability to make the call. Field *names* are what a model needs to compose a
+ * request, and the per-field description text is what actually consumes the budget — so
+ * descriptions go before structure, and the body itself only as a last resort (see
+ * `PRUNE_STRATEGIES`). At a 4 KiB ration that leaves every body's field names visible;
+ * the eight bodies that show no field names are opaque at any budget, unlimited
+ * included — inherent to the Graph spec, not caused by pruning.
+ *
+ * Fitting is memoised per tool (see `fitToolDefinitionToBudget`'s `cacheKey`). HTTP mode
+ * is stateless and rebuilds the McpServer — and so re-registers every tool — on each
+ * `POST /mcp`; without the cache the whole measuring pass ran on every tool call.
  */
 
 /**
@@ -50,16 +62,20 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  */
 export const CONNECTOR_DEFINITION_BUDGET = 1_048_576;
 
-/** Byte ceiling for one served tool definition — our own ration, not the platform's. */
+/**
+ * Recommended per-tool ration when pruning is enabled, and the value an invalid
+ * `MS365_MCP_TOOL_DEFINITION_BUDGET` falls back to. Not applied unless the env var is set.
+ */
 export const DEFAULT_TOOL_DEFINITION_BUDGET = 4096;
 
 /**
- * Current per-definition ceiling, honoring MS365_MCP_TOOL_DEFINITION_BUDGET.
- *
- * The default is the strict value on purpose: an unset env var must not widen the
- * budget back to the state where tools go missing.
+ * Per-definition ceiling from `MS365_MCP_TOOL_DEFINITION_BUDGET`, or `undefined` when
+ * pruning is not opted in. An unparsable value means the operator meant to opt in, so it
+ * falls back to the recommended ration (with a warning) rather than silently disabling.
  */
-export function getToolDefinitionBudget(): number {
+export function getToolDefinitionBudget(): number | undefined {
+  const raw = process.env.MS365_MCP_TOOL_DEFINITION_BUDGET;
+  if (raw === undefined || raw === '') return undefined;
   return positiveIntFromEnv('MS365_MCP_TOOL_DEFINITION_BUDGET', DEFAULT_TOOL_DEFINITION_BUDGET);
 }
 
@@ -103,17 +119,36 @@ function withDescription(
   return description && keepDescription ? rebuilt.describe(description) : rebuilt;
 }
 
+/** The shape a collapsed value keeps: enough for a model to know what kind of value to send. */
+type CollapsedKind = 'array' | 'object' | 'other';
+
+function collapsedKind(schema: z.ZodTypeAny): CollapsedKind {
+  const unwrapped = unwrapContainer(schema);
+  if (unwrapped instanceof z.ZodArray) return 'array';
+  if (unwrapped instanceof z.ZodObject || unwrapped instanceof z.ZodRecord) return 'object';
+  if (unwrapped instanceof z.ZodUnion) {
+    // The generated client wraps most Graph object references as
+    // `z.union([namedType, z.object({}).partial().passthrough()])` — alternatives of the
+    // same kind collapse to that kind; genuinely mixed unions collapse to `any`.
+    const kinds = new Set((unwrapped.options as z.ZodTypeAny[]).map(collapsedKind));
+    return kinds.size === 1 ? [...kinds][0] : 'other';
+  }
+  return 'other';
+}
+
 /**
  * Collapse a schema to an open-ended equivalent, preserving the *kind* of value
  * expected so the model still knows whether to send an object or an array.
  */
 function collapse(schema: z.ZodTypeAny, keepDescription: boolean): z.ZodTypeAny {
-  const unwrapped = unwrapContainer(schema);
-  if (unwrapped instanceof z.ZodArray)
-    return withDescription(z.array(z.any()), schema, keepDescription);
-  if (unwrapped instanceof z.ZodObject)
-    return withDescription(z.record(z.any()), schema, keepDescription);
-  return withDescription(z.any(), schema, keepDescription);
+  switch (collapsedKind(schema)) {
+    case 'array':
+      return withDescription(z.array(z.any()), schema, keepDescription);
+    case 'object':
+      return withDescription(z.record(z.any()), schema, keepDescription);
+    default:
+      return withDescription(z.any(), schema, keepDescription);
+  }
 }
 
 /** Peel optional/nullable/lazy/default wrappers to reach the underlying type. */
@@ -141,9 +176,13 @@ function unwrapContainer(schema: z.ZodTypeAny): z.ZodTypeAny {
  * Rebuild `schema` keeping at most `maxDepth` levels of nested structure, and keeping
  * `.describe()` text only for the first `describeDepth` levels.
  *
- * Optional/nullable wrappers are rebuilt around the pruned inner type rather than
+ * Optional/nullable/default wrappers are rebuilt around the pruned inner type rather than
  * dropped: turning an optional body field into a required one would reject calls that
  * are valid today.
+ *
+ * Union alternatives sit at the *same* level as the union itself — choosing between them
+ * is not a step deeper into the body — so each is pruned with the same depth. Record
+ * values, like array elements, are one level down.
  */
 export function pruneSchemaDepth(
   schema: z.ZodTypeAny,
@@ -157,6 +196,11 @@ export function pruneSchemaDepth(
   }
   if (schema instanceof z.ZodNullable) {
     return pruneSchemaDepth(schema.unwrap(), maxDepth, describeDepth).nullable();
+  }
+  if (schema instanceof z.ZodDefault) {
+    return pruneSchemaDepth(schema._def.innerType, maxDepth, describeDepth).default(
+      schema._def.defaultValue
+    );
   }
   if (schema instanceof z.ZodLazy) {
     // Recursive Graph types (driveItem → children → driveItem) only terminate because
@@ -185,6 +229,28 @@ export function pruneSchemaDepth(
     );
   }
 
+  if (schema instanceof z.ZodRecord) {
+    return withDescription(
+      z.record(
+        schema.keySchema,
+        pruneSchemaDepth(schema.valueSchema, maxDepth - 1, describeDepth - 1)
+      ),
+      schema,
+      keepDescription
+    );
+  }
+
+  if (schema instanceof z.ZodUnion) {
+    const options = (schema.options as z.ZodTypeAny[]).map((option) =>
+      pruneSchemaDepth(option, maxDepth, describeDepth)
+    );
+    return withDescription(
+      z.union(options as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
+      schema,
+      keepDescription
+    );
+  }
+
   // A described scalar still carries its text; strip it when we are past describeDepth.
   if (!keepDescription && schema._def.description) {
     return collapseScalarDescription(schema);
@@ -208,24 +274,48 @@ function collapseScalarDescription(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 /**
+ * Serialize a tool's input schema exactly as `tools/list` will emit it: the SDK's own
+ * conversion (`toJsonSchemaCompat`, Zod v3 branch — `strictUnions`, input pipe strategy,
+ * default `$refStrategy: 'root'`), then the same `normalizeToolSchemaRefs` pass
+ * `installToolSchemaRefNormalization` applies on the way out (hoist to `#/$defs/`, inline
+ * back where a client can't resolve `$defs` — #571, #643 — keep the ref for recursive or
+ * oversized expansions).
+ *
+ * Kept in one place so the measurement cannot drift from the transport: whatever the
+ * normalization decides to inline is what the connector is charged for. An earlier
+ * version re-converted with `$refStrategy: 'none'` instead, which inlined recursive
+ * Graph bodies the transport keeps as refs and over-stated them by an order of magnitude
+ * (`create-sharepoint-list`: ~1 MB measured against ~84 KB served).
+ */
+export function serveToolInputSchema(
+  paramSchema: Record<string, z.ZodTypeAny>
+): Record<string, unknown> {
+  return serveInputSchema(z.object(paramSchema).passthrough());
+}
+
+/** Same pipeline for an already-built object schema (utility tools register a plain shape). */
+export function serveInputSchema(schema: z.ZodTypeAny): Record<string, unknown> {
+  const converted = zodToJsonSchema(schema, {
+    strictUnions: true,
+    pipeStrategy: 'input',
+  }) as Record<string, unknown>;
+  return normalizeToolSchemaRefs(converted);
+}
+
+/**
  * Byte length of what the connector budget actually charges for one tool: the compact
- * UTF-8 JSON of its input schema, mirroring what the MCP SDK emits for `tools/list`.
+ * UTF-8 JSON of its input schema as served by `tools/list`.
  *
  * `name` and `description` are deliberately not measured — the platform excludes them,
  * so counting them here would prune bodies to pay for text that costs nothing.
- *
- * Known over-estimate: `$refStrategy: 'none'` inlines every shared subtree, while what
- * `tools/list` actually emits keeps `$ref`/`$defs` (the SDK's own conversion, then
- * `normalizeToolSchemaRefs`). On ref-heavy Graph bodies the gap is large —
- * `create-sharepoint-list` measures ~1 MB here against ~84 KB served — so the ration
- * bites hardest on exactly the tools that carry the volume. Conservative in the safe
- * direction (it never under-prunes), but it prunes more than the budget requires.
  */
 export function measureToolDefinitionBytes(paramSchema: Record<string, z.ZodTypeAny>): number {
-  const inputSchema = zodToJsonSchema(z.object(paramSchema).passthrough(), {
-    $refStrategy: 'none',
-  });
-  return Buffer.byteLength(JSON.stringify(inputSchema), 'utf8');
+  return measureInputSchemaBytes(z.object(paramSchema).passthrough());
+}
+
+/** Served byte length of any registered input schema, passthrough or not. */
+export function measureInputSchemaBytes(schema: z.ZodTypeAny): number {
+  return Buffer.byteLength(JSON.stringify(serveInputSchema(schema)), 'utf8');
 }
 
 export type BudgetFitResult = {
@@ -240,17 +330,50 @@ export type BudgetFitResult = {
 };
 
 /**
+ * Fit results by caller-supplied key. A registration pass builds each tool's
+ * `paramSchema` from static endpoint data plus a few process-wide settings, so the
+ * outcome for a given key never changes within a process — and Zod schemas are immutable,
+ * so the cached (possibly pruned) schema can be registered on every fresh McpServer.
+ */
+const fitCache = new Map<string, BudgetFitResult>();
+
+/** Drop memoised fit results. For tests that vary the inputs behind a key. */
+export function clearToolDefinitionBudgetCache(): void {
+  fitCache.clear();
+}
+
+/**
  * Fit one tool definition under `budget` by pruning its body params, trying strategies
- * from least to most destructive. Returns the input unchanged when it already fits.
+ * from least to most destructive. Returns the input unchanged when it already fits — pass
+ * `Number.POSITIVE_INFINITY` to measure without ever pruning.
  *
  * A tool with no body param, or one that still overflows at the last strategy, is
  * returned as best-effort: the caller keeps a working tool rather than dropping it, and
  * the remaining overflow is reported so it can be logged.
+ *
+ * `cacheKey`, when given, memoises the result. The key must cover everything that shapes
+ * `paramSchema` for that tool — the caller knows which env-driven descriptions it folded
+ * in; this module does not.
  */
 export function fitToolDefinitionToBudget(
   paramSchema: Record<string, z.ZodTypeAny>,
   bodyParamNames: readonly string[],
-  budget: number = DEFAULT_TOOL_DEFINITION_BUDGET
+  budget: number = DEFAULT_TOOL_DEFINITION_BUDGET,
+  cacheKey?: string
+): BudgetFitResult {
+  if (cacheKey !== undefined) {
+    const cached = fitCache.get(cacheKey);
+    if (cached) return cached;
+  }
+  const result = fitUncached(paramSchema, bodyParamNames, budget);
+  if (cacheKey !== undefined) fitCache.set(cacheKey, result);
+  return result;
+}
+
+function fitUncached(
+  paramSchema: Record<string, z.ZodTypeAny>,
+  bodyParamNames: readonly string[],
+  budget: number
 ): BudgetFitResult {
   const bytesBefore = measureToolDefinitionBytes(paramSchema);
   if (bytesBefore <= budget || bodyParamNames.length === 0) {
