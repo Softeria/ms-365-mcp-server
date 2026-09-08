@@ -28,7 +28,11 @@ import { pipeline } from 'node:stream/promises';
 import logger from './logger.js';
 import type GraphClient from './graph-client.js';
 import type AuthManager from './auth.js';
-import { type AttachmentTicketStore, TICKET_PARAM } from './lib/attachment-tickets.js';
+import {
+  type AttachmentTicketStore,
+  isPlainGraphPath,
+  TICKET_PARAM,
+} from './lib/attachment-tickets.js';
 
 export interface AttachmentRouteDeps {
   store: AttachmentTicketStore;
@@ -52,6 +56,15 @@ function refuse(res: Response): void {
 
 export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
   return async (req: Request, res: Response): Promise<void> => {
+    // Express routes HEAD to a GET handler when no HEAD handler is registered, so without
+    // this a probe from a proxy or scanner redeems the ticket, has its body discarded, and
+    // leaves the fetch that matters to fail as an unexplained 404.
+    if (req.method !== 'GET') {
+      res.setHeader('allow', 'GET');
+      res.status(405).type('text/plain').send('Method not allowed');
+      return;
+    }
+
     const raw = req.query[TICKET_PARAM];
     // Express parses a repeated `?t=a&t=b` into an array. Refuse rather than
     // picking one: two tickets in one request is not a shape any legitimate
@@ -64,6 +77,16 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
 
     const ticket = deps.store.redeem(raw);
     if (!ticket) {
+      refuse(res);
+      return;
+    }
+
+    // Re-checked here, not because the store is untrusted, but because this is the last
+    // point before a fetch runs under the server's own token: a target that reaches it
+    // malformed should fail closed rather than resolve to whatever the path concatenation
+    // makes of it.
+    if (!isPlainGraphPath(ticket.target)) {
+      logger.error('Attachment redemption refused: ticket target is not a plain Graph path');
       refuse(res);
       return;
     }
@@ -104,7 +127,12 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
     // endpoint serves untrusted bytes from a mailbox, and a browser that
     // wandered onto the URL must not render an inline text/html attachment as
     // a page on this origin.
-    res.setHeader('content-disposition', stream.contentDisposition ?? 'attachment');
+    // Graph's filename when it gave one, but always as an attachment. `?? 'attachment'`
+    // only supplied a default, so an upstream `inline` came straight through, and nosniff
+    // does not stop a browser rendering a declared text/html. On the shared listener that
+    // is the same origin as /mcp.
+    const filename = /(;\s*filename\*?=.*)$/i.exec(stream.contentDisposition ?? '')?.[1] ?? '';
+    res.setHeader('content-disposition', `attachment${filename}`);
     res.setHeader('cache-control', 'no-store');
     res.setHeader('x-content-type-options', 'nosniff');
 

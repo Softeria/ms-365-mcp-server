@@ -251,7 +251,12 @@ class GraphClient {
     // one and simply did not declare it, and the route then sends `content-length: 0`
     // ahead of a body it goes on to stream. Only an actual digit string is a length.
     const rawLength = response.headers.get('content-length');
-    const declaredLength = rawLength !== null && /^\d+$/.test(rawLength.trim());
+    // fetch requests gzip by default and undici decodes the body, but leaves the header at
+    // the *compressed* size. Forwarding that caps the response short of the bytes actually
+    // being streamed, and the peer sees a 200 with a truncated file and no error anywhere,
+    // so a declared length is only usable when the body was not decoded on the way in.
+    const decoded = response.headers.get('content-encoding') !== null;
+    const declaredLength = !decoded && rawLength !== null && /^\d+$/.test(rawLength.trim());
     return {
       body: response.body,
       contentType: response.headers.get('content-type') || 'application/octet-stream',

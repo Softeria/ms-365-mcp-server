@@ -6,7 +6,11 @@ import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
 import { getAttachmentMinting } from './lib/attachment-minting.js';
-import { buildAttachmentUrl, TicketStoreFullError } from './lib/attachment-tickets.js';
+import {
+  buildAttachmentUrl,
+  isPlainGraphPath,
+  TicketStoreFullError,
+} from './lib/attachment-tickets.js';
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
@@ -329,6 +333,25 @@ async function mintDownloadUrl(
   if (accountModeError) {
     return {
       content: [{ type: 'text', text: JSON.stringify({ error: accountModeError }) }],
+      isError: true,
+    };
+  }
+
+  // The suffix checks at the call sites say nothing about what precedes the suffix, so a
+  // fragment or a dot segment gets past them and resolves elsewhere once the path is
+  // concatenated onto the Graph origin. Refuse rather than mint a ticket that names one
+  // resource and fetches another.
+  if (!isPlainGraphPath(target)) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error:
+              'target must be a plain relative Graph path: no fragment, no query, no "." or ".." segments, and no percent-encoded separators.',
+          }),
+        },
+      ],
       isError: true,
     };
   }

@@ -45,6 +45,33 @@ export function buildAttachmentUrl(
   );
 }
 
+/**
+ * Whether a minted target is a plain, forward-only relative Graph path.
+ *
+ * The mint-site checks match on a suffix (`/$value`, `/content`), which says nothing about
+ * what precedes it. Two shapes get past a suffix match and then resolve somewhere else
+ * entirely once `performRequest` concatenates `${graphApi}/${apiVersion}${endpoint}` and
+ * WHATWG parses the result:
+ *
+ *   - a fragment is never sent on the wire, so `/me/messages#/$value` matches the suffix
+ *     and fetches `/v1.0/me/messages`;
+ *   - dot segments are resolved away, and enough of them climb out of the version prefix,
+ *     so `/me/x/../../../beta/me/messages/$value` fetches `/beta/...` in a server that is
+ *     v1.0 only by design.
+ *
+ * Neither grants authority the caller lacks -- `download-bytes` takes any relative path for
+ * the same identity -- but a ticket is supposed to name the one resource it was validated
+ * for, and the out-of-band channel is the one that never passes back through the agent.
+ * Encoded spellings are rejected too: the check runs before any decoding, so `%2e%2e` and
+ * `%2f` would otherwise slip a segment past it.
+ */
+export function isPlainGraphPath(target: string): boolean {
+  if (!target.startsWith('/')) return false;
+  if (/[#?\\]/.test(target)) return false;
+  if (/%2e|%2f|%5c/i.test(target)) return false;
+  return !target.split('/').includes('..') && !target.split('/').includes('.');
+}
+
 export interface AttachmentTicket {
   /** Relative Graph path, exactly as the minting tool validated it. */
   readonly target: string;

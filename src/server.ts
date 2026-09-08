@@ -1008,6 +1008,19 @@ class MicrosoftGraphServer {
       // silently. Failing to start names the missing variable once, to the
       // person who can set it.
       const attachmentConfig = loadAttachmentUrlConfig(Boolean(this.options.enableAttachmentUrls));
+      // Minting is refused whenever Graph identity comes from the request, and in plain
+      // --http every tools/call carries a bearer token, so the feature never mints there.
+      // stdio already gets told this; without the same line here the likelier
+      // misconfiguration is a clean startup and a feature that does nothing at all.
+      if (attachmentConfig && !this.options.trustProxyAuth && !this.options.obo) {
+        logger.warn(
+          '--enable-attachment-urls is on, but this server takes its Graph identity from the ' +
+            'request in plain --http mode, and minting is refused whenever it does (the URL is ' +
+            'redeemed later with no Authorization header, so the bytes would be fetched as a ' +
+            'different identity). get-download-url will keep answering with download-bytes. ' +
+            'Server-minted URLs need --trust-proxy-auth, where the server uses its own token.'
+        );
+      }
       let attachmentApp: express.Express | null = null;
       if (attachmentConfig) {
         const ticketStore = new AttachmentTicketStore(attachmentConfig.ttlSeconds);

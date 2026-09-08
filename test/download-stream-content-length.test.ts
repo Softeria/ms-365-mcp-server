@@ -61,6 +61,19 @@ describe('downloadStream content-length', () => {
     expect(stream.contentLength).toBe(5);
   });
 
+  // fetch asks for gzip by default and undici decodes the body, but leaves the header at
+  // the compressed size. Forwarding it caps the response short of the bytes being streamed,
+  // and the peer sees a 200 with a truncated file.
+  it('reports no length when the body arrived encoded and was decoded for us', async () => {
+    respondWith({
+      'content-type': 'text/plain',
+      'content-encoding': 'gzip',
+      'content-length': '40',
+    });
+    const stream = await client.downloadStream('/me/messages/1/$value');
+    expect(stream.contentLength).toBeNull();
+  });
+
   it.each(['', '   ', 'chunked', '12abc', '-1', '1.5'])(
     'reports no length for a non-numeric header %j',
     async (value) => {

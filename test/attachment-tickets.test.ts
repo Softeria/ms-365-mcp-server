@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Writable } from 'node:stream';
 import {
+  isPlainGraphPath,
   AttachmentTicketStore,
   TicketStoreFullError,
   buildAttachmentUrl,
@@ -90,6 +91,31 @@ describe('AttachmentTicketStore', () => {
     // The oldest ticket is still redeemable — a caller minting in a loop must
     // not be able to invalidate someone else's outstanding ticket.
     expect(store.redeem(first.id, NOW)).toBeDefined();
+  });
+});
+
+describe('isPlainGraphPath', () => {
+  it.each([
+    '/me/messages/1/attachments/2/$value',
+    '/me/drive/items/1/content',
+    '/users/u@x.com/mailFolders/1/messages/2/$value',
+  ])('accepts a plain relative path (%s)', (target) => {
+    expect(isPlainGraphPath(target)).toBe(true);
+  });
+
+  // Each of these passes a suffix check and then resolves somewhere else once the path is
+  // concatenated onto the Graph origin: a fragment never goes on the wire, and dot segments
+  // climb out of the version prefix into /beta.
+  it.each([
+    ['fragment', '/me/messages#/$value'],
+    ['traversal', '/me/x/../../../beta/me/messages/$value'],
+    ['encoded traversal', '/me/%2e%2e/beta/x/$value'],
+    ['backslash', '/me\\x/$value'],
+    ['single dot', '/me/./x/$value'],
+    ['relative', 'me/messages/$value'],
+    ['query', '/me/x/$value?select=id'],
+  ])('rejects %s', (_label, target) => {
+    expect(isPlainGraphPath(target)).toBe(false);
   });
 });
 
@@ -282,13 +308,46 @@ describe('attachment redemption route', () => {
     written = [];
   });
 
+  // Express routes HEAD to a GET handler when no HEAD handler exists, so a probe from a
+  // proxy or scanner would otherwise spend the capability and leave the real fetch 404ing.
+  it('refuses HEAD without spending the ticket', async () => {
+    const { id } = store.mint('/me/messages/1/$value', undefined);
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({}) as never,
+      authManager: authManager as never,
+    });
+    await handler(
+      { method: 'HEAD', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+    expect(sent.status).toBe(405);
+    expect(store.size()).toBe(1);
+  });
+
+  it('404s a ticket whose target is not a plain Graph path', async () => {
+    const { id } = store.mint('/me/messages#/$value', undefined);
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({}) as never,
+      authManager: authManager as never,
+    });
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+    expect(sent.status).toBe(404);
+  });
+
   it('404s a missing ticket parameter', async () => {
     const handler = createAttachmentHandler({
       store,
       getGraphClient: () => ({}) as never,
       authManager: authManager as never,
     });
-    await handler({ query: {} } as never, mockRes() as never, (() => {}) as never);
+    await handler({ method: 'GET', query: {} } as never, mockRes() as never, (() => {}) as never);
     expect(sent.status).toBe(404);
   });
 
@@ -300,7 +359,7 @@ describe('attachment redemption route', () => {
     });
     const { id } = store.mint('/target', undefined);
     await handler(
-      { query: { t: [id, 'guess'] } } as never,
+      { method: 'GET', query: { t: [id, 'guess'] } } as never,
       mockRes() as never,
       (() => {}) as never
     );
@@ -315,14 +374,22 @@ describe('attachment redemption route', () => {
       getGraphClient: () => ({}) as never,
       authManager: authManager as never,
     });
-    await handler({ query: { t: 'nope' } } as never, mockRes() as never, (() => {}) as never);
+    await handler(
+      { method: 'GET', query: { t: 'nope' } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
     const unknown = { ...sent };
 
     const { id } = store.mint('/target', undefined);
     store.redeem(id);
     sent = { headers: {} };
     written = [];
-    await handler({ query: { t: id } } as never, mockRes() as never, (() => {}) as never);
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
 
     expect(sent.status).toBe(unknown.status);
     expect(sent.body).toBe(unknown.body);
@@ -347,7 +414,11 @@ describe('attachment redemption route', () => {
     });
     const { id } = store.mint('/me/messages/1/attachments/2/$value', 'max@example.com');
 
-    await handler({ query: { t: id } } as never, mockRes() as never, (() => {}) as never);
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
 
     expect(downloadStream).toHaveBeenCalledWith('/me/messages/1/attachments/2/$value', {
       accessToken: 'tok',
@@ -380,7 +451,11 @@ describe('attachment redemption route', () => {
       authManager: authManager as never,
     });
     const { id } = store.mint('/t', undefined);
-    await handler({ query: { t: id } } as never, mockRes() as never, (() => {}) as never);
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
     expect(sent.headers['content-disposition']).toBe('attachment');
     expect(sent.headers['content-length']).toBeUndefined();
   });
@@ -397,7 +472,11 @@ describe('attachment redemption route', () => {
       authManager: authManager as never,
     });
     const { id } = store.mint('/gone', undefined);
-    await handler({ query: { t: id } } as never, mockRes() as never, (() => {}) as never);
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
     expect(sent.status).toBe(502);
     expect(store.redeem(id)).toBeUndefined();
   });
