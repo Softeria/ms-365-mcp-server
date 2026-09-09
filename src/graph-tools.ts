@@ -67,6 +67,9 @@ import {
   getAcceptParamDescription,
   getAccountParamDescription,
   getFetchAllPagesParamDescription,
+  SKIPTOKEN_PARAM_DESCRIPTION,
+  isSkiptokenApplicable,
+  normalizeSkiptoken,
 } from './lib/param-descriptions.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1799,6 +1802,7 @@ async function executeGraphTool(
         'expand',
         'orderby',
         'skip',
+        'skiptoken',
         'top',
         'count',
         'search',
@@ -1995,6 +1999,13 @@ async function executeGraphTool(
     // callers) might still try — drop it server-side before clamping or sending.
     if (TOP_UNSUPPORTED_DELTA_TOOLS.has(tool.alias)) {
       delete queryParams['$top'];
+    }
+
+    // Manual cursor paging, for endpoints where $skip is not allowed
+    if (queryParams['$skiptoken']) {
+      const cursor = normalizeSkiptoken(queryParams['$skiptoken']);
+      if (cursor) queryParams['$skiptoken'] = cursor;
+      else delete queryParams['$skiptoken'];
     }
 
     clampTopQueryParam(queryParams);
@@ -2472,6 +2483,10 @@ export function registerGraphTools(
         .boolean()
         .describe(getFetchAllPagesParamDescription(maxPages))
         .optional();
+    }
+
+    if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {
+      paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
     }
 
     // Override OData parameter descriptions with spec-gap guidance. Text lives in

@@ -97,6 +97,54 @@ export const TOP_PARAM_DESCRIPTION =
 
 export const SKIP_PARAM_DESCRIPTION = 'Items to skip for pagination. Not supported with $search.';
 
+export const SKIPTOKEN_PARAM_DESCRIPTION =
+  'Opaque cursor for the next page, taken from the previous response. Copy the ' +
+  '$skiptoken value out of @odata.nextLink (or paste the whole nextLink URL — the ' +
+  'token is extracted from it) and resend it with the SAME $filter/$select/$expand/' +
+  '$top as the first call. Use this to walk pages one at a time instead of ' +
+  'fetchAllPages. Omit it for the first page.';
+
+// Query options that only exist on a collection, which are used to determine if
+// if skiptoken pagination is allowed
+const COLLECTION_QUERY_PARAMS = new Set(['top', 'filter', 'orderby', 'count']);
+
+// Guess whether a tool returns a collection and can take a `skiptoken`, given the
+// parameter names in its schema .
+export function isSkiptokenApplicable(
+  tool: { method: string },
+  paramNames: Iterable<string>
+): boolean {
+  if (tool.method.toUpperCase() !== 'GET') return false;
+  for (const name of paramNames) {
+    if (COLLECTION_QUERY_PARAMS.has(name.replace(/^\$/, '').toLowerCase())) return true;
+  }
+  return false;
+}
+
+// Accepts every shape a model plausibly sends a cursor in and returns the raw token:
+// a whole nextLink URL, a bare `$skiptoken=...` fragment, an already-percent-encoded
+// token, or the decoded token itself.
+export function normalizeSkiptoken(raw: string): string {
+  let token = raw.trim();
+
+  const marker = token.match(/(?:\$|%24)skiptoken=/i);
+  if (marker?.index !== undefined) {
+    token = token.slice(marker.index + marker[0].length);
+    // A nextLink can carry params after the cursor; keep only this one's value.
+    token = token.split('&')[0];
+  }
+
+  if (token.includes('%')) {
+    try {
+      token = decodeURIComponent(token);
+    } catch {
+      logger.warn('skiptoken looks percent-encoded but could not be decoded; sending as-is');
+    }
+  }
+
+  return token;
+}
+
 export const COUNT_PARAM_DESCRIPTION =
   'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains().';
 

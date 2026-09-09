@@ -6,6 +6,8 @@ import {
   getODataParamDescription,
   shouldOmitTopParam,
   isFetchAllPagesApplicable,
+  isSkiptokenApplicable,
+  SKIPTOKEN_PARAM_DESCRIPTION,
   getMaxPages,
   getFetchAllPagesParamDescription,
   getAccountParamDescription,
@@ -132,6 +134,22 @@ export function describeToolSchema(
       required: false,
       description: getFetchAllPagesParamDescription(getMaxPages()),
       schema: { type: 'boolean' },
+    });
+  }
+
+  // Mirrors registerGraphTools: GET list endpoints have a skiptoken cursor param.
+  if (
+    isSkiptokenApplicable(
+      { method: tool.method },
+      params.map((p) => p.name)
+    )
+  ) {
+    params.push({
+      name: 'skiptoken',
+      in: 'Query',
+      required: false,
+      description: SKIPTOKEN_PARAM_DESCRIPTION,
+      schema: { type: 'string' },
     });
   }
 
