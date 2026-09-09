@@ -524,6 +524,417 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('audit recipient metadata', () => {
+    const draftEndpoint = () => {
+      const endpoint = makeEndpoint({
+        method: 'post',
+        path: '/me/messages',
+        alias: 'create-draft-email',
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'post',
+        toolName: 'create-draft-email',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+    };
+
+    const runDraft = async (body: unknown) => {
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ id: 'draft-1' }) }],
+          _meta: { http_status: 201 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+      await server.tools.get('create-draft-email')!.handler({ body });
+      return auditLogMock.mock.calls[0][0];
+    };
+
+    it('records recipient count and domains, deduplicated and sorted', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'someone@example.com' } },
+          { emailAddress: { address: 'Another@Example.com' } },
+        ],
+        ccRecipients: [{ emailAddress: { address: 'auditor@partner.co.uk' } }],
+      });
+
+      expect(payload).toMatchObject({
+        tool: 'create-draft-email',
+        recipient_count: 3,
+        recipient_domains: ['example.com', 'partner.co.uk'],
+      });
+    });
+
+    it('reads recipients nested under a camelCase message, as createReply sends them', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        comment: 'forwarding this on',
+        message: { toRecipients: [{ emailAddress: { address: 'outside@gmail.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['gmail.com'] });
+    });
+
+    it('reads PascalCase fields, as the Graph action endpoints send them', async () => {
+      draftEndpoint();
+      // POST /me/messages/{id}/forward and /me/sendMail use ToRecipients / Message,
+      // unlike POST /me/messages which uses toRecipients.
+      const payload = await runDraft({
+        Comment: 'fyi',
+        ToRecipients: [{ emailAddress: { address: 'partner@vendor.com' } }],
+        Message: { CcRecipients: [{ emailAddress: { address: 'watcher@vendor.com' } }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 2, recipient_domains: ['vendor.com'] });
+    });
+
+    it('records calendar attendees, not just mail recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        subject: 'sync',
+        attendees: [
+          { emailAddress: { address: 'colleague@example.com' }, type: 'required' },
+          { emailAddress: { address: 'guest@external.org' }, type: 'optional' },
+        ],
+      });
+
+      expect(payload).toMatchObject({
+        recipient_count: 2,
+        recipient_domains: ['example.com', 'external.org'],
+      });
+    });
+
+    it('logs domains only, never the local part of an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'confidential.name@example.com' } }],
+      });
+
+      expect(payload.recipient_domains).toEqual(['example.com']);
+      expect(JSON.stringify(payload)).not.toContain('confidential.name');
+    });
+
+    it('rejects a tail that is not a plain hostname', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'a@example.com/path' } },
+          { emailAddress: { address: 'b@evil<script' } },
+          { emailAddress: { address: 'c@example.com,comment' } },
+          { emailAddress: { address: 'd@[IPv6:2001:db8::1]' } },
+          { emailAddress: { address: 'e@good.example' } },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(5);
+      expect(payload.recipient_domains).toEqual(['good.example']);
+    });
+
+    it('drops a domain longer than a hostname can be', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: `a@${'x'.repeat(300)}.example` } },
+          { emailAddress: { address: 'b@ext.com' } },
+        ],
+      });
+
+      // The cap bounds how many domains land in a record, not how long each one is, so
+      // without a length check one address picks the size of the audit line
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+    });
+
+    it('counts an entry that names someone without an address', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        recipients: [{ alias: 'finance-team' }, { objectId: 'abc-123' }],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
+
+    it('walks a body forwarded to Graph as a raw JSON string', async () => {
+      // Needs a strict schema: a passthrough one wraps the string instead, so the
+      // raw-string path never fires. When both parses fail, real mail goes out.
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'post',
+          path: '/me/sendMail',
+          alias: 'send-mail',
+          parameters: [
+            {
+              name: 'body',
+              type: 'Body',
+              schema: z.object({ message: z.object({}).passthrough() }),
+            },
+          ],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ pathPattern: '/me/sendMail', method: 'post', toolName: 'send-mail' }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ ok: true }) }],
+          _meta: { http_status: 202 },
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('send-mail')!.handler({
+        body: JSON.stringify({
+          message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+        }),
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('leaves a base64 upload body alone instead of warning on every upload', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          method: 'put',
+          path: '/me/photo/$value',
+          alias: 'upload-my-profile-photo',
+          requestFormat: 'binary',
+          parameters: [{ name: 'body', type: 'Body', schema: z.string() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          pathPattern: '/me/photo/$value',
+          method: 'put',
+          toolName: 'upload-my-profile-photo',
+        }),
+      ];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: '{}' }], _meta: { http_status: 200 } },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('upload-my-profile-photo')!.handler({
+        body: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+      });
+
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('recipient_count');
+      // Base64 is never JSON. Parsing it warned on every upload, and the parse error
+      // carries a slice of the file into the operational log
+      expect(loggerMock.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Skipped recipient audit metadata')
+      );
+    });
+
+    it('records driveItem invite recipients, which use email rather than emailAddress', async () => {
+      draftEndpoint();
+      // share-drive-item mails an outsider a link to the file
+      const payload = await runDraft({
+        recipients: [{ email: 'outsider@ext.com' }],
+        roles: ['read'],
+        sendInvitation: true,
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('records meeting participants, which use upn', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        participants: { attendees: [{ upn: 'guest@ext.com' }] },
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('survives a deeply nested array without blowing the stack', async () => {
+      draftEndpoint();
+      // Must terminate, not overflow - this walker runs inside the catch handler. 500 is
+      // far past MAX_BODY_DEPTH and still serialises on every Node we support; going
+      // deeper only tests where JSON.stringify gives out, which moves between versions.
+      let nested: unknown = [{ toRecipients: [{ emailAddress: { address: 'deep@ext.com' } }] }];
+      for (let i = 0; i < 500; i++) nested = [nested];
+
+      const payload = await runDraft({ requests: nested });
+
+      // Too deep to reach, but it has to return rather than throw
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload.status).toBe('success');
+    });
+
+    it('still audits a call whose params cannot be serialised for the log', async () => {
+      draftEndpoint();
+      // The params log line runs before the try that writes the audit record, so an
+      // unguarded stringify there escapes the tool entirely: protocol error, no trail.
+      const circular: Record<string, unknown> = { subject: 'loop' };
+      circular.self = circular;
+
+      const payload = await runDraft(circular);
+
+      expect(auditLogMock).toHaveBeenCalledTimes(1);
+      expect(payload).toMatchObject({ tool: 'create-draft-email', status: 'error' });
+    });
+
+    it('still records recipients when the request throws', async () => {
+      draftEndpoint();
+      const graphClient = {
+        graphRequest: vi.fn().mockRejectedValue(new Error('socket hang up')),
+      };
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('create-draft-email')!.handler({
+        body: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] },
+      });
+
+      // A timeout is not proof of non-delivery, so the signal has to survive
+      const payload = auditLogMock.mock.calls[0][0];
+      expect(payload.status).toBe('error');
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('walks recipients nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Routing a send through /$batch used to record nothing at all
+      const payload = await runDraft({
+        requests: [
+          { id: '1', method: 'GET', url: '/me/messages?$top=5' },
+          {
+            id: '2',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: { message: { toRecipients: [{ emailAddress: { address: 'a@ext.com' } }] } },
+          },
+        ],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reaches an itemAttachment nested inside a graph-batch sub-request', async () => {
+      draftEndpoint();
+      // Deepest shape the docstring promises: 7 levels, one under MAX_BODY_DEPTH. Pinned
+      // so trimming the budget fails here rather than quietly dropping the case.
+      const payload = await runDraft({
+        requests: [
+          {
+            id: '1',
+            method: 'POST',
+            url: '/me/sendMail',
+            body: {
+              message: {
+                toRecipients: [{ emailAddress: { address: 'direct@ext.com' } }],
+                attachments: [
+                  {
+                    '@odata.type': '#microsoft.graph.itemAttachment',
+                    item: {
+                      toRecipients: [{ emailAddress: { address: 'forwarded@deeper.example' } }],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      expect(payload.recipient_count).toBe(2);
+      expect(payload.recipient_domains).toEqual(['deeper.example', 'ext.com']);
+    });
+
+    it('reads a bare string entry, malformed though it is', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ toRecipients: ['a@ext.com'] });
+
+      // Graph rejects this shape, so nothing is delivered - but an attempted send to an
+      // outside domain is exactly what the trail is for
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('reads an all-PascalCase recipient entry, as Graph accepts it', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        ToRecipients: [{ EmailAddress: { Address: 'a@ext.com' } }],
+      });
+
+      expect(payload).toMatchObject({ recipient_count: 1, recipient_domains: ['ext.com'] });
+    });
+
+    it('normalises a display-name address down to the bare domain', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [
+          { emailAddress: { address: 'Bob <bob@ext.com>' } },
+          { emailAddress: { address: 'a@ext.com ' } },
+          { emailAddress: { address: 'c@ext.com note' } },
+        ],
+      });
+
+      // Same domain three ways - unnormalised that's three entries, one carrying junk
+      expect(payload.recipient_domains).toEqual(['ext.com']);
+      expect(payload.recipient_count).toBe(3);
+    });
+
+    it('caps the domain list but keeps recipient_count exact', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: Array.from({ length: 60 }, (_, i) => ({
+          emailAddress: { address: `user@d${String(i).padStart(2, '0')}.example` },
+        })),
+      });
+
+      // The count is the detection signal, so it has to survive the cap
+      expect(payload.recipient_count).toBe(60);
+      expect(payload.recipient_domains).toHaveLength(50);
+      expect(payload.recipient_domains_truncated).toBe(true);
+    });
+
+    it('does not flag truncation when the domain list fits', async () => {
+      draftEndpoint();
+      const payload = await runDraft({
+        toRecipients: [{ emailAddress: { address: 'a@example.com' } }],
+      });
+
+      expect(payload).not.toHaveProperty('recipient_domains_truncated');
+    });
+
+    it('omits both fields when a request has no recipients', async () => {
+      draftEndpoint();
+      const payload = await runDraft({ subject: 'a draft with no recipients yet' });
+
+      expect(payload).not.toHaveProperty('recipient_count');
+      expect(payload).not.toHaveProperty('recipient_domains');
+    });
+  });
+
   // ---- 1. $count advanced query mode ----
   describe('$count advanced query mode', () => {
     it('should set ConsistencyLevel: eventual header when $count=true', async () => {
@@ -1201,6 +1612,269 @@ describe('graph-tools', () => {
       expect(schema['messageId']).toBeDefined();
       expect(schema['messageId'].description).not.toBe('Path parameter: messageId');
       expect(schema['messageId'].description).toContain("not as 'id'");
+    });
+  });
+
+  // ---- $search KQL quote normalization ----
+  describe('$search quote normalization', () => {
+    async function callSearch(
+      search: string,
+      path = '/me/messages'
+    ): Promise<{ result: any; graphClient: any }> {
+      const endpoint = makeEndpoint({ path });
+      const config = makeConfig();
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ search });
+      return { result, graphClient };
+    }
+
+    async function callWithSearch(search: string, path = '/me/messages'): Promise<string> {
+      const { graphClient } = await callSearch(search, path);
+      return graphClient.graphRequest.mock.calls[0][0] as string;
+    }
+
+    it('wraps a bare KQL expression in one pair of double quotes', async () => {
+      const url = await callWithSearch('from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('collapses per-term quoting into a single enclosing pair', async () => {
+      const url = await callWithSearch('"from:john" AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    it('leaves an already correctly quoted expression untouched', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    // Graph rejects a property phrase that has no enclosing pair, so add one and escape the
+    // phrase quotes. Microsoft documents that escaping for directory search only; mail's own
+    // docs never show an embedded quote, so this form is inferred.
+    it('adds the enclosing pair around a property phrase', async () => {
+      const url = await callWithSearch('subject:"quarterly report"');
+      expect(url).toContain(`$search=${encodeURIComponent('"subject:\\"quarterly report\\""')}`);
+    });
+
+    it('keeps a standalone phrase grouped', async () => {
+      const url = await callWithSearch('"quarterly report" AND from:john');
+      expect(url).toContain(
+        `$search=${encodeURIComponent('"\\"quarterly report\\" AND from:john"')}`
+      );
+    });
+
+    it('leaves an already escaped phrase untouched', async () => {
+      const query = '"subject:\\"quarterly report\\""';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Already correctly wrapped free text is a multi-term search, not a phrase — escaping
+    // its quotes would narrow it to messages containing the exact phrase.
+    it('leaves already-wrapped free text as a multi-term search', async () => {
+      const query = '"quarterly report"';
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    // Date and size restrictions use comparison operators rather than a colon; they are
+    // clauses too, so per-clause quoting must be undone rather than escaped as a phrase.
+    it.each([
+      ['"received>=2024-01-01" AND from:john', '"received>=2024-01-01 AND from:john"'],
+      ['"size>1000" AND subject:meeting', '"size>1000 AND subject:meeting"'],
+      ['"received<2024-01-01"', '"received<2024-01-01"'],
+    ])('undoes per-clause quoting on a comparison clause (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A phrase can open with a word and a colon without being a clause. RE and Q3 are not
+    // mail properties, so the grouping quotes have to survive.
+    it.each([
+      ['"RE: quarterly report" AND from:john', '"\\"RE: quarterly report\\" AND from:john"'],
+      ['"Q3: plan.pdf" AND subject:budget', '"\\"Q3: plan.pdf\\" AND subject:budget"'],
+    ])('keeps phrase quotes on a clause-shaped phrase (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // The colon inside the phrase is part of the text, not a property separator.
+    it.each([
+      ['subject:"RE: quarterly report"', '"subject:\\"RE: quarterly report\\""'],
+      ['attachment:"Q3: plan.pdf"', '"attachment:\\"Q3: plan.pdf\\""'],
+    ])('keeps phrase quotes when the phrase contains a colon (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // KQL demotes a restriction with whitespace around the operator to free text, so these
+    // are phrases. Unwrapping them would search a bare `from:`/`subject:` and quietly drop
+    // the words the caller was actually looking for.
+    it.each([
+      [
+        '"from: the desk of the CEO" AND subject:report',
+        '"\\"from: the desk of the CEO\\" AND subject:report"',
+      ],
+      [
+        '"subject: quarterly report" AND from:john',
+        '"\\"subject: quarterly report\\" AND from:john"',
+      ],
+    ])('keeps phrase quotes when a space follows the property (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A trailing lone backslash would escape the enclosing pair's closing quote and hand
+    // Graph an unterminated string.
+    it('balances a trailing backslash so it cannot escape the closing quote', async () => {
+      const url = await callWithSearch('from:john\\');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john\\\\"')}`);
+    });
+
+    // An unterminated run is a missing closing quote, not a stray opening one. Dropping the
+    // delimiter would shed the grouping: `subject:"quarterly report` would go out as subject
+    // matching `quarterly` with `report` loose, which is a wider search than was asked for.
+    it.each([
+      ['from:"john', '"from:\\"john\\""'],
+      ['subject:"quarterly report', '"subject:\\"quarterly report\\""'],
+    ])('closes an unterminated quote rather than dropping it (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A restriction binds only the token after its operator, so unwrapping a multi-word value
+    // would bind the first word and leave the rest as free text. Escaping the run in place is
+    // no better: `subject:` would end up inside the phrase as literal text and the restriction
+    // would be lost. Only moving the quotes past the operator keeps both.
+    it.each([
+      [
+        '"subject:quarterly report" AND from:john',
+        '"subject:\\"quarterly report\\" AND from:john"',
+      ],
+      ['"from:john" AND "subject:the big report"', '"from:john AND subject:\\"the big report\\""'],
+    ])('moves quotes past the operator on a multi-word value (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // Per-clause quoting of a whole boolean group is the same directory-style mistake as
+    // quoting one clause, so it unwraps too. Escaping it would turn live restrictions into
+    // literal text and leave only the clauses outside the quotes doing any work.
+    it.each([
+      [
+        '"from:john AND subject:meeting" OR from:jane',
+        '"from:john AND subject:meeting OR from:jane"',
+      ],
+      [
+        '"from:john OR from:jane" AND hasAttachments:true',
+        '"from:john OR from:jane AND hasAttachments:true"',
+      ],
+    ])('unwraps a quoted group of clauses (%s)', async (query, expected) => {
+      const url = await callWithSearch(query);
+      expect(url).toContain(`$search=${encodeURIComponent(expected)}`);
+    });
+
+    // A missing closing quote on the enclosing pair is a dropped character, not the start of
+    // a phrase. Reading it as a phrase would search for the expression literally and match
+    // nothing, leaving the model no error to correct against.
+    it('recovers a dropped closing quote on the enclosing pair', async () => {
+      const url = await callWithSearch('"from:john AND subject:meeting');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
+    });
+
+    // An escaped backslash must be consumed as a unit, or its second slash pairs with the
+    // real delimiter behind it and the scan runs off the end of a well-formed string.
+    it('reads an escaped backslash before a closing quote', async () => {
+      const url = await callWithSearch('from:"a\\\\"');
+      expect(url).toContain(`$search=${encodeURIComponent('"from:\\"a\\\\\\""')}`);
+    });
+
+    // Every repair has to be a fixed point, otherwise a retry or a second pass corrupts a
+    // value this code just declared correct.
+    const CORPUS = [
+      'from:john AND subject:meeting',
+      '"from:john" AND subject:meeting',
+      'subject:"quarterly report',
+      '"subject:quarterly report" AND from:john',
+      '"from:john AND subject:meeting" OR from:jane',
+      '"from:john AND subject:meeting',
+      'from:john\\',
+      'from:"a\\\\"',
+      'subject:"abc\\',
+      '"quarterly report"',
+    ];
+
+    // The value Graph receives must be one well-formed escaped string: an opening quote, no
+    // unescaped quote before the final one, and no trailing backslash that would escape it.
+    // Asserting the shape catches a class of scanner bugs that enumerating cases misses.
+    it.each(CORPUS)('emits a balanced escaped string (%s)', async (query) => {
+      const url = await callWithSearch(query);
+      const value = new URL(url, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      expect(value.startsWith('"') && value.endsWith('"')).toBe(true);
+      let unescaped = 0;
+      for (let i = 0; i < value.length; i++) {
+        if (value[i] === '\\') {
+          i++;
+          continue;
+        }
+        if (value[i] === '"') unescaped++;
+      }
+      expect(unescaped).toBe(2);
+    });
+
+    it.each(CORPUS)('normalizing twice is a no-op (%s)', async (query) => {
+      const once = await callWithSearch(query);
+      const search = new URL(once, 'https://graph.microsoft.com').searchParams.get('$search')!;
+      const twice = await callWithSearch(search);
+      expect(twice).toContain(`$search=${encodeURIComponent(search)}`);
+    });
+
+    // Dropping $search would turn a search into an unfiltered listing of the whole mailbox
+    // and return it as though it were the result, which is worse than the 400 Graph sends.
+    it.each([' ', '   ', '"', '""""'])(
+      'refuses an unsearchable $search value %j',
+      async (query) => {
+        const { result, graphClient } = await callSearch(query);
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text).error).toBe('invalid_search');
+        expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      }
+    );
+
+    // Directory search advertises clause-level quoting, which mail's convention would
+    // destroy: collapsing the quotes below changes an OR of two clauses into one.
+    it.each([
+      ['/users', '"displayName:john" OR "displayName:jane"'],
+      // Mail-adjacent, but none of these take message KQL.
+      ['/me/mailFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/childFolders', 'foo OR bar'],
+      ['/me/mailFolders/:mailFolderId/messageRules', 'foo OR bar'],
+      ['/me/messages/:messageId/attachments', 'foo OR bar'],
+      ['/planner/tasks/:plannerTaskId/messages', 'foo OR bar'],
+      ['/chats/:chatId/messages', 'foo OR bar'],
+      ['/teams/:teamId/channels/:channelId/messages', 'foo OR bar'],
+    ])('does not touch $search on %s', async (path, query) => {
+      const url = await callWithSearch(query, path);
+      expect(url).toContain(`$search=${encodeURIComponent(query)}`);
+    });
+
+    it.each([
+      '/me/mailFolders/:mailFolderId/messages',
+      '/users/:userId/messages',
+      '/me/mailFolders/:mailFolderId/childFolders/:childFolderId/messages',
+    ])('still normalizes on %s', async (path) => {
+      const url = await callWithSearch('"from:john" AND subject:meeting', path);
+      expect(url).toContain(`$search=${encodeURIComponent('"from:john AND subject:meeting"')}`);
     });
   });
 
@@ -3117,6 +3791,237 @@ describe('graph-tools', () => {
 
       expect(server.tools.get('test-tool')!.schema).not.toHaveProperty('confirm');
       expect(server.tools.get('destructive-tool')!.schema).toHaveProperty('confirm');
+    });
+  });
+
+  // ---- 13. Server-side $select projection (#660) ----
+  describe('$select projection', () => {
+    // The onlineMeeting shape from #660: the caller asked for three fields and Graph
+    // sent the whole resource back, invite HTML and passcode included.
+    const untrimmed = {
+      value: [
+        {
+          id: 'MSo',
+          subject: 'Standup',
+          joinWebUrl: 'https://teams/x',
+          joinInformation: { content: '<div>invite</div>' },
+          joinMeetingIdSettings: { passcode: '123456' },
+        },
+      ],
+    };
+
+    async function run(
+      args: Record<string, unknown>,
+      responses?: any[],
+      outputFormat: 'json' | 'toon' = 'json'
+    ) {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const graphClient = createMockGraphClient(
+        responses ?? [{ content: [{ type: 'text', text: JSON.stringify(untrimmed) }] }],
+        outputFormat
+      );
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools.get('test-tool')!.handler(args);
+      return { result, graphClient };
+    }
+
+    it('narrows the body to the requested fields when Graph ignored $select', async () => {
+      const { result } = await run({ select: 'id,subject,joinWebUrl' });
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: 'MSo',
+        subject: 'Standup',
+        joinWebUrl: 'https://teams/x',
+      });
+    });
+
+    it('leaves the body untouched when no select was passed', async () => {
+      const { result } = await run({});
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
+    });
+
+    it('forces JSON so a --toon client still gets a trimmed body', async () => {
+      const { result, graphClient } = await run({ select: 'id,subject' }, undefined, 'toon');
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ forceJsonOutput: true })
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+    });
+
+    // Regression: the merge re-encodes to TOON, so projecting after it would JSON.parse
+    // a TOON string, throw, and silently ship the untrimmed body.
+    it('still projects when --toon and fetchAllPages are combined', async () => {
+      const { result } = await run(
+        { select: 'id,subject', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a', joinInformation: { content: 'huge' } }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '2', subject: 'b', joinInformation: { content: 'huge' } }],
+                }),
+              },
+            ],
+          },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(true);
+      expect(result.content[0].text).not.toContain('joinInformation');
+      const merged = JSON.parse(result.content[0].text.slice('TOON:'.length));
+      expect(merged.value).toEqual([
+        { id: '1', subject: 'a' },
+        { id: '2', subject: 'b' },
+      ]);
+    });
+
+    // Binary and raw-text payloads are wrapped in an envelope; projecting one would
+    // strip every key and lose the file or transcript.
+    it('does not project a raw-text transport envelope', async () => {
+      const envelope = { message: 'OK!', rawResponse: 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000' };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    it('does not project a binary transport envelope', async () => {
+      const envelope = {
+        message: 'OK!',
+        contentType: 'video/mp4',
+        encoding: 'base64',
+        contentLength: 3,
+        contentBytes: 'AAA',
+      };
+      const { result } = await run({ select: 'id' }, [
+        { content: [{ type: 'text', text: JSON.stringify(envelope) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+    });
+
+    // $select and $expand are independent in OData: the expanded property arrives in
+    // addition to the selected fields and has to survive the projection.
+    it('keeps an $expand-ed navigation property that was not selected', async () => {
+      const { result } = await run({ select: 'subject', expand: 'attachments' }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: '1',
+                subject: 'a',
+                attachments: [{ id: 'att1' }],
+                bodyPreview: 'huge',
+              }),
+            },
+          ],
+        },
+      ]);
+      const body = JSON.parse(result.content[0].text);
+      expect(body.attachments).toEqual([{ id: 'att1' }]);
+      expect(body).not.toHaveProperty('bodyPreview');
+    });
+
+    // Graph never rejects a bad property name on the endpoints that ignore $select, so
+    // a typo would otherwise silently reduce the response to {id}.
+    it('returns the body untrimmed when no requested field is present', async () => {
+      const body = { id: '1', joinWebUrl: 'u', joinInformation: { content: 'huge' } };
+      const { result } = await run({ select: 'joinUrl' }, [
+        { content: [{ type: 'text', text: JSON.stringify(body) }] },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(body);
+    });
+
+    it('keeps the _etag that includeHeaders adds to a single resource', async () => {
+      const { result } = await run({ select: 'subject', includeHeaders: true }, [
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ id: '1', subject: 'a', _etag: 'W/"1"', bodyPreview: 'huge' }),
+            },
+          ],
+        },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: '1',
+        subject: 'a',
+        _etag: 'W/"1"',
+      });
+    });
+
+    // Asserting on the body alone passed even with the excludeResponse clause removed,
+    // because { success: true } trips the envelope guard anyway. forceJsonOutput is the
+    // signal that projection was never armed in the first place.
+    it('does not arm projection when excludeResponse was requested', async () => {
+      const { result, graphClient } = await run({ select: 'id', excludeResponse: true }, [
+        { content: [{ type: 'text', text: JSON.stringify({ success: true }) }] },
+      ]);
+      expect(graphClient.graphRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.objectContaining({ forceJsonOutput: true })
+      );
+      expect(JSON.parse(result.content[0].text)).toEqual({ success: true });
+    });
+
+    // An error body still reaches the merge block, which parses and re-serializes it, so
+    // shouldProject is the only thing standing between it and the projection. Two keys
+    // with one selected: if the guard goes, `code` disappears.
+    it('does not project an error body on the merge path', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 403 Forbidden', code: 'accessDenied' };
+      const { result } = await run({ select: 'error', fetchAllPages: true }, [
+        { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+      ]);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // A page failing mid-merge replaces `response` with the error, which the guard
+    // computed before the request cannot see.
+    it('leaves an error from a later page alone', async () => {
+      const errorBody = { error: 'Microsoft Graph API error: 503 Service Unavailable' };
+      const { result } = await run(
+        { select: 'error', fetchAllPages: true },
+        [
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: '1', subject: 'a' }],
+                  '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=1',
+                }),
+              },
+            ],
+          },
+          { content: [{ type: 'text', text: JSON.stringify(errorBody) }], isError: true },
+        ],
+        'toon'
+      );
+      expect(result.content[0].text.startsWith('TOON:')).toBe(false);
+      expect(JSON.parse(result.content[0].text)).toEqual(errorBody);
+    });
+
+    // The llmTips tell the model to pass select=id,subject,joinWebUrl, so id is in the
+    // list nearly every time; counting it as a match made the typo guard inert.
+    it('returns the body untrimmed when the only real field is a typo alongside id', async () => {
+      const { result } = await run({ select: 'id,joinUrl' });
+      expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
     });
   });
 
