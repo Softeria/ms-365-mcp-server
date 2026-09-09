@@ -491,6 +491,86 @@ describe('graph-tools', () => {
       expect(payload.result_has_more).toBe(false);
     });
 
+    it('restates count and bytes for the whole read when pages are merged', async () => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }, { id: '2' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 1000 },
+        },
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [{ id: '3' }] }) }],
+          _meta: { http_status: 200, result_count: 1, result_has_more: false, response_bytes: 700 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(3);
+      expect(payload.result_has_more).toBe(false);
+      // Both pages, not just page one — the whole point of merging.
+      expect(payload.response_bytes).toBe(1700);
+    });
+
+    it('reports result_has_more when the merge loop stopped on a page cap', async () => {
+      const prevMaxPages = process.env.MS365_MCP_MAX_PAGES;
+      process.env.MS365_MCP_MAX_PAGES = '2';
+      try {
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        // Every page carries a nextLink, so the loop can only exit on the cap.
+        const graphClient = createMockGraphClient(
+          Array.from({ length: 5 }, (_, i) => ({
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: `item-${i}` }],
+                  '@odata.nextLink': `https://graph.microsoft.com/v1.0/me/messages?$skip=${i + 1}`,
+                }),
+              },
+            ],
+            _meta: { http_status: 200, result_count: 1, result_has_more: true, response_bytes: 50 },
+          }))
+        );
+
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+        const [payload] = auditLogMock.mock.calls[0];
+        expect(payload.result_count).toBe(2);
+        // Truncated at the cap: the merged body drops @odata.nextLink, so the
+        // audit event is the only place Graph-has-more survives.
+        expect(payload.result_has_more).toBe(true);
+        expect(payload.response_bytes).toBe(100);
+      } finally {
+        if (prevMaxPages === undefined) {
+          delete process.env.MS365_MCP_MAX_PAGES;
+        } else {
+          process.env.MS365_MCP_MAX_PAGES = prevMaxPages;
+        }
+      }
+    });
+
     it('omits the volume fields when the client supplied none', async () => {
       const endpoint = makeEndpoint({ method: 'get', path: '/me', alias: 'get-current-user' });
       const config = makeConfig({

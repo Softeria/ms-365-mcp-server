@@ -2216,6 +2216,10 @@ async function executeGraphTool(
           let allItems: unknown[] = firstValue;
           let nextLink = combinedResponse['@odata.nextLink'];
           let pageCount = 1;
+          // Page one's bytes, to be added to as pages arrive. Undefined stays
+          // undefined rather than becoming 0: an unknown total must not read as
+          // an empty one.
+          let totalResponseBytes = response._meta?.response_bytes;
           const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
           const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
           // Graph only emits @odata.deltaLink on the final page of a /delta query.
@@ -2250,6 +2254,12 @@ async function executeGraphTool(
                 allItems = allItems.concat(nextJsonResponse.value);
               }
               nextLink = nextJsonResponse['@odata.nextLink'];
+              if (
+                typeof totalResponseBytes === 'number' &&
+                typeof nextResponse._meta?.response_bytes === 'number'
+              ) {
+                totalResponseBytes += nextResponse._meta.response_bytes;
+              }
               if (nextJsonResponse['@odata.deltaLink']) {
                 deltaLink = nextJsonResponse['@odata.deltaLink'];
               }
@@ -2275,11 +2285,17 @@ async function executeGraphTool(
             }
             delete combinedResponse['@odata.nextLink'];
             // The client's metadata described page one. Now that pages are
-            // merged, restate the count and the fact that nothing is left.
+            // merged, restate all three for the whole read.
+            //
+            // nextLink still being set means the loop stopped on maxPages or
+            // maxItems, not on running out: Graph has more. The merged body
+            // drops @odata.nextLink either way, so the audit event is the only
+            // place that truncation is visible.
             response._meta = {
               ...response._meta,
               result_count: allItems.length,
-              result_has_more: false,
+              result_has_more: Boolean(nextLink),
+              ...(totalResponseBytes !== undefined ? { response_bytes: totalResponseBytes } : {}),
             };
             if (deltaLink) {
               combinedResponse['@odata.deltaLink'] = deltaLink;
