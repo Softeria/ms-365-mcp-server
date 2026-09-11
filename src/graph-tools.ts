@@ -485,6 +485,9 @@ function graphResponseAuditFields(
   | 'graph_batch_subrequest_count'
   | 'graph_batch_http_status_counts'
   | 'graph_batch_error_code_counts'
+  | 'result_count'
+  | 'result_has_more'
+  | 'response_bytes'
 > {
   const httpStatus = auditHttpStatus(response._meta?.http_status);
   const errorCode = response.isError ? auditErrorCode(response._meta?.error_code) : undefined;
@@ -497,8 +500,17 @@ function graphResponseAuditFields(
   const graphBatchErrorCodeCounts = auditStringNumberMap(
     response._meta?.graph_batch_error_code_counts
   );
+  const resultCount = auditNonNegativeInteger(response._meta?.result_count);
+  const responseBytes = auditNonNegativeInteger(response._meta?.response_bytes);
+  const resultHasMore =
+    typeof response._meta?.result_has_more === 'boolean'
+      ? response._meta.result_has_more
+      : undefined;
 
   return {
+    ...(resultCount !== undefined ? { result_count: resultCount } : {}),
+    ...(resultHasMore !== undefined ? { result_has_more: resultHasMore } : {}),
+    ...(responseBytes !== undefined ? { response_bytes: responseBytes } : {}),
     ...(httpStatus !== undefined ? { http_status: httpStatus } : {}),
     ...(errorCode !== undefined ? { error_code: errorCode } : {}),
     ...(graphBatchSubrequestCount !== undefined
@@ -1322,7 +1334,16 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               }),
             },
           ],
-          ...(result.httpStatus !== undefined ? { _meta: { http_status: result.httpStatus } } : {}),
+          // response_bytes must describe the file written, not this receipt.
+          // Streaming to disk means the payload never appears in the response,
+          // so without this the most extraction-shaped tool in the server would
+          // audit a 250MB download at the size of an error message.
+          _meta: {
+            ...(result.httpStatus !== undefined ? { http_status: result.httpStatus } : {}),
+            ...(typeof result.contentLength === 'number'
+              ? { response_bytes: result.contentLength }
+              : {}),
+          },
         };
       } catch (error) {
         const metadata = thrownErrorAuditFields(error);
@@ -2195,6 +2216,10 @@ async function executeGraphTool(
           let allItems: unknown[] = firstValue;
           let nextLink = combinedResponse['@odata.nextLink'];
           let pageCount = 1;
+          // Page one's bytes, to be added to as pages arrive. Undefined stays
+          // undefined rather than becoming 0: an unknown total must not read as
+          // an empty one.
+          let totalResponseBytes = response._meta?.response_bytes;
           const maxPages = positiveIntFromEnv('MS365_MCP_MAX_PAGES', DEFAULT_MAX_PAGES);
           const maxItems = positiveIntFromEnv('MS365_MCP_MAX_ITEMS', DEFAULT_MAX_ITEMS);
           // Graph only emits @odata.deltaLink on the final page of a /delta query.
@@ -2229,6 +2254,12 @@ async function executeGraphTool(
                 allItems = allItems.concat(nextJsonResponse.value);
               }
               nextLink = nextJsonResponse['@odata.nextLink'];
+              if (
+                typeof totalResponseBytes === 'number' &&
+                typeof nextResponse._meta?.response_bytes === 'number'
+              ) {
+                totalResponseBytes += nextResponse._meta.response_bytes;
+              }
               if (nextJsonResponse['@odata.deltaLink']) {
                 deltaLink = nextJsonResponse['@odata.deltaLink'];
               }
@@ -2253,6 +2284,19 @@ async function executeGraphTool(
               combinedResponse['@odata.count'] = allItems.length;
             }
             delete combinedResponse['@odata.nextLink'];
+            // The client's metadata described page one. Now that pages are
+            // merged, restate all three for the whole read.
+            //
+            // nextLink still being set means the loop stopped on maxPages or
+            // maxItems, not on running out: Graph has more. The merged body
+            // drops @odata.nextLink either way, so the audit event is the only
+            // place that truncation is visible.
+            response._meta = {
+              ...response._meta,
+              result_count: allItems.length,
+              result_has_more: Boolean(nextLink),
+              ...(totalResponseBytes !== undefined ? { response_bytes: totalResponseBytes } : {}),
+            };
             if (deltaLink) {
               combinedResponse['@odata.deltaLink'] = deltaLink;
             }

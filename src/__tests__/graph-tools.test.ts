@@ -409,6 +409,201 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('audit response volume', () => {
+    it('lifts result volume from _meta onto the audit event', async () => {
+      const endpoint = makeEndpoint({
+        method: 'get',
+        path: '/me/messages',
+        alias: 'list-mail-messages',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'get',
+        toolName: 'list-mail-messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [{ id: 'm1' }] }) }],
+          _meta: {
+            http_status: 200,
+            result_count: 4821,
+            result_has_more: true,
+            response_bytes: 8_412_004,
+          },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('list-mail-messages')!.handler({});
+
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: 'list-mail-messages',
+          status: 'success',
+          result_count: 4821,
+          result_has_more: true,
+          response_bytes: 8_412_004,
+        })
+      );
+    });
+
+    it('keeps result_has_more when it is false rather than dropping it', async () => {
+      const endpoint = makeEndpoint({
+        method: 'get',
+        path: '/me/messages',
+        alias: 'list-mail-messages',
+      });
+      const config = makeConfig({
+        pathPattern: '/me/messages',
+        method: 'get',
+        toolName: 'list-mail-messages',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
+          _meta: { http_status: 200, result_count: 0, result_has_more: false },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('list-mail-messages')!.handler({});
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(0);
+      expect(payload.result_has_more).toBe(false);
+    });
+
+    it('restates count and bytes for the whole read when pages are merged', async () => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }, { id: '2' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 1000 },
+        },
+        {
+          content: [{ type: 'text', text: JSON.stringify({ value: [{ id: '3' }] }) }],
+          _meta: { http_status: 200, result_count: 1, result_has_more: false, response_bytes: 700 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(3);
+      expect(payload.result_has_more).toBe(false);
+      // Both pages, not just page one — the whole point of merging.
+      expect(payload.response_bytes).toBe(1700);
+    });
+
+    it('reports result_has_more when the merge loop stopped on a page cap', async () => {
+      const prevMaxPages = process.env.MS365_MCP_MAX_PAGES;
+      process.env.MS365_MCP_MAX_PAGES = '2';
+      try {
+        mockEndpoints.push(makeEndpoint());
+        mockEndpointsJson = [makeConfig()];
+
+        // Every page carries a nextLink, so the loop can only exit on the cap.
+        const graphClient = createMockGraphClient(
+          Array.from({ length: 5 }, (_, i) => ({
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  value: [{ id: `item-${i}` }],
+                  '@odata.nextLink': `https://graph.microsoft.com/v1.0/me/messages?$skip=${i + 1}`,
+                }),
+              },
+            ],
+            _meta: { http_status: 200, result_count: 1, result_has_more: true, response_bytes: 50 },
+          }))
+        );
+
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+        const [payload] = auditLogMock.mock.calls[0];
+        expect(payload.result_count).toBe(2);
+        // Truncated at the cap: the merged body drops @odata.nextLink, so the
+        // audit event is the only place Graph-has-more survives.
+        expect(payload.result_has_more).toBe(true);
+        expect(payload.response_bytes).toBe(100);
+      } finally {
+        if (prevMaxPages === undefined) {
+          delete process.env.MS365_MCP_MAX_PAGES;
+        } else {
+          process.env.MS365_MCP_MAX_PAGES = prevMaxPages;
+        }
+      }
+    });
+
+    it('omits the volume fields when the client supplied none', async () => {
+      const endpoint = makeEndpoint({ method: 'get', path: '/me', alias: 'get-current-user' });
+      const config = makeConfig({
+        pathPattern: '/me',
+        method: 'get',
+        toolName: 'get-current-user',
+      });
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+
+      const graphClient = createMockGraphClient([
+        {
+          content: [{ type: 'text', text: JSON.stringify({ id: 'user-1' }) }],
+          _meta: { http_status: 200 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as unknown as Parameters<typeof registerGraphTools>[0],
+        graphClient as unknown as Parameters<typeof registerGraphTools>[1]
+      );
+
+      await server.tools.get('get-current-user')!.handler({});
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload).not.toHaveProperty('result_count');
+      expect(payload).not.toHaveProperty('result_has_more');
+      expect(payload).not.toHaveProperty('response_bytes');
+    });
+  });
+
   describe('audit recipient metadata', () => {
     const draftEndpoint = () => {
       const endpoint = makeEndpoint({
