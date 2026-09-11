@@ -206,6 +206,7 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 ## Security Considerations
 
 - **Stateless**: the server does not store tokens — each request carries the user's Bearer token
+- **More than one instance? Set `MS365_MCP_PKCE_SECRET`** (32+ random characters). The two-leg PKCE flow otherwise keeps a mapping in process memory between `/authorize` and `/token`, so a second replica, a serverless function or a restart between the two legs fails the exchange with `AADSTS501481`. With the secret set, the server-side verifier is derived from the client's code_challenge and the secret and nothing is stored, so any instance can complete the exchange. Single-process deployments can leave it unset. Embedding hosts can also build the app without binding a port via `options.noListen` + `getHttpApp()`.
 - **Account pinning**: `MS365_MCP_EXPECTED_USERNAME` and `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID` protect local MSAL cache flows for headless stdio deployments. In `--http`, `--obo`, or `MS365_MCP_OAUTH_TOKEN` deployments they are warning-only because Graph calls use request-provided tokens.
 - **Admin consent**: grant tenant-wide consent to avoid per-user consent prompts
 - **Managed identity**: use managed identity for Key Vault access (no secrets in environment variables)
