@@ -621,14 +621,14 @@
     "method": "get",
     "toolName": "get-drive-root-item",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.Read"]
+    "scopes": [["Files.Read"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.Read"]
+    "scopes": [["Files.Read"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -642,7 +642,7 @@
     "method": "put",
     "toolName": "upload-file-content",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"],
+    "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Graph accepts up to 250MB here, but the whole string travels as a tool argument and a truncated one decodes to a truncated file with no error, so use create-upload-session rather than emitting a large base64 string. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
@@ -650,7 +650,7 @@
     "method": "post",
     "toolName": "create-upload-session",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"],
+    "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
@@ -658,7 +658,7 @@
     "method": "get",
     "toolName": "get-drive-item",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.Read"],
+    "scopes": [["Files.Read"], ["Sites.Selected"]],
     "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For large drive/SharePoint files, call get-download-url with target=/drives/{drive-id}/items/{driveItem-id}/content to fetch out-of-band with no Authorization header. For small files where base64 in the tool response is acceptable, call download-bytes with the same /content target."
   },
   {
@@ -666,7 +666,7 @@
     "method": "patch",
     "toolName": "move-rename-onedrive-item",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"],
+    "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request."
   },
   {
@@ -674,7 +674,7 @@
     "method": "post",
     "toolName": "create-onedrive-folder",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"],
+    "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'."
   },
   {
@@ -698,7 +698,7 @@
     "method": "post",
     "toolName": "copy-drive-item",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"],
+    "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
   },
   {
@@ -738,7 +738,7 @@
     "method": "get",
     "toolName": "list-drive-item-versions",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.Read"],
+    "scopes": [["Files.Read"], ["Sites.Selected"]],
     "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
   },
   {

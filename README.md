@@ -154,7 +154,7 @@ SharePoint supports two enterprise permission models:
 - Broad tenant scopes such as `Sites.Read.All`, `Sites.ReadWrite.All`, and `Sites.Manage.All`.
 - Microsoft Graph `Sites.Selected`, where SharePoint site access is granted to the app on specific site collections and Graph evaluates the signed-in user's own permissions at request time.
 
-The default org-mode behavior continues to request the broad SharePoint scopes used by existing deployments. Enterprises that want selected-site SharePoint access can set an allowlist containing `Sites.Selected` instead of broad `Sites.*.All` scopes. Direct site/list/item tools that target an explicit SharePoint site can run with `Sites.Selected`; tenant-wide SharePoint discovery and search tools still require broad SharePoint scopes.
+The default org-mode behavior continues to request the broad SharePoint scopes used by existing deployments. Enterprises that want selected-site SharePoint access can set an allowlist containing `Sites.Selected` instead of broad `Sites.*.All` scopes. Direct site/list/item tools that target an explicit SharePoint site, and the `/drives/{drive-id}/...` item tools (list, get, upload, folder, move/rename, copy, versions) for drives of a granted site, can run with `Sites.Selected`; tenant-wide SharePoint discovery and search tools still require broad SharePoint scopes.
 
 ```bash
 npx @softeria/ms-365-mcp-server \
