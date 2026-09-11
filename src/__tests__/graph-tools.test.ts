@@ -1284,6 +1284,143 @@ describe('graph-tools', () => {
     });
   });
 
+  // ---- 2a. skiptoken cursor paging ----
+  describe('skiptoken cursor', () => {
+    const prevAllowPagination = process.env.MS365_MCP_ALLOW_PAGINATION;
+    afterEach(() => {
+      if (prevAllowPagination === undefined) delete process.env.MS365_MCP_ALLOW_PAGINATION;
+      else process.env.MS365_MCP_ALLOW_PAGINATION = prevAllowPagination;
+    });
+
+    const callWith = async (args: Record<string, unknown>) => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      await server.tools.get('test-tool')!.handler(args);
+      return graphClient.graphRequest.mock.calls[0][0] as string;
+    };
+
+    /** A single-object GET: $select/$expand and nothing collection-shaped. */
+    const singleObjectEndpoint = () =>
+      makeEndpoint({
+        alias: 'get-thing',
+        path: '/me/thing',
+        parameters: [
+          { name: 'select', type: 'Query', schema: z.string().optional() },
+          { name: 'expand', type: 'Query', schema: z.string().optional() },
+        ],
+      });
+
+    const registerAnd = async (endpoint: any, config: any) => {
+      mockEndpoints.push(endpoint);
+      mockEndpointsJson = [config];
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+      return server;
+    };
+
+    it('omits skiptoken on single-object GETs', async () => {
+      const server = await registerAnd(
+        singleObjectEndpoint(),
+        makeConfig({ toolName: 'get-thing', pathPattern: '/me/thing' })
+      );
+
+      expect(server.tools.get('get-thing')!.schema.skiptoken).toBeUndefined();
+    });
+
+    it('keeps skiptoken on delta tools that have $top stripped', async () => {
+      // list-calendar-events-delta pages via cursor but is in TOP_UNSUPPORTED_DELTA_TOOLS,
+      // so a $top-only test would strip the cursor from an endpoint that needs it.
+      const endpoint = makeEndpoint({
+        alias: 'list-calendar-events-delta',
+        path: '/me/calendarView/delta',
+      });
+      const server = await registerAnd(
+        endpoint,
+        makeConfig({
+          toolName: 'list-calendar-events-delta',
+          pathPattern: '/me/calendarView/delta',
+        })
+      );
+
+      const schema = server.tools.get('list-calendar-events-delta')!.schema;
+      expect(schema.top).toBeUndefined();
+      expect(schema.skiptoken).toBeDefined();
+    });
+
+    it('advertises skiptoken on GET list tools', async () => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      expect(server.tools.get('test-tool')!.schema.skiptoken).toBeDefined();
+    });
+
+    it('still advertises skiptoken when MS365_MCP_ALLOW_PAGINATION is disabled', async () => {
+      // Manual paging returns one page, so the auto-follow kill switch must not
+      // remove the only cursor a stateless client has.
+      process.env.MS365_MCP_ALLOW_PAGINATION = '0';
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, createMockGraphClient() as any);
+
+      expect(server.tools.get('test-tool')!.schema.fetchAllPages).toBeUndefined();
+      expect(server.tools.get('test-tool')!.schema.skiptoken).toBeDefined();
+    });
+
+    it('forwards a bare token as $skiptoken', async () => {
+      const path = await callWith({ skiptoken: 'abc123' });
+      expect(path).toContain('$skiptoken=abc123');
+    });
+
+    it('does not double-encode a token copied from @odata.nextLink', async () => {
+      // Tokens arrive percent-encoded straight out of the nextLink URL; encoding
+      // them again yields %253d and Graph rejects the cursor.
+      const path = await callWith({ skiptoken: 'eyJhIjoxfQ%3d%3d' });
+      expect(path).toContain('$skiptoken=eyJhIjoxfQ%3D%3D');
+      expect(path).not.toContain('%253');
+    });
+
+    it('extracts the token when handed a whole nextLink URL', async () => {
+      const path = await callWith({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/chats?$top=5&$filter=x&$skiptoken=tok123',
+      });
+      expect(path).toContain('$skiptoken=tok123');
+      expect(path).not.toContain('graph.microsoft.com');
+    });
+
+    it('keeps only the cursor when the nextLink has params after it', async () => {
+      const path = await callWith({ skiptoken: '$skiptoken=tok123&$top=5' });
+      expect(path).toContain('$skiptoken=tok123');
+      expect(path).not.toContain('tok123&');
+    });
+
+    it('accepts the $-prefixed param name', async () => {
+      const path = await callWith({ $skiptoken: 'abc123' });
+      expect(path).toContain('$skiptoken=abc123');
+    });
+
+    it('omits $skiptoken entirely when blank', async () => {
+      const path = await callWith({ skiptoken: '   ' });
+      expect(path).not.toContain('skiptoken');
+    });
+
+    it('sends the cursor alongside the original query options', async () => {
+      const path = await callWith({ filter: "chatType eq 'oneOnOne'", top: 5, skiptoken: 'tok' });
+      expect(path).toContain('$filter=');
+      expect(path).toContain('$top=5');
+      expect(path).toContain('$skiptoken=tok');
+    });
+  });
+
   // ---- 2. fetchAllPages pagination ----
   describe('fetchAllPages pagination', () => {
     it('should follow @odata.nextLink and combine results', async () => {
