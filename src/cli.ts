@@ -174,6 +174,11 @@ export interface CommandOptions {
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
+  /**
+   * Build the HTTP app in `start()` without binding a port; read it back with
+   * `getHttpApp()`. For serverless or embedding hosts. Not a CLI flag.
+   */
+  noListen?: boolean;
 
   [key: string]: unknown;
 }
