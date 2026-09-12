@@ -69,7 +69,6 @@ import {
   getFetchAllPagesParamDescription,
   SKIPTOKEN_PARAM_DESCRIPTION,
   isSkiptokenApplicable,
-  normalizeSkiptoken,
 } from './lib/param-descriptions.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -373,6 +372,75 @@ function normalizeSearchQueryParam(
     logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
     queryParams['$search'] = normalized;
   }
+}
+
+/**
+ * `skiptoken` takes what a model copies out of a response: the whole @odata.nextLink, a
+ * `$skiptoken=...` fragment, or the bare token, percent-encoded or not. Outlook mail and
+ * calendar links page with $skip instead, so that value goes out as $skip
+ * (https://learn.microsoft.com/en-us/graph/query-parameters). A link carrying neither is
+ * refused: forwarding it hands Graph a garbage cursor, and dropping it would return the
+ * first page as though it were the next one. The drive and sites delta tools land there,
+ * since their nextLink pages with a token= value this param cannot resend.
+ */
+function normalizeSkiptokenQueryParam(
+  queryParams: Record<string, string>,
+  toolAlias: string
+): CallToolResult | undefined {
+  const raw = queryParams['$skiptoken'];
+  if (raw === undefined) return;
+  delete queryParams['$skiptoken'];
+
+  let token = raw.trim();
+  if (token === '') return;
+
+  const cursorlessLink = (): CallToolResult => {
+    logger.warn(`Refusing ${toolAlias}: 'skiptoken' has no $skiptoken or $skip to page with`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'invalid_skiptoken',
+            tool: toolAlias,
+            message:
+              'The value passed as skiptoken has no $skiptoken or $skip to page with. The drive and sites delta tools page with a token= link, which skiptoken cannot resend.' +
+              (paginationAllowed()
+                ? ' Remove skiptoken and retry with fetchAllPages set to true to follow the link, or remove it for the first page.'
+                : ' Remove skiptoken and retry for the first page.'),
+          }),
+        },
+      ],
+      isError: true,
+    };
+  };
+
+  // Anchored on the start or a query separator, so a cursor-looking value inside another
+  // param (a $filter compared against the text "$skip=100", say) cannot be read as the cursor
+  const marker = token.match(/(?:^|[?&])(?:\$|%24)skiptoken=/i);
+  if (marker?.index !== undefined) {
+    // A nextLink can carry params after the cursor; keep only this one's value
+    token = token.slice(marker.index + marker[0].length).split('&')[0];
+    // A link that names the cursor but carries no value is not a first-page call
+    if (token === '') return cursorlessLink();
+  } else if (/:\/\/|\?|^(?:\$|%24)\w+=/.test(token)) {
+    const skip = token.match(/(?:^|[?&])(?:\$|%24)skip=(\d+)(?=&|$)/i)?.[1];
+    if (skip === undefined) return cursorlessLink();
+    logger.info(
+      `Auto-corrected parameter 'skiptoken': link pages with $skip, sending $skip=${skip}`
+    );
+    queryParams['$skip'] = skip;
+    return;
+  }
+
+  if (token.includes('%')) {
+    try {
+      token = decodeURIComponent(token);
+    } catch {
+      logger.warn('skiptoken looks percent-encoded but could not be decoded; sending as-is');
+    }
+  }
+  queryParams['$skiptoken'] = token;
 }
 
 const DEFAULT_MAX_ITEMS = 10_000;
@@ -2022,12 +2090,8 @@ async function executeGraphTool(
       delete queryParams['$top'];
     }
 
-    // Manual cursor paging, for endpoints where $skip is not allowed
-    if (queryParams['$skiptoken']) {
-      const cursor = normalizeSkiptoken(queryParams['$skiptoken']);
-      if (cursor) queryParams['$skiptoken'] = cursor;
-      else delete queryParams['$skiptoken'];
-    }
+    const skiptokenError = normalizeSkiptokenQueryParam(queryParams, tool.alias);
+    if (skiptokenError) return skiptokenError;
 
     clampTopQueryParam(queryParams);
     const searchError = normalizeSearchQueryParam(queryParams, tool.path, tool.alias);

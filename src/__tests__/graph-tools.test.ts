@@ -1292,14 +1292,20 @@ describe('graph-tools', () => {
       else process.env.MS365_MCP_ALLOW_PAGINATION = prevAllowPagination;
     });
 
-    const callWith = async (args: Record<string, unknown>) => {
+    const callForResult = async (args: Record<string, unknown>) => {
       mockEndpoints.push(makeEndpoint());
       mockEndpointsJson = [makeConfig()];
       const graphClient = createMockGraphClient();
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, graphClient as any);
-      await server.tools.get('test-tool')!.handler(args);
+      const result = await server.tools.get('test-tool')!.handler(args);
+      return { result, graphClient };
+    };
+
+    /** The request path the tool sent to Graph. */
+    const callWith = async (args: Record<string, unknown>) => {
+      const { graphClient } = await callForResult(args);
       return graphClient.graphRequest.mock.calls[0][0] as string;
     };
 
@@ -1408,9 +1414,96 @@ describe('graph-tools', () => {
       expect(path).toContain('$skiptoken=abc123');
     });
 
-    it('omits $skiptoken entirely when blank', async () => {
-      const path = await callWith({ skiptoken: '   ' });
+    it.each(['', '   '])('omits $skiptoken entirely when blank (%j)', async (blank) => {
+      const path = await callWith({ skiptoken: blank });
       expect(path).not.toContain('skiptoken');
+    });
+
+    it('sends $skip when the nextLink pages with $skip', async () => {
+      // Outlook mail and calendar nextLinks carry $skip, not $skiptoken
+      const path = await callWith({
+        top: 10,
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/messages?$top=10&$skip=10',
+      });
+      expect(path).toContain('$skip=10');
+      expect(path).not.toContain('skiptoken');
+    });
+
+    it('ignores a cursor-looking value inside another query param', async () => {
+      const path = await callWith({
+        skiptoken:
+          "https://graph.microsoft.com/v1.0/me/messages?$filter=subject eq '%24skip=100'&$skip=10",
+      });
+      expect(path).toContain('$skip=10');
+      expect(path).not.toContain('100');
+    });
+
+    it('refuses a link with no cursor to page with', async () => {
+      const { result, graphClient } = await callForResult({
+        skiptoken:
+          'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta()?$deltatoken=abc',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('invalid_skiptoken');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('refuses a delta token= link without calling it a deltaLink', async () => {
+      // get-drive-delta and get-sharepoint-sites-delta page with token=, so the refusal must
+      // not tell the model to pass the @odata.nextLink it just passed
+      const { result, graphClient } = await callForResult({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/drive/delta(token=1230919asd190410jlka)',
+      });
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toBe('invalid_skiptoken');
+      expect(payload.message).not.toContain('deltaLink');
+      expect(payload.message).toContain('fetchAllPages');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('refuses a link whose $skiptoken carries no value', async () => {
+      const { result } = await callForResult({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/chats?$skiptoken=&$top=5',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('invalid_skiptoken');
+    });
+
+    it('accepts an encoded %24skiptoken marker', async () => {
+      const path = await callWith({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/chats?%24top=5&%24skiptoken=tok123',
+      });
+      expect(path).toContain('$skiptoken=tok123');
+    });
+
+    it.each([
+      ['https://graph.microsoft.com/v1.0/me/messages?$top=10&$skip=0', '$skip=0'],
+      ['https://graph.microsoft.com/v1.0/me/messages?%24top=10&%24skip=10', '$skip=10'],
+    ])('reads the $skip cursor out of %s', async (link, expected) => {
+      const path = await callWith({ skiptoken: link });
+      expect(path).toContain(expected);
+    });
+
+    it('refuses a $skip cursor that is not a plain number', async () => {
+      const { result } = await callForResult({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/messages?$skip=10junk',
+      });
+
+      expect(JSON.parse(result.content[0].text).error).toBe('invalid_skiptoken');
+    });
+
+    it('offers no fetchAllPages in the refusal when pagination is disabled', async () => {
+      process.env.MS365_MCP_ALLOW_PAGINATION = '0';
+      const { result } = await callForResult({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/drive/delta(token=1230919asd190410jlka)',
+      });
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toBe('invalid_skiptoken');
+      expect(payload.message).not.toContain('fetchAllPages');
     });
 
     it('sends the cursor alongside the original query options', async () => {
