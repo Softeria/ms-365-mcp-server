@@ -1891,9 +1891,10 @@ async function executeGraphTool(
         'format',
       ];
       // Handle both "top" and "$top" formats - strip $ if present, then re-add it
-      const normalizedParamName = paramName.startsWith('$') ? paramName.slice(1) : paramName;
-      const isOdataParam = odataParams.includes(normalizedParamName.toLowerCase());
-      const fixedParamName = isOdataParam ? `$${normalizedParamName.toLowerCase()}` : paramName;
+      const bareParamName = paramName.startsWith('$') ? paramName.slice(1) : paramName;
+      const isOdataParam = odataParams.includes(bareParamName.toLowerCase());
+      const normalizedParamName = isOdataParam ? bareParamName.toLowerCase() : bareParamName;
+      const fixedParamName = isOdataParam ? `$${normalizedParamName}` : paramName;
       // Convert kebab-case param names to camelCase for path param matching.
       // endpoints.json uses {message-id} but hack.ts extracts :messageId (camelCase) from the path.
       // LLMs may pass "message-id" (kebab) — we normalize so both forms work.
@@ -1905,7 +1906,7 @@ async function executeGraphTool(
         (p) =>
           p.name === paramName ||
           p.name === camelCaseParamName ||
-          (isOdataParam && p.name === normalizedParamName)
+          (isOdataParam && p.name.replace(/^\$/, '').toLowerCase() === normalizedParamName)
       );
 
       // execute-tool and passthrough inputs must follow the same contract as

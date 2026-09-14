@@ -33,6 +33,10 @@ export function queryParameterSchema(
     case 'search':
       schema = z.string();
       break;
+    case 'skiptoken':
+      // Synthetic cursors have no generated parameter definition at execution.
+      schema = z.string();
+      break;
     case 'top':
       // https://learn.microsoft.com/en-us/graph/api/chat-list
       // Intersect so a stricter bound from the provider is never relaxed.
