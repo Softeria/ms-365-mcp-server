@@ -45,6 +45,7 @@ export interface DiscoverySearchIndex {
   nameTokens: Map<string, Set<string>>;
 }
 import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
+import { queryParameterSchema } from './lib/query-parameter-schema.js';
 import {
   TOP_UNSUPPORTED_DELTA_TOOLS,
   shouldOmitTopParam,
@@ -53,14 +54,6 @@ import {
   DEFAULT_MAX_PAGES,
   getMaxPages,
   isFetchAllPagesApplicable,
-  FILTER_PARAM_DESCRIPTION,
-  SEARCH_PARAM_DESCRIPTION,
-  SELECT_PARAM_DESCRIPTION,
-  EXPAND_PARAM_DESCRIPTION,
-  ORDERBY_PARAM_DESCRIPTION,
-  TOP_PARAM_DESCRIPTION,
-  SKIP_PARAM_DESCRIPTION,
-  COUNT_PARAM_DESCRIPTION,
   CONFIRM_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
@@ -1915,6 +1908,35 @@ async function executeGraphTool(
           (isOdataParam && p.name === normalizedParamName)
       );
 
+      // execute-tool and passthrough inputs must follow the same contract as
+      // discovery and normal registration. Preserve the existing delta $top handling.
+      const isQuery = paramDef?.type === 'Query' || isOdataParam;
+      const ignoredDeltaTop = shouldOmitTopParam(tool.alias) && normalizedParamName === 'top';
+      if (isQuery && !ignoredDeltaTop && paramValue != null && paramValue !== '') {
+        const schema = queryParameterSchema(
+          tool.alias,
+          normalizedParamName,
+          paramDef?.schema ?? z.any()
+        );
+        if (!schema || !schema.safeParse(paramValue).success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: 'invalid_query_parameter',
+                  parameter: fixedParamName,
+                  message: schema
+                    ? 'Value does not match the query contract. Check get-tool-schema.'
+                    : 'This endpoint does not support this query parameter.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
       if (paramDef) {
         switch (paramDef.type) {
           case 'Path': {
@@ -2556,6 +2578,11 @@ export function registerGraphTools(
     const paramSchema: Record<string, z.ZodTypeAny> = {};
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
+        if (param.type === 'Query') {
+          const schema = queryParameterSchema(tool.alias, param.name, param.schema || z.any());
+          if (schema) paramSchema[param.name] = schema;
+          continue;
+        }
         // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
         paramSchema[param.name] =
           param.type === 'Body' && param.schema
@@ -2595,55 +2622,6 @@ export function registerGraphTools(
 
     if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {
       paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
-    }
-
-    // Override OData parameter descriptions with spec-gap guidance. Text lives in
-    // lib/param-descriptions.ts, shared with describeToolSchema (--discovery mode),
-    // so the two paths cannot describe the same parameter differently.
-    if (paramSchema['filter'] !== undefined || paramSchema['$filter'] !== undefined) {
-      const key = paramSchema['$filter'] !== undefined ? '$filter' : 'filter';
-      paramSchema[key] = z.string().describe(FILTER_PARAM_DESCRIPTION).optional();
-    }
-    if (paramSchema['search'] !== undefined || paramSchema['$search'] !== undefined) {
-      const key = paramSchema['$search'] !== undefined ? '$search' : 'search';
-      paramSchema[key] = z.string().describe(SEARCH_PARAM_DESCRIPTION).optional();
-    }
-    if (paramSchema['select'] !== undefined || paramSchema['$select'] !== undefined) {
-      const key = paramSchema['$select'] !== undefined ? '$select' : 'select';
-      paramSchema[key] = z.string().describe(SELECT_PARAM_DESCRIPTION).optional();
-    }
-    // The spec describes every $expand as "Expand related entities", which says nothing about
-    // what is expandable. Models pass non-navigation properties — message body is the one I
-    // hit repeatedly — and Graph answers 400 "Parsing OData Select and Expand failed".
-    // Restated as the override rather than a new schema: $expand is already array<string>
-    // everywhere, so the type is unchanged in practice.
-    if (paramSchema['expand'] !== undefined || paramSchema['$expand'] !== undefined) {
-      const key = paramSchema['$expand'] !== undefined ? '$expand' : 'expand';
-      paramSchema[key] = z.array(z.string()).describe(EXPAND_PARAM_DESCRIPTION).optional();
-    }
-    if (paramSchema['orderby'] !== undefined || paramSchema['$orderby'] !== undefined) {
-      const key = paramSchema['$orderby'] !== undefined ? '$orderby' : 'orderby';
-      paramSchema[key] = z.string().describe(ORDERBY_PARAM_DESCRIPTION).optional();
-    }
-    // The calendar delta tools don't support $top (see TOP_UNSUPPORTED_DELTA_TOOLS) —
-    // page size is controlled via Prefer: odata.maxpagesize. Strip top/$top from
-    // their schemas so callers can't reach for a parameter that won't work. Other
-    // delta tools (message/driveItem/site) do support $top, so leave them alone.
-    // Server-side defense-in-depth in executeGraphTool handles stale clients.
-    if (shouldOmitTopParam(tool.alias)) {
-      delete paramSchema['top'];
-      delete paramSchema['$top'];
-    } else if (paramSchema['top'] !== undefined || paramSchema['$top'] !== undefined) {
-      const key = paramSchema['$top'] !== undefined ? '$top' : 'top';
-      paramSchema[key] = z.number().describe(TOP_PARAM_DESCRIPTION).optional();
-    }
-    if (paramSchema['skip'] !== undefined || paramSchema['$skip'] !== undefined) {
-      const key = paramSchema['$skip'] !== undefined ? '$skip' : 'skip';
-      paramSchema[key] = z.number().describe(SKIP_PARAM_DESCRIPTION).optional();
-    }
-    if (paramSchema['count'] !== undefined || paramSchema['$count'] !== undefined) {
-      const countKey = paramSchema['$count'] !== undefined ? '$count' : 'count';
-      paramSchema[countKey] = z.boolean().describe(COUNT_PARAM_DESCRIPTION).optional();
     }
 
     // Add account parameter for multi-account mode.

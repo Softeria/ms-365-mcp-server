@@ -1285,6 +1285,53 @@ describe('graph-tools', () => {
   });
 
   // ---- 2a. skiptoken cursor paging ----
+  describe('shared query contract at execution', () => {
+    it.each(['list-joined-teams', 'list-my-associated-teams'])(
+      'rejects unsupported query options before Graph dispatch for %s',
+      async (alias) => {
+        mockEndpoints.push(makeEndpoint({ alias }));
+        mockEndpointsJson = [makeConfig({ toolName: alias })];
+        const graphClient = createMockGraphClient();
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+        for (const key of ['top', '$top', 'skiptoken', '$skiptoken', 'select', '$select']) {
+          const value = key.replace('$', '') === 'top' ? 100 : 'next-token';
+          const result = await server.tools.get(alias)!.handler({ [key]: value });
+          expect(result.isError).toBe(true);
+        }
+        expect(graphClient.graphRequest).not.toHaveBeenCalled();
+      }
+    );
+
+    it('rejects oversized chat pages before Graph dispatch, including dollar-prefixed input', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-chats' }));
+      mockEndpointsJson = [makeConfig({ toolName: 'list-chats' })];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      for (const key of ['top', '$top']) {
+        const result = await server.tools.get('list-chats')!.handler({ [key]: 100 });
+        expect(result.isError).toBe(true);
+      }
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('sends a calendar field array as comma-separated text in one Graph request', async () => {
+      const alias = 'list-calendar-events-delta';
+      mockEndpoints.push(makeEndpoint({ alias }));
+      mockEndpointsJson = [makeConfig({ toolName: alias })];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      await server.tools.get(alias)!.handler({ select: ['id', 'subject'] });
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(graphClient.graphRequest.mock.calls[0])).toContain('id,subject');
+    });
+  });
+
   describe('skiptoken cursor', () => {
     const prevAllowPagination = process.env.MS365_MCP_ALLOW_PAGINATION;
     afterEach(() => {
