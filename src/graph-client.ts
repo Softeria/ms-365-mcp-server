@@ -64,6 +64,13 @@ interface GraphRequestOptions {
   // Pin this response to JSON regardless of the configured format, so the
   // fetchAllPages merge can JSON.parse each page before re-encoding (#560).
   forceJsonOutput?: boolean;
+  // Treat the body as bytes whatever Content-Type Graph reports, so callers whose
+  // contract is "return the bytes" (download-bytes) never go through the lossy
+  // response.text() path. Without this, only types on the isBinaryContentType
+  // allowlist are read raw; application/msword, application/rtf, message/rfc822
+  // and any other unlisted type come back as UTF-8 text with every invalid byte
+  // sequence replaced by U+FFFD, and the file cannot be rebuilt.
+  forceBinary?: boolean;
 
   [key: string]: unknown;
 }
@@ -247,7 +254,8 @@ class GraphClient {
       }
 
       const contentTypeHeader = response.headers?.get?.('content-type') || '';
-      const isBinaryResponse = isBinaryContentType(contentTypeHeader);
+      const isBinaryResponse =
+        options.forceBinary === true || isBinaryContentType(contentTypeHeader);
       let metadata: GraphResponseMetadata = { http_status: response.status };
 
       let result: any;

@@ -2603,6 +2603,10 @@ describe('graph-tools', () => {
       const [path, options] = graphClient.graphRequest.mock.calls[0];
       expect(path).toBe('/me/photo/$value');
       expect(options.accessToken).toBeUndefined();
+      // The tool's contract is bytes: it must ask for binary handling regardless of
+      // the Content-Type Graph reports (application/msword is not on the allowlist).
+      expect(options.forceBinary).toBe(true);
+      expect(options.rawResponse).toBe(true);
     });
 
     it('rejects absolute URLs (Graph paths only)', async () => {

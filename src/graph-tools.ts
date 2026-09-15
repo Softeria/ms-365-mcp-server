@@ -1242,12 +1242,17 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
           accountAccessToken = await authManager.getTokenForAccount(accountParam);
         }
-        // rawResponse keeps the body byte-faithful: binary stays base64 and a
-        // JSON body is returned verbatim instead of being re-serialized lossily
-        // through JSON.parse -> JSON.stringify (issue #546).
+        // This tool's contract is the bytes, base64-encoded, whatever Graph says the
+        // type is. forceBinary makes the client read the body with arrayBuffer() for
+        // every Content-Type; without it only the isBinaryContentType allowlist is
+        // read raw, and an application/msword or application/rtf attachment is
+        // decoded as UTF-8 text with every invalid sequence replaced by U+FFFD —
+        // unrecoverable. rawResponse is kept for the JSON-body case (issue #546) but
+        // is not reached while forceBinary is set.
         return await graphClient.graphRequest(target, {
           accessToken: accountAccessToken,
           rawResponse: true,
+          forceBinary: true,
         });
       } catch (error) {
         return {

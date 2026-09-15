@@ -113,6 +113,55 @@ describe('GraphClient audit metadata', () => {
     expect(result._meta).toMatchObject({ response_bytes: raw.byteLength });
   });
 
+  describe('forceBinary', () => {
+    // An OLE2 compound-document header (what a Word 97-2003 .doc starts with) plus
+    // bytes that are not valid UTF-8. response.text() cannot round-trip this.
+    const doc = Buffer.from([
+      0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0xff, 0xfe, 0x00, 0x41,
+    ]);
+
+    it('returns base64 bytes for a content type outside the binary allowlist', async () => {
+      fetchWithResilienceMock.mockResolvedValue(
+        new Response(doc, { status: 200, headers: { 'content-type': 'application/msword' } })
+      );
+
+      const result = await createGraphClient().graphRequest(
+        '/me/messages/m1/attachments/a1/$value',
+        {
+          rawResponse: true,
+          forceBinary: true,
+        }
+      );
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload).toMatchObject({
+        contentType: 'application/msword',
+        encoding: 'base64',
+        contentLength: doc.byteLength,
+      });
+      expect(Buffer.from(payload.contentBytes, 'base64').equals(doc)).toBe(true);
+      expect(payload).not.toHaveProperty('rawResponse');
+      expect(result._meta).toMatchObject({ response_bytes: doc.byteLength });
+    });
+
+    it('is needed: without it the same body is decoded as text and loses bytes', async () => {
+      fetchWithResilienceMock.mockResolvedValue(
+        new Response(doc, { status: 200, headers: { 'content-type': 'application/msword' } })
+      );
+
+      const result = await createGraphClient().graphRequest(
+        '/me/messages/m1/attachments/a1/$value',
+        {
+          rawResponse: true,
+        }
+      );
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload).not.toHaveProperty('contentBytes');
+      expect(payload.rawResponse).toContain('�');
+    });
+  });
+
   it('preserves HTTP status metadata when response headers are requested', async () => {
     fetchWithResilienceMock.mockResolvedValue(
       new Response(JSON.stringify({ id: 'task-1' }), {
