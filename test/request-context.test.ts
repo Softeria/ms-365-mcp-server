@@ -103,6 +103,7 @@ describe('GraphClient request-context integration', () => {
           ok: true,
           status: 200,
           text: async () => JSON.stringify({ id: 'test' }),
+          arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ id: 'test' })).buffer,
           headers: new Headers(),
         };
       });
@@ -174,6 +175,7 @@ describe('GraphClient request-context integration', () => {
           ok: true,
           status: 200,
           text: async () => JSON.stringify({ id: 'test' }),
+          arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ id: 'test' })).buffer,
           headers: new Headers(),
         };
       });

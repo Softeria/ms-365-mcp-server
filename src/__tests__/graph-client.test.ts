@@ -143,10 +143,69 @@ describe('GraphClient audit metadata', () => {
       expect(payload).not.toHaveProperty('rawResponse');
       expect(result._meta).toMatchObject({ response_bytes: doc.byteLength });
     });
+  });
 
-    it('is needed: without it the same body is decoded as text and loses bytes', async () => {
+  describe('never returns lossy text', () => {
+    // Bodies that are not valid UTF-8, served under types that are NOT on the
+    // binary allowlist and WITHOUT forceBinary. Before: decoded with response.text(),
+    // every invalid sequence became U+FFFD and the file was unrecoverable.
+    const cases: Array<{ name: string; contentType: string; body: Buffer }> = [
+      {
+        name: 'Word 97-2003 document',
+        contentType: 'application/msword',
+        body: Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0xff, 0xfe, 0x00, 0x41]),
+      },
+      {
+        name: 'RTF with Windows-1252 quotes',
+        contentType: 'application/rtf',
+        body: Buffer.from('{\\rtf1\\ansi \x93quoted\x94}', 'latin1'),
+      },
+      {
+        name: '8-bit MIME message',
+        contentType: 'message/rfc822',
+        body: Buffer.from('Subject: caf\xe9\r\n\r\nna\xefve body\r\n', 'latin1'),
+      },
+      {
+        name: 'text/plain in Windows-1252',
+        contentType: 'text/plain; charset=windows-1252',
+        body: Buffer.from('caf\xe9 \x96 dash', 'latin1'),
+      },
+    ];
+
+    for (const c of cases) {
+      it(`returns ${c.name} (${c.contentType}) as byte-identical base64`, async () => {
+        fetchWithResilienceMock.mockResolvedValue(
+          new Response(new Uint8Array(c.body), {
+            status: 200,
+            headers: { 'content-type': c.contentType },
+          })
+        );
+
+        const result = await createGraphClient().graphRequest(
+          '/me/messages/m1/attachments/a1/$value',
+          {
+            rawResponse: true,
+          }
+        );
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).not.toHaveProperty('rawResponse');
+        expect(payload).toMatchObject({ encoding: 'base64', contentLength: c.body.byteLength });
+        expect(Buffer.from(payload.contentBytes, 'base64').equals(c.body)).toBe(true);
+        expect(result._meta).toMatchObject({ response_bytes: c.body.byteLength });
+      });
+    }
+
+    it('still returns valid UTF-8 text as text, byte for byte, BOM included', async () => {
+      const body = Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from('héllo\r\nwörld\n', 'utf8'),
+      ]);
       fetchWithResilienceMock.mockResolvedValue(
-        new Response(doc, { status: 200, headers: { 'content-type': 'application/msword' } })
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        })
       );
 
       const result = await createGraphClient().graphRequest(
@@ -158,7 +217,23 @@ describe('GraphClient audit metadata', () => {
 
       const payload = JSON.parse(result.content[0].text);
       expect(payload).not.toHaveProperty('contentBytes');
-      expect(payload.rawResponse).toContain('�');
+      // response.text() would have dropped the byte-order mark; strict decoding keeps it.
+      expect(Buffer.from(payload.rawResponse, 'utf8').equals(body)).toBe(true);
+      expect(result._meta).toMatchObject({ response_bytes: body.byteLength });
+    });
+
+    it('still parses JSON, even with a leading byte-order mark', async () => {
+      const body = Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from('{"id":"u1"}', 'utf8'),
+      ]);
+      fetchWithResilienceMock.mockResolvedValue(
+        new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
+      );
+
+      const result = await createGraphClient().graphRequest('/me');
+
+      expect(JSON.parse(result.content[0].text)).toEqual({ id: 'u1' });
     });
   });
 

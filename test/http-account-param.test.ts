@@ -83,6 +83,7 @@ describe('Discussion #467: account parameter in HTTP/OAuth mode', () => {
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ value: [] }),
+      arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ value: [] })).buffer,
       headers: new Headers(),
     }));
     global.fetch = fetchSpy;
