@@ -1,0 +1,29 @@
+# The image published to ghcr.io/softeria/ms-365-mcp-server. It installs the released npm
+# package rather than building from source, so a version tag holds exactly what npm serves
+# for that version. `generate` downloads Microsoft's live spec, so a source build of the
+# same version can drift from it.
+#
+# Separate from Dockerfile because the legacy (non-BuildKit) builder runs every stage in a
+# file whatever --target says, which would break the source build documented in
+# docs/deployment.md.
+FROM node:24-alpine
+
+LABEL org.opencontainers.image.source="https://github.com/Softeria/ms-365-mcp-server"
+
+# No default. npm resolves an empty spec to latest, which would stamp whatever is newest
+# with the tag the workflow passes.
+ARG VERSION
+
+ENV NODE_ENV=production
+
+RUN test -n "$VERSION" || { echo 'VERSION build arg is required'; exit 1; }
+
+# --ignore-scripts keeps keytar (optional, native, no musl prebuild) from attempting a
+# node-gyp build that cannot succeed here. --omit=optional would drop @azure/identity and
+# @azure/keyvault-secrets with it, which Key Vault mode needs.
+RUN npm i -g --ignore-scripts "@softeria/ms-365-mcp-server@${VERSION}" && \
+    npm cache clean --force
+
+USER node
+
+ENTRYPOINT ["ms-365-mcp-server"]
