@@ -2617,7 +2617,7 @@ export function registerGraphTools(
       const maxPages = getMaxPages();
       paramSchema['fetchAllPages'] = z
         .boolean()
-        .describe(getFetchAllPagesParamDescription(maxPages))
+        .describe(getFetchAllPagesParamDescription(maxPages, tool.alias))
         .optional();
     }
 

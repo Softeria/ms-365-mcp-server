@@ -185,6 +185,7 @@ describe('Teams custom emojis (real generated clients)', () => {
   });
 
   it('describes list queries without recommending unsupported options', async () => {
+    vi.stubEnv('MS365_MCP_ALLOW_PAGINATION', 'true');
     register();
     registerDiscovery();
     const normal = mockServer.registerTool.mock.calls.find(
@@ -193,7 +194,7 @@ describe('Teams custom emojis (real generated clients)', () => {
     const discovery = resultJson<{ parameters: Array<{ name: string; description?: string }> }>(
       await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' })
     );
-    for (const name of ['top', 'filter']) {
+    for (const name of ['top', 'filter', 'fetchAllPages']) {
       const descriptions = [
         normal[name].description,
         discovery.parameters.find((parameter) => parameter.name === name)?.description,
