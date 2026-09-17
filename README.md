@@ -105,6 +105,20 @@ Email (Outlook), Calendar, OneDrive Files, Excel, OneNote, To Do Tasks, Planner,
 
 Teams & Chats, Online Meetings, Transcripts & Recordings, Attendance Reports, SharePoint Sites & Lists, Shared Mailboxes & Calendars, User Management, Presence, Virtual Events
 
+Custom Teams emojis are available in organization mode through `list-custom-emojis`
+and `create-custom-emoji` (`teams` and `work` presets). These use the Microsoft Graph
+beta API and request the delegated permissions `TeamworkCustomEmoji.Read` and
+`TeamworkCustomEmoji.Create`, respectively. Read-only mode exposes only the list tool.
+Existing deployments may need consent for these new scopes and reauthentication;
+adding tool support does not upgrade an already-issued token.
+
+Listing returns base64 image content, so use a small `top` and `filter` to keep
+responses manageable. To create an emoji, pass `body: { displayName, contentBytes }`
+with the exact approved name and base64 PNG/GIF file bytes. See Microsoft's
+[list](https://learn.microsoft.com/en-us/graph/api/teamworkmessaging-list-customemojis?view=graph-rest-beta)
+and [create](https://learn.microsoft.com/en-us/graph/api/teamworkmessaging-post-customemojis?view=graph-rest-beta)
+contracts. These tools do not post messages or reactions.
+
 ### Required Graph API Permissions
 
 Permissions are requested dynamically based on which tools are enabled. Use `--list-permissions` to see the exact permissions for your configuration:

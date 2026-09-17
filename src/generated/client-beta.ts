@@ -1403,6 +1403,60 @@ const microsoft_graph_plannerTaskChatMessageCollectionResponse = z
   })
   .partial()
   .passthrough();
+const microsoft_graph_customEmojiFromIdentitySet = z
+  .object({
+    application: microsoft_graph_identity.optional(),
+    device: microsoft_graph_identity.optional(),
+    user: microsoft_graph_identity.optional(),
+  })
+  .passthrough();
+const microsoft_graph_teamworkCustomEmoji = z
+  .object({
+    contentBytes: z
+      .string()
+      .describe(
+        'The base64-encoded image content of the emoji. Supported formats include PNG and GIF.'
+      )
+      .nullish(),
+    createdBy: microsoft_graph_customEmojiFromIdentitySet.optional(),
+    createdDateTime: z
+      .string()
+      .regex(
+        /^[0-9]{4,}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,12})?(Z|[+-][0-9][0-9]:[0-9][0-9])$/
+      )
+      .datetime({ offset: true })
+      .describe(
+        'The date and time when the emoji was created. The timestamp type represents date and time information using ISO 8601 format and is always in UTC. For example, midnight UTC on Jan 1, 2024, is 2024-01-01T00:00:00Z.'
+      )
+      .optional(),
+    displayName: z
+      .string()
+      .describe(
+        'The unique display name of the custom emoji. Key. Must be unique and must not conflict with existing emoji names.'
+      )
+      .optional(),
+  })
+  .passthrough();
+const microsoft_graph_teamworkCustomEmojiCollectionResponse = z
+  .object({
+    '@odata.count': z.number().int().nullable(),
+    '@odata.nextLink': z.string().nullable(),
+    value: z.array(microsoft_graph_teamworkCustomEmoji),
+  })
+  .partial()
+  .passthrough();
+const create_custom_emoji_Body = z
+  .object({
+    displayName: z
+      .string()
+      .describe(
+        'Exact unique custom emoji name, without surrounding colons. Must not conflict with an existing emoji name.'
+      ),
+    contentBytes: z
+      .string()
+      .describe('Base64-encoded PNG or GIF file content; do not include a data-URL prefix.'),
+  })
+  .passthrough();
 
 export const schemas = {
   microsoft_graph_allowedAudiences,
@@ -1463,6 +1517,10 @@ export const schemas = {
   microsoft_graph_plannerTaskChatReaction,
   microsoft_graph_plannerTaskChatMessage,
   microsoft_graph_plannerTaskChatMessageCollectionResponse,
+  microsoft_graph_customEmojiFromIdentitySet,
+  microsoft_graph_teamworkCustomEmoji,
+  microsoft_graph_teamworkCustomEmojiCollectionResponse,
+  create_custom_emoji_Body,
 };
 
 const endpoints = makeApi([
@@ -1566,6 +1624,72 @@ const endpoints = makeApi([
       },
     ],
     response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/teamwork/messaging/customEmojis',
+    alias: 'list-custom-emojis',
+    description: `Get a list of custom emojis available in the teamwork messaging of the organization.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: '$top',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Show only the first n items').optional(),
+      },
+      {
+        name: '$skip',
+        type: 'Query',
+        schema: z.number().int().gte(0).describe('Skip the first n items').optional(),
+      },
+      {
+        name: '$search',
+        type: 'Query',
+        schema: z.string().describe('Search items by search phrases').optional(),
+      },
+      {
+        name: '$filter',
+        type: 'Query',
+        schema: z.string().describe('Filter items by property values').optional(),
+      },
+      {
+        name: '$count',
+        type: 'Query',
+        schema: z.boolean().describe('Include count of items').optional(),
+      },
+      {
+        name: '$orderby',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Order items by property values').optional(),
+      },
+      {
+        name: '$select',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Select properties to be returned').optional(),
+      },
+      {
+        name: '$expand',
+        type: 'Query',
+        schema: z.array(z.string()).describe('Expand related entities').optional(),
+      },
+    ],
+    response: microsoft_graph_teamworkCustomEmojiCollectionResponse,
+  },
+  {
+    method: 'post',
+    path: '/teamwork/messaging/customEmojis',
+    alias: 'create-custom-emoji',
+    description: `Create a new custom emoji in the teamwork messaging of the organization, which adds the custom emoji to Teams for the tenant. The emoji image is provided as base64-encoded content bytes.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        description: `New navigation property`,
+        type: 'Body',
+        schema: create_custom_emoji_Body,
+      },
+    ],
+    response: microsoft_graph_teamworkCustomEmoji,
   },
 ]);
 

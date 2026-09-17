@@ -156,11 +156,12 @@ export function getAccountParamDescription(accountNames: string[]): string {
   );
 }
 
-export function getFetchAllPagesParamDescription(maxPages: number): string {
+export function getFetchAllPagesParamDescription(maxPages: number, toolAlias?: string): string {
+  const narrowingOptions = toolAlias === 'list-custom-emojis' ? '$filter' : '$filter/$search';
   return (
     `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
     'Can return enormous payloads—only when the user explicitly needs a full export. ' +
-    'Prefer a small $top first, then paginate or narrow with $filter/$search.'
+    `Prefer a small $top first, then paginate or narrow with ${narrowingOptions}.`
   );
 }
 
