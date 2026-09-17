@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { queryParameterSchema } from './query-parameter-schema.js';
 import type { api } from '../generated/client.js';
 import { isDestructiveOperation, type DestructiveCheckConfig } from './destructive-ops.js';
 import {
-  getODataParamDescription,
-  shouldOmitTopParam,
   isFetchAllPagesApplicable,
   isSkiptokenApplicable,
   SKIPTOKEN_PARAM_DESCRIPTION,
@@ -50,21 +49,13 @@ function unwrapOptional(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: 
   return { inner: schema, optional: false };
 }
 
-/** Strips a leading `$` so both `filter` and `$filter` map to the same lookup key. */
-function bareParamName(name: string): string {
-  return name.startsWith('$') ? name.slice(1) : name;
-}
-
 /**
  * Returns a JSON Schema describing every parameter a discovery tool accepts,
  * so an agent can construct a correctly-shaped `parameters` object for execute-tool.
  *
- * Descriptions for OData query parameters ($filter/$search/$select/$expand/$orderby/
- * $top/$skip/$count) are overridden with the same spec-gap guidance text
- * registerGraphTools puts in its Zod schemas — both pull from
- * lib/param-descriptions.ts so the two paths can't drift apart again. $top/top is
- * omitted entirely for tools in TOP_UNSUPPORTED_DELTA_TOOLS, mirroring
- * registerGraphTools' `delete paramSchema['top']`.
+ * Query types, constraints, exclusions, and descriptions use queryParameterSchema,
+ * shared with normal registration and execution. Generated OpenAPI parameters
+ * alone are not the effective runtime contract.
  *
  * Also includes synthetic runtime params injected by graph-tools.ts that an agent
  * needs to know about: `confirm` (destructive gate), `fetchAllPages` (GET list
@@ -93,25 +84,26 @@ export function describeToolSchema(
     schema: unknown;
   }>;
 } {
-  const omitTop = shouldOmitTopParam(tool.alias);
-
-  const params = (tool.parameters ?? [])
-    .filter((p) => !(omitTop && bareParamName(p.name) === 'top'))
-    .map((p) => {
-      const { inner, optional } = unwrapOptional(p.schema as z.ZodTypeAny);
-      const isPath = p.type === 'Path';
-      const jsonSchema = zodToJsonSchema(inner, { target: 'jsonSchema7', $refStrategy: 'none' });
-      const { $schema: _s, ...schema } = jsonSchema as Record<string, unknown>;
-      const override =
-        p.type === 'Query' ? getODataParamDescription(bareParamName(p.name)) : undefined;
-      return {
+  const params = (tool.parameters ?? []).flatMap((p) => {
+    const effectiveSchema =
+      p.type === 'Query'
+        ? queryParameterSchema(tool.alias, p.name, p.schema as z.ZodTypeAny)
+        : (p.schema as z.ZodTypeAny);
+    if (!effectiveSchema) return [];
+    const { inner, optional } = unwrapOptional(effectiveSchema);
+    const isPath = p.type === 'Path';
+    const jsonSchema = zodToJsonSchema(inner, { target: 'jsonSchema7', $refStrategy: 'none' });
+    const { $schema: _s, ...schema } = jsonSchema as Record<string, unknown>;
+    return [
+      {
         name: p.name,
         in: p.type as 'Path' | 'Query' | 'Body' | 'Header',
         required: isPath || !optional,
-        description: override ?? p.description,
+        description: effectiveSchema.description ?? p.description,
         schema,
-      };
-    });
+      },
+    ];
+  });
 
   // Surface the destructive-confirm gate so agents in --discovery mode know
   // to pass `confirm: true`. Without this, every destructive tool returns

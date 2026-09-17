@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { queryParameterSchema } from '../src/lib/query-parameter-schema.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { buildToolsRegistry, registerGraphTools } from '../src/graph-tools.js';
 import { describeToolSchema } from '../src/lib/tool-schema.js';
@@ -127,6 +129,74 @@ describe('describeToolSchema', () => {
  */
 describe('describeToolSchema parity with registerGraphTools (discovery-mode drift guard)', () => {
   const registered = registeredParamSchemas();
+
+  it('matches query types and constraints across every generated tool in both modes', () => {
+    for (const [name, entry] of registry) {
+      const shape = registered.get(name);
+      if (!shape) continue;
+      const discovery = describeToolSchema(entry.tool, entry.config);
+      for (const parameter of entry.tool.parameters ?? []) {
+        if (parameter.type !== 'Query') continue;
+        const described = discovery.parameters.find((p) => p.name === parameter.name);
+        const actual = shape[parameter.name];
+        if (!actual) {
+          expect(described, `${name}.${parameter.name}`).toBeUndefined();
+          continue;
+        }
+        const inner = actual instanceof z.ZodOptional ? actual.unwrap() : actual;
+        const json = zodToJsonSchema(inner, {
+          target: 'jsonSchema7',
+          $refStrategy: 'none',
+        }) as Record<string, unknown>;
+        delete json.$schema;
+        expect(described?.schema, `${name}.${parameter.name}`).toEqual(json);
+        expect(described?.required).toBe(!actual.isOptional());
+      }
+    }
+  });
+
+  it.each(['list-joined-teams', 'list-my-associated-teams'])(
+    'omits all OData options and synthetic cursors for %s',
+    (name) => {
+      const shape = registered.get(name)!;
+      const discovery = schemaFor(name);
+      for (const key of [
+        'top',
+        'select',
+        'filter',
+        'search',
+        'expand',
+        'orderby',
+        'skip',
+        'count',
+        'skiptoken',
+      ]) {
+        for (const spelling of [key, `$${key}`]) {
+          expect(shape[spelling]).toBeUndefined();
+          expect(discovery.parameters.find((p) => p.name === spelling)).toBeUndefined();
+        }
+      }
+      expect(shape.fetchAllPages).toBeDefined();
+    }
+  );
+
+  it('enforces the chat page limit without relaxing stricter provider bounds', () => {
+    const top = registered.get('list-chats')!.top;
+    expect(top.safeParse(50).success).toBe(true);
+    expect(top.safeParse(100).success).toBe(false);
+    expect(top.safeParse(200).success).toBe(false);
+    expect(
+      queryParameterSchema('list-chats', '$top', z.number().max(10).optional())!.safeParse(11)
+        .success
+    ).toBe(false);
+  });
+
+  it('accepts both calendar field-list formats in the registered schema', () => {
+    const select = registered.get('list-calendar-events-delta')!.select;
+    expect(select.safeParse('id,subject').success).toBe(true);
+    expect(select.safeParse(['id', 'subject']).success).toBe(true);
+    expect(select.safeParse(['id', 1]).success).toBe(false);
+  });
 
   function registeredDescription(toolName: string, paramName: string): string | undefined {
     const shape = registered.get(toolName);
