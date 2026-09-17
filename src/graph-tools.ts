@@ -2353,9 +2353,17 @@ async function executeGraphTool(
             }
             if (nextResponse?.content?.[0]?.text) {
               const nextJsonResponse = JSON.parse(nextResponse.content[0].text) as ODataPage;
-              if (Array.isArray(nextJsonResponse.value)) {
-                allItems = allItems.concat(nextJsonResponse.value);
+              // A page that is not a collection cannot be merged. Falling through would
+              // clear nextLink and stamp the short list as complete, so stop here and
+              // leave nextLink set: result_has_more then reports the read as incomplete,
+              // and this page's bytes stay out of the total.
+              if (!Array.isArray(nextJsonResponse.value)) {
+                logger.warn(
+                  `Pagination stopped at page ${pageCount + 1}: response was not a collection`
+                );
+                break;
               }
+              allItems = allItems.concat(nextJsonResponse.value);
               nextLink = nextJsonResponse['@odata.nextLink'];
               if (
                 typeof totalResponseBytes === 'number' &&

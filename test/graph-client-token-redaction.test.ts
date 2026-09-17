@@ -21,6 +21,7 @@ describe('graphRequest logging (#601)', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
       json: async () => ({ value: [] }),
       text: async () => '{"value":[]}',
+      arrayBuffer: async () => new TextEncoder().encode('{"value":[]}').buffer,
     }) as unknown as typeof fetch;
 
     client = new GraphClient(

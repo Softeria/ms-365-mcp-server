@@ -571,6 +571,57 @@ describe('graph-tools', () => {
       }
     });
 
+    it('reports result_has_more when a page is not a collection', async () => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+
+      // Page two came back as bytes rather than a collection, which is what the client
+      // returns for a body that is not valid UTF-8 (#679). It cannot be merged; the risk
+      // is reporting the short list as the whole list.
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }, { id: '2' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 1000 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'OK!',
+                contentType: 'application/json',
+                encoding: 'base64',
+                contentLength: 9,
+                contentBytes: 'eyJ2YWx1',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, response_bytes: 700 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(2);
+      // The unmergeable page must not read as the end of the collection.
+      expect(payload.result_has_more).toBe(true);
+      // Its bytes never reached the caller, so they are not part of the total.
+      expect(payload.response_bytes).toBe(1000);
+    });
+
     it('omits the volume fields when the client supplied none', async () => {
       const endpoint = makeEndpoint({ method: 'get', path: '/me', alias: 'get-current-user' });
       const config = makeConfig({

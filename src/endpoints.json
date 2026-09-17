@@ -2230,6 +2230,7 @@
     "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
     "method": "post",
     "toolName": "reply-to-group-thread",
+    "descriptionOverride": "Reply to a conversation thread in a Microsoft 365 group, adding a new post to the thread. Use list-group-threads to obtain the thread ID.",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
