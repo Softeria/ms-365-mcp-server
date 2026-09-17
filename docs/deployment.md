@@ -28,7 +28,25 @@ In HTTP mode, `MS365_MCP_AUTH_CACHE_COMMAND` is skipped at startup and per Graph
 
 ## Docker
 
-A `Dockerfile` is included for containerized deployments:
+Released images are published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/softeria/ms-365-mcp-server:latest
+# or pin a release
+docker pull ghcr.io/softeria/ms-365-mcp-server:<version>
+```
+
+The image runs as a non-root user and takes the same arguments as the CLI:
+
+```bash
+docker run -p 3000:3000 \
+  -e MS365_MCP_CLIENT_ID=your-client-id \
+  -e MS365_MCP_TENANT_ID=your-tenant-id \
+  ghcr.io/softeria/ms-365-mcp-server:latest \
+  --http 3000 --org-mode
+```
+
+A `Dockerfile` is also included, to build from source instead:
 
 ```bash
 # Build the image

@@ -8,7 +8,10 @@ on:
     inputs:
       registry_version:
         description: 'Publish an already released version to the MCP Registry (skips the release itself)'
-        required: true
+        required: false
+      docker_version:
+        description: 'Publish an already released version to ghcr.io (skips the release itself)'
+        required: false
 
 jobs:
   release:
@@ -108,3 +111,83 @@ jobs:
             sleep 15
           done
           exit 1
+
+  # Separate job for the same reason as publish-registry: a failed push can be redriven
+  # with workflow_dispatch instead of waiting for the next release.
+  publish-docker:
+    needs: release
+    if: ${{ !cancelled() && (inputs.docker_version != '' || needs.release.outputs.version != '') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # ghcr.io
+    env:
+      # Lowercase on purpose: ghcr rejects the "Softeria" casing github.repository carries.
+      IMAGE: ghcr.io/softeria/ms-365-mcp-server
+      VERSION: ${{ inputs.docker_version || needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Anchored, because a loose pattern lets a dispatched value carry extra docker
+      # arguments into the build below.
+      - name: Validate version
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Not a version: '$VERSION'" && exit 1
+          fi
+
+      # Only the version tag here. :latest is promoted further down, once this image has
+      # been proven to start.
+      - name: Build and push image
+        run: |
+          # The image installs the npm package, so it hits the same post-publish window
+          # the registry publish above retries around.
+          for i in 1 2 3 4 5; do
+            docker buildx build \
+              --file Dockerfile.ghcr \
+              --platform linux/amd64,linux/arm64 \
+              --build-arg "VERSION=$VERSION" \
+              --provenance=mode=max \
+              --sbom=true \
+              --tag "$IMAGE:$VERSION" \
+              --push . && exit 0
+            [ "$i" = 5 ] && break
+            echo "Build attempt $i failed, retrying in $((15 * i))s"
+            sleep $((15 * i))
+          done
+          exit 1
+
+      # Runs against what was actually pushed, which a local build would not prove.
+      - name: Smoke test pushed image
+        run: docker run --rm --pull always --platform linux/amd64 "$IMAGE:$VERSION" --list-presets
+
+      - name: Promote to :latest
+        run: |
+          # Resolved after the build, so the dist-tag has settled and a slow or redriven
+          # run cannot hand :latest to a version npm has already moved past.
+          NPM_LATEST=""
+          for i in 1 2 3; do
+            NPM_LATEST=$(npm view @softeria/ms-365-mcp-server version 2>/dev/null || true)
+            [ -n "$NPM_LATEST" ] && break
+            sleep $((5 * i))
+          done
+
+          # Failing loudly, because skipping the tag silently leaves :latest stale and the
+          # Azure Container Apps example defaults to it.
+          if [ -z "$NPM_LATEST" ]; then
+            echo "Could not resolve the published latest version" && exit 1
+          fi
+
+          if [ "$NPM_LATEST" != "$VERSION" ]; then
+            echo "npm latest is $NPM_LATEST, leaving :latest where it is"
+            exit 0
+          fi
+
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:$VERSION"
