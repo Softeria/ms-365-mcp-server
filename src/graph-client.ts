@@ -14,6 +14,11 @@ import { TRANSPORT_OK_MESSAGE } from './lib/select-projection.js';
 import { open, stat, unlink } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 
+// Strict UTF-8: throws on any invalid sequence instead of substituting U+FFFD, and
+// keeps a leading byte-order mark so text round-trips byte for byte. The default
+// response.text() does neither, which is how a non-UTF-8 body turns into garbage.
+const UTF8_STRICT = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
 /**
  * Returns true if the given HTTP Content-Type header indicates a binary
  * payload that must not be decoded as UTF-8 text. Graph returns binary for
@@ -64,6 +69,13 @@ interface GraphRequestOptions {
   // Pin this response to JSON regardless of the configured format, so the
   // fetchAllPages merge can JSON.parse each page before re-encoding (#560).
   forceJsonOutput?: boolean;
+  // Treat the body as bytes whatever Content-Type Graph reports, so callers whose
+  // contract is "return the bytes" (download-bytes) never go through the lossy
+  // response.text() path. Without this, only types on the isBinaryContentType
+  // allowlist are read raw; application/msword, application/rtf, message/rfc822
+  // and any other unlisted type come back as UTF-8 text with every invalid byte
+  // sequence replaced by U+FFFD, and the file cannot be rebuilt.
+  forceBinary?: boolean;
 
   [key: string]: unknown;
 }
@@ -247,17 +259,33 @@ class GraphClient {
       }
 
       const contentTypeHeader = response.headers?.get?.('content-type') || '';
-      const isBinaryResponse = isBinaryContentType(contentTypeHeader);
+      const isBinaryResponse =
+        options.forceBinary === true || isBinaryContentType(contentTypeHeader);
       let metadata: GraphResponseMetadata = { http_status: response.status };
 
       let result: any;
 
-      if (isBinaryResponse) {
-        // Binary payloads (images, video, pdf, octet-stream, etc.) must not be
-        // decoded with response.text() — that performs a lossy UTF-8 decode and
-        // replaces every high byte with U+FFFD, destroying the file. Read the
-        // raw bytes and return them as base64 so callers can reconstruct them.
-        const buffer = Buffer.from(await response.arrayBuffer());
+      // Every body is read as bytes first. A body is handed on as text only if the
+      // caller did not ask for bytes, the Content-Type is not on the binary
+      // allowlist, AND it decodes as strict UTF-8. Anything else is returned as
+      // base64. This is the invariant: the client never returns lossy text — a
+      // Content-Type we failed to list (application/msword, application/rtf,
+      // message/rfc822) or a text/* body in another encoding can no longer come
+      // back with its bytes replaced by U+FFFD.
+      const buffer = Buffer.from(await response.arrayBuffer());
+      // Bytes actually transferred, before base64 inflates them ~1.37x.
+      metadata = { ...metadata, response_bytes: buffer.byteLength };
+
+      let text: string | undefined;
+      if (!isBinaryResponse) {
+        try {
+          text = UTF8_STRICT.decode(buffer);
+        } catch {
+          text = undefined; // not UTF-8: fall through to bytes
+        }
+      }
+
+      if (text === undefined) {
         result = {
           message: TRANSPORT_OK_MESSAGE,
           contentType: contentTypeHeader,
@@ -265,26 +293,20 @@ class GraphClient {
           contentLength: buffer.byteLength,
           contentBytes: buffer.toString('base64'),
         };
-        // Bytes actually transferred, before base64 inflates them ~1.37x.
-        metadata = { ...metadata, response_bytes: buffer.byteLength };
+      } else if (text === '') {
+        result = { message: TRANSPORT_OK_MESSAGE };
+      } else if (options.rawResponse) {
+        // download-bytes on /content wants the body verbatim. A JSON body
+        // would otherwise round-trip through JSON.parse -> JSON.stringify,
+        // which is lossy (whitespace, trailing newline, key order, number
+        // formatting). Return the raw text instead. (issue #546)
+        result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
       } else {
-        const text = await response.text();
-        metadata = { ...metadata, response_bytes: Buffer.byteLength(text, 'utf8') };
-
-        if (text === '') {
-          result = { message: TRANSPORT_OK_MESSAGE };
-        } else if (options.rawResponse) {
-          // download-bytes on /content wants the body verbatim. A JSON body
-          // would otherwise round-trip through JSON.parse -> JSON.stringify,
-          // which is lossy (whitespace, trailing newline, key order, number
-          // formatting). Return the raw text instead. (issue #546)
+        try {
+          // A UTF-8 BOM is kept in rawResponse for byte fidelity but is not JSON.
+          result = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+        } catch {
           result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
-        } else {
-          try {
-            result = JSON.parse(text);
-          } catch {
-            result = { message: TRANSPORT_OK_MESSAGE, rawResponse: text };
-          }
         }
       }
 

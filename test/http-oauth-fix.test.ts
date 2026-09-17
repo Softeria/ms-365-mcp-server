@@ -75,6 +75,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ value: [] }),
+        arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ value: [] })).buffer,
         headers: new Headers(),
       };
     });
