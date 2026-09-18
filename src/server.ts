@@ -218,6 +218,40 @@ type PkceEntry = {
   serverCodeVerifier: string;
   createdAt: number;
 };
+
+/**
+ * Stateless two-leg PKCE.
+ *
+ * The in-memory `pkceStore` ties `/authorize` and `/token` to one process: a
+ * second replica, a serverless function, or a restart between the two legs
+ * answers `/token` with no mapping, the client's verifier goes upstream against
+ * the server's challenge, and Entra fails the exchange (AADSTS501481). With
+ * `MS365_MCP_PKCE_SECRET` set, the server-side code_verifier is instead derived
+ * from the client's public code_challenge and the secret, so any process that
+ * holds the secret recomputes it at `/token` and nothing is stored. An attacker
+ * who sees the challenge in the redirect cannot reproduce the verifier without
+ * the secret, which is the guarantee the store gave.
+ */
+export const PKCE_SECRET_MIN_LENGTH = 32;
+
+export function deriveServerCodeVerifier(secret: string, clientCodeChallenge: string): string {
+  return crypto.createHmac('sha256', secret).update(clientCodeChallenge).digest('base64url');
+}
+
+export function statelessPkceSecret(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const secret = env.MS365_MCP_PKCE_SECRET;
+  if (secret === undefined || secret === '') {
+    return undefined;
+  }
+  if (secret.length < PKCE_SECRET_MIN_LENGTH) {
+    throw new Error(
+      `MS365_MCP_PKCE_SECRET must be at least ${PKCE_SECRET_MIN_LENGTH} characters; ` +
+        'a short secret makes the derived PKCE verifier guessable.'
+    );
+  }
+  return secret;
+}
+
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -241,6 +275,17 @@ class MicrosoftGraphServer {
 
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
   private pkceStore: Map<string, PkceEntry> = new Map();
+
+  /**
+   * The Express app `start()` built when `options.noListen` is set: the caller
+   * (a serverless function, an embedding host) mounts it instead of this
+   * process binding a port. `null` until `start()` has run in that mode.
+   */
+  private httpApp: express.Express | null = null;
+
+  getHttpApp(): express.Express | null {
+    return this.httpApp;
+  }
 
   constructor(authManager: AuthManager, options: CommandOptions = {}) {
     this.authManager = authManager;
@@ -710,7 +755,18 @@ class MicrosoftGraphServer {
 
         // Two-leg PKCE: if the client sent a code_challenge, store it and generate
         // a separate PKCE pair for the server↔Microsoft leg
-        if (clientCodeChallenge && state) {
+        const pkceSecret = statelessPkceSecret();
+        if (clientCodeChallenge && pkceSecret) {
+          // Stateless variant: nothing is stored; /token re-derives the verifier.
+          const serverCodeVerifier = deriveServerCodeVerifier(pkceSecret, clientCodeChallenge);
+          const serverCodeChallenge = crypto
+            .createHash('sha256')
+            .update(serverCodeVerifier)
+            .digest('base64url');
+          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+          logger.info('Two-leg PKCE (stateless): derived server challenge from client challenge');
+        } else if (clientCodeChallenge && state) {
           const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
           const serverCodeChallenge = crypto
             .createHash('sha256')
@@ -839,6 +895,7 @@ class MicrosoftGraphServer {
             // code_verifier against all stored challenges and use the server's verifier
             let matchedPkceState: string | undefined;
             let matchedPkceEntry: PkceEntry | undefined;
+            let derivedServerVerifier: string | undefined;
 
             if (body.code_verifier) {
               // Look through pkceStore for a matching client code_challenge
@@ -848,12 +905,24 @@ class MicrosoftGraphServer {
                 .update(clientVerifier)
                 .digest('base64url');
 
+              const pkceSecret = statelessPkceSecret();
+              if (pkceSecret) {
+                // Stateless two-leg PKCE: /authorize stored nothing; recompute.
+                derivedServerVerifier = deriveServerCodeVerifier(
+                  pkceSecret,
+                  clientChallengeComputed
+                );
+                logger.info(
+                  'Two-leg PKCE (stateless): derived server verifier from client verifier'
+                );
+              }
+
               // Age deliberately plays no part here. If a mapping really is
               // stale so is the code arriving with it, and Entra answers that
               // with AADSTS70008, which is the authority giving the right
               // answer. Evicting on age instead would take the mapping away
               // from a slow but perfectly valid sign-in.
-              for (const [state, pkceData] of this.pkceStore) {
+              for (const [state, pkceData] of derivedServerVerifier ? [] : this.pkceStore) {
                 if (pkceData.clientCodeChallenge === clientChallengeComputed) {
                   // Client's code_verifier matches stored code_challenge — two-leg PKCE
                   matchedPkceState = state;
@@ -872,7 +941,9 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
+              derivedServerVerifier ||
+                matchedPkceEntry?.serverCodeVerifier ||
+                (body.code_verifier as string | undefined),
               this.secrets!.cloudType
             );
 
@@ -1129,6 +1200,18 @@ class MicrosoftGraphServer {
       app.get('/', (req, res) => {
         res.send('Microsoft 365 MCP Server is running');
       });
+
+      if (this.options.noListen) {
+        // Serverless / embedded host: hand the finished app back instead of
+        // binding. Everything above -- auth routes, /mcp, CORS, limiters -- is
+        // wired; only the listener is skipped. The attachment listener is not
+        // supported in this mode (there is no second port to bind).
+        this.httpApp = app;
+        logger.info(
+          `HTTP app built without a listener (noListen); public URL: ${publicBase ?? 'unset'}`
+        );
+        return;
+      }
 
       // Every line below is written from the address the kernel actually
       // handed back, not from the option that asked for it. On this pair of
