@@ -16,6 +16,8 @@ This server supports multiple Microsoft cloud environments:
 | **Global** (default) | International Microsoft 365        | login.microsoftonline.com | graph.microsoft.com             |
 | **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
 
+To route Graph traffic through a proxy of your own (one that terminates the client's plain HTTP and originates TLS to Microsoft), set `MS365_MCP_GRAPH_BASE_URL` to its base URL; see the environment variable list under CLI Options.
+
 ## Prerequisites
 
 - Node.js >= 20 (recommended)
@@ -635,6 +637,7 @@ Environment variables:
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
+- `MS365_MCP_GRAPH_BASE_URL=<url>`: Send every Graph call to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority is unchanged. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.
