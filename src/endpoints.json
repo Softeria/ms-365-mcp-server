@@ -1660,6 +1660,39 @@
     "workScopes": ["Team.ReadBasic.All"]
   },
   {
+    "pathPattern": "/teamwork/messaging/customEmojis",
+    "method": "get",
+    "toolName": "list-custom-emojis",
+    "apiVersion": "beta",
+    "presets": ["teams", "work"],
+    "workScopes": ["TeamworkCustomEmoji.Read"],
+    "llmTip": "Lists the organization's custom Teams emojis, including displayName, contentBytes (base64 PNG/GIF), createdBy and createdDateTime. The documented query options are $top and $filter. Image bytes can make responses large: start with a small $top and narrow with $filter; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
+  },
+  {
+    "pathPattern": "/teamwork/messaging/customEmojis",
+    "method": "post",
+    "toolName": "create-custom-emoji",
+    "apiVersion": "beta",
+    "presets": ["teams", "work"],
+    "workScopes": ["TeamworkCustomEmoji.Create"],
+    "requestBodySchema": {
+      "type": "object",
+      "required": ["displayName", "contentBytes"],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Exact unique custom emoji name, without surrounding colons. Must not conflict with an existing emoji name."
+        },
+        "contentBytes": {
+          "type": "string",
+          "description": "Base64-encoded PNG or GIF file content; do not include a data-URL prefix."
+        }
+      },
+      "additionalProperties": false
+    },
+    "llmTip": "Uploads a custom Teams emoji for the organization using body: { displayName, contentBytes }. Only PNG and GIF are supported; pass the complete image file as base64. Confirm the exact name and image with the user before creating it. Returns the created emoji, including its image bytes; use excludeResponse=true when only success/failure is needed. Work/school accounts only. Microsoft Graph beta API: subject to change."
+  },
+  {
     "pathPattern": "/teams/{team-id}",
     "method": "get",
     "toolName": "get-team",

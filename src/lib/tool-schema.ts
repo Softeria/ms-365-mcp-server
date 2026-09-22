@@ -124,7 +124,7 @@ export function describeToolSchema(
       name: 'fetchAllPages',
       in: 'Query',
       required: false,
-      description: getFetchAllPagesParamDescription(getMaxPages()),
+      description: getFetchAllPagesParamDescription(getMaxPages(), tool.alias),
       schema: { type: 'boolean' },
     });
   }
