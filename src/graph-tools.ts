@@ -841,8 +841,7 @@ interface UtilityTool {
   readOnlyHint?: boolean;
   openWorldHint?: boolean;
   // When true, this tool writes to the server's local filesystem and is only
-  // registered in stdio mode — never in HTTP/OAuth mode, where a remote client
-  // must not be able to write arbitrary files onto the host.
+  // registered in stdio mode, or over HTTP with --http-local-file-tools.
   stdioOnly?: boolean;
 }
 
@@ -1266,7 +1265,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     // sits past the cap. That keeps the hint for the reading LLM while letting
     // get-download-url own the high-signal "drive"/"sharepoint" search terms.
     description:
-      'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. The only out-of-band way to save mail attachments and meeting recordings, whose bytes are exposed solely through authenticated endpoints. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode only: not available over HTTP. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
+      'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. The only out-of-band way to save mail attachments and meeting recordings, whose bytes are exposed solely through authenticated endpoints. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode, or HTTP with --http-local-file-tools. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
     readOnlyHint: true,
     openWorldHint: true,
     stdioOnly: true,

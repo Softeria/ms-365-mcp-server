@@ -610,7 +610,15 @@ When running as an MCP server, the following options can be used:
 -v                Enable verbose logging
 --read-only       Start server in read-only mode, disabling write operations
 --http [port]     Use Streamable HTTP transport instead of stdio (optionally specify port, default: 3000)
-                  Starts Express.js server with MCP endpoint at /mcp
+                  Starts Express.js server with MCP endpoint at /mcp. Bound to a loopback host
+                  (e.g. --http 127.0.0.1:3000 or --http [::1]:3000) with no --public-url, it
+                  rejects requests whose Host or Origin is not localhost (not applied to the
+                  --attachment-port listener)
+--http-local-file-tools Register download-bytes-to-file over HTTP. Anyone who can reach the port
+                  can write files as the server's user (without a valid token, only an empty
+                  file that is removed again), so enable it only on a single-user machine.
+                  Refused unless --http binds a loopback host with no --public-url and no
+                  --trust-proxy-auth
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
                   exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs")
@@ -648,6 +656,7 @@ Environment variables:
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
+- `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file over HTTP (alternative to --http-local-file-tools; same restrictions)
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
