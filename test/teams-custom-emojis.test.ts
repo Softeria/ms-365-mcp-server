@@ -123,6 +123,39 @@ describe('Teams custom emojis (real generated clients)', () => {
     expect(options?.body).toBeUndefined();
   });
 
+  it.each([
+    { mode: 'direct', select: 'displayName,contentBytes' },
+    { mode: 'direct', select: ['displayName', 'contentBytes'] },
+    { mode: 'discovery', select: 'displayName,contentBytes' },
+    { mode: 'discovery', select: ['displayName', 'contentBytes'] },
+  ])('requests image bytes with $select through $mode ($select)', async ({ mode, select }) => {
+    register();
+    registerDiscovery();
+    const emoji = { displayName: 'example-emoji', contentBytes: imageFixtures[0].contentBytes };
+    vi.mocked(mockGraphClient.graphRequest).mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify({ value: [emoji] }) }],
+    });
+    mockGraphClient.serialize = vi.fn((value) => JSON.stringify(value));
+
+    const response =
+      mode === 'direct'
+        ? await handler('list-custom-emojis')({ top: 1, select })
+        : await handler(
+            'execute-tool',
+            true
+          )({
+            tool_name: 'list-custom-emojis',
+            parameters: { top: 1, $select: select },
+          });
+
+    expect(response.isError).not.toBe(true);
+    expect(resultJson(response)).toEqual({ value: [emoji] });
+    expect(mockGraphClient.graphRequest).toHaveBeenCalledExactlyOnceWith(
+      `${emojiPath}?$top=1&$select=displayName,contentBytes`,
+      expect.objectContaining({ method: 'GET', apiVersion: 'beta' })
+    );
+  });
+
   it('retains PNG/GIF bytes and the beta route across paginated list responses', async () => {
     vi.stubEnv('MS365_MCP_ALLOW_PAGINATION', 'true');
     vi.stubEnv('MS365_MCP_MAX_PAGES', '5');
@@ -131,7 +164,7 @@ describe('Teams custom emojis (real generated clients)', () => {
       displayName: `example-${format.toLowerCase()}`,
       contentBytes,
     }));
-    const nextQuery = '?$top=1&$skiptoken=next%2Bpage%2Ftoken%3D';
+    const nextQuery = '?$top=1&$select=displayName,contentBytes&$skiptoken=next%2Bpage%2Ftoken%3D';
     vi.mocked(mockGraphClient.graphRequest)
       .mockResolvedValueOnce({
         content: [
@@ -150,13 +183,17 @@ describe('Teams custom emojis (real generated clients)', () => {
     mockGraphClient.serialize = vi.fn((value) => JSON.stringify(value));
     register();
 
-    const response = await handler('list-custom-emojis')({ top: 1, fetchAllPages: true });
+    const response = await handler('list-custom-emojis')({
+      top: 1,
+      select: 'displayName,contentBytes',
+      fetchAllPages: true,
+    });
 
     expect(response.isError).not.toBe(true);
     expect(resultJson(response)).toEqual({ value: emojis });
     const requests = vi.mocked(mockGraphClient.graphRequest).mock.calls;
     expect(requests.map(([path]) => path)).toEqual([
-      `${emojiPath}?$top=1`,
+      `${emojiPath}?$top=1&$select=displayName,contentBytes`,
       `${emojiPath}${nextQuery}`,
     ]);
     for (const [, options] of requests) {
@@ -164,7 +201,7 @@ describe('Teams custom emojis (real generated clients)', () => {
     }
   });
 
-  it('exposes only documented list options and a continuation cursor in both schemas', async () => {
+  it('exposes supported list options and a continuation cursor in both schemas', async () => {
     register();
     registerDiscovery();
     const normal = mockServer.registerTool.mock.calls.find(
@@ -174,11 +211,14 @@ describe('Teams custom emojis (real generated clients)', () => {
       await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' })
     );
     const discoveredNames = discovery.parameters.map((parameter) => parameter.name);
-    for (const name of ['top', 'filter', 'skiptoken']) {
+    for (const name of ['top', 'filter', 'select', 'skiptoken']) {
       expect(normal, `normal schema should expose ${name}`).toHaveProperty(name);
       expect(discoveredNames).toContain(name);
     }
-    for (const name of ['select', 'search', 'orderby', 'expand', 'skip', 'count']) {
+    for (const select of ['displayName,contentBytes', ['displayName', 'contentBytes']]) {
+      expect(normal.select.parse(select)).toEqual(select);
+    }
+    for (const name of ['search', 'orderby', 'expand', 'skip', 'count']) {
       expect(normal).not.toHaveProperty(name);
       expect(discoveredNames).not.toContain(name);
     }
@@ -194,20 +234,20 @@ describe('Teams custom emojis (real generated clients)', () => {
     const discovery = resultJson<{ parameters: Array<{ name: string; description?: string }> }>(
       await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' })
     );
-    for (const name of ['top', 'filter', 'fetchAllPages']) {
+    for (const name of ['top', 'filter', 'select', 'fetchAllPages']) {
       const descriptions = [
         normal[name].description,
         discovery.parameters.find((parameter) => parameter.name === name)?.description,
       ];
       for (const description of descriptions) {
         expect(description).toEqual(expect.any(String));
-        expect(description).not.toMatch(/\$(select|search|orderby|expand|skip|count)\b/i);
+        expect(description).not.toMatch(/\$(search|orderby|expand|skip|count)\b/i);
         if (name === 'top') expect(description).toMatch(/base64/i);
       }
     }
   });
 
-  it.each(['select', 'search', 'orderby'])(
+  it.each(['search', 'orderby', 'expand'])(
     'rejects unsupported %s in direct and discovery calls before calling Graph',
     async (parameter) => {
       register();

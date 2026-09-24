@@ -112,8 +112,10 @@ beta API and request the delegated permissions `TeamworkCustomEmoji.Read` and
 Existing deployments may need consent for these new scopes and reauthentication;
 adding tool support does not upgrade an already-issued token.
 
-Listing returns base64 image content, so use a small `top` and `filter` to keep
-responses manageable. To create an emoji, pass `body: { displayName, contentBytes }`
+Listing can return `contentBytes: null` by default. To request base64 PNG/GIF images,
+pass `select: "displayName,contentBytes"` or `select: ["displayName", "contentBytes"]`.
+Use a small `top` to keep image responses manageable.
+To create an emoji, pass `body: { displayName, contentBytes }`
 with the exact approved name and base64 PNG/GIF file bytes. See Microsoft's
 [list](https://learn.microsoft.com/en-us/graph/api/teamworkmessaging-list-customemojis?view=graph-rest-beta)
 and [create](https://learn.microsoft.com/en-us/graph/api/teamworkmessaging-post-customemojis?view=graph-rest-beta)
