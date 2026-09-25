@@ -113,6 +113,10 @@ program
     'In HTTP mode, skip the built-in Bearer-token check on /mcp and ignore any forwarded Authorization header. All callers share the locally cached MSAL identity (same path stdio mode uses). Use only when an upstream reverse proxy has already authenticated the caller.'
   )
   .option(
+    '--http-local-file-tools',
+    "In HTTP mode, also register download-bytes-to-file, which writes files on the server as the server's user. Anyone who can reach the port can use it, so enable only on a single-user machine. Refused unless --http binds a loopback host with no --public-url and no --trust-proxy-auth."
+  )
+  .option(
     '--allow-unauthenticated-discovery',
     'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
   )
@@ -170,6 +174,7 @@ export interface CommandOptions {
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
+  httpLocalFileTools?: boolean;
   allowUnauthenticatedDiscovery?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
@@ -364,6 +369,13 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_TRUST_PROXY_AUTH === '1'
   ) {
     options.trustProxyAuth = true;
+  }
+
+  if (
+    process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS === 'true' ||
+    process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS === '1'
+  ) {
+    options.httpLocalFileTools = true;
   }
 
   if (

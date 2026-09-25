@@ -39,6 +39,38 @@ import type { Server as HttpServer } from 'node:http';
 import { isIP, isIPv6 } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import OboClient from './obo-client.js';
+import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
+
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
+
+export function isLoopbackHost(host: string | undefined): boolean {
+  if (!host) return false;
+  const bare = host.toLowerCase().replace(/^\[(.*)\]$/, '$1');
+  return bare === 'localhost' || bare === '127.0.0.1' || bare === '::1';
+}
+
+export function loopbackOriginValidation(): (
+  req: Request,
+  res: Response,
+  next: () => void
+) => void {
+  return (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin === undefined) return next();
+    let hostname: string | undefined;
+    try {
+      hostname = new URL(origin).hostname;
+    } catch {
+      hostname = undefined;
+    }
+    if (hostname && LOOPBACK_HOSTNAMES.includes(hostname)) return next();
+    res.status(403).json({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: `Invalid Origin: ${origin}` },
+      id: null,
+    });
+  };
+}
 
 /**
  * Parse HTTP option into host and port components.
@@ -46,12 +78,20 @@ import OboClient from './obo-client.js';
  * @param httpOption - The HTTP option value (string or boolean)
  * @returns Object with host (undefined if not specified) and port number
  */
-function parseHttpOption(httpOption: string | boolean): { host: string | undefined; port: number } {
+export function parseHttpOption(httpOption: string | boolean): {
+  host: string | undefined;
+  port: number;
+} {
   if (typeof httpOption === 'boolean') {
     return { host: undefined, port: 3000 };
   }
 
   const httpString = httpOption.trim();
+
+  const bracketed = /^\[([^\]]+)\](?::(.*))?$/.exec(httpString);
+  if (bracketed) {
+    return { host: bracketed[1], port: parseInt(bracketed[2] ?? '') || 3000 };
+  }
 
   // Check if it contains a colon (host:port format)
   if (httpString.includes(':')) {
@@ -251,6 +291,20 @@ class MicrosoftGraphServer {
     this.oboClient = null;
   }
 
+  private isLoopbackOnlyHttp(): boolean {
+    if (!this.options.http) return false;
+    const publicUrl =
+      this.options.publicUrl ||
+      process.env.MS365_MCP_PUBLIC_URL ||
+      this.options.baseUrl ||
+      process.env.MS365_MCP_BASE_URL;
+    return !publicUrl && isLoopbackHost(parseHttpOption(this.options.http).host);
+  }
+
+  private hidesStdioOnlyTools(): boolean {
+    return Boolean(this.options.http) && !this.options.httpLocalFileTools;
+  }
+
   private createMcpServer(): McpServer {
     const server = new McpServer(
       {
@@ -283,7 +337,7 @@ class MicrosoftGraphServer {
         this.accountNames,
         this.options.enabledTools,
         this.options.allowedScopes,
-        Boolean(this.options.http)
+        this.hidesStdioOnlyTools()
       );
     } else {
       registerGraphTools(
@@ -296,7 +350,7 @@ class MicrosoftGraphServer {
         this.multiAccount,
         this.accountNames,
         this.options.allowedScopes,
-        Boolean(this.options.http)
+        this.hidesStdioOnlyTools()
       );
     }
 
@@ -337,6 +391,29 @@ class MicrosoftGraphServer {
     } else {
       logger.info(
         'Account routing disabled: requests use the OAuth bearer identity, so the "account" parameter is not injected into tool schemas'
+      );
+    }
+
+    if (this.options.httpLocalFileTools && this.options.http) {
+      if (!this.isLoopbackOnlyHttp()) {
+        throw new Error(
+          '--http-local-file-tools requires --http bound to a loopback host (localhost, ' +
+            '127.0.0.1 or [::1]) and no --public-url: anyone who can reach the port can write ' +
+            "files as the server's user."
+        );
+      }
+      if (this.options.trustProxyAuth) {
+        throw new Error(
+          '--http-local-file-tools cannot be combined with --trust-proxy-auth: a proxy in ' +
+            "front of the loopback port would let remote callers write files as the server's user."
+        );
+      }
+      logger.warn(
+        "--http-local-file-tools: download-bytes-to-file is registered over HTTP; anyone who can reach this port can write files as the server's user."
+      );
+    } else if (this.options.httpLocalFileTools) {
+      logger.warn(
+        '--http-local-file-tools has no effect in stdio mode, where download-bytes-to-file is always registered.'
       );
     }
 
@@ -447,6 +524,11 @@ class MicrosoftGraphServer {
       const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
+
+      if (this.isLoopbackOnlyHttp()) {
+        app.use(hostHeaderValidation(LOOPBACK_HOSTNAMES));
+        app.use(loopbackOriginValidation());
+      }
 
       // Trust-proxy configuration. `true` (trust every hop) is too permissive
       // once per-IP rate limiting is in play: a client can spoof the leftmost

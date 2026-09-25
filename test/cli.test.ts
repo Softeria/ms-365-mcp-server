@@ -63,6 +63,7 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
+    delete process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS;
   });
 
   describe('parseArgs', () => {
@@ -77,6 +78,22 @@ describe('CLI Module', () => {
       const result = parseArgs();
 
       expect(result.allowedScopes).toBe('Mail.Read Files.Read');
+    });
+
+    it.each(['true', '1'])(
+      'should enable --http-local-file-tools from MS365_MCP_HTTP_LOCAL_FILE_TOOLS=%s',
+      (value) => {
+        process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS = value;
+        commanderMocks.mockCommand.opts.mockReturnValue({});
+
+        expect(parseArgs().httpLocalFileTools).toBe(true);
+      }
+    );
+
+    it('should leave --http-local-file-tools off by default', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      expect(parseArgs().httpLocalFileTools).toBeUndefined();
     });
 
     it('should use MS365_MCP_ALLOWED_SCOPES as a fallback', () => {
