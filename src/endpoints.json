@@ -533,7 +533,8 @@
     "toolName": "get-schedule",
     "presets": ["calendar", "outlook", "personal"],
     "readOnly": true,
-    "workScopes": ["Calendars.Read"]
+    "workScopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/users/{user-id}/calendar/events",
@@ -541,7 +542,8 @@
     "toolName": "list-shared-calendar-events",
     "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated access to that calendar is required. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
     "presets": ["work"],
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/users/{user-id}/calendarView",
@@ -599,7 +601,8 @@
     "toolName": "find-meeting-times",
     "presets": ["calendar", "outlook", "personal"],
     "readOnly": true,
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/drives",
@@ -2405,6 +2408,7 @@
     "toolName": "list-calendar-view-delta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
+    "supportsTimezone": true,
     "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
   },
   {
