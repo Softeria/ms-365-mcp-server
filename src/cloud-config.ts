@@ -61,9 +61,44 @@ export function getDefaultClientId(cloudType: CloudType = 'global'): string {
 }
 
 /**
+ * Environment variable that overrides the Graph API base URL for every cloud.
+ *
+ * For deployments that put an egress proxy in front of Graph: the server then
+ * dials the proxy over plain HTTP and the proxy originates TLS to Microsoft.
+ * The value is an absolute http(s) URL and may carry a path prefix, which is
+ * kept as-is (`http://proxy:10255/tenant-a/graph` + `/v1.0/me`). The login
+ * authority is not affected; use `--cloud` / `MS365_MCP_CLOUD_TYPE` for that.
+ *
+ * Deliberately not in the `.env` allowlist (see load-env.ts): a file in the
+ * client's cwd must not be able to redirect bearer-token traffic.
+ */
+export const GRAPH_BASE_URL_ENV = 'MS365_MCP_GRAPH_BASE_URL';
+
+/**
+ * Reads and validates the Graph base URL override, if any.
+ * @returns The override without a trailing slash, or undefined when unset/blank
+ * @throws Error if the value is set but is not an absolute http(s) URL
+ */
+export function getGraphBaseUrlOverride(): string | undefined {
+  const raw = process.env[GRAPH_BASE_URL_ENV]?.trim();
+  if (!raw) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(`${GRAPH_BASE_URL_ENV} must be an absolute http(s) URL, got: ${raw}`);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`${GRAPH_BASE_URL_ENV} must be an absolute http(s) URL, got: ${raw}`);
+  }
+  return raw.replace(/\/+$/, '');
+}
+
+/**
  * Gets cloud endpoints for the specified cloud type.
  * @param cloudType - The cloud environment type (default: 'global')
- * @returns The endpoint configuration for the specified cloud
+ * @returns The endpoint configuration for the specified cloud, with `graphApi`
+ *   replaced by `MS365_MCP_GRAPH_BASE_URL` when that is set
  * @throws Error if the cloud type is invalid
  */
 export function getCloudEndpoints(cloudType: CloudType = 'global'): CloudEndpoints {
@@ -73,7 +108,8 @@ export function getCloudEndpoints(cloudType: CloudType = 'global'): CloudEndpoin
       `Unknown cloud type: ${cloudType}. Valid values: ${Object.keys(CLOUD_ENDPOINTS).join(', ')}`
     );
   }
-  return endpoints;
+  const graphApi = getGraphBaseUrlOverride();
+  return graphApi ? { ...endpoints, graphApi } : endpoints;
 }
 
 /**
