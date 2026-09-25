@@ -1986,9 +1986,12 @@ export function registerGraphTools(
   const definitionBudget = getToolDefinitionBudget();
   // Everything besides static endpoint data that shapes a tool's paramSchema. Keys the
   // fit cache, so a process that flips one of these (tests do) never reuses a stale fit.
+  // Mirror every env read the schema build below makes: budget, account list,
+  // fetchAllPages presence (MS365_MCP_ALLOW_PAGINATION) and its page cap.
   const schemaFingerprint = [
     definitionBudget ?? 'unrationed',
-    multiAccount ? accountNames.join(' ') : '',
+    multiAccount ? accountNames.join('\0') : '',
+    paginationAllowed(),
     getMaxPages(),
   ].join('|');
   const prunedForBudget: PrunedForBudget[] = [];
