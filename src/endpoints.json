@@ -2408,6 +2408,7 @@
     "toolName": "list-calendar-view-delta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
+    "supportsTimezone": true,
     "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
   },
   {

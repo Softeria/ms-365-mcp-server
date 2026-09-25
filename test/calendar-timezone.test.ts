@@ -13,9 +13,14 @@ vi.mock('../src/logger.js', () => ({
 }));
 
 // Real endpoints.json and generated client, so dropping the flag from config fails here (#687)
-const TOOLS = ['get-schedule', 'find-meeting-times', 'list-shared-calendar-events'];
+const TOOLS = [
+  'get-schedule',
+  'find-meeting-times',
+  'list-shared-calendar-events',
+  'list-calendar-view-delta',
+];
 
-describe('timezone on schedule and shared calendar tools', () => {
+describe('timezone on schedule, shared calendar and delta tools', () => {
   let registerTool: MockInstance;
   let graphRequest: ReturnType<typeof vi.fn>;
 
@@ -26,7 +31,7 @@ describe('timezone on schedule and shared calendar tools', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
-    // All three are work-scoped, so they only register in org mode
+    // Three of these are work-scoped, so they only register in org mode
     registerGraphTools(
       server,
       { graphRequest } as unknown as GraphClient,
