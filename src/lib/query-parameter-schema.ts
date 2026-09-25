@@ -6,9 +6,11 @@ import { getODataParamDescription, shouldOmitTopParam } from './param-descriptio
 // https://learn.microsoft.com/en-us/graph/api/associatedteaminfo-list
 const TEAM_LIST_TOOLS = new Set(['list-joined-teams', 'list-my-associated-teams']);
 const CUSTOM_EMOJI_QUERY_DESCRIPTIONS: Record<string, string> = {
-  top: 'Number of custom emojis to return in one page. Each emoji includes base64 image content; use a small page size to keep the response manageable.',
+  top: 'Number of custom emojis to return in one page. Base64 image content is opt-in with select; use a small page size when selecting contentBytes.',
   filter:
     'OData filter expression for custom emojis, forwarded to Microsoft Graph. Filter support is determined by the beta API.',
+  select:
+    'Properties to return as a comma-separated string or string array. Explicitly select contentBytes to retrieve base64 PNG/GIF images, for example displayName,contentBytes. Graph can return contentBytes: null when it is not explicitly selected.',
 };
 
 /**
@@ -23,10 +25,14 @@ export function queryParameterSchema(
   const bareName = name.replace(/^\$/, '').toLowerCase();
   if (TEAM_LIST_TOOLS.has(toolName)) return undefined;
   // The generated collection schema advertises generic OData options, but the
-  // custom-emoji REST contract documents only $top/$filter. Keep the synthetic
-  // cursor for following a returned @odata.nextLink through the existing paging path.
+  // custom-emoji REST contract documents only $top/$filter. Graph can omit image
+  // bytes from collection responses unless $select=contentBytes is explicit.
+  // Keep the synthetic cursor for following a returned @odata.nextLink.
   // https://learn.microsoft.com/graph/api/teamworkmessaging-list-customemojis?view=graph-rest-beta
-  if (toolName === 'list-custom-emojis' && !['top', 'filter', 'skiptoken'].includes(bareName)) {
+  if (
+    toolName === 'list-custom-emojis' &&
+    !['top', 'filter', 'select', 'skiptoken'].includes(bareName)
+  ) {
     return undefined;
   }
   if (bareName === 'top' && shouldOmitTopParam(toolName)) return undefined;

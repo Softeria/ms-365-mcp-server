@@ -1666,7 +1666,7 @@
     "apiVersion": "beta",
     "presets": ["teams", "work"],
     "workScopes": ["TeamworkCustomEmoji.Read"],
-    "llmTip": "Lists the organization's custom Teams emojis, including displayName, contentBytes (base64 PNG/GIF), createdBy and createdDateTime. The documented query options are $top and $filter. Image bytes can make responses large: start with a small $top and narrow with $filter; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
+    "llmTip": "Lists the organization's custom Teams emojis, including displayName, createdBy and createdDateTime. Graph can return contentBytes: null by default; request select='displayName,contentBytes' (or a string array) to retrieve base64 PNG/GIF images. Supports $top, $filter and $select. Image bytes can make responses large: use a small $top when selecting contentBytes; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
   },
   {
     "pathPattern": "/teamwork/messaging/customEmojis",
