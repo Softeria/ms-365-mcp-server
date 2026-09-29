@@ -1044,27 +1044,34 @@ async function mintDownloadUrl(
   const minting = getAttachmentMinting();
   if (!minting) return null;
 
-  // Refuse whenever this request's Graph identity comes from the caller rather
-  // than from this server's own token cache.
+  // When this request's Graph identity comes from the caller rather than from this
+  // server's own token cache, the ticket keeps the token `download-bytes` would
+  // have read with. Redemption arrives later with no Authorization header, so a
+  // lookup in the cache would fetch as whatever account this server has cached:
+  // ask under one identity, fetch under another.
   //
-  // **Both halves of this predicate are load-bearing, and checking only the
-  // first is an authority escalation, not merely a broken feature.**
-  // `isOAuthModeEnabled()` is true only for MS365_MCP_OAUTH_TOKEN and the
-  // oauth-provider path; it is *false* in plain `--http` bearer mode and in
-  // `--obo`, both of which still run the tool inside a request context holding
-  // the caller's token. In those modes `download-bytes` reads as the caller
-  // while a redeemed ticket reads as whatever account this server has cached --
-  // so minting would let a caller ask under one identity and have the bytes
-  // fetched under another. Every other token site in this file pairs these two
+  // **Both halves of this predicate are load-bearing.** `isOAuthModeEnabled()`
+  // is true only for MS365_MCP_OAUTH_TOKEN and the oauth-provider path; it is
+  // *false* in plain `--http` bearer mode and in `--obo`, both of which still
+  // run the tool inside a request context holding the caller's token (already
+  // exchanged, under OBO). Every other token site in this file pairs these two
   // checks (see the `getRequestTokens()` guards below); this one must too.
-  if (authManager?.isOAuthModeEnabled() || getRequestTokens()) {
+  const identityFromRequest = Boolean(authManager?.isOAuthModeEnabled() || getRequestTokens());
+  // getToken() throws rather than returning nothing, and the early mint sites sit
+  // outside the tool's own try, so a throw here would surface as a protocol error.
+  const requestToken = identityFromRequest
+    ? (getRequestTokens()?.accessToken ??
+      (await authManager?.getToken().catch(() => null)) ??
+      undefined)
+    : undefined;
+  if (identityFromRequest && !requestToken) {
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
             error:
-              'Server-minted download URLs are unavailable when Graph identity comes from the request (OAuth, OBO, or bearer mode): the URL is redeemed later without an Authorization header, so the bytes would be fetched as a different identity than the one that asked for them. Use download-bytes.',
+              'No Graph access token is available for this request, so no download URL can be minted. Use download-bytes.',
           }),
         },
       ],
@@ -1105,7 +1112,9 @@ async function mintDownloadUrl(
 
   let ticket: { id: string; expiresAtMs: number };
   try {
-    ticket = minting.store.mint(target, accountParam);
+    ticket = requestToken
+      ? minting.store.mintWithToken(target, requestToken)
+      : minting.store.mint(target, accountParam);
   } catch (error) {
     if (error instanceof TicketStoreFullError) {
       return {
@@ -1441,7 +1450,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             'Relative Microsoft Graph path starting with "/". Either a driveItem content path or the item path itself, e.g. ' +
               '/drives/{drive-id}/items/{driveItem-id}/content, /me/drive/items/{driveItem-id}/content, ' +
               'or /sites/{site-id}/drive/items/{driveItem-id}. ' +
-              'A trailing /content is optional and is stripped automatically for drive items. Mail attachment $value paths and meeting recordings are not supported (Graph exposes no pre-authenticated URL for them).'
+              'A trailing /content is optional and is stripped automatically for drive items. Mail attachment $value paths and meeting recordings are accepted on a server running with --enable-attachment-urls.'
           ),
       };
       if (ctx.multiAccount) {
