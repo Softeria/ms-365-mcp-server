@@ -28,7 +28,7 @@ import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validat
 import { loadAttachmentUrlConfig, ATTACHMENT_ROUTE } from './lib/attachment-url-config.js';
 import { AttachmentTicketStore } from './lib/attachment-tickets.js';
 import { configureAttachmentMinting } from './lib/attachment-minting.js';
-import { createAttachmentHandler } from './attachment-route.js';
+import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import type { CommandOptions } from './cli.ts';
 import { getSecrets, type AppSecrets } from './secrets.js';
 import { getCloudEndpoints } from './cloud-config.js';
@@ -1160,14 +1160,15 @@ class MicrosoftGraphServer {
             })
           );
         }
-        attachmentApp.get(
-          ATTACHMENT_ROUTE,
-          createAttachmentHandler({
-            store: ticketStore,
-            getGraphClient: () => this.graphClient,
-            authManager: this.authManager,
-          })
-        );
+        const attachmentDeps = {
+          store: ticketStore,
+          getGraphClient: () => this.graphClient,
+          authManager: this.authManager,
+        };
+        attachmentApp.get(ATTACHMENT_ROUTE, createAttachmentHandler(attachmentDeps));
+        // Same route, same ticket store: a PUT redeems an upload ticket minted by
+        // get-upload-url and attaches the body to the ticket's message or event.
+        attachmentApp.put(ATTACHMENT_ROUTE, createAttachmentUploadHandler(attachmentDeps));
         logger.info(
           `  - Attachment URLs: ${attachmentConfig.base}${ATTACHMENT_ROUTE} ` +
             `(ttl ${attachmentConfig.ttlSeconds}s, key id ${attachmentConfig.keyId})`
