@@ -363,6 +363,18 @@ class MicrosoftGraphServer {
     return server;
   }
 
+  /**
+   * Under --obo the token Entra issues to the MCP client is for this app
+   * itself (`<clientId>/access_as_user`). Personal Microsoft accounts refuse
+   * to redeem a code or refresh token for that audience unless the request
+   * names the scope (AADSTS70011), so both /token grants send it in OBO mode.
+   * Outside OBO the request is unchanged.
+   */
+  private oboRedemptionScope(): string | undefined {
+    if (!this.options.obo || !this.secrets?.clientId) return undefined;
+    return `${this.secrets.clientId}/access_as_user offline_access`;
+  }
+
   async initialize(version: string): Promise<void> {
     this.secrets = await getSecrets();
     this.version = version;
@@ -955,7 +967,8 @@ class MicrosoftGraphServer {
               clientSecret,
               tenantId,
               matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
 
             // Hold the mapping until the exchange succeeds. Dropping it on a
@@ -987,7 +1000,8 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
             res.json(result);
           } else {
