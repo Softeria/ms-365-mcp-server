@@ -691,8 +691,8 @@ GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
 ```
 
 The ticket is 32 bytes of CSPRNG output, **single-use**, memory-only, and expires after
-`MS365_MCP_ATTACHMENT_URL_TTL_S` seconds. Redeeming it streams the Graph bytes with this
-server's own token; the fetcher sends no Authorization header and holds no Microsoft
+`MS365_MCP_ATTACHMENT_URL_TTL_S` seconds. Redeeming it streams the Graph bytes as the
+identity that minted it; the fetcher sends no Authorization header and holds no Microsoft
 credential.
 
 **This grants no authority the calling agent did not already have.** Every target that can
@@ -829,11 +829,26 @@ exists rather than being assumed.
 The ticket travels in the **query, not the path**, because the verifying sidecar keeps a
 fetched URL's path in its error messages and strips the query.
 
-### Not available in OAuth/OBO mode
+### Whose identity the bytes are read as
 
-Identity there arrives per request on the caller's `Authorization` header, and a ticket is
-redeemed later by a fetcher that sends none. Minting refuses with an explanation rather
-than producing a URL that always fails.
+Under `--trust-proxy-auth` the server reads with its own cached account, and redemption
+looks that account up again.
+
+In plain `--http` and `--obo`, identity arrives per request on the caller's
+`Authorization` header, and a ticket is redeemed later by a fetcher that sends none. So
+the ticket keeps the Graph token the minting request used (the exchanged one, under
+`--obo`) and redemption reads with that token and nothing else. It stays in server memory
+and is never part of the URL.
+
+With `MS365_MCP_OAUTH_TOKEN` set, the ticket keeps that token instead, `--trust-proxy-auth`
+or not.
+
+A token kept this way cannot be refreshed. If it expires before the URL is fetched,
+redemption answers 502. The agent can mint again once its client has a fresh token; an
+expired `MS365_MCP_OAUTH_TOKEN` has to be replaced by the operator.
+
+Tickets live in the memory of the process that minted them, so a URL has to be redeemed
+on the same instance. Behind a load balancer that means one replica or sticky routing.
 
 ## Token Storage
 

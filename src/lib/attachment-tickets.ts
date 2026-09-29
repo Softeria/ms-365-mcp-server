@@ -3,9 +3,10 @@
  * pre-authenticated download URL of their own.
  *
  * A ticket is a capability and nothing else: it names one Graph path and one
- * account, it is redeemable once, and it expires. It carries no credential --
- * the redemption route authenticates to Graph with the server's own token, the
- * same way every tool does. Holding a ticket therefore authorises exactly one
+ * identity, it is redeemable once, and it expires. The identity is an account
+ * in this server's own token cache, or, when Graph identity came from the
+ * request, the token that request read with. That token stays in the record
+ * and never reaches the URL. Holding a ticket therefore authorises exactly one
  * authenticated GET of exactly one resource, which is the smallest grant that
  * makes an out-of-band fetch possible at all.
  *
@@ -85,20 +86,30 @@ export function isPlainGraphPath(target: string): boolean {
   );
 }
 
-export interface AttachmentTicket {
+/**
+ * Who the bytes are fetched as. Two kinds rather than two optional fields, so
+ * redemption has to pick a branch and a request-token ticket cannot reach the
+ * token cache by way of a missing value.
+ */
+export type TicketIdentity =
+  /** Account in this server's token cache; undefined in single-account mode. */
+  | { readonly kind: 'server-account'; readonly accountName: string | undefined }
+  /** Graph token of the request that minted the ticket. */
+  | { readonly kind: 'request-token'; readonly accessToken: string };
+
+export type AttachmentTicket = TicketIdentity & {
   /** Relative Graph path, exactly as the minting tool validated it. */
   readonly target: string;
-  /** Account this ticket was minted for; undefined in single-account mode. */
-  readonly accountName: string | undefined;
   /** Epoch milliseconds after which this ticket is dead. */
   readonly expiresAtMs: number;
-}
+};
 
 /**
- * Cap on live tickets. A ticket is ~200 bytes, so this bounds the store at a
- * few hundred KB -- but the reason for a cap is not memory, it is that an agent
- * in a retry loop should hit a refusal it can report rather than grow the
- * process without limit. Minting refuses when full, after sweeping; it never
+ * Cap on live tickets. A ticket is a few KB at most, the token being nearly all
+ * of it, so this bounds the store at about a MB -- but the reason for a cap is
+ * not memory, it is that an agent in a retry loop should hit a refusal it can
+ * report rather than grow the process without limit. Minting refuses when full,
+ * after sweeping; it never
  * evicts a live ticket, because evicting the oldest would let a caller minting
  * in a loop invalidate tickets someone else is about to redeem.
  */
@@ -126,10 +137,10 @@ export class AttachmentTicketStore {
     }
   }
 
-  mint(
+  private add(
     target: string,
-    accountName: string | undefined,
-    nowMs: number = Date.now()
+    identity: TicketIdentity,
+    nowMs: number
   ): { id: string; expiresAtMs: number } {
     this.sweep(nowMs);
     if (this.tickets.size >= MAX_LIVE_TICKETS) {
@@ -137,8 +148,27 @@ export class AttachmentTicketStore {
     }
     const id = randomBytes(TICKET_BYTES).toString('base64url');
     const expiresAtMs = nowMs + this.ttlSeconds * 1000;
-    this.tickets.set(id, { target, accountName, expiresAtMs });
+    this.tickets.set(id, { ...identity, target, expiresAtMs });
     return { id, expiresAtMs };
+  }
+
+  /** Mint a ticket redeemed with this server's own token for `accountName`. */
+  mint(
+    target: string,
+    accountName: string | undefined,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    return this.add(target, { kind: 'server-account', accountName }, nowMs);
+  }
+
+  /** Mint a ticket redeemed with `accessToken` and nothing else. */
+  mintWithToken(
+    target: string,
+    accessToken: string,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    if (!accessToken) throw new Error('A request-token ticket needs a token');
+    return this.add(target, { kind: 'request-token', accessToken }, nowMs);
   }
 
   /**

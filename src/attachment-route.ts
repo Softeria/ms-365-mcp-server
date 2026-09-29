@@ -19,7 +19,8 @@
  * No Authorization header is required or read. The fetcher holds no Microsoft
  * credential -- that is the entire point of handing it a URL instead of bytes --
  * so the ticket is the only credential in play, and the response is streamed
- * with this server's own Graph token.
+ * with the identity the ticket was minted under: this server's own Graph token,
+ * or the token of the request that minted it.
  */
 
 import type { Handler, Request, Response } from 'express';
@@ -140,7 +141,7 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
     }
 
     // Re-checked here, not because the store is untrusted, but because this is the last
-    // point before a fetch runs under the server's own token: a target that reaches it
+    // point before a fetch runs under the ticket's token: a target that reaches it
     // malformed should fail closed rather than resolve to whatever the path concatenation
     // makes of it.
     if (!isPlainGraphPath(ticket.target)) {
@@ -160,15 +161,18 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
 
     let stream: Awaited<ReturnType<GraphClient['downloadStream']>>;
     try {
-      let accessToken: string | undefined;
-      if (!deps.authManager.isOAuthModeEnabled()) {
-        accessToken = await deps.authManager.getTokenForAccount(ticket.accountName);
-      }
+      const accessToken =
+        ticket.kind === 'request-token'
+          ? ticket.accessToken
+          : await deps.authManager.getTokenForAccount(ticket.accountName);
+      // downloadStream falls back to AuthManager when handed no token, which for a
+      // request-token ticket would fetch as whatever account this server has cached.
+      if (!accessToken) throw new Error('No access token for this ticket');
       stream = await graphClient.downloadStream(ticket.target, { accessToken });
     } catch (error) {
-      // The target path is logged; the ticket id never is. The path is what an
-      // operator needs to diagnose a failure and is not itself a capability --
-      // reaching it still requires this server's Graph token.
+      // The target path is logged; the ticket id and token never are. The path is
+      // what an operator needs to diagnose a failure and is not itself a capability --
+      // reaching it still requires a Graph token.
       logger.error(
         `Attachment redemption failed for ${ticket.target}: ${(error as Error).message}`
       );
