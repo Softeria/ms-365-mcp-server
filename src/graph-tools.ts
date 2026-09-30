@@ -49,13 +49,14 @@ import {
   parseSelectFields,
   projectSelectedFields,
 } from './lib/select-projection.js';
+import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 import {
   restrictUserFieldQuery,
   restrictUserFieldUrl,
   targetsUserProfile,
+  userFieldEnforcement,
 } from './lib/user-field-policy.js';
-import { parseTeamsUrl } from './lib/teams-url-parser.js';
-import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 import logger from './logger.js';
 import { getRequestTokens } from './request-context.js';
 import { TOOL_CATEGORIES } from './tool-categories.js';
@@ -1819,8 +1820,9 @@ function restrictBatchSubrequests(
   parsed.requests.forEach((request: unknown, index: number) => {
     if (!isPlainObject(request) || typeof request.url !== 'string') return;
     const method = typeof request.method === 'string' ? request.method.toUpperCase() : 'GET';
-    if (method !== 'GET' || !targetsUserProfile(request.url)) return;
-    const { url, fields } = restrictUserFieldUrl(request.url, allowlist);
+    const enforcement = userFieldEnforcement(request.url);
+    if (method !== 'GET' || enforcement === 'none') return;
+    const { url, fields } = restrictUserFieldUrl(request.url, allowlist, enforcement);
     request.url = url;
     restricted.set(String(request.id ?? index), fields);
     logger.info(`Restricting batch subrequest ${String(request.id ?? index)} to: ${fields}`);
@@ -2284,12 +2286,16 @@ async function executeGraphTool(
     const requestedSelect = parseSelectFields(queryParams['$select']);
     // Keyed on the Graph path, not the tool name: every tool that reaches the users
     // surface has to be covered, not just list-users.
-    const isUserFieldBoundary = userFields !== undefined && targetsUserProfile(path);
-    const boundaryFields = isUserFieldBoundary
-      ? restrictUserFieldQuery(queryParams, userFields)
-      : [];
+    const enforcement = userFields === undefined ? 'none' : userFieldEnforcement(path);
+    const isUserFieldBoundary = enforcement !== 'none';
+    const boundaryFields =
+      isUserFieldBoundary && userFields !== undefined
+        ? restrictUserFieldQuery(queryParams, userFields, enforcement)
+        : [];
     if (isUserFieldBoundary) {
-      logger.info(`Restricting ${tool.alias} $select to configured fields: ${boundaryFields}`);
+      logger.info(
+        `Restricting ${tool.alias} to configured user fields (${enforcement}): ${boundaryFields}`
+      );
     }
     // graph-batch carries its subrequests in the body, so the restriction has to be
     // applied per subrequest URL and then to each matching subresponse.

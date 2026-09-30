@@ -9,16 +9,51 @@
 import { parseSelectFields } from './select-projection.js';
 
 /**
+ * How far the allowlist can be pushed on a given path.
+ *
+ * - `request-and-response` narrows the outbound `$select` too, so the restricted fields
+ *   never leave the tenant. Only safe where the response is typed as `user`.
+ * - `response-only` projects what comes back. The directory navigations return
+ *   `directoryObject`, where Graph wants an OData cast before it will `$select` a
+ *   user-only property such as jobTitle, so narrowing the request there would risk a 400
+ *   on endpoints that work today.
+ */
+export type UserFieldEnforcement = 'none' | 'request-and-response' | 'response-only';
+
+/**
  * The users collection and a single user entity, and nothing below them. `/users/{id}` is a
  * profile; `/users/{id}/messages` is that mailbox's mail, where a $select of subject and
  * from has nothing to do with this allowlist and narrowing it would break the mail tools.
  */
-const USER_PROFILE_PATH = /^\/users(\/[^/]+)?\/?$/i;
+const USER_ENTITY_PATH = /^\/users(?:\/[^/]+)?\/?$/i;
 
-export function targetsUserProfile(path: string): boolean {
+/**
+ * Navigations that hand back other people's profile data: manager and directReports carry
+ * displayName, mail and jobTitle, and so do a group's members and owners. Excluding them
+ * left the allowlist bypassable by asking for the same fields one hop away.
+ *
+ * `/me` itself is deliberately absent: that is the caller's own profile, which they already
+ * have. `/me/manager` is somebody else's and is covered. The Teams and chat member lists
+ * return `conversationMember`, a different resource, and are not covered here.
+ */
+const DIRECTORY_NAVIGATION_PATH =
+  /^(?:\/me|\/users\/[^/]+)\/(?:manager|directReports)\/?$|^\/groups\/[^/]+\/(?:members|owners)\/?$/i;
+
+function normalizePath(path: string): string {
   const withoutQuery = path.split('?')[0];
-  const normalized = withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
-  return USER_PROFILE_PATH.test(normalized);
+  return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+}
+
+export function userFieldEnforcement(path: string): UserFieldEnforcement {
+  const normalized = normalizePath(path);
+  if (USER_ENTITY_PATH.test(normalized)) return 'request-and-response';
+  if (DIRECTORY_NAVIGATION_PATH.test(normalized)) return 'response-only';
+  return 'none';
+}
+
+/** Whether the allowlist applies to this path at all, in either mode. */
+export function targetsUserProfile(path: string): boolean {
+  return userFieldEnforcement(path) !== 'none';
 }
 
 /**
@@ -34,15 +69,19 @@ export function effectiveUserFields(requestedSelect: string[], allowlist: string
 }
 
 /**
- * Narrows `$select` to the allowlist and drops `$expand`, which would otherwise pull the
- * same profile data back in through a related resource.
+ * Applies the allowlist to a request's query options and returns the fields its response
+ * will be projected to. `$expand` goes in both modes: an expanded navigation property
+ * arrives in addition to the selected fields and would carry the same profile back in.
  */
 export function restrictUserFieldQuery(
   queryParams: Record<string, string>,
-  allowlist: string[]
+  allowlist: string[],
+  enforcement: Exclude<UserFieldEnforcement, 'none'>
 ): string[] {
   const fields = effectiveUserFields(parseSelectFields(queryParams['$select']), allowlist);
-  queryParams['$select'] = fields.join(',');
+  if (enforcement === 'request-and-response') {
+    queryParams['$select'] = fields.join(',');
+  }
   delete queryParams['$expand'];
   return fields;
 }
@@ -50,7 +89,8 @@ export function restrictUserFieldQuery(
 /** The same restriction applied to a batch subrequest URL, which carries its own query. */
 export function restrictUserFieldUrl(
   url: string,
-  allowlist: string[]
+  allowlist: string[],
+  enforcement: Exclude<UserFieldEnforcement, 'none'>
 ): { url: string; fields: string[] } {
   const [path, query = ''] = url.split('?');
   const params = new URLSearchParams(query);
@@ -58,11 +98,14 @@ export function restrictUserFieldUrl(
     parseSelectFields(params.get('$select') ?? undefined),
     allowlist
   );
-  params.set('$select', fields.join(','));
+  if (enforcement === 'request-and-response') {
+    params.set('$select', fields.join(','));
+  }
   params.delete('$expand');
+  const rebuilt = params.toString();
+  if (rebuilt === '') return { url: path, fields };
   // URLSearchParams percent-encodes the '$' of every OData option and the commas between
   // field names. Graph accepts both forms, but the decoded one is what the rest of this
   // server sends and what anyone reading a batch body or a log would expect to see.
-  const rebuilt = params.toString().replace(/%24/gi, '$').replace(/%2C/gi, ',');
-  return { url: `${path}?${rebuilt}`, fields };
+  return { url: `${path}?${rebuilt.replace(/%24/gi, '$').replace(/%2C/gi, ',')}`, fields };
 }

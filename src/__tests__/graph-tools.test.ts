@@ -4386,6 +4386,88 @@ describe('graph-tools', () => {
       });
     });
 
+    // manager and directReports return other people's displayName, mail and jobTitle, so
+    // omitting $select on either used to hand back everything the allowlist excluded.
+    it('projects a directory navigation that returns user profile data', async () => {
+      mockEndpoints.push(
+        makeEndpoint({ alias: 'get-user-manager', path: '/users/:userId/manager' })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: 'get-user-manager',
+          pathPattern: '/users/{user-id}/manager',
+          scopes: ['User.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: 'm1',
+                displayName: 'Manager',
+                mail: 'manager@example.com',
+                jobTitle: 'CEO',
+                employeeId: 'E-9',
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, {
+        userFields: 'id,displayName,mail',
+      });
+
+      const result = await server.tools.get('get-user-manager')!.handler({ userId: 'abc' });
+
+      // directoryObject needs an OData cast before Graph will $select a user-only
+      // property, so the request is left alone and the response carries the boundary.
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('$select');
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: 'm1',
+        displayName: 'Manager',
+        mail: 'manager@example.com',
+      });
+    });
+
+    it('projects group members, which carry the same profile fields', async () => {
+      mockEndpoints.push(
+        makeEndpoint({ alias: 'list-group-members', path: '/groups/:groupId/members' })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: 'list-group-members',
+          pathPattern: '/groups/{group-id}/members',
+          scopes: ['GroupMember.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('list-group-members')!.handler({ groupId: 'g1' });
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
     // graph-batch forwards subrequest URLs verbatim, so /users?$select=employeeId reached
     // Graph without ever touching list-users.
     it('restricts a graph-batch subrequest that reads the users surface', async () => {

@@ -204,10 +204,17 @@ The byte-passthrough tools (`download-bytes`, `download-bytes-to-file`, `get-dow
 return the response verbatim and so cannot project it; they refuse a target on the user
 collection or a user entity while the allowlist is active.
 
-It applies to `/users` and `/users/{id}` only. Resources below a user, such as
-`/users/{id}/messages` or `/users/{id}/photo/$value`, are mail, calendar and binary
-resources rather than profile properties, and are unaffected. The signed-in user's own
-`/me` profile is also unaffected.
+Two levels of enforcement apply, depending on what Graph returns:
+
+| Path                                                                                                                                  | Enforcement                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/users`, `/users/{id}`                                                                                                               | `$select` is narrowed on the request and the response is projected, so excluded fields never leave the tenant                                                                                                                            |
+| `/me/manager`, `/me/directReports`, `/users/{id}/manager`, `/users/{id}/directReports`, `/groups/{id}/members`, `/groups/{id}/owners` | The response is projected. These are typed as `directoryObject`, where Graph requires an OData cast before it will `$select` a user-only property such as `jobTitle`, so narrowing the request would risk breaking calls that work today |
+
+Resources below a user, such as `/users/{id}/messages` or `/users/{id}/photo/$value`, are
+mail, calendar and binary resources rather than profile properties, and are unaffected. The
+signed-in user's own `/me` profile is also unaffected, as are the Teams and chat member
+lists, which return `conversationMember` rather than user profiles.
 
 CLI values take precedence over the environment variable. A value that names no fields fails
 at startup. When neither is configured, existing behavior is unchanged. Configure this in
