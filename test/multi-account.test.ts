@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerAuthTools } from '../src/auth-tools.js';
-import GraphClient from '../src/graph-client.js';
 import AuthManager from '../src/auth.js';
+import GraphClient from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {

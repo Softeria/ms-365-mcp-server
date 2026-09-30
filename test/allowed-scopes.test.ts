@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import MicrosoftGraphServer from '../src/server.js';
 import type AuthManager from '../src/auth.js';
 import { clearSecretsCache } from '../src/secrets.js';
+import MicrosoftGraphServer from '../src/server.js';
 
 const expressMocks = vi.hoisted(() => {
   type Handler = (req: Record<string, unknown>, res: Record<string, unknown>) => unknown;

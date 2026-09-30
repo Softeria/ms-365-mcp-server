@@ -1,11 +1,11 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { queryParameterSchema } from '../src/lib/query-parameter-schema.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { buildToolsRegistry, registerGraphTools } from '../src/graph-tools.js';
-import { describeToolSchema } from '../src/lib/tool-schema.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { buildToolsRegistry, registerGraphTools } from '../src/graph-tools.js';
+import { queryParameterSchema } from '../src/lib/query-parameter-schema.js';
+import { describeToolSchema } from '../src/lib/tool-schema.js';
 
 const registry = buildToolsRegistry(false, true);
 

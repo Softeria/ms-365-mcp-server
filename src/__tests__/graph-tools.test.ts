@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 /**
  * We test executeGraphTool logic by importing it indirectly through registerGraphTools.
@@ -4384,6 +4384,100 @@ describe('graph-tools', () => {
         id: '1',
         displayName: 'Carlos',
       });
+    });
+
+    // graph-batch forwards subrequest URLs verbatim, so /users?$select=employeeId reached
+    // Graph without ever touching list-users.
+    it('restricts a graph-batch subrequest that reads the users surface', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          alias: 'graph-batch',
+          method: 'post',
+          path: '/$batch',
+          parameters: [{ name: 'body', type: 'Body', schema: z.any() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'graph-batch', pathPattern: '/$batch', method: 'post' }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                responses: [
+                  {
+                    id: '1',
+                    status: 200,
+                    body: {
+                      value: [{ id: '1', displayName: 'Carlos', employeeId: 'E-1' }],
+                    },
+                  },
+                  { id: '2', status: 200, body: { id: 'm1', subject: 'Keep me' } },
+                ],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('graph-batch')!.handler({
+        body: {
+          requests: [
+            { id: '1', method: 'GET', url: '/users?$select=id,displayName,employeeId' },
+            { id: '2', method: 'GET', url: '/me/messages/m1?$select=id,subject' },
+          ],
+        },
+      });
+
+      const sentBody = JSON.parse(graphClient.graphRequest.mock.calls[0][1].body);
+      expect(sentBody.requests[0].url).toBe('/users?$select=id,displayName');
+      // A subrequest that is not a profile read has to pass through untouched.
+      expect(sentBody.requests[1].url).toBe('/me/messages/m1?$select=id,subject');
+
+      const responses = JSON.parse(result.content[0].text).responses;
+      expect(responses[0].body.value[0]).toEqual({ id: '1', displayName: 'Carlos' });
+      expect(responses[1].body).toEqual({ id: 'm1', subject: 'Keep me' });
+    });
+
+    // download-bytes returns the response verbatim, so there is no projection step to
+    // enforce the allowlist in; it has to refuse instead.
+    it('refuses a byte-passthrough read of the users surface', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('download-bytes')!.handler({
+        target: '/users?$select=employeeId',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('user_fields_restricted');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('still allows byte reads below a user, such as a profile photo', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ message: 'OK!' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      await server.tools.get('download-bytes')!.handler({
+        target: '/users/abc/photo/$value',
+      });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the body untouched when no select was passed', async () => {

@@ -2,8 +2,8 @@ import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
+import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -71,7 +71,7 @@ program
   )
   .option(
     '--user-fields <fields>',
-    'Allow only these comma-separated Microsoft Graph fields in list-users responses'
+    'Allow only these comma-separated Microsoft Graph fields in user profile responses (/users and /users/{id})'
   )
   .option(
     '--extra-scopes <scopes>',
@@ -262,7 +262,7 @@ export function parseArgs(): CommandOptions {
   ) {
     console.error(
       'Error: --user-fields / MS365_MCP_USER_FIELDS was provided but names no fields. ' +
-        'Provide one or more comma-separated Graph fields, or omit it to disable the list-users field boundary.'
+        'Provide one or more comma-separated Graph fields, or omit it to disable the user profile field boundary.'
     );
     process.exit(1);
   }

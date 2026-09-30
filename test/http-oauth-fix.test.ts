@@ -10,10 +10,10 @@
  *
  * The fix: skip MSAL account resolution when a request-context token exists.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GraphClient from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 import { requestContext } from '../src/request-context.js';
 
 vi.mock('../src/logger.js', () => ({

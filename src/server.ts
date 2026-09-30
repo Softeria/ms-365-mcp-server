@@ -1,22 +1,30 @@
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Handler, Request, Response } from 'express';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import logger, { enableConsoleLogging } from './logger.js';
+import helmet from 'helmet';
+import crypto from 'node:crypto';
+import type { Server as HttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { isIP, isIPv6 } from 'node:net';
+import { createAttachmentHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
-import { buildMcpServerInstructions } from './mcp-instructions.js';
-import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
-import GraphClient from './graph-client.js';
 import AuthManager, {
   buildScopesFromEndpoints,
   parseAllowedScopes,
   resolveAuthScopes,
 } from './auth.js';
-import { MicrosoftOAuthProvider } from './oauth-provider.js';
+import type { CommandOptions } from './cli.ts';
+import { getCloudEndpoints } from './cloud-config.js';
+import { dumpError } from './crash-logging.js';
+import GraphClient from './graph-client.js';
+import { registerDiscoveryTools, registerGraphTools } from './graph-tools.js';
+import { configureAttachmentMinting } from './lib/attachment-minting.js';
+import { AttachmentTicketStore } from './lib/attachment-tickets.js';
+import { ATTACHMENT_ROUTE, loadAttachmentUrlConfig } from './lib/attachment-url-config.js';
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
@@ -25,21 +33,13 @@ import {
   toOAuthErrorResponse,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
-import { loadAttachmentUrlConfig, ATTACHMENT_ROUTE } from './lib/attachment-url-config.js';
-import { AttachmentTicketStore } from './lib/attachment-tickets.js';
-import { configureAttachmentMinting } from './lib/attachment-minting.js';
-import { createAttachmentHandler } from './attachment-route.js';
-import type { CommandOptions } from './cli.ts';
-import { getSecrets, type AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
-import { requestContext } from './request-context.js';
-import { dumpError } from './crash-logging.js';
-import crypto from 'node:crypto';
-import type { Server as HttpServer } from 'node:http';
-import { isIP, isIPv6 } from 'node:net';
-import type { AddressInfo } from 'node:net';
+import logger, { enableConsoleLogging } from './logger.js';
+import { buildMcpServerInstructions } from './mcp-instructions.js';
+import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
+import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import OboClient from './obo-client.js';
-import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
+import { requestContext } from './request-context.js';
+import { getSecrets, type AppSecrets } from './secrets.js';
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 

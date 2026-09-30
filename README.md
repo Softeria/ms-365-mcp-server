@@ -182,9 +182,9 @@ npx @softeria/ms-365-mcp-server \
 
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
-### Restricting `list-users` fields
+### Restricting user profile fields
 
-Deployments that expose `list-users` can set a comma-separated field allowlist with
+Deployments that expose user directory tools can set a comma-separated field allowlist with
 `--user-fields` or `MS365_MCP_USER_FIELDS`. The boundary is applied both to the `$select`
 sent to Microsoft Graph and to the response returned to the MCP client. This prevents a
 caller from requesting additional profile properties through `$select`, including when it
@@ -197,11 +197,22 @@ npx @softeria/ms-365-mcp-server \
   --user-fields 'id,displayName,mail,userPrincipalName'
 ```
 
+The boundary is keyed on the Graph path rather than on a tool name, so it covers every route
+to the same data: `list-users`, discovery mode's `execute-tool`, and `graph-batch`
+subrequests, whose URLs are rewritten and whose subresponses are projected individually.
+The byte-passthrough tools (`download-bytes`, `download-bytes-to-file`, `get-download-url`)
+return the response verbatim and so cannot project it; they refuse a target on the user
+collection or a user entity while the allowlist is active.
+
+It applies to `/users` and `/users/{id}` only. Resources below a user, such as
+`/users/{id}/messages` or `/users/{id}/photo/$value`, are mail, calendar and binary
+resources rather than profile properties, and are unaffected. The signed-in user's own
+`/me` profile is also unaffected.
+
 CLI values take precedence over the environment variable. A value that names no fields fails
-at startup. When neither is configured, existing `list-users` behavior is unchanged.
-Configure this in the LibreChat MCP server environment or command arguments; project-local
-`.env` files are intentionally restricted to application credentials and are not used for
-this setting.
+at startup. When neither is configured, existing behavior is unchanged. Configure this in
+the LibreChat MCP server environment or command arguments; project-local `.env` files are
+intentionally restricted to application credentials and are not used for this setting.
 
 The allowlist is exhaustive for user properties: unlike an ordinary `$select`, `id` is only
 returned when it appears in the list, so include it if downstream tools need it to address a
