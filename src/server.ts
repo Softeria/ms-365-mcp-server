@@ -874,7 +874,17 @@ class MicrosoftGraphServer {
                   this.options.enabledTools,
                   this.options.readOnly
                 );
-        const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
+        // Under --obo the client asks only for this app's own scope
+        // (<clientId>/access_as_user), so the tool-derived Graph scopes never
+        // reach the consent screen and the later OBO exchange for
+        // graph.microsoft.com/.default yields only what the tenant has already
+        // consented to. --extra-scopes / MS365_MCP_EXTRA_SCOPES is the documented
+        // way to add Graph scopes to the token request, so honour it here too:
+        // the user then consents to them at sign-in.
+        const oboExtraScopes = this.options.obo
+          ? (parseAllowedScopes(this.options.extraScopes) ?? [])
+          : [];
+        const scopeSet = new Set([...baseScopes, ...oboExtraScopes, 'User.Read', 'offline_access']);
         microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 
         // Redirect to Microsoft's authorization page
