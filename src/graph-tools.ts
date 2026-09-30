@@ -1787,7 +1787,8 @@ async function executeGraphTool(
   config: EndpointConfig | undefined,
   graphClient: GraphClient,
   params: Record<string, unknown>,
-  authManager?: AuthManager
+  authManager?: AuthManager,
+  userFields?: string[]
 ): Promise<CallToolResult> {
   logger.info(`Tool ${tool.alias} called with params: ${describeParamsForLog(params)}`);
 
@@ -2177,8 +2178,25 @@ async function executeGraphTool(
     // expanded navigation property comes back in addition to the selected fields
     // (supportsExpandExtendedProperties adds one of its own just above).
     const requestedSelect = parseSelectFields(queryParams['$select']);
+    const isUserFieldBoundary = tool.alias === 'list-users' && userFields !== undefined;
+    const selectedUserFields = isUserFieldBoundary
+      ? requestedSelect.length > 0
+        ? requestedSelect.filter((field) =>
+            userFields.some((allowedField) => allowedField.toLowerCase() === field.toLowerCase())
+          )
+        : userFields
+      : requestedSelect;
+    if (isUserFieldBoundary) {
+      const fieldsToRequest = selectedUserFields.length > 0 ? selectedUserFields : userFields;
+      queryParams['$select'] = fieldsToRequest.join(',');
+      delete queryParams['$expand'];
+      logger.info(
+        `Restricting list-users $select to configured fields: ${fieldsToRequest.join(',')}`
+      );
+    }
+    const projectionSelect = isUserFieldBoundary ? selectedUserFields : requestedSelect;
     const keepFields = [
-      ...new Set([...requestedSelect, ...parseSelectFields(queryParams['$expand'])]),
+      ...new Set([...projectionSelect, ...parseSelectFields(queryParams['$expand'])]),
     ];
 
     if (Object.keys(queryParams).length > 0) {
@@ -2280,7 +2298,8 @@ async function executeGraphTool(
     const mergePages = fetchAllPages && paginationEnabled;
     // Projecting means parsing the body, and under --toon JSON.parse would throw and
     // leave the response untrimmed. Same reason the merge below forces JSON (#560).
-    const willProject = requestedSelect.length > 0 && params.excludeResponse !== true;
+    const willProject =
+      (requestedSelect.length > 0 || isUserFieldBoundary) && params.excludeResponse !== true;
     if (mergePages || willProject) {
       options.forceJsonOutput = true;
     }
@@ -2299,9 +2318,9 @@ async function executeGraphTool(
       }
       // Graph never rejects a misspelled property on the endpoints that ignore $select,
       // so without this a typo would silently empty the response instead of erroring.
-      if (!anyFieldPresent(body, requestedSelect)) {
+      if (!anyFieldPresent(body, projectionSelect)) {
         logger.warn(
-          `None of the requested $select fields (${requestedSelect.join(',')}) appear in the response; returning it untrimmed`
+          `None of the requested $select fields (${projectionSelect.join(',')}) appear in the response; returning it untrimmed`
         );
         return body;
       }
@@ -2525,8 +2544,13 @@ export function registerGraphTools(
   multiAccount: boolean = false,
   accountNames: string[] = [],
   allowedScopesValue?: string,
-  httpMode: boolean = false
+  httpMode: boolean = false,
+  userFieldsValue?: string
 ): number {
+  const userFields = userFieldsValue
+    ?.split(',')
+    .map((field) => field.trim())
+    .filter(Boolean);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
     try {
@@ -2717,7 +2741,7 @@ export function registerGraphTools(
           },
         },
         async (params: Record<string, unknown>) =>
-          executeGraphTool(tool, endpointConfig, graphClient, params, authManager)
+          executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
       );
       registeredCount++;
     } catch (error) {
@@ -2922,8 +2946,13 @@ export function registerDiscoveryTools(
   accountNames: string[] = [],
   enabledTools?: string,
   allowedScopesValue?: string,
-  httpMode: boolean = false
+  httpMode: boolean = false,
+  userFieldsValue?: string
 ): void {
+  const userFields = userFieldsValue
+    ?.split(',')
+    .map((field) => field.trim())
+    .filter(Boolean);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
     try {
@@ -3128,7 +3157,8 @@ export function registerDiscoveryTools(
           toolData.config,
           graphClient,
           parameters,
-          authManager
+          authManager,
+          userFields
         );
       }
       const utility = utilityByName.get(tool_name);

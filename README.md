@@ -182,6 +182,26 @@ npx @softeria/ms-365-mcp-server \
 
 In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
 
+### Restricting `list-users` fields
+
+Deployments that expose `list-users` can set a comma-separated field allowlist with
+`--user-fields` or `MS365_MCP_USER_FIELDS`. The boundary is applied both to the `$select`
+sent to Microsoft Graph and to the response returned to the MCP client. This prevents a
+caller from requesting additional profile properties through `$select`, including when it
+omits `$select` entirely. `$expand` is also ignored while this boundary is active so related
+resources cannot be used to bypass the profile field boundary.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --user-fields 'id,displayName,mail,userPrincipalName'
+```
+
+CLI values take precedence over the environment variable. An empty value fails at startup.
+When neither is configured, existing `list-users` behavior is unchanged. Configure this in
+the LibreChat MCP server environment or command arguments; project-local `.env` files are
+intentionally restricted to application credentials and are not used for this setting.
+
 ### Requesting extra scopes
 
 `--allowed-scopes` only ever _narrows_ the token request. To request a Graph scope that no bundled tool needs — for example to drive an endpoint via `graph-batch` — use `--extra-scopes` (or `MS365_MCP_EXTRA_SCOPES`). These scopes are appended verbatim to the token request, on top of the tool-derived scopes.

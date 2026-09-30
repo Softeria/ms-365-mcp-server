@@ -51,6 +51,7 @@ describe('CLI Module', () => {
     vi.clearAllMocks();
     commanderMocks.mockCommand.opts.mockReturnValue({ file: 'test.xlsx' });
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_USER_FIELDS;
     delete process.env.MS365_MCP_EXTRA_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
@@ -59,6 +60,7 @@ describe('CLI Module', () => {
 
   afterEach(() => {
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_USER_FIELDS;
     delete process.env.MS365_MCP_EXTRA_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
@@ -78,6 +80,28 @@ describe('CLI Module', () => {
       const result = parseArgs();
 
       expect(result.allowedScopes).toBe('Mail.Read Files.Read');
+    });
+
+    it('should parse --user-fields from CLI options', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: 'id,displayName,mail' });
+
+      expect(parseArgs().userFields).toBe('id,displayName,mail');
+    });
+
+    it('should use MS365_MCP_USER_FIELDS as a fallback', () => {
+      process.env.MS365_MCP_USER_FIELDS = 'id,displayName';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      expect(parseArgs().userFields).toBe('id,displayName');
+    });
+
+    it('should fail closed when user fields are supplied empty', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: '   ' });
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--user-fields'));
+      expect(process.exit).toHaveBeenCalledWith(1);
     });
 
     it.each(['true', '1'])(

@@ -70,6 +70,10 @@ program
     'Limit exposed tools to Graph scopes covered by this whitespace-separated allowlist'
   )
   .option(
+    '--user-fields <fields>',
+    'Allow only these comma-separated Microsoft Graph fields in list-users responses'
+  )
+  .option(
     '--extra-scopes <scopes>',
     'Append additional Graph scopes (whitespace-separated) to the token request, beyond those derived from enabled tools. Use with your own app registration (MS365_MCP_CLIENT_ID/SECRET) to request scopes the default app does not declare, then call the endpoints via graph-batch.'
   )
@@ -159,6 +163,7 @@ export interface CommandOptions {
   attachmentHost?: string;
   enabledTools?: string;
   allowedScopes?: string;
+  userFields?: string;
   extraScopes?: string;
   preset?: string;
   listPresets?: boolean;
@@ -241,6 +246,18 @@ export function parseArgs(): CommandOptions {
     console.error(
       'Error: --allowed-scopes / MS365_MCP_ALLOWED_SCOPES was provided but is empty. ' +
         'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
+    );
+    process.exit(1);
+  }
+
+  if (options.userFields === undefined && process.env.MS365_MCP_USER_FIELDS !== undefined) {
+    options.userFields = process.env.MS365_MCP_USER_FIELDS;
+  }
+
+  if (options.userFields !== undefined && options.userFields.trim() === '') {
+    console.error(
+      'Error: --user-fields / MS365_MCP_USER_FIELDS was provided but is empty. ' +
+        'Provide one or more comma-separated Graph fields, or omit it to disable the list-users field boundary.'
     );
     process.exit(1);
   }

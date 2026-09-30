@@ -337,7 +337,8 @@ class MicrosoftGraphServer {
         this.accountNames,
         this.options.enabledTools,
         this.options.allowedScopes,
-        this.hidesStdioOnlyTools()
+        this.hidesStdioOnlyTools(),
+        this.options.userFields
       );
     } else {
       registerGraphTools(
@@ -350,7 +351,8 @@ class MicrosoftGraphServer {
         this.multiAccount,
         this.accountNames,
         this.options.allowedScopes,
-        this.hidesStdioOnlyTools()
+        this.hidesStdioOnlyTools(),
+        this.options.userFields
       );
     }
 
