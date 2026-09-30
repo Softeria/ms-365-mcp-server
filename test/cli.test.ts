@@ -104,6 +104,15 @@ describe('CLI Module', () => {
       expect(process.exit).toHaveBeenCalledWith(1);
     });
 
+    it('should fail closed when user fields name no fields', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: ' , ,' });
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--user-fields'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
     it.each(['true', '1'])(
       'should enable --http-local-file-tools from MS365_MCP_HTTP_LOCAL_FILE_TOOLS=%s',
       (value) => {

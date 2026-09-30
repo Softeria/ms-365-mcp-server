@@ -130,6 +130,25 @@ function clampTopQueryParam(queryParams: Record<string, string>): void {
   queryParams['$top'] = String(cap);
 }
 
+/**
+ * The --user-fields allowlist, or undefined when the boundary is off. Throws rather than
+ * returning an empty list: a configured-but-empty allowlist would otherwise send `$select=`
+ * and enforce nothing, which is the opposite of what asking for it means.
+ */
+function parseUserFields(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const fields = value
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean);
+  if (fields.length === 0) {
+    throw new Error(
+      'User field allowlist was configured but names no fields. Provide one or more comma-separated Graph fields, or omit --user-fields / MS365_MCP_USER_FIELDS.'
+    );
+  }
+  return fields;
+}
+
 // Outlook message collections only. The path has to be a mailbox owner, optionally some
 // mailFolders/childFolders nesting, and then end at messages. Matching the owner prefix and
 // the collection name separately would catch /me/chats/{id}/messages, and matching any
@@ -2179,22 +2198,21 @@ async function executeGraphTool(
     // (supportsExpandExtendedProperties adds one of its own just above).
     const requestedSelect = parseSelectFields(queryParams['$select']);
     const isUserFieldBoundary = tool.alias === 'list-users' && userFields !== undefined;
-    const selectedUserFields = isUserFieldBoundary
-      ? requestedSelect.length > 0
-        ? requestedSelect.filter((field) =>
-            userFields.some((allowedField) => allowedField.toLowerCase() === field.toLowerCase())
-          )
-        : userFields
-      : requestedSelect;
+    // A select naming only disallowed fields intersects to nothing; fall back to the whole
+    // allowlist rather than to an empty $select, which Graph rejects.
+    const requestedAllowedFields = requestedSelect.filter((field) =>
+      (userFields ?? []).some((allowed) => allowed.toLowerCase() === field.toLowerCase())
+    );
+    const effectiveUserFields =
+      requestedAllowedFields.length > 0 ? requestedAllowedFields : (userFields ?? []);
     if (isUserFieldBoundary) {
-      const fieldsToRequest = selectedUserFields.length > 0 ? selectedUserFields : userFields;
-      queryParams['$select'] = fieldsToRequest.join(',');
+      queryParams['$select'] = effectiveUserFields.join(',');
       delete queryParams['$expand'];
       logger.info(
-        `Restricting list-users $select to configured fields: ${fieldsToRequest.join(',')}`
+        `Restricting list-users $select to configured fields: ${effectiveUserFields.join(',')}`
       );
     }
-    const projectionSelect = isUserFieldBoundary ? selectedUserFields : requestedSelect;
+    const projectionSelect = isUserFieldBoundary ? effectiveUserFields : requestedSelect;
     const keepFields = [
       ...new Set([...projectionSelect, ...parseSelectFields(queryParams['$expand'])]),
     ];
@@ -2318,13 +2336,15 @@ async function executeGraphTool(
       }
       // Graph never rejects a misspelled property on the endpoints that ignore $select,
       // so without this a typo would silently empty the response instead of erroring.
-      if (!anyFieldPresent(body, projectionSelect)) {
+      // The user-field boundary is exempt: there, returning the body untrimmed would hand
+      // back every property Graph sent, which is the one outcome the allowlist forbids.
+      if (!isUserFieldBoundary && !anyFieldPresent(body, projectionSelect)) {
         logger.warn(
           `None of the requested $select fields (${projectionSelect.join(',')}) appear in the response; returning it untrimmed`
         );
         return body;
       }
-      return projectSelectedFields(body, keepFields);
+      return projectSelectedFields(body, keepFields, isUserFieldBoundary);
     };
 
     if (mergePages && response?.content?.[0]?.text) {
@@ -2547,10 +2567,7 @@ export function registerGraphTools(
   httpMode: boolean = false,
   userFieldsValue?: string
 ): number {
-  const userFields = userFieldsValue
-    ?.split(',')
-    .map((field) => field.trim())
-    .filter(Boolean);
+  const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
     try {
@@ -2949,10 +2966,7 @@ export function registerDiscoveryTools(
   httpMode: boolean = false,
   userFieldsValue?: string
 ): void {
-  const userFields = userFieldsValue
-    ?.split(',')
-    .map((field) => field.trim())
-    .filter(Boolean);
+  const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
     try {

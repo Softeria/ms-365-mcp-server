@@ -254,9 +254,14 @@ export function parseArgs(): CommandOptions {
     options.userFields = process.env.MS365_MCP_USER_FIELDS;
   }
 
-  if (options.userFields !== undefined && options.userFields.trim() === '') {
+  if (
+    options.userFields !== undefined &&
+    String(options.userFields)
+      .split(',')
+      .every((field: string) => field.trim() === '')
+  ) {
     console.error(
-      'Error: --user-fields / MS365_MCP_USER_FIELDS was provided but is empty. ' +
+      'Error: --user-fields / MS365_MCP_USER_FIELDS was provided but names no fields. ' +
         'Provide one or more comma-separated Graph fields, or omit it to disable the list-users field boundary.'
     );
     process.exit(1);

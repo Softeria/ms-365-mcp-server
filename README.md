@@ -197,10 +197,17 @@ npx @softeria/ms-365-mcp-server \
   --user-fields 'id,displayName,mail,userPrincipalName'
 ```
 
-CLI values take precedence over the environment variable. An empty value fails at startup.
-When neither is configured, existing `list-users` behavior is unchanged. Configure this in
-the LibreChat MCP server environment or command arguments; project-local `.env` files are
-intentionally restricted to application credentials and are not used for this setting.
+CLI values take precedence over the environment variable. A value that names no fields fails
+at startup. When neither is configured, existing `list-users` behavior is unchanged.
+Configure this in the LibreChat MCP server environment or command arguments; project-local
+`.env` files are intentionally restricted to application credentials and are not used for
+this setting.
+
+The allowlist is exhaustive for user properties: unlike an ordinary `$select`, `id` is only
+returned when it appears in the list, so include it if downstream tools need it to address a
+user. Collection annotations such as `@odata.nextLink` are retained so paging keeps working.
+If Graph returns none of the allowlisted properties, the response is projected to empty
+rather than returned untrimmed.
 
 ### Requesting extra scopes
 

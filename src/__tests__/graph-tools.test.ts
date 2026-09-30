@@ -4387,6 +4387,119 @@ describe('graph-tools', () => {
       });
     });
 
+    async function runListUsers(
+      userFields: string,
+      args: Record<string, unknown>,
+      graphBody: unknown
+    ) {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify(graphBody) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(
+        server as any,
+        graphClient as any,
+        false,
+        undefined,
+        false,
+        undefined,
+        false,
+        [],
+        undefined,
+        false,
+        userFields
+      );
+      const result = await server.tools.get('list-users')!.handler(args);
+      return { result, graphClient };
+    }
+
+    // The intersection is empty, so the fallback asks Graph for the whole allowlist. The
+    // projection has to use that same list, or it degrades to a no-op that ships whatever
+    // else Graph decided to include.
+    it('still projects when the requested fields are all disallowed', async () => {
+      const { result, graphClient } = await runListUsers(
+        'id,displayName',
+        { select: 'jobTitle,employeeId' },
+        { value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }] }
+      );
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    // id is kept implicitly on the ordinary $select path, but here the allowlist is the
+    // whole promise: a field the operator did not list must not come back.
+    it('drops id when the allowlist does not name it', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        { value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }] }
+      );
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({ displayName: 'Carlos' });
+    });
+
+    it('keeps the pagination envelope while enforcing the boundary', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        {
+          '@odata.nextLink': 'https://graph/next',
+          value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+        }
+      );
+
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        '@odata.nextLink': 'https://graph/next',
+        value: [{ displayName: 'Carlos' }],
+      });
+    });
+
+    // The ordinary path returns the body untrimmed when none of the selected fields show
+    // up, to protect against a typo. Under the boundary that would hand back everything.
+    it('fails closed when Graph returns none of the allowlisted fields', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        { value: [{ id: '1', jobTitle: 'CEO', employeeId: 'E-1' }] }
+      );
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({});
+    });
+
+    it('refuses to register with an allowlist that names no fields', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+
+      expect(() =>
+        registerGraphTools(
+          server as any,
+          createMockGraphClient() as any,
+          false,
+          undefined,
+          false,
+          undefined,
+          false,
+          [],
+          undefined,
+          false,
+          ' , ,'
+        )
+      ).toThrow(/names no fields/);
+    });
+
     it('leaves the body untouched when no select was passed', async () => {
       const { result } = await run({});
       expect(JSON.parse(result.content[0].text)).toEqual(untrimmed);
