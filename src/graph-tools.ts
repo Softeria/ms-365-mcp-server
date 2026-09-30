@@ -7,6 +7,7 @@ import GraphClient from './graph-client.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import { describePathParam } from './lib/path-params.js';
 import { getAttachmentMinting } from './lib/attachment-minting.js';
+import { MAX_UPLOAD_BYTES } from './attachment-route.js';
 import {
   buildAttachmentUrl,
   isPlainGraphPath,
@@ -1036,6 +1037,90 @@ async function checkAccountParamInBearerMode(
  * the refusal it would have given before -- the tool's behaviour is unchanged
  * for anyone not running with `--enable-attachment-urls`.
  */
+const UPLOAD_TARGET = /^(\/me|\/users\/[^/]+)\/(messages|events)\/[^/]+\/attachments$/;
+const UPLOAD_CONTENT_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
+
+function uploadError(message: string): CallToolResult {
+  return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
+}
+
+/**
+ * Mint an upload ticket for `target`, the `/attachments` collection of a draft
+ * message or an event, redeemed by one PUT of the file bytes. Same identity
+ * rules as mintDownloadUrl: when Graph identity came from the request, the
+ * ticket keeps that token and the upload is attached as that caller.
+ */
+async function mintUploadUrl(
+  target: string,
+  name: string,
+  contentType: string,
+  accountParam: string | undefined,
+  authManager: AuthManager | undefined
+): Promise<CallToolResult> {
+  const minting = getAttachmentMinting();
+  if (!minting) {
+    return uploadError(
+      'This server is not running with --enable-attachment-urls, so no upload URL can be minted. Attach small files with add-mail-attachment (base64 contentBytes).'
+    );
+  }
+  if (!UPLOAD_TARGET.test(target) || !isPlainGraphPath(target)) {
+    return uploadError(
+      'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+    );
+  }
+  const cleanName = Array.from(name.trim())
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('')
+    .slice(0, 255);
+  if (!cleanName) return uploadError('name is required.');
+  if (!UPLOAD_CONTENT_TYPE.test(contentType)) {
+    return uploadError('contentType must be a MIME type such as application/pdf.');
+  }
+
+  const identityFromRequest = Boolean(authManager?.isOAuthModeEnabled() || getRequestTokens());
+  const requestToken = identityFromRequest
+    ? (getRequestTokens()?.accessToken ??
+      (await authManager?.getToken().catch(() => null)) ??
+      undefined)
+    : undefined;
+  if (identityFromRequest && !requestToken) {
+    return uploadError(
+      'No Graph access token is available for this request, so no upload URL can be minted.'
+    );
+  }
+  const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+  if (accountModeError) return uploadError(accountModeError);
+
+  let ticket: { id: string; expiresAtMs: number };
+  try {
+    const upload = { name: cleanName, contentType };
+    ticket = requestToken
+      ? minting.store.mintUploadWithToken(target, requestToken, upload)
+      : minting.store.mintUpload(target, accountParam, upload);
+  } catch (error) {
+    if (error instanceof TicketStoreFullError) return uploadError(error.message);
+    throw error;
+  }
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          uploadUrl: buildAttachmentUrl(minting.config, ticket.id),
+          method: 'PUT',
+          expiresAt: new Date(ticket.expiresAtMs).toISOString(),
+          singleUse: true,
+          maxBytes: MAX_UPLOAD_BYTES,
+          note: 'PUT the raw file bytes with a Content-Length (e.g. curl -T <file> "<uploadUrl>"). Served by this server; valid for one upload until it expires.',
+        }),
+      },
+    ],
+  };
+}
+
 async function mintDownloadUrl(
   target: string,
   accountParam: string | undefined,
@@ -1141,6 +1226,65 @@ async function mintDownloadUrl(
 }
 
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
+  {
+    name: 'get-upload-url',
+    method: 'PUT',
+    path: 'tool:get-upload-url',
+    searchKeywords:
+      'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url',
+    description:
+      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the attachment. Files under 3 MB are attached directly, larger ones (up to 150 MB) through a Graph upload session. Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes }.',
+    readOnlyHint: false,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+          ),
+        name: z
+          .string()
+          .describe('Attachment file name as the recipient will see it, e.g. report.pdf'),
+        contentType: z
+          .string()
+          .optional()
+          .describe(
+            'MIME type of the file, e.g. application/pdf. Defaults to application/octet-stream.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { authManager }) => {
+      const target = params.target;
+      const name = params.name;
+      if (typeof target !== 'string' || target.length === 0) {
+        return uploadError('target is required and must be a non-empty string.');
+      }
+      if (typeof name !== 'string' || name.length === 0) {
+        return uploadError('name is required and must be a non-empty string.');
+      }
+      const contentType =
+        typeof params.contentType === 'string' && params.contentType.length > 0
+          ? params.contentType
+          : 'application/octet-stream';
+      return mintUploadUrl(
+        target,
+        name,
+        contentType,
+        params.account as string | undefined,
+        authManager
+      );
+    },
+  },
   {
     name: 'parse-teams-url',
     method: 'POST',

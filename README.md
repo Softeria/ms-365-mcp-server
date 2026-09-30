@@ -699,6 +699,28 @@ credential.
 be minted is one `download-bytes` would fetch for the same caller on the same account. The
 ticket only moves those bytes out of the context window and into a direct transfer.
 
+### Uploading attachments the same way
+
+The same ticket store works in the other direction. `get-upload-url` mints a URL for
+attaching a file to a draft message or an event, so the bytes go straight from the caller
+to Graph instead of passing as base64 `contentBytes` through the agent context:
+
+```
+PUT /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
+Content-Length: <file size>
+
+<raw file bytes>
+```
+
+`target` is the item's attachments collection (`/me/messages/{id}/attachments` for a draft,
+`/me/events/{id}/attachments` for an event); `name` and `contentType` are recorded on the
+attachment. Files under 3 MB are attached inline; larger ones, up to Graph's 150 MB, stream
+through an upload session in 3.75 MiB chunks, so the server never holds more than one chunk.
+`Content-Length` is required. The ticket is single-use and burnt on first presentation
+whatever the outcome, and the upload is attached as the identity that minted it, exactly as
+downloads are fetched. An upload ticket presented to `GET` (or a download ticket to `PUT`)
+is refused with the same 404 as any other bad ticket.
+
 ### Configuration
 
 ```

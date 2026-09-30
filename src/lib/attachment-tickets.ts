@@ -97,12 +97,33 @@ export type TicketIdentity =
   /** Graph token of the request that minted the ticket. */
   | { readonly kind: 'request-token'; readonly accessToken: string };
 
-export type AttachmentTicket = TicketIdentity & {
-  /** Relative Graph path, exactly as the minting tool validated it. */
-  readonly target: string;
-  /** Epoch milliseconds after which this ticket is dead. */
-  readonly expiresAtMs: number;
-};
+/**
+ * What redeeming the ticket does. A download ticket authorises one GET of
+ * `target`; an upload ticket authorises one PUT of a file that becomes an
+ * attachment in the `target` collection (a draft message's or an event's
+ * `/attachments`). Two kinds rather than a flag so a redemption handler has to
+ * pick the branch it was written for and cannot serve the other by accident.
+ */
+export type TicketPurpose =
+  | { readonly purpose: 'download' }
+  | {
+      readonly purpose: 'upload';
+      /** Attachment name as Graph will store it. */
+      readonly name: string;
+      /** MIME type recorded on the attachment. */
+      readonly contentType: string;
+    };
+
+export type AttachmentTicket = TicketIdentity &
+  TicketPurpose & {
+    /** Relative Graph path, exactly as the minting tool validated it. */
+    readonly target: string;
+    /** Epoch milliseconds after which this ticket is dead. */
+    readonly expiresAtMs: number;
+  };
+
+/** Upload metadata a minting tool supplies; the store adds nothing to it. */
+export type UploadSpec = { readonly name: string; readonly contentType: string };
 
 /**
  * Cap on live tickets. A ticket is a few KB at most, the token being nearly all
@@ -140,7 +161,8 @@ export class AttachmentTicketStore {
   private add(
     target: string,
     identity: TicketIdentity,
-    nowMs: number
+    nowMs: number,
+    purpose: TicketPurpose = { purpose: 'download' }
   ): { id: string; expiresAtMs: number } {
     this.sweep(nowMs);
     if (this.tickets.size >= MAX_LIVE_TICKETS) {
@@ -148,7 +170,7 @@ export class AttachmentTicketStore {
     }
     const id = randomBytes(TICKET_BYTES).toString('base64url');
     const expiresAtMs = nowMs + this.ttlSeconds * 1000;
-    this.tickets.set(id, { ...identity, target, expiresAtMs });
+    this.tickets.set(id, { ...identity, ...purpose, target, expiresAtMs });
     return { id, expiresAtMs };
   }
 
@@ -169,6 +191,33 @@ export class AttachmentTicketStore {
   ): { id: string; expiresAtMs: number } {
     if (!accessToken) throw new Error('A request-token ticket needs a token');
     return this.add(target, { kind: 'request-token', accessToken }, nowMs);
+  }
+
+  /** Mint an upload ticket attached as this server's own token for `accountName`. */
+  mintUpload(
+    target: string,
+    accountName: string | undefined,
+    upload: UploadSpec,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    return this.add(target, { kind: 'server-account', accountName }, nowMs, {
+      purpose: 'upload',
+      ...upload,
+    });
+  }
+
+  /** Mint an upload ticket attached with `accessToken` and nothing else. */
+  mintUploadWithToken(
+    target: string,
+    accessToken: string,
+    upload: UploadSpec,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    if (!accessToken) throw new Error('A request-token ticket needs a token');
+    return this.add(target, { kind: 'request-token', accessToken }, nowMs, {
+      purpose: 'upload',
+      ...upload,
+    });
   }
 
   /**
