@@ -96,10 +96,11 @@ describe('Discussion #467: account parameter in HTTP/OAuth mode', () => {
     };
 
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
-    registerGraphTools(server, graphClient, false, undefined, false, mockAuthManager as any, true, [
-      'user1@domain.com',
-      'user2@domain.com',
-    ]);
+    registerGraphTools(server, graphClient, {
+      authManager: mockAuthManager as any,
+      multiAccount: true,
+      accountNames: ['user1@domain.com', 'user2@domain.com'],
+    });
     expect(capturedHandler).toBeDefined();
     return { fetchSpy, mockAuthManager };
   }

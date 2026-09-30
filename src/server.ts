@@ -326,34 +326,22 @@ class MicrosoftGraphServer {
       registerAuthTools(server, this.authManager);
     }
 
+    const registrationOptions = {
+      readOnly: this.options.readOnly,
+      enabledTools: this.options.enabledTools,
+      orgMode: this.options.orgMode,
+      authManager: this.authManager,
+      multiAccount: this.multiAccount,
+      accountNames: this.accountNames,
+      allowedScopes: this.options.allowedScopes,
+      httpMode: this.hidesStdioOnlyTools(),
+      userFields: this.options.userFields,
+    };
+
     if (this.options.discovery) {
-      registerDiscoveryTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.enabledTools,
-        this.options.allowedScopes,
-        this.hidesStdioOnlyTools(),
-        this.options.userFields
-      );
+      registerDiscoveryTools(server, this.graphClient!, registrationOptions);
     } else {
-      registerGraphTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.enabledTools,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.allowedScopes,
-        this.hidesStdioOnlyTools(),
-        this.options.userFields
-      );
+      registerGraphTools(server, this.graphClient!, registrationOptions);
     }
 
     // Strict JSON-Schema backends (e.g. Kimi/Moonshot) reject a tools/list whose

@@ -218,15 +218,12 @@ describe('allowed scope HTTP behavior', () => {
     expect(graphToolMocks.registerGraphTools).toHaveBeenCalledWith(
       expect.anything(),
       {},
-      undefined,
-      'mail',
-      undefined,
-      expect.anything(),
-      false,
-      [],
-      'Mail.Read',
-      true,
-      undefined
+      expect.objectContaining({
+        enabledTools: 'mail',
+        allowedScopes: 'Mail.Read',
+        httpMode: true,
+        userFields: undefined,
+      })
     );
   });
 });

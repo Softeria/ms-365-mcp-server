@@ -2554,19 +2554,39 @@ async function executeGraphTool(
   }
 }
 
+/**
+ * Configuration for the two registration entry points. Named rather than positional: the
+ * tail is a run of optional primitives, so a missed argument used to type-check while
+ * silently shifting `allowedScopes` or `userFields` into the wrong slot.
+ */
+export interface GraphToolRegistrationOptions {
+  readOnly?: boolean;
+  enabledTools?: string;
+  orgMode?: boolean;
+  authManager?: AuthManager;
+  multiAccount?: boolean;
+  accountNames?: string[];
+  allowedScopes?: string;
+  httpMode?: boolean;
+  userFields?: string;
+}
+
 export function registerGraphTools(
   server: McpServer,
   graphClient: GraphClient,
-  readOnly: boolean = false,
-  enabledToolsPattern?: string,
-  orgMode: boolean = false,
-  authManager?: AuthManager,
-  multiAccount: boolean = false,
-  accountNames: string[] = [],
-  allowedScopesValue?: string,
-  httpMode: boolean = false,
-  userFieldsValue?: string
+  options: GraphToolRegistrationOptions = {}
 ): number {
+  const {
+    readOnly = false,
+    enabledTools: enabledToolsPattern,
+    orgMode = false,
+    authManager,
+    multiAccount = false,
+    accountNames = [],
+    allowedScopes: allowedScopesValue,
+    httpMode = false,
+    userFields: userFieldsValue,
+  } = options;
   const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledToolsPattern) {
@@ -2956,16 +2976,19 @@ export function scoreDiscoveryQuery(
 export function registerDiscoveryTools(
   server: McpServer,
   graphClient: GraphClient,
-  readOnly: boolean = false,
-  orgMode: boolean = false,
-  authManager?: AuthManager,
-  multiAccount: boolean = false,
-  accountNames: string[] = [],
-  enabledTools?: string,
-  allowedScopesValue?: string,
-  httpMode: boolean = false,
-  userFieldsValue?: string
+  options: GraphToolRegistrationOptions = {}
 ): void {
+  const {
+    readOnly = false,
+    enabledTools,
+    orgMode = false,
+    authManager,
+    multiAccount = false,
+    accountNames = [],
+    allowedScopes: allowedScopesValue,
+    httpMode = false,
+    userFields: userFieldsValue,
+  } = options;
   const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {

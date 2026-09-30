@@ -46,7 +46,7 @@ describe('explicit Accept header', () => {
 
   function getRegistration(toolName: string) {
     // transcript tools are work-scoped only, so they need org mode to register
-    registerGraphTools(mockServer, mockGraphClient, false, undefined, true);
+    registerGraphTools(mockServer, mockGraphClient, { orgMode: true });
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call!;

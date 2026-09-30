@@ -2897,16 +2897,11 @@ describe('graph-tools', () => {
       };
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        authManager as any,
-        true,
-        ['user1@domain.com', 'user2@domain.com']
-      );
+      registerGraphTools(server as any, graphClient as any, {
+        authManager: authManager as any,
+        multiAccount: true,
+        accountNames: ['user1@domain.com', 'user2@domain.com'],
+      });
 
       const outputPath = join(tmpDir, 'invoice.pdf');
       const result = await server.tools.get('download-bytes-to-file')!.handler({
@@ -2938,18 +2933,7 @@ describe('graph-tools', () => {
 
       const httpServer = createMockServer();
       // httpMode is the 10th positional arg.
-      registerGraphTools(
-        httpServer as any,
-        {} as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        true
-      );
+      registerGraphTools(httpServer as any, {} as any, { httpMode: true });
       expect(httpServer.tools.has('download-bytes-to-file')).toBe(false);
       expect(httpServer.tools.has('download-bytes')).toBe(true);
     });
@@ -3383,16 +3367,11 @@ describe('graph-tools', () => {
       };
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        authManager as any,
-        true,
-        ['user1@domain.com', 'user2@domain.com']
-      );
+      registerGraphTools(server as any, graphClient as any, {
+        authManager: authManager as any,
+        multiAccount: true,
+        accountNames: ['user1@domain.com', 'user2@domain.com'],
+      });
       const { requestContext } = await import('../request-context.js');
 
       const tool = server.tools.get('get-download-url');
@@ -3447,17 +3426,9 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        createMockGraphClient() as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        'Mail.Read'
-      );
+      registerGraphTools(server as any, createMockGraphClient() as any, {
+        allowedScopes: 'Mail.Read',
+      });
 
       expect(server.tools.has('list-mail-messages')).toBe(true);
       expect(server.tools.has('list-calendar-events')).toBe(false);
@@ -3485,17 +3456,9 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        createMockGraphClient() as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        'Mail.Read'
-      );
+      registerGraphTools(server as any, createMockGraphClient() as any, {
+        allowedScopes: 'Mail.Read',
+      });
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -3560,17 +3523,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3600,17 +3553,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -3656,17 +3599,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -3814,7 +3747,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(server as any, {} as any, false, false, undefined, false, [], 'mail');
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: 'mail' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3853,16 +3786,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '^list-mail-messages$'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '^list-mail-messages$' });
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -3891,16 +3815,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '^download-bytes$'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '^download-bytes$' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3914,16 +3829,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '[invalid'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '[invalid' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3940,7 +3846,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(server as any, {} as any, true);
+      registerGraphTools(server as any, {} as any, { readOnly: true });
 
       // Both built-in utility tools (download-bytes, parse-teams-url) have
       // readOnlyHint: true so they should be present.
@@ -4267,19 +4173,9 @@ describe('graph-tools', () => {
       ]);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        false,
-        'id,displayName,mail'
-      );
+      registerGraphTools(server as any, graphClient as any, {
+        userFields: 'id,displayName,mail',
+      });
 
       const result = await server.tools.get('list-users')!.handler({
         select: 'id,displayName,mail,jobTitle',
@@ -4313,19 +4209,7 @@ describe('graph-tools', () => {
       ]);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        false,
-        'id,displayName'
-      );
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
 
       const result = await server.tools.get('list-users')!.handler({});
 
@@ -4361,19 +4245,7 @@ describe('graph-tools', () => {
       ]);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        false,
-        'id,displayName'
-      );
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
 
       const result = await server.tools.get('list-users')!.handler({
         select: 'id,displayName',
@@ -4401,19 +4273,7 @@ describe('graph-tools', () => {
       ]);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        false,
-        userFields
-      );
+      registerGraphTools(server as any, graphClient as any, { userFields });
       const result = await server.tools.get('list-users')!.handler(args);
       return { result, graphClient };
     }
@@ -4484,20 +4344,46 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
 
       expect(() =>
-        registerGraphTools(
-          server as any,
-          createMockGraphClient() as any,
-          false,
-          undefined,
-          false,
-          undefined,
-          false,
-          [],
-          undefined,
-          false,
-          ' , ,'
-        )
+        registerGraphTools(server as any, createMockGraphClient() as any, { userFields: ' , ,' })
       ).toThrow(/names no fields/);
+    });
+
+    // execute-tool reaches the same Graph path by a different route, so the boundary has
+    // to be asserted there too rather than inferred from the registerGraphTools tests.
+    it('enforces the boundary through discovery mode execute-tool', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, graphClient as any, {
+        userFields: 'id,displayName',
+      });
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'list-users',
+        parameters: { select: 'id,displayName,jobTitle' },
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName');
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('jobTitle');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
     });
 
     it('leaves the body untouched when no select was passed', async () => {

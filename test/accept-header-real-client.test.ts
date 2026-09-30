@@ -26,7 +26,7 @@ describe('Accept override, real generated client', () => {
     }) as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
-    registerGraphTools(server, graphClient, false, undefined, true);
+    registerGraphTools(server, graphClient, { orgMode: true });
     return { handlers, calls };
   }
 

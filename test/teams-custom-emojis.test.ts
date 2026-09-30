@@ -61,17 +61,12 @@ describe('Teams custom emojis (real generated clients)', () => {
   afterEach(() => vi.unstubAllEnvs());
 
   function register(readOnly = false, orgMode = true, allowedScopes?: string) {
-    registerGraphTools(
-      mockServer,
-      mockGraphClient,
+    registerGraphTools(mockServer, mockGraphClient, {
       readOnly,
       enabledTools,
       orgMode,
-      undefined,
-      false,
-      [],
-      allowedScopes
-    );
+      allowedScopes,
+    });
     return mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
   }
 
@@ -83,17 +78,12 @@ describe('Teams custom emojis (real generated clients)', () => {
   }
 
   function registerDiscovery(readOnly = false, orgMode = true, allowedScopes?: string) {
-    registerDiscoveryTools(
-      mockServer,
-      mockGraphClient,
+    registerDiscoveryTools(mockServer, mockGraphClient, {
       readOnly,
       orgMode,
-      undefined,
-      false,
-      [],
       enabledTools,
-      allowedScopes
-    );
+      allowedScopes,
+    });
   }
 
   it('registers both operations from the generated beta client', () => {

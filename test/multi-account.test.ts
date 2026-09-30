@@ -44,10 +44,10 @@ describe('Multi-account support', () => {
 
   describe('account parameter injection (Layer 2)', () => {
     it('should inject account param with known accounts in description when multiAccount=true', () => {
-      registerGraphTools(server, graphClient, false, undefined, false, undefined, true, [
-        'user@outlook.com',
-        'work@company.com',
-      ]);
+      registerGraphTools(server, graphClient, {
+        multiAccount: true,
+        accountNames: ['user@outlook.com', 'work@company.com'],
+      });
 
       const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
       expect(toolCall).toBeDefined();
@@ -57,7 +57,7 @@ describe('Multi-account support', () => {
     });
 
     it('should not inject account param when multiAccount=false', () => {
-      registerGraphTools(server, graphClient, false);
+      registerGraphTools(server, graphClient);
 
       const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
       expect(toolCall).toBeDefined();
@@ -67,9 +67,10 @@ describe('Multi-account support', () => {
     });
 
     it('should use z.string (not z.enum) to accept mid-session accounts', () => {
-      registerGraphTools(server, graphClient, false, undefined, false, undefined, true, [
-        'user@outlook.com',
-      ]);
+      registerGraphTools(server, graphClient, {
+        multiAccount: true,
+        accountNames: ['user@outlook.com'],
+      });
 
       const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
       const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;
@@ -87,16 +88,11 @@ describe('Multi-account support', () => {
         getSelectedAccountId: vi.fn().mockReturnValue(null),
       };
 
-      registerGraphTools(
-        server,
-        graphClient,
-        false,
-        undefined,
-        false,
-        mockAuthManager as any,
-        true,
-        ['user@outlook.com']
-      );
+      registerGraphTools(server, graphClient, {
+        authManager: mockAuthManager as any,
+        multiAccount: true,
+        accountNames: ['user@outlook.com'],
+      });
 
       const listAccountsCalls = toolSpy.mock.calls.filter(([name]) => name === 'list-accounts');
       expect(listAccountsCalls).toHaveLength(0);
@@ -118,16 +114,11 @@ describe('Multi-account support', () => {
 
       // Simulate server boot: auth-tools first, then graph-tools
       registerAuthTools(server as any, mockAuthManager as any);
-      registerGraphTools(
-        server,
-        graphClient,
-        false,
-        undefined,
-        false,
-        mockAuthManager as any,
-        true,
-        ['user@outlook.com']
-      );
+      registerGraphTools(server, graphClient, {
+        authManager: mockAuthManager as any,
+        multiAccount: true,
+        accountNames: ['user@outlook.com'],
+      });
 
       const listAccountsCalls = toolSpy.mock.calls.filter(([name]) => name === 'list-accounts');
       expect(listAccountsCalls).toHaveLength(1);
@@ -304,16 +295,11 @@ describe('Multi-account support', () => {
           expectedHomeAccountId: null,
         });
 
-        registerGraphTools(
-          server,
-          graphClient,
-          false,
-          undefined,
-          false,
+        registerGraphTools(server, graphClient, {
           authManager,
-          await authManager.isMultiAccount(),
-          ['user@outlook.com', 'work@company.com']
-        );
+          multiAccount: await authManager.isMultiAccount(),
+          accountNames: ['user@outlook.com', 'work@company.com'],
+        });
 
         const toolCall = registerToolSpy.mock.calls.find(([name]) => name === 'list-mail-messages');
         const schema = toolCall![1].inputSchema.shape as Record<string, unknown>;

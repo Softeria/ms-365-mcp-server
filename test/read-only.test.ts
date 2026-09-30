@@ -83,7 +83,7 @@ describe('Read-Only Mode', () => {
     const options = parseArgs();
     expect(options.readOnly).toBe(true);
 
-    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, { readOnly: options.readOnly });
 
     // 1 GET graph endpoint via registerTool; parse-teams-url + download-bytes +
     // download-bytes-to-file + get-download-url utilities via tool
@@ -102,7 +102,7 @@ describe('Read-Only Mode', () => {
     const options = parseArgs();
     expect(options.readOnly).toBe(false);
 
-    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, { readOnly: options.readOnly });
 
     // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + utilities
     // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url)
@@ -123,7 +123,11 @@ describe('Read-Only Mode', () => {
     const enabledToolsPattern = undefined;
     const orgMode = true;
 
-    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+    registerGraphTools(mockServer, {} as GraphClient, {
+      readOnly,
+      enabledTools: enabledToolsPattern,
+      orgMode,
+    });
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
 
@@ -147,7 +151,7 @@ describe('Read-Only Mode', () => {
   it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {
     // get-schedule is a POST with readOnly: true; its hints should reflect that it
     // is a read-only query rather than being derived from the POST verb alone.
-    registerGraphTools(mockServer, {} as GraphClient, false, undefined, true);
+    registerGraphTools(mockServer, {} as GraphClient, { orgMode: true });
 
     const annotationsFor = (alias: string) => {
       const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === alias);
@@ -173,7 +177,11 @@ describe('Read-Only Mode', () => {
     const enabledToolsPattern = undefined;
     const orgMode = true;
 
-    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+    registerGraphTools(mockServer, {} as GraphClient, {
+      readOnly,
+      enabledTools: enabledToolsPattern,
+      orgMode,
+    });
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
 

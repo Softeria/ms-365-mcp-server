@@ -69,7 +69,7 @@ describe('issue #569 end-to-end (through MCP SDK validation)', () => {
 
   async function connectedClient(): Promise<Client> {
     const server = new McpServer({ name: 'test', version: '1.0.0' });
-    registerGraphTools(server, mockGraphClient, false);
+    registerGraphTools(server, mockGraphClient);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     const client = new Client({ name: 'test-client', version: '1.0.0' });

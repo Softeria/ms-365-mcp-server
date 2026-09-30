@@ -68,7 +68,7 @@ describe('Flattened body field fallback (issue #569)', () => {
   });
 
   function getToolHandler(toolName: string) {
-    registerGraphTools(mockServer, mockGraphClient, false);
+    registerGraphTools(mockServer, mockGraphClient);
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;

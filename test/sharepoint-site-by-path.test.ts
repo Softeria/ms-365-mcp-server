@@ -81,7 +81,7 @@ describe('get-sharepoint-site-by-path', () => {
     function getToolHandler(toolName: string) {
       // orgMode (5th arg) must be true: this endpoint declares only workScopes,
       // so it is skipped entirely in personal mode.
-      registerGraphTools(mockServer, mockGraphClient, false, undefined, true);
+      registerGraphTools(mockServer, mockGraphClient, { orgMode: true });
       const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
       expect(call).toBeDefined();
       return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;

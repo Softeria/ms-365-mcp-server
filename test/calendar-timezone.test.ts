@@ -32,13 +32,10 @@ describe('timezone on schedule, shared calendar and delta tools', () => {
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
     // Three of these are work-scoped, so they only register in org mode
-    registerGraphTools(
-      server,
-      { graphRequest } as unknown as GraphClient,
-      false,
-      `^(${TOOLS.join('|')})$`,
-      true
-    );
+    registerGraphTools(server, { graphRequest } as unknown as GraphClient, {
+      enabledTools: `^(${TOOLS.join('|')})$`,
+      orgMode: true,
+    });
   });
 
   function registered(toolName: string) {

@@ -36,16 +36,7 @@ function registeredParamSchemas(
 
   // orgMode: true matches `registry` above (buildToolsRegistry(false, true)) so both
   // sides see the same set of tools (work-scoped tools included).
-  registerGraphTools(
-    server,
-    graphClient,
-    false,
-    undefined,
-    true,
-    undefined,
-    multiAccount,
-    accountNames
-  );
+  registerGraphTools(server, graphClient, { orgMode: true, multiAccount, accountNames });
 
   const map = new Map<string, Record<string, z.ZodTypeAny>>();
   for (const call of registerToolSpy.mock.calls) {

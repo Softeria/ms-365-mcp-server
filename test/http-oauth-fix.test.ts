@@ -96,16 +96,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     };
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
-    registerGraphTools(
-      server,
-      graphClient,
-      false,
-      undefined,
-      false,
-      mockAuthManager as any,
-      false,
-      []
-    );
+    registerGraphTools(server, graphClient, { authManager: mockAuthManager as any });
 
     expect(capturedHandler).toBeDefined();
 
@@ -138,16 +129,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     };
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
-    registerGraphTools(
-      server,
-      graphClient,
-      false,
-      undefined,
-      false,
-      mockAuthManager as any,
-      false,
-      []
-    );
+    registerGraphTools(server, graphClient, { authManager: mockAuthManager as any });
 
     expect(capturedHandler).toBeDefined();
 
