@@ -216,6 +216,24 @@ mail, calendar and binary resources rather than profile properties, and are unaf
 signed-in user's own `/me` profile is also unaffected, as are the Teams and chat member
 lists, which return `conversationMember` rather than user profiles.
 
+#### Known gap: `list-relevant-people`
+
+`list-relevant-people` (`/me/people`) is **not** covered. It returns `person` resources,
+a different type whose properties only partly overlap with `user` — it carries `jobTitle`,
+`department` and `officeLocation`, but addresses arrive as `scoredEmailAddresses` rather
+than `mail`. Applying a user-field allowlist to it would reject valid field names and
+narrow the result to something the tool could not use.
+
+Deployments that need the people surface closed as well should drop the tool from the
+surface, for example with `--enabled-tools` or by choosing a preset that excludes it:
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --user-fields 'id,displayName,mail' \
+  --enabled-tools '^(?!list-relevant-people$).*'
+```
+
 CLI values take precedence over the environment variable. A value that names no fields fails
 at startup. When neither is configured, existing behavior is unchanged. Configure this in
 the LibreChat MCP server environment or command arguments; project-local `.env` files are

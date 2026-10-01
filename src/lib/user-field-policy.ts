@@ -35,6 +35,11 @@ const USER_ENTITY_PATH = /^\/users(?:\/[^/]+)?\/?$/i;
  * `/me` itself is deliberately absent: that is the caller's own profile, which they already
  * have. `/me/manager` is somebody else's and is covered. The Teams and chat member lists
  * return `conversationMember`, a different resource, and are not covered here.
+ *
+ * `/me/people` is a known gap. It returns `person`, whose properties only partly overlap
+ * with `user` — addresses arrive as scoredEmailAddresses, not mail — so a user-field
+ * allowlist applied there would reject valid names and leave the tool unusable. Closing
+ * that surface means dropping list-relevant-people from the tool set; see the README.
  */
 const DIRECTORY_NAVIGATION_PATH =
   /^(?:\/me|\/users\/[^/]+)\/(?:manager|directReports)\/?$|^\/groups\/[^/]+\/(?:members|owners)\/?$/i;
