@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -79,7 +79,7 @@ describe('Calendar View Tools', () => {
   });
 
   function getToolHandler(toolName: string) {
-    registerGraphTools(mockServer, mockGraphClient, false);
+    registerGraphTools(mockServer, mockGraphClient);
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
@@ -87,7 +87,7 @@ describe('Calendar View Tools', () => {
 
   describe('tool registration', () => {
     it('should register all three calendar view/instances tools', () => {
-      registerGraphTools(mockServer, mockGraphClient, false);
+      registerGraphTools(mockServer, mockGraphClient);
 
       const toolNames = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
       expect(toolNames).toContain('get-calendar-view');
@@ -96,7 +96,7 @@ describe('Calendar View Tools', () => {
     });
 
     it('should include timezone parameter for calendar view tools', () => {
-      registerGraphTools(mockServer, mockGraphClient, false);
+      registerGraphTools(mockServer, mockGraphClient);
 
       for (const call of mockServer.registerTool.mock.calls) {
         const toolName = call[0] as string;
@@ -116,7 +116,7 @@ describe('Calendar View Tools', () => {
     });
 
     it('should include expandExtendedProperties parameter for calendar view tools', () => {
-      registerGraphTools(mockServer, mockGraphClient, false);
+      registerGraphTools(mockServer, mockGraphClient);
 
       for (const call of mockServer.registerTool.mock.calls) {
         const toolName = call[0] as string;
@@ -136,7 +136,7 @@ describe('Calendar View Tools', () => {
     });
 
     it('should include fetchAllPages parameter for GET tools', () => {
-      registerGraphTools(mockServer, mockGraphClient, false);
+      registerGraphTools(mockServer, mockGraphClient);
 
       for (const call of mockServer.registerTool.mock.calls) {
         const toolName = call[0] as string;
@@ -155,7 +155,7 @@ describe('Calendar View Tools', () => {
     });
 
     it('should append llmTip to tool descriptions', () => {
-      registerGraphTools(mockServer, mockGraphClient, false);
+      registerGraphTools(mockServer, mockGraphClient);
 
       for (const call of mockServer.registerTool.mock.calls) {
         const toolName = call[0] as string;

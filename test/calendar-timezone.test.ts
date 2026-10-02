@@ -1,8 +1,8 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -32,13 +32,10 @@ describe('timezone on schedule, shared calendar and delta tools', () => {
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
     // Three of these are work-scoped, so they only register in org mode
-    registerGraphTools(
-      server,
-      { graphRequest } as unknown as GraphClient,
-      false,
-      `^(${TOOLS.join('|')})$`,
-      true
-    );
+    registerGraphTools(server, { graphRequest } as unknown as GraphClient, {
+      enabledTools: `^(${TOOLS.join('|')})$`,
+      orgMode: true,
+    });
   });
 
   function registered(toolName: string) {
