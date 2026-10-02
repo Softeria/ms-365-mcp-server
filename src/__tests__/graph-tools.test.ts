@@ -4468,6 +4468,38 @@ describe('graph-tools', () => {
       });
     });
 
+    it.each([
+      { alias: 'get-current-user', path: '/me', pathPattern: '/me', args: {} },
+      {
+        alias: 'get-group',
+        path: '/groups/:groupId',
+        pathPattern: '/groups/{group-id}',
+        args: { groupId: 'g1' },
+      },
+    ])('strips $expand from $alias while the field policy is active', async (endpoint) => {
+      mockEndpoints.push(makeEndpoint({ alias: endpoint.alias, path: endpoint.path }));
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: endpoint.alias,
+          pathPattern: endpoint.pathPattern,
+          scopes: ['User.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: '1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      await server.tools.get(endpoint.alias)!.handler({
+        ...endpoint.args,
+        expand: 'manager($select=displayName,jobTitle)',
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('$expand');
+    });
+
     // graph-batch forwards subrequest URLs verbatim, so /users?$select=employeeId reached
     // Graph without ever touching list-users.
     it('restricts a graph-batch subrequest that reads the users surface', async () => {
@@ -4497,6 +4529,7 @@ describe('graph-tools', () => {
                     },
                   },
                   { id: '2', status: 200, body: { id: 'm1', subject: 'Keep me' } },
+                  { id: '3', status: 200, body: { id: 'g1', displayName: 'Team' } },
                 ],
               }),
             },
@@ -4512,6 +4545,7 @@ describe('graph-tools', () => {
           requests: [
             { id: '1', method: 'GET', url: '/users?$select=id,displayName,employeeId' },
             { id: '2', method: 'GET', url: '/me/messages/m1?$select=id,subject' },
+            { id: '3', method: 'GET', url: '/groups/g1?$expand=members($select=mail)' },
           ],
         },
       });
@@ -4520,6 +4554,7 @@ describe('graph-tools', () => {
       expect(sentBody.requests[0].url).toBe('/users?$select=id,displayName');
       // A subrequest that is not a profile read has to pass through untouched.
       expect(sentBody.requests[1].url).toBe('/me/messages/m1?$select=id,subject');
+      expect(sentBody.requests[2].url).toBe('/groups/g1');
 
       const responses = JSON.parse(result.content[0].text).responses;
       expect(responses[0].body.value[0]).toEqual({ id: '1', displayName: 'Carlos' });

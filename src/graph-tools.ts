@@ -54,6 +54,8 @@ import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema
 import {
   restrictUserFieldQuery,
   restrictUserFieldUrl,
+  shouldStripUserFieldExpand,
+  stripUserFieldExpandFromUrl,
   targetsUserProfile,
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
@@ -1806,6 +1808,7 @@ function restrictBatchSubrequests(
   allowlist: string[]
 ): { body: unknown; restricted: Map<string, string[]> } {
   const restricted = new Map<string, string[]>();
+  let changed = false;
   let parsed: unknown = body;
   const wasString = typeof body === 'string';
   if (wasString) {
@@ -1821,14 +1824,24 @@ function restrictBatchSubrequests(
     if (!isPlainObject(request) || typeof request.url !== 'string') return;
     const method = typeof request.method === 'string' ? request.method.toUpperCase() : 'GET';
     const enforcement = userFieldEnforcement(request.url);
-    if (method !== 'GET' || enforcement === 'none') return;
-    const { url, fields } = restrictUserFieldUrl(request.url, allowlist, enforcement);
-    request.url = url;
-    restricted.set(String(request.id ?? index), fields);
-    logger.info(`Restricting batch subrequest ${String(request.id ?? index)} to: ${fields}`);
+    if (method !== 'GET') return;
+    if (enforcement !== 'none') {
+      const { url, fields } = restrictUserFieldUrl(request.url, allowlist, enforcement);
+      request.url = url;
+      restricted.set(String(request.id ?? index), fields);
+      changed = true;
+      logger.info(`Restricting batch subrequest ${String(request.id ?? index)} to: ${fields}`);
+    } else if (shouldStripUserFieldExpand(request.url)) {
+      const url = stripUserFieldExpandFromUrl(request.url);
+      if (url !== request.url) {
+        request.url = url;
+        changed = true;
+        logger.info(`Removing $expand from batch subrequest ${String(request.id ?? index)}`);
+      }
+    }
   });
 
-  if (restricted.size === 0) return { body, restricted };
+  if (!changed) return { body, restricted };
   return { body: wasString ? JSON.stringify(parsed) : parsed, restricted };
 }
 
@@ -2292,6 +2305,9 @@ async function executeGraphTool(
       isUserFieldBoundary && userFields !== undefined
         ? restrictUserFieldQuery(queryParams, userFields, enforcement)
         : [];
+    if (userFields !== undefined && shouldStripUserFieldExpand(path)) {
+      delete queryParams['$expand'];
+    }
     if (isUserFieldBoundary) {
       logger.info(
         `Restricting ${tool.alias} to configured user fields (${enforcement}): ${boundaryFields}`

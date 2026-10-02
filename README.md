@@ -184,12 +184,11 @@ In HTTP mode, OAuth discovery advertises the effective filtered permissions so c
 
 ### Restricting user profile fields
 
-Deployments that expose user directory tools can set a comma-separated field allowlist with
-`--user-fields` or `MS365_MCP_USER_FIELDS`. The boundary is applied both to the `$select`
-sent to Microsoft Graph and to the response returned to the MCP client. This prevents a
-caller from requesting additional profile properties through `$select`, including when it
-omits `$select` entirely. `$expand` is also ignored while this boundary is active so related
-resources cannot be used to bypass the profile field boundary.
+Deployments can set a comma-separated field filter for selected user-directory paths with
+`--user-fields` or `MS365_MCP_USER_FIELDS`. It narrows the `$select` sent to Microsoft Graph
+on `/users` reads and projects responses on the covered paths listed below. This is a
+path-specific data filter, **not a complete Graph authorization boundary**: other Graph
+routes and resource shapes can expose overlapping profile data.
 
 ```bash
 npx @softeria/ms-365-mcp-server \
@@ -197,12 +196,12 @@ npx @softeria/ms-365-mcp-server \
   --user-fields 'id,displayName,mail,userPrincipalName'
 ```
 
-The boundary is keyed on the Graph path rather than on a tool name, so it covers every route
-to the same data: `list-users`, discovery mode's `execute-tool`, and `graph-batch`
-subrequests, whose URLs are rewritten and whose subresponses are projected individually.
-The byte-passthrough tools (`download-bytes`, `download-bytes-to-file`, `get-download-url`)
-return the response verbatim and so cannot project it; they refuse a target on the user
-collection or a user entity while the allowlist is active.
+The filter is keyed on known Graph paths rather than tool names. It applies to direct tools,
+discovery mode's `execute-tool`, and matching `graph-batch` subrequests. Batch subrequest URLs
+are rewritten on covered `/users` reads, and responses are projected on all covered profile
+paths. The byte-passthrough tools (`download-bytes`, `download-bytes-to-file`,
+`get-download-url`) return responses verbatim and refuse targets matching the covered user
+profile paths while the filter is active.
 
 Two levels of enforcement apply, depending on what Graph returns:
 
@@ -210,6 +209,18 @@ Two levels of enforcement apply, depending on what Graph returns:
 | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/users`, `/users/{id}`                                                                                                               | `$select` is narrowed on the request and the response is projected, so excluded fields never leave the tenant                                                                                                                            |
 | `/me/manager`, `/me/directReports`, `/users/{id}/manager`, `/users/{id}/directReports`, `/groups/{id}/members`, `/groups/{id}/owners` | The response is projected. These are typed as `directoryObject`, where Graph requires an OData cast before it will `$select` a user-only property such as `jobTitle`, so narrowing the request would risk breaking calls that work today |
+
+While the filter is active, `$expand` is removed from `/me`, `/groups`, and `/groups/{id}`
+requests because those resources can expand to related user profiles. This also applies to
+matching batch subrequests. The base `/me` and group responses are otherwise not projected.
+
+This does **not** cover every route that can return a user-shaped object. In particular,
+generic Graph access can still reach alternate routes or representations such as
+`/directoryObjects/{id}`, `/groups/{id}/transitiveMembers`, or `/users('{id}')`. Those are
+not currently normalized to the covered paths. If this setting is a security requirement,
+also restrict generic Graph access (for example `graph-batch`) and validate the effective
+tool surface for your deployment; do not rely on `--user-fields` alone as a tenant-wide
+data-access control.
 
 Resources below a user, such as `/users/{id}/messages` or `/users/{id}/photo/$value`, are
 mail, calendar and binary resources rather than profile properties, and are unaffected. The

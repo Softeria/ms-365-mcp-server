@@ -43,6 +43,7 @@ const USER_ENTITY_PATH = /^\/users(?:\/[^/]+)?\/?$/i;
  */
 const DIRECTORY_NAVIGATION_PATH =
   /^(?:\/me|\/users\/[^/]+)\/(?:manager|directReports)\/?$|^\/groups\/[^/]+\/(?:members|owners)\/?$/i;
+const EXPAND_USER_PATH = /^\/me\/?$|^\/groups(?:\/[^/]+)?\/?$/i;
 
 function normalizePath(path: string): string {
   const withoutQuery = path.split('?')[0];
@@ -59,6 +60,22 @@ export function userFieldEnforcement(path: string): UserFieldEnforcement {
 /** Whether the allowlist applies to this path at all, in either mode. */
 export function targetsUserProfile(path: string): boolean {
   return userFieldEnforcement(path) !== 'none';
+}
+
+export function shouldStripUserFieldExpand(path: string): boolean {
+  const normalized = normalizePath(path);
+  return userFieldEnforcement(normalized) !== 'none' || EXPAND_USER_PATH.test(normalized);
+}
+
+export function stripUserFieldExpandFromUrl(url: string): string {
+  const [path, query = ''] = url.split('?');
+  if (!shouldStripUserFieldExpand(path) || query === '') return url;
+  const params = new URLSearchParams(query);
+  if (!params.has('$expand')) return url;
+  params.delete('$expand');
+  const rebuilt = params.toString();
+  if (rebuilt === '') return path;
+  return `${path}?${rebuilt.replace(/%24/gi, '$').replace(/%2C/gi, ',')}`;
 }
 
 /**

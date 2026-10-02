@@ -3,6 +3,8 @@ import {
   effectiveUserFields,
   restrictUserFieldQuery,
   restrictUserFieldUrl,
+  shouldStripUserFieldExpand,
+  stripUserFieldExpandFromUrl,
   targetsUserProfile,
   userFieldEnforcement,
 } from '../src/lib/user-field-policy.js';
@@ -66,6 +68,30 @@ describe('targetsUserProfile', () => {
   it('falls back to the whole allowlist when nothing requested is allowed', () => {
     expect(effectiveUserFields(['jobTitle'], ['id', 'displayName'])).toEqual(['id', 'displayName']);
     expect(effectiveUserFields([], ['id'])).toEqual(['id']);
+  });
+});
+
+describe('user-field expansion restrictions', () => {
+  it.each(['/me', '/groups', '/groups/g1'])(
+    'strips $expand from %s while the boundary is active',
+    (path) => {
+      expect(shouldStripUserFieldExpand(path)).toBe(true);
+    }
+  );
+
+  it('does not broaden the strip rule to unrelated resources', () => {
+    expect(shouldStripUserFieldExpand('/me/messages')).toBe(false);
+    expect(shouldStripUserFieldExpand('/groups/g1/members/$ref')).toBe(false);
+    expect(shouldStripUserFieldExpand('/teams/t1')).toBe(false);
+  });
+
+  it('removes expand from generic batch URLs without changing their other query options', () => {
+    expect(stripUserFieldExpandFromUrl('/me?$expand=manager($select=jobTitle)&$select=id')).toBe(
+      '/me?$select=id'
+    );
+    expect(stripUserFieldExpandFromUrl('/groups/g1?$expand=members($select=mail)&$top=5')).toBe(
+      '/groups/g1?$top=5'
+    );
   });
 });
 
