@@ -854,11 +854,18 @@ class MicrosoftGraphServer {
         //     admin has pre-consented every scope).
         const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
-        const baseScopes =
-          explicitAllowedScopes !== undefined
+        const clientScopes = (clientScope ?? '').split(/\s+/).filter(Boolean);
+        // Under --obo the token must be for this app, not Graph, or the OBO
+        // exchange cannot use it. So Graph scopes are never derived here:
+        // --allowed-scopes still narrows the tool surface, nothing more (#697).
+        const baseScopes = this.options.obo
+          ? clientScopes.length > 0
+            ? clientScopes
+            : [`${clientId}/access_as_user`]
+          : explicitAllowedScopes !== undefined
             ? resolveAuthScopes(this.options)
             : clientScope
-              ? clientScope.split(/\s+/).filter(Boolean)
+              ? clientScopes
               : buildScopesFromEndpoints(
                   this.options.orgMode,
                   this.options.enabledTools,

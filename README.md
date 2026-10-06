@@ -182,7 +182,7 @@ npx @softeria/ms-365-mcp-server \
   --allowed-scopes 'User.Read Files.Read Notes.Read Tasks.Read Sites.Selected'
 ```
 
-In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
+In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `<clientId>/access_as_user` for protected-resource metadata and requests it on `/authorize`; `--allowed-scopes` does not override OBO, it only narrows the tool surface.
 
 ### Restricting user profile fields
 
