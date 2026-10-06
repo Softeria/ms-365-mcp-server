@@ -134,6 +134,15 @@ describe('Path parameters cannot leave the endpoint (GHSA-42wc-j69p-jppq)', () =
     });
   });
 
+  it('does not expand "$" replacement patterns in a raw value', async () => {
+    const path = "sites/hr$`lists$'x$&";
+    await getToolHandler('get-sharepoint-site-by-path')({
+      siteId: 'contoso.sharepoint.com',
+      path,
+    });
+    expect(graphRequest.mock.calls[0][0]).toBe(`/sites/contoso.sharepoint.com:/${path}`);
+  });
+
   it('still sends a nested site path', async () => {
     await getToolHandler('get-sharepoint-site-by-path')({
       siteId: 'contoso.sharepoint.com',
