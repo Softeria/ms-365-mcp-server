@@ -87,6 +87,27 @@ export function isPlainGraphPath(target: string): boolean {
 }
 
 /**
+ * The same round trip for a path filled in from a tool's own template. Compared decoded,
+ * because skipEncoding parameters reach the path raw and the parser percent-encodes a
+ * space or a non-ASCII letter in one without sending the request anywhere else.
+ */
+export function isUnalteredGraphPath(path: string): boolean {
+  // A "%" that starts no escape is literal text ("100%"), which the parser leaves alone
+  const decode = (s: string) => decodeURIComponent(s.replace(/%(?![0-9a-f]{2})/gi, '%25'));
+  try {
+    const resolved = new URL(PROBE_ORIGIN + PROBE_PREFIX + path);
+    return (
+      resolved.origin === PROBE_ORIGIN &&
+      resolved.search === '' &&
+      resolved.hash === '' &&
+      decode(resolved.pathname) === decode(PROBE_PREFIX + path)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Who the bytes are fetched as. Two kinds rather than two optional fields, so
  * redemption has to pick a branch and a request-token ticket cannot reach the
  * token cache by way of a missing value.
