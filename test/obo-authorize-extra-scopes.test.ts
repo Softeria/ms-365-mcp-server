@@ -60,7 +60,10 @@ vi.mock('../src/logger.js', () => ({
 
 const CLIENT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
-async function authorizeScope(options: Record<string, unknown>): Promise<string[]> {
+async function authorizeScope(
+  options: Record<string, unknown>,
+  clientScope: string | null = `${CLIENT_ID}/access_as_user`
+): Promise<string[]> {
   const authManager = {
     isOAuthModeEnabled: () => false,
     isMultiAccount: async () => false,
@@ -74,7 +77,7 @@ async function authorizeScope(options: Record<string, unknown>): Promise<string[
   if (!handler) throw new Error('/authorize not registered');
   let redirected = '';
   const req = {
-    url: `/authorize?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&state=abcdefghij&scope=${encodeURIComponent(`${CLIENT_ID}/access_as_user`)}`,
+    url: `/authorize?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&state=abcdefghij${clientScope === null ? '' : `&scope=${encodeURIComponent(clientScope)}`}`,
     protocol: 'https',
     get: () => 'relay.example',
   };
@@ -89,7 +92,7 @@ async function authorizeScope(options: Record<string, unknown>): Promise<string[
   return (new URL(redirected).searchParams.get('scope') ?? '').split(' ');
 }
 
-describe('/authorize honours --extra-scopes under --obo', () => {
+describe('/authorize scope under --obo', () => {
   beforeEach(() => {
     clearSecretsCache();
     process.env.MS365_MCP_CLIENT_ID = CLIENT_ID;
@@ -123,5 +126,63 @@ describe('/authorize honours --extra-scopes under --obo', () => {
     expect(scopes.sort()).toEqual(
       [`${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
     );
+  });
+
+  it('keeps the relay scope in OBO mode when --allowed-scopes is set (#697)', async () => {
+    const scopes = await authorizeScope({ obo: true, allowedScopes: 'User.Read Mail.ReadWrite' });
+    expect(scopes.sort()).toEqual(
+      [`${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('adds only --extra-scopes on top of the relay scope when both flags are set', async () => {
+    const scopes = await authorizeScope(
+      { obo: true, allowedScopes: 'User.Read Mail.ReadWrite', extraScopes: 'Mail.Send' },
+      null
+    );
+    expect(scopes.sort()).toEqual(
+      [`${CLIENT_ID}/access_as_user`, 'Mail.Send', 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('falls back to the relay scope in OBO mode when the client sends no scope', async () => {
+    const scopes = await authorizeScope({ obo: true }, null);
+    expect(scopes.sort()).toEqual(
+      [`${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('falls back to the relay scope in OBO mode on an empty or blank scope', async () => {
+    for (const blank of ['', '  ']) {
+      const scopes = await authorizeScope({ obo: true, allowedScopes: 'User.Read' }, blank);
+      expect(scopes.sort()).toEqual(
+        [`${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+      );
+    }
+  });
+
+  it('adds the relay scope in OBO mode when the client asks for Graph scopes only', async () => {
+    const scopes = await authorizeScope({ obo: true }, 'Mail.Read');
+    expect(scopes.sort()).toEqual(
+      [`${CLIENT_ID}/access_as_user`, 'Mail.Read', 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('does not add a second relay scope when the client uses the api:// form', async () => {
+    const scopes = await authorizeScope({ obo: true }, `api://${CLIENT_ID}/access_as_user`);
+    expect(scopes.sort()).toEqual(
+      [`api://${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('still requests the allowed Graph scopes without --obo', async () => {
+    const scopes = await authorizeScope({ allowedScopes: 'User.Read Mail.ReadWrite' });
+    expect(scopes).toContain('Mail.ReadWrite');
+    expect(scopes).not.toContain(`${CLIENT_ID}/access_as_user`);
+  });
+
+  it('passes the client scope through without --obo or --allowed-scopes', async () => {
+    const scopes = await authorizeScope({}, 'Mail.Read');
+    expect(scopes.sort()).toEqual(['Mail.Read', 'User.Read', 'offline_access'].sort());
   });
 });
