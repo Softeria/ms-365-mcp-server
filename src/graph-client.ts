@@ -2,7 +2,7 @@ import logger from './logger.js';
 import AuthManager from './auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
+import { getGraphBaseUrl } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
 import {
   fetchWithResilience,
@@ -497,9 +497,8 @@ class GraphClient {
     accessToken: string,
     options: GraphRequestOptions
   ): Promise<Response> {
-    const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
     const apiVersion = options.apiVersion || 'v1.0';
-    const url = `${cloudEndpoints.graphApi}/${apiVersion}${endpoint}`;
+    const url = `${getGraphBaseUrl(this.secrets.cloudType)}/${apiVersion}${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 

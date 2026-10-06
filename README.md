@@ -16,6 +16,8 @@ This server supports multiple Microsoft cloud environments:
 | **Global** (default) | International Microsoft 365        | login.microsoftonline.com | graph.microsoft.com             |
 | **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
 
+To route Graph traffic through a proxy of your own (one that terminates the client's plain HTTP and originates TLS to Microsoft), set `MS365_MCP_GRAPH_BASE_URL` to its base URL; see the environment variable list under CLI Options, including what still bypasses it.
+
 ## Prerequisites
 
 - Node.js >= 20 (recommended)
@@ -734,6 +736,7 @@ Environment variables:
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file over HTTP (alternative to --http-local-file-tools; same restrictions)
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
+- `MS365_MCP_GRAPH_BASE_URL=<url>`: Send Graph API requests to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL without query or fragment; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority and the On-Behalf-Of token resource are unchanged. Two things bypass it: `get-download-url` returns Graph's pre-authenticated SharePoint URL, and the `302` from `/content` points straight at SharePoint, so whoever follows either connects to SharePoint directly; if you control egress, allow those SharePoint hosts or disable those tools. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.
