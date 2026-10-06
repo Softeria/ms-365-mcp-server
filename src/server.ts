@@ -856,12 +856,13 @@ class MicrosoftGraphServer {
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
         const clientScopes = (clientScope ?? '').split(/\s+/).filter(Boolean);
         // Under --obo the token must be for this app, not Graph, or the OBO
-        // exchange cannot use it. So Graph scopes are never derived here:
-        // --allowed-scopes still narrows the tool surface, nothing more (#697).
+        // exchange cannot use it. So Graph scopes are never derived here, and
+        // the relay scope is added if the client left it out. --allowed-scopes
+        // still narrows the tool surface, nothing more (#697).
         const baseScopes = this.options.obo
-          ? clientScopes.length > 0
+          ? clientScopes.some((scope) => scope.endsWith('/access_as_user'))
             ? clientScopes
-            : [`${clientId}/access_as_user`]
+            : [`${clientId}/access_as_user`, ...clientScopes]
           : explicitAllowedScopes !== undefined
             ? resolveAuthScopes(this.options)
             : clientScope

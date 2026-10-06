@@ -152,6 +152,29 @@ describe('/authorize scope under --obo', () => {
     );
   });
 
+  it('falls back to the relay scope in OBO mode on an empty or blank scope', async () => {
+    for (const blank of ['', '  ']) {
+      const scopes = await authorizeScope({ obo: true, allowedScopes: 'User.Read' }, blank);
+      expect(scopes.sort()).toEqual(
+        [`${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+      );
+    }
+  });
+
+  it('adds the relay scope in OBO mode when the client asks for Graph scopes only', async () => {
+    const scopes = await authorizeScope({ obo: true }, 'Mail.Read');
+    expect(scopes.sort()).toEqual(
+      [`${CLIENT_ID}/access_as_user`, 'Mail.Read', 'User.Read', 'offline_access'].sort()
+    );
+  });
+
+  it('does not add a second relay scope when the client uses the api:// form', async () => {
+    const scopes = await authorizeScope({ obo: true }, `api://${CLIENT_ID}/access_as_user`);
+    expect(scopes.sort()).toEqual(
+      [`api://${CLIENT_ID}/access_as_user`, 'User.Read', 'offline_access'].sort()
+    );
+  });
+
   it('still requests the allowed Graph scopes without --obo', async () => {
     const scopes = await authorizeScope({ allowedScopes: 'User.Read Mail.ReadWrite' });
     expect(scopes).toContain('Mail.ReadWrite');
