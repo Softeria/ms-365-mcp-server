@@ -20,6 +20,7 @@ import { getAttachmentMinting } from './lib/attachment-minting.js';
 import {
   buildAttachmentUrl,
   isPlainGraphPath,
+  isUnalteredGraphPath,
   TicketStoreFullError,
 } from './lib/attachment-tickets.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
@@ -1259,6 +1260,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           isError: true,
         };
       }
+      const alteredTarget = unalteredTargetError(target);
+      if (alteredTarget) return alteredTarget;
       const restrictedTarget = userProfilePassthroughError(target, userFields);
       if (restrictedTarget) return restrictedTarget;
       try {
@@ -1379,6 +1382,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           isError: true,
         };
       }
+      const alteredTarget = unalteredTargetError(target);
+      if (alteredTarget) return alteredTarget;
       const restrictedTarget = userProfilePassthroughError(target, userFields);
       if (restrictedTarget) return restrictedTarget;
       if (!path.isAbsolute(outputPath)) {
@@ -1523,6 +1528,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           isError: true,
         };
       }
+      const alteredTarget = unalteredTargetError(target);
+      if (alteredTarget) return alteredTarget;
       const restrictedTarget = userProfilePassthroughError(target, userFields);
       if (restrictedTarget) return restrictedTarget;
       // Normalize: separate any query string and strip trailing slashes so the /content and
@@ -1901,6 +1908,45 @@ function describeParamsForLog(params: Record<string, unknown>): string {
   }
 }
 
+// A quote inside an OData string literal is doubled, e.g. TimeZoneStandard='{TimeZoneStandard}'
+function escapeIfStringLiteral(template: string, names: string[], value: unknown): string {
+  const quoted = names.some((n) => template.includes(`'{${n}}'`) || template.includes(`':${n}'`));
+  return quoted ? String(value).replace(/'/g, "''") : String(value);
+}
+
+// A skipEncoding value goes in raw, so it must not bring path segments of its own. The one
+// that is a whole trailing segment (/sites/{site-id}:/{path}) is a path already, and there
+// it is the ":" ending path addressing that would start a new one.
+function rawValueAddsSegments(template: string, names: string[], value: string): boolean {
+  const isTail = names.some((n) => template.endsWith(`/{${n}}`) || template.endsWith(`/:${n}`));
+  return isTail ? value.includes(':') : value.includes('/');
+}
+
+function invalidPathParameter(message: string) {
+  return {
+    content: [
+      { type: 'text' as const, text: JSON.stringify({ error: 'invalid_path_parameter', message }) },
+    ],
+    isError: true,
+  };
+}
+
+// The download tools take a Graph path as given, and the checks on it read that string
+function unalteredTargetError(target: string) {
+  if (isUnalteredGraphPath(target.split('?')[0])) return undefined;
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          error: 'target must not contain "." or ".." segments, a fragment or a backslash.',
+        }),
+      },
+    ],
+    isError: true,
+  };
+}
+
 async function executeGraphTool(
   tool: (typeof api.endpoints)[0],
   config: EndpointConfig | undefined,
@@ -2080,9 +2126,18 @@ async function executeGraphTool(
             // and commonly appears in Microsoft Graph base64-encoded resource IDs.
             // Without this, IDs like "AAMk...AAA=" become "AAMk...AAA%3D" causing 404 errors.
             // First we encode, then unencode. Crazy, check out https://github.com/Softeria/ms-365-mcp-server/issues/245
+            const names = [paramName, camelCaseParamName];
+            if (shouldSkipEncoding && rawValueAddsSegments(tool.path, names, `${paramValue}`)) {
+              return invalidPathParameter(
+                `'${paramName}' cannot add path segments to this endpoint: no "/" in a value, and no ":" in a site path.`
+              );
+            }
             const encodedValue = shouldSkipEncoding
               ? (paramValue as string)
-              : encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
+              : encodeURIComponent(escapeIfStringLiteral(tool.path, names, paramValue)).replace(
+                  /%3D/g,
+                  '='
+                );
 
             // Replace both the original param name and the camelCase variant
             // to handle {message-id} (endpoints.json) and :messageId (generated client) formats
@@ -2137,7 +2192,9 @@ async function executeGraphTool(
       ) {
         // Fallback: path param not declared in tool.parameters (generated client omits them).
         // Replace placeholder directly so the URL is valid.
-        const encodedValue = encodeURIComponent(paramValue as string).replace(/%3D/g, '=');
+        const encodedValue = encodeURIComponent(
+          escapeIfStringLiteral(tool.path, [paramName, camelCaseParamName], paramValue)
+        ).replace(/%3D/g, '=');
         path = path
           .replace(`{${paramName}}`, encodedValue)
           .replace(`:${paramName}`, encodedValue)
@@ -2170,6 +2227,14 @@ async function executeGraphTool(
       } else {
         logger.warn(`Dropping unrecognized parameter '${paramName}' for tool ${tool.alias}`);
       }
+    }
+
+    // encodeURIComponent leaves "." alone and skipEncoding values go in raw, so a path
+    // parameter can still be a dot segment or carry its own "?" or "#" (GHSA-42wc-j69p-jppq)
+    if (!isUnalteredGraphPath(path)) {
+      return invalidPathParameter(
+        'A path parameter would send this request to a different endpoint. Path parameters cannot be "." or "..", or contain "/../", "?", "#" or a backslash. Percent-encode "?" and "#" that are part of a name.'
+      );
     }
 
     // The client passed the nested itemBody's own fields as the whole request body - move
