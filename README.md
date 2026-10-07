@@ -16,6 +16,8 @@ This server supports multiple Microsoft cloud environments:
 | **Global** (default) | International Microsoft 365        | login.microsoftonline.com | graph.microsoft.com             |
 | **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
 
+To route Graph traffic through a proxy of your own (one that terminates the client's plain HTTP and originates TLS to Microsoft), set `MS365_MCP_GRAPH_BASE_URL` to its base URL; see the environment variable list under CLI Options, including what still bypasses it.
+
 ## Prerequisites
 
 - Node.js >= 20 (recommended)
@@ -180,7 +182,81 @@ npx @softeria/ms-365-mcp-server \
   --allowed-scopes 'User.Read Files.Read Notes.Read Tasks.Read Sites.Selected'
 ```
 
-In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `api://<clientId>/access_as_user` for protected-resource metadata; `--allowed-scopes` does not override OBO.
+In HTTP mode, OAuth discovery advertises the effective filtered permissions so clients request the same consent surface. On-Behalf-Of mode (`--obo`) still advertises `<clientId>/access_as_user` for protected-resource metadata and requests it on `/authorize`; `--allowed-scopes` does not override OBO, it only narrows the tool surface.
+
+### Restricting user profile fields
+
+Deployments can set a comma-separated field filter for selected user-directory paths with
+`--user-fields` or `MS365_MCP_USER_FIELDS`. It narrows the `$select` sent to Microsoft Graph
+on `/users` reads and projects responses on the covered paths listed below. This is a
+path-specific data filter, **not a complete Graph authorization boundary**: other Graph
+routes and resource shapes can expose overlapping profile data.
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --user-fields 'id,displayName,mail,userPrincipalName'
+```
+
+The filter is keyed on known Graph paths rather than tool names. It applies to direct tools,
+discovery mode's `execute-tool`, and matching `graph-batch` subrequests. Batch subrequest URLs
+are rewritten on covered `/users` reads, and responses are projected on all covered profile
+paths. The byte-passthrough tools (`download-bytes`, `download-bytes-to-file`,
+`get-download-url`) return responses verbatim and refuse targets matching the covered user
+profile paths while the filter is active.
+
+Two levels of enforcement apply, depending on what Graph returns:
+
+| Path                                                                                                                                  | Enforcement                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/users`, `/users/{id}`                                                                                                               | `$select` is narrowed on the request and the response is projected, so excluded fields never leave the tenant                                                                                                                            |
+| `/me/manager`, `/me/directReports`, `/users/{id}/manager`, `/users/{id}/directReports`, `/groups/{id}/members`, `/groups/{id}/owners` | The response is projected. These are typed as `directoryObject`, where Graph requires an OData cast before it will `$select` a user-only property such as `jobTitle`, so narrowing the request would risk breaking calls that work today |
+
+While the filter is active, `$expand` is removed from `/me`, `/groups`, and `/groups/{id}`
+requests because those resources can expand to related user profiles. This also applies to
+matching batch subrequests. The base `/me` and group responses are otherwise not projected.
+
+This does **not** cover every route that can return a user-shaped object. In particular,
+generic Graph access can still reach alternate routes or representations such as
+`/directoryObjects/{id}`, `/groups/{id}/transitiveMembers`, or `/users('{id}')`. Those are
+not currently normalized to the covered paths. If this setting is a security requirement,
+also restrict generic Graph access (for example `graph-batch`) and validate the effective
+tool surface for your deployment; do not rely on `--user-fields` alone as a tenant-wide
+data-access control.
+
+Resources below a user, such as `/users/{id}/messages` or `/users/{id}/photo/$value`, are
+mail, calendar and binary resources rather than profile properties, and are unaffected. The
+signed-in user's own `/me` profile is also unaffected, as are the Teams and chat member
+lists, which return `conversationMember` rather than user profiles.
+
+#### Known gap: `list-relevant-people`
+
+`list-relevant-people` (`/me/people`) is **not** covered. It returns `person` resources,
+a different type whose properties only partly overlap with `user` — it carries `jobTitle`,
+`department` and `officeLocation`, but addresses arrive as `scoredEmailAddresses` rather
+than `mail`. Applying a user-field allowlist to it would reject valid field names and
+narrow the result to something the tool could not use.
+
+Deployments that need the people surface closed as well should drop the tool from the
+surface, for example with `--enabled-tools` or by choosing a preset that excludes it:
+
+```bash
+npx @softeria/ms-365-mcp-server \
+  --org-mode \
+  --user-fields 'id,displayName,mail' \
+  --enabled-tools '^(?!list-relevant-people$).*'
+```
+
+CLI values take precedence over the environment variable. A value that names no fields fails
+at startup. When neither is configured, existing behavior is unchanged. Configure this in
+the LibreChat MCP server environment or command arguments; project-local `.env` files are
+intentionally restricted to application credentials and are not used for this setting.
+
+The allowlist is exhaustive for user properties: unlike an ordinary `$select`, `id` is only
+returned when it appears in the list, so include it if downstream tools need it to address a
+user. Collection annotations such as `@odata.nextLink` are retained so paging keeps working.
+If Graph returns none of the allowlisted properties, the response is projected to empty
+rather than returned untrimmed.
 
 ### Requesting extra scopes
 
@@ -660,6 +736,7 @@ Environment variables:
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file over HTTP (alternative to --http-local-file-tools; same restrictions)
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
+- `MS365_MCP_GRAPH_BASE_URL=<url>`: Send Graph API requests to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL without query or fragment; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority and the On-Behalf-Of token resource are unchanged. Two things bypass it: `get-download-url` returns Graph's pre-authenticated SharePoint URL, and the `302` from `/content` points straight at SharePoint, so whoever follows either connects to SharePoint directly; if you control egress, allow those SharePoint hosts or disable those tools. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
 - `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.

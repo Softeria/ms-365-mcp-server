@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -69,7 +69,7 @@ describe('issue #569 end-to-end (through MCP SDK validation)', () => {
 
   async function connectedClient(): Promise<Client> {
     const server = new McpServer({ name: 'test', version: '1.0.0' });
-    registerGraphTools(server, mockGraphClient, false);
+    registerGraphTools(server, mockGraphClient);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     const client = new Client({ name: 'test-client', version: '1.0.0' });

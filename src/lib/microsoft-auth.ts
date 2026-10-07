@@ -318,7 +318,8 @@ export async function exchangeCodeForToken(
   clientSecret: string | undefined,
   tenantId: string = 'common',
   codeVerifier?: string,
-  cloudType: CloudType = 'global'
+  cloudType: CloudType = 'global',
+  scope?: string
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -339,6 +340,15 @@ export async function exchangeCodeForToken(
     params.append('code_verifier', codeVerifier);
   }
 
+  // `scope` is optional at the v2 token endpoint for work/school accounts, but
+  // personal Microsoft accounts (the consumers authority) refuse a redemption
+  // without it when the token's audience is the app itself, as it is under
+  // --obo: AADSTS70011 "The provided request must include a 'scope' input
+  // parameter". Callers that know the resource pass it; others are unchanged.
+  if (scope) {
+    params.append('scope', scope);
+  }
+
   return requestToken(
     `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`,
     params,
@@ -355,7 +365,8 @@ export async function refreshAccessToken(
   clientId: string,
   clientSecret: string | undefined,
   tenantId: string = 'common',
-  cloudType: CloudType = 'global'
+  cloudType: CloudType = 'global',
+  scope?: string
 ): Promise<{
   access_token: string;
   token_type: string;
@@ -369,6 +380,12 @@ export async function refreshAccessToken(
     refresh_token: refreshToken,
     client_id: clientId,
   });
+
+  // See exchangeCodeForToken: personal accounts need the resource scope on
+  // refresh too when the token audience is the app itself (--obo).
+  if (scope) {
+    params.append('scope', scope);
+  }
 
   return requestToken(
     `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`,

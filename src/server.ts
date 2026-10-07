@@ -1,22 +1,30 @@
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Handler, Request, Response } from 'express';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import logger, { enableConsoleLogging } from './logger.js';
+import helmet from 'helmet';
+import crypto from 'node:crypto';
+import type { Server as HttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { isIP, isIPv6 } from 'node:net';
+import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
-import { buildMcpServerInstructions } from './mcp-instructions.js';
-import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
-import GraphClient from './graph-client.js';
 import AuthManager, {
   buildScopesFromEndpoints,
   parseAllowedScopes,
   resolveAuthScopes,
 } from './auth.js';
-import { MicrosoftOAuthProvider } from './oauth-provider.js';
+import type { CommandOptions } from './cli.ts';
+import { getCloudEndpoints } from './cloud-config.js';
+import { dumpError } from './crash-logging.js';
+import GraphClient from './graph-client.js';
+import { registerDiscoveryTools, registerGraphTools } from './graph-tools.js';
+import { configureAttachmentMinting } from './lib/attachment-minting.js';
+import { AttachmentTicketStore } from './lib/attachment-tickets.js';
+import { ATTACHMENT_ROUTE, loadAttachmentUrlConfig } from './lib/attachment-url-config.js';
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
@@ -25,21 +33,13 @@ import {
   toOAuthErrorResponse,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
-import { loadAttachmentUrlConfig, ATTACHMENT_ROUTE } from './lib/attachment-url-config.js';
-import { AttachmentTicketStore } from './lib/attachment-tickets.js';
-import { configureAttachmentMinting } from './lib/attachment-minting.js';
-import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
-import type { CommandOptions } from './cli.ts';
-import { getSecrets, type AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
-import { requestContext } from './request-context.js';
-import { dumpError } from './crash-logging.js';
-import crypto from 'node:crypto';
-import type { Server as HttpServer } from 'node:http';
-import { isIP, isIPv6 } from 'node:net';
-import type { AddressInfo } from 'node:net';
+import logger, { enableConsoleLogging } from './logger.js';
+import { buildMcpServerInstructions } from './mcp-instructions.js';
+import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
+import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import OboClient from './obo-client.js';
-import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
+import { requestContext } from './request-context.js';
+import { getSecrets, type AppSecrets } from './secrets.js';
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -326,32 +326,22 @@ class MicrosoftGraphServer {
       registerAuthTools(server, this.authManager);
     }
 
+    const registrationOptions = {
+      readOnly: this.options.readOnly,
+      enabledTools: this.options.enabledTools,
+      orgMode: this.options.orgMode,
+      authManager: this.authManager,
+      multiAccount: this.multiAccount,
+      accountNames: this.accountNames,
+      allowedScopes: this.options.allowedScopes,
+      httpMode: this.hidesStdioOnlyTools(),
+      userFields: this.options.userFields,
+    };
+
     if (this.options.discovery) {
-      registerDiscoveryTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.enabledTools,
-        this.options.allowedScopes,
-        this.hidesStdioOnlyTools()
-      );
+      registerDiscoveryTools(server, this.graphClient!, registrationOptions);
     } else {
-      registerGraphTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.enabledTools,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.allowedScopes,
-        this.hidesStdioOnlyTools()
-      );
+      registerGraphTools(server, this.graphClient!, registrationOptions);
     }
 
     // Strict JSON-Schema backends (e.g. Kimi/Moonshot) reject a tools/list whose
@@ -361,6 +351,18 @@ class MicrosoftGraphServer {
     installToolSchemaRefNormalization(server);
 
     return server;
+  }
+
+  /**
+   * Under --obo the token Entra issues to the MCP client is for this app
+   * itself (`<clientId>/access_as_user`). Personal Microsoft accounts refuse
+   * to redeem a code or refresh token for that audience unless the request
+   * names the scope (AADSTS70011), so both /token grants send it in OBO mode.
+   * Outside OBO the request is unchanged.
+   */
+  private oboRedemptionScope(): string | undefined {
+    if (!this.options.obo || !this.secrets?.clientId) return undefined;
+    return `${this.secrets.clientId}/access_as_user offline_access`;
   }
 
   async initialize(version: string): Promise<void> {
@@ -852,17 +854,35 @@ class MicrosoftGraphServer {
         //     admin has pre-consented every scope).
         const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
-        const baseScopes =
-          explicitAllowedScopes !== undefined
+        const clientScopes = (clientScope ?? '').split(/\s+/).filter(Boolean);
+        // Under --obo the token must be for this app, not Graph, or the OBO
+        // exchange cannot use it. So Graph scopes are never derived here, and
+        // the relay scope is added if the client left it out. --allowed-scopes
+        // still narrows the tool surface, nothing more (#697).
+        const baseScopes = this.options.obo
+          ? clientScopes.some((scope) => scope.endsWith('/access_as_user'))
+            ? clientScopes
+            : [`${clientId}/access_as_user`, ...clientScopes]
+          : explicitAllowedScopes !== undefined
             ? resolveAuthScopes(this.options)
             : clientScope
-              ? clientScope.split(/\s+/).filter(Boolean)
+              ? clientScopes
               : buildScopesFromEndpoints(
                   this.options.orgMode,
                   this.options.enabledTools,
                   this.options.readOnly
                 );
-        const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
+        // Under --obo the client asks only for this app's own scope
+        // (<clientId>/access_as_user), so the tool-derived Graph scopes never
+        // reach the consent screen and the later OBO exchange for
+        // graph.microsoft.com/.default yields only what the tenant has already
+        // consented to. --extra-scopes / MS365_MCP_EXTRA_SCOPES is the documented
+        // way to add Graph scopes to the token request, so honour it here too:
+        // the user then consents to them at sign-in.
+        const oboExtraScopes = this.options.obo
+          ? (parseAllowedScopes(this.options.extraScopes) ?? [])
+          : [];
+        const scopeSet = new Set([...baseScopes, ...oboExtraScopes, 'User.Read', 'offline_access']);
         microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 
         // Redirect to Microsoft's authorization page
@@ -955,7 +975,8 @@ class MicrosoftGraphServer {
               clientSecret,
               tenantId,
               matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
 
             // Hold the mapping until the exchange succeeds. Dropping it on a
@@ -987,7 +1008,8 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
             res.json(result);
           } else {

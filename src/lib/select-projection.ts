@@ -69,8 +69,12 @@ export function parseSelectFields(value: string | undefined): string[] {
 // for any caller that also passed select. Matched case-insensitively because this also
 // runs over the names the model asked for, and a capitalised Id would otherwise slip past
 // and make the anyFieldPresent guard inert.
-function isAlwaysKept(key: string): boolean {
-  return key.toLowerCase() === 'id' || key.startsWith('@') || key.startsWith('_');
+// `strict` is for the --user-fields boundary: there the allowlist is the whole promise, so
+// an unlisted id has to go. The annotation and underscore keys stay regardless — dropping
+// @odata.nextLink would break paging, and _etag would break read-then-PATCH.
+function isAlwaysKept(key: string, strict = false): boolean {
+  if (key.startsWith('@') || key.startsWith('_')) return true;
+  return !strict && key.toLowerCase() === 'id';
 }
 
 /**
@@ -134,11 +138,11 @@ export function anyFieldPresent(data: unknown, fields: string[]): boolean {
   return objects.some((item) => Object.keys(item).some((key) => wanted.has(key.toLowerCase())));
 }
 
-function projectObject(item: unknown, wanted: Set<string>): unknown {
+function projectObject(item: unknown, wanted: Set<string>, strict: boolean): unknown {
   if (!isPlainObject(item)) return item;
   const projected: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(item)) {
-    if (isAlwaysKept(key) || wanted.has(key.toLowerCase())) {
+    if (isAlwaysKept(key, strict) || wanted.has(key.toLowerCase())) {
       projected[key] = value;
     }
   }
@@ -154,20 +158,20 @@ function projectObject(item: unknown, wanted: Set<string>): unknown {
  * models are inconsistent about casing. That only ever makes this more lenient than
  * Graph: where Graph honours $select a mis-cased name fails before a body exists.
  */
-export function projectSelectedFields(data: unknown, fields: string[]): unknown {
+export function projectSelectedFields(data: unknown, fields: string[], strict = false): unknown {
   if (fields.length === 0) return data;
   if (!data || typeof data !== 'object') return data;
 
   const wanted = new Set(fields.map((field) => field.toLowerCase()));
 
   if (Array.isArray(data)) {
-    return data.map((item) => projectObject(item, wanted));
+    return data.map((item) => projectObject(item, wanted, strict));
   }
 
   const body = data as Record<string, unknown>;
   if (Array.isArray(body.value)) {
-    return { ...body, value: body.value.map((item) => projectObject(item, wanted)) };
+    return { ...body, value: body.value.map((item) => projectObject(item, wanted, strict)) };
   }
 
-  return projectObject(body, wanted);
+  return projectObject(body, wanted, strict);
 }

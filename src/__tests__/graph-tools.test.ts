@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 /**
  * We test executeGraphTool logic by importing it indirectly through registerGraphTools.
@@ -2897,16 +2897,11 @@ describe('graph-tools', () => {
       };
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        authManager as any,
-        true,
-        ['user1@domain.com', 'user2@domain.com']
-      );
+      registerGraphTools(server as any, graphClient as any, {
+        authManager: authManager as any,
+        multiAccount: true,
+        accountNames: ['user1@domain.com', 'user2@domain.com'],
+      });
 
       const outputPath = join(tmpDir, 'invoice.pdf');
       const result = await server.tools.get('download-bytes-to-file')!.handler({
@@ -2938,18 +2933,7 @@ describe('graph-tools', () => {
 
       const httpServer = createMockServer();
       // httpMode is the 10th positional arg.
-      registerGraphTools(
-        httpServer as any,
-        {} as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        true
-      );
+      registerGraphTools(httpServer as any, {} as any, { httpMode: true });
       expect(httpServer.tools.has('download-bytes-to-file')).toBe(false);
       expect(httpServer.tools.has('download-bytes')).toBe(true);
     });
@@ -3383,16 +3367,11 @@ describe('graph-tools', () => {
       };
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        graphClient as any,
-        false,
-        undefined,
-        false,
-        authManager as any,
-        true,
-        ['user1@domain.com', 'user2@domain.com']
-      );
+      registerGraphTools(server as any, graphClient as any, {
+        authManager: authManager as any,
+        multiAccount: true,
+        accountNames: ['user1@domain.com', 'user2@domain.com'],
+      });
       const { requestContext } = await import('../request-context.js');
 
       const tool = server.tools.get('get-download-url');
@@ -3447,17 +3426,9 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        createMockGraphClient() as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        'Mail.Read'
-      );
+      registerGraphTools(server as any, createMockGraphClient() as any, {
+        allowedScopes: 'Mail.Read',
+      });
 
       expect(server.tools.has('list-mail-messages')).toBe(true);
       expect(server.tools.has('list-calendar-events')).toBe(false);
@@ -3485,17 +3456,9 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(
-        server as any,
-        createMockGraphClient() as any,
-        false,
-        undefined,
-        false,
-        undefined,
-        false,
-        [],
-        'Mail.Read'
-      );
+      registerGraphTools(server as any, createMockGraphClient() as any, {
+        allowedScopes: 'Mail.Read',
+      });
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -3560,17 +3523,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3600,17 +3553,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -3656,17 +3599,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        undefined,
-        'Mail.Read'
-      );
+      registerDiscoveryTools(server as any, {} as any, { allowedScopes: 'Mail.Read' });
       const handler = server.server._requestHandlers.get('tools/call');
 
       await expect(
@@ -3814,7 +3747,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(server as any, {} as any, false, false, undefined, false, [], 'mail');
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: 'mail' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3853,16 +3786,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '^list-mail-messages$'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '^list-mail-messages$' });
 
       const result = await server.tools.get('execute-tool')!.handler({
         tool_name: 'get-drive-item',
@@ -3891,16 +3815,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '^download-bytes$'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '^download-bytes$' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3914,16 +3829,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerDiscoveryTools } = await loadModule();
-      registerDiscoveryTools(
-        server as any,
-        {} as any,
-        false,
-        false,
-        undefined,
-        false,
-        [],
-        '[invalid'
-      );
+      registerDiscoveryTools(server as any, {} as any, { enabledTools: '[invalid' });
 
       const result = await server.tools.get('search-tools')!.handler({ limit: 50 });
       const found = JSON.parse(result.content[0].text).tools.map((t: any) => t.name);
@@ -3940,7 +3846,7 @@ describe('graph-tools', () => {
 
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
-      registerGraphTools(server as any, {} as any, true);
+      registerGraphTools(server as any, {} as any, { readOnly: true });
 
       // Both built-in utility tools (download-bytes, parse-teams-url) have
       // readOnlyHint: true so they should be present.
@@ -4244,6 +4150,451 @@ describe('graph-tools', () => {
         subject: 'Standup',
         joinWebUrl: 'https://teams/x',
       });
+    });
+
+    it('restricts list-users selects and responses to the configured user fields', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [
+                  { id: '1', displayName: 'Carlos', mail: 'carlos@example.com', jobTitle: 'CEO' },
+                ],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, {
+        userFields: 'id,displayName,mail',
+      });
+
+      const result = await server.tools.get('list-users')!.handler({
+        select: 'id,displayName,mail,jobTitle',
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName,mail');
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('jobTitle');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+        mail: 'carlos@example.com',
+      });
+    });
+
+    it('adds the configured fields when list-users is called without select', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('list-users')!.handler({});
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    it('blocks expanded user data outside the list-users field boundary', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [
+                  {
+                    id: '1',
+                    displayName: 'Carlos',
+                    manager: { displayName: 'Manager', jobTitle: 'CEO' },
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('list-users')!.handler({
+        select: 'id,displayName',
+        expand: 'manager($select=displayName,jobTitle)',
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('$expand');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    async function runListUsers(
+      userFields: string,
+      args: Record<string, unknown>,
+      graphBody: unknown
+    ) {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify(graphBody) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields });
+      const result = await server.tools.get('list-users')!.handler(args);
+      return { result, graphClient };
+    }
+
+    // The intersection is empty, so the fallback asks Graph for the whole allowlist. The
+    // projection has to use that same list, or it degrades to a no-op that ships whatever
+    // else Graph decided to include.
+    it('still projects when the requested fields are all disallowed', async () => {
+      const { result, graphClient } = await runListUsers(
+        'id,displayName',
+        { select: 'jobTitle,employeeId' },
+        { value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }] }
+      );
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    // id is kept implicitly on the ordinary $select path, but here the allowlist is the
+    // whole promise: a field the operator did not list must not come back.
+    it('drops id when the allowlist does not name it', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        { value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }] }
+      );
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({ displayName: 'Carlos' });
+    });
+
+    it('keeps the pagination envelope while enforcing the boundary', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        {
+          '@odata.nextLink': 'https://graph/next',
+          value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+        }
+      );
+
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        '@odata.nextLink': 'https://graph/next',
+        value: [{ displayName: 'Carlos' }],
+      });
+    });
+
+    // The ordinary path returns the body untrimmed when none of the selected fields show
+    // up, to protect against a typo. Under the boundary that would hand back everything.
+    it('fails closed when Graph returns none of the allowlisted fields', async () => {
+      const { result } = await runListUsers(
+        'displayName',
+        {},
+        { value: [{ id: '1', jobTitle: 'CEO', employeeId: 'E-1' }] }
+      );
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({});
+    });
+
+    it('refuses to register with an allowlist that names no fields', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+
+      expect(() =>
+        registerGraphTools(server as any, createMockGraphClient() as any, { userFields: ' , ,' })
+      ).toThrow(/names no fields/);
+    });
+
+    // execute-tool reaches the same Graph path by a different route, so the boundary has
+    // to be asserted there too rather than inferred from the registerGraphTools tests.
+    it('enforces the boundary through discovery mode execute-tool', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'list-users', path: '/users' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'list-users', pathPattern: '/users', scopes: ['User.Read.All'] }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerDiscoveryTools } = await loadModule();
+      registerDiscoveryTools(server as any, graphClient as any, {
+        userFields: 'id,displayName',
+      });
+
+      const result = await server.tools.get('execute-tool')!.handler({
+        tool_name: 'list-users',
+        parameters: { select: 'id,displayName,jobTitle' },
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).toContain('$select=id,displayName');
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('jobTitle');
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    // manager and directReports return other people's displayName, mail and jobTitle, so
+    // omitting $select on either used to hand back everything the allowlist excluded.
+    it('projects a directory navigation that returns user profile data', async () => {
+      mockEndpoints.push(
+        makeEndpoint({ alias: 'get-user-manager', path: '/users/:userId/manager' })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: 'get-user-manager',
+          pathPattern: '/users/{user-id}/manager',
+          scopes: ['User.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                id: 'm1',
+                displayName: 'Manager',
+                mail: 'manager@example.com',
+                jobTitle: 'CEO',
+                employeeId: 'E-9',
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, {
+        userFields: 'id,displayName,mail',
+      });
+
+      const result = await server.tools.get('get-user-manager')!.handler({ userId: 'abc' });
+
+      // directoryObject needs an OData cast before Graph will $select a user-only
+      // property, so the request is left alone and the response carries the boundary.
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('$select');
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        id: 'm1',
+        displayName: 'Manager',
+        mail: 'manager@example.com',
+      });
+    });
+
+    it('projects group members, which carry the same profile fields', async () => {
+      mockEndpoints.push(
+        makeEndpoint({ alias: 'list-group-members', path: '/groups/:groupId/members' })
+      );
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: 'list-group-members',
+          pathPattern: '/groups/{group-id}/members',
+          scopes: ['GroupMember.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1', displayName: 'Carlos', jobTitle: 'CEO' }],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('list-group-members')!.handler({ groupId: 'g1' });
+
+      expect(JSON.parse(result.content[0].text).value[0]).toEqual({
+        id: '1',
+        displayName: 'Carlos',
+      });
+    });
+
+    it.each([
+      { alias: 'get-current-user', path: '/me', pathPattern: '/me', args: {} },
+      {
+        alias: 'get-group',
+        path: '/groups/:groupId',
+        pathPattern: '/groups/{group-id}',
+        args: { groupId: 'g1' },
+      },
+    ])('strips $expand from $alias while the field policy is active', async (endpoint) => {
+      mockEndpoints.push(makeEndpoint({ alias: endpoint.alias, path: endpoint.path }));
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: endpoint.alias,
+          pathPattern: endpoint.pathPattern,
+          scopes: ['User.Read.All'],
+        }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: '1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      await server.tools.get(endpoint.alias)!.handler({
+        ...endpoint.args,
+        expand: 'manager($select=displayName,jobTitle)',
+      });
+
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('$expand');
+    });
+
+    // graph-batch forwards subrequest URLs verbatim, so /users?$select=employeeId reached
+    // Graph without ever touching list-users.
+    it('restricts a graph-batch subrequest that reads the users surface', async () => {
+      mockEndpoints.push(
+        makeEndpoint({
+          alias: 'graph-batch',
+          method: 'post',
+          path: '/$batch',
+          parameters: [{ name: 'body', type: 'Body', schema: z.any() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'graph-batch', pathPattern: '/$batch', method: 'post' }),
+      ];
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                responses: [
+                  {
+                    id: '1',
+                    status: 200,
+                    body: {
+                      value: [{ id: '1', displayName: 'Carlos', employeeId: 'E-1' }],
+                    },
+                  },
+                  { id: '2', status: 200, body: { id: 'm1', subject: 'Keep me' } },
+                  { id: '3', status: 200, body: { id: 'g1', displayName: 'Team' } },
+                ],
+              }),
+            },
+          ],
+        },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('graph-batch')!.handler({
+        body: {
+          requests: [
+            { id: '1', method: 'GET', url: '/users?$select=id,displayName,employeeId' },
+            { id: '2', method: 'GET', url: '/me/messages/m1?$select=id,subject' },
+            { id: '3', method: 'GET', url: '/groups/g1?$expand=members($select=mail)' },
+          ],
+        },
+      });
+
+      const sentBody = JSON.parse(graphClient.graphRequest.mock.calls[0][1].body);
+      expect(sentBody.requests[0].url).toBe('/users?$select=id,displayName');
+      // A subrequest that is not a profile read has to pass through untouched.
+      expect(sentBody.requests[1].url).toBe('/me/messages/m1?$select=id,subject');
+      expect(sentBody.requests[2].url).toBe('/groups/g1');
+
+      const responses = JSON.parse(result.content[0].text).responses;
+      expect(responses[0].body.value[0]).toEqual({ id: '1', displayName: 'Carlos' });
+      expect(responses[1].body).toEqual({ id: 'm1', subject: 'Keep me' });
+    });
+
+    // download-bytes returns the response verbatim, so there is no projection step to
+    // enforce the allowlist in; it has to refuse instead.
+    it('refuses a byte-passthrough read of the users surface', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      const result = await server.tools.get('download-bytes')!.handler({
+        target: '/users?$select=employeeId',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('user_fields_restricted');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('still allows byte reads below a user, such as a profile photo', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ message: 'OK!' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, { userFields: 'id,displayName' });
+
+      await server.tools.get('download-bytes')!.handler({
+        target: '/users/abc/photo/$value',
+      });
+
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the body untouched when no select was passed', async () => {
