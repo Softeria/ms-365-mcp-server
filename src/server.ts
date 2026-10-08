@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { isIP, isIPv6 } from 'node:net';
-import { createAttachmentHandler } from './attachment-route.js';
+import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
 import AuthManager, {
   buildScopesFromEndpoints,
@@ -1182,14 +1182,15 @@ class MicrosoftGraphServer {
             })
           );
         }
-        attachmentApp.get(
-          ATTACHMENT_ROUTE,
-          createAttachmentHandler({
-            store: ticketStore,
-            getGraphClient: () => this.graphClient,
-            authManager: this.authManager,
-          })
-        );
+        const attachmentDeps = {
+          store: ticketStore,
+          getGraphClient: () => this.graphClient,
+          authManager: this.authManager,
+        };
+        attachmentApp.get(ATTACHMENT_ROUTE, createAttachmentHandler(attachmentDeps));
+        // Same route, same ticket store: a PUT redeems an upload ticket minted by
+        // get-upload-url and attaches the body to the ticket's message or event.
+        attachmentApp.put(ATTACHMENT_ROUTE, createAttachmentUploadHandler(attachmentDeps));
         logger.info(
           `  - Attachment URLs: ${attachmentConfig.base}${ATTACHMENT_ROUTE} ` +
             `(ttl ${attachmentConfig.ttlSeconds}s, key id ${attachmentConfig.keyId})`
