@@ -93,10 +93,12 @@ const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
 // resolves a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event
 // attachments or recordings), so it rides with the drive-backed presets; where it is absent the
 // universal download-bytes still reads the bytes. parse-teams-url only parses Teams meeting URLs.
+// read-mail-text reads mail, so it rides with the mail-backed presets.
 const SCOPED_UTILITY_TOOLS: Record<string, string[]> = {
   'get-download-url': ['files', 'onedrive', 'personal', 'work', 'search'],
   'get-upload-url': ['mail', 'calendar', 'outlook', 'personal', 'work'],
   'parse-teams-url': ['teams', 'teams-write', 'work'],
+  'read-mail-text': ['mail', 'outlook', 'personal', 'work'],
 };
 
 // Fail fast if a scoped utility references a preset that does not exist (e.g. a typo like
