@@ -728,6 +728,7 @@ Environment variables:
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
+- `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS=<n>`: Largest result `read-mail-text` returns, in characters (default `80000`). A larger result is refused whole, naming the largest messages, rather than cut (see Reading Mail as Clean Text below)
 - `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
 - `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
@@ -750,6 +751,32 @@ Environment variables:
 - `MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS`: Per-invocation timeout for `MS365_MCP_AUTH_CACHE_COMMAND` (default: `10000`)
 - `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
 - `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
+
+## Reading Mail as Clean Text
+
+`read-mail-text` returns what messages actually say. Graph's plain-text body is
+still mostly not the message: every link is a Safe Links URL several hundred
+characters long, marketing mail pads its preheader with invisible characters,
+images become `[https://…png]` lines, and replies carry the whole quoted thread.
+On a real inbox, 20 messages through `list-mail-messages` with `body` came to
+about 400,000 characters; the same 20 through `read-mail-text` came to 42,000.
+
+The tool removes, by pattern: quoted reply history (`On … wrote:`, Outlook
+`From:/Sent:` blocks, `-----Original Message-----`, `>` lines), the `-- `
+signature and mobile sign-offs, a trailing footer block (unsubscribe, legal
+notice, copyright), image placeholders and link-only lines; links are shortened
+to their real domain (`[link: example.com]`, Safe Links unwrapped). It never
+summarises or rewrites; forwards (`FW:` / `Fwd:`) keep the forwarded content.
+
+- `messageIds` (up to 20, one `$batch`), or `folderId` with optional `top`
+  (max 20), `filter` or `search`.
+- Text is complete unless `maxChars` is set (each message then cut and marked
+  `truncated`).
+- Returns `[{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }]`;
+  an unknown id comes back as `{ id, error }`.
+- A result over `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS` (default 80,000) is refused
+  whole with the largest messages listed, so the agent narrows the query instead
+  of silently getting part of it.
 
 ## Server-Minted Attachment URLs
 
