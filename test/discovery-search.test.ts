@@ -41,7 +41,12 @@ const cases: Case[] = [
   // /me/messages operations are mis-sourced (openTypeExtension / eventMessage blurbs),
   // so these rely on the descriptionOverride entries in endpoints.json.
   { query: 'search my inbox for an email', expect: 'list-mail-messages', inTop: 5 },
-  { query: 'read the full body of an email', expect: 'get-mail-message', inTop: 5 },
+  // read-mail-text now answers this query first (it is the reading tool), which
+  // moves get-mail-message from 5th to 6th; it must stay close behind.
+  { query: 'read the full body of an email', expect: 'get-mail-message', inTop: 6 },
+  { query: 'read the full body of an email', expect: 'read-mail-text', inTop: 1 },
+  { query: 'read email text', expect: 'read-mail-text', inTop: 1 },
+  { query: 'triage inbox', expect: 'read-mail-text', inTop: 3 },
   { query: 'save a draft email', expect: 'create-draft-email', inTop: 5 },
   { query: 'mark email as read', expect: 'update-mail-message', inTop: 5 },
   { query: 'move email to deleted items', expect: 'delete-mail-message', inTop: 5 },
