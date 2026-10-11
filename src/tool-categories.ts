@@ -89,10 +89,13 @@ const PRESET_META: Record<
 // enumerated list because a list would silently miss apps and every future preset.
 const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
 
-// Scoped utilities are only meaningful where the resources they act on appear. get-download-url
-// resolves a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event
-// attachments or recordings), so it rides with the drive-backed presets; where it is absent the
-// universal download-bytes still reads the bytes. parse-teams-url only parses Teams meeting URLs.
+// Scoped utilities are only meaningful where the resources they act on appear. Graph itself
+// publishes a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event
+// attachments or recordings), so get-download-url rides with the drive-backed presets; where it is
+// absent the universal download-bytes still reads the bytes. A server running with
+// --enable-attachment-urls mints its own URL for those other byte resources, so
+// getCombinedPresetPattern adds it to every preset then. parse-teams-url only parses Teams meeting
+// URLs.
 const SCOPED_UTILITY_TOOLS: Record<string, string[]> = {
   'get-download-url': ['files', 'onedrive', 'personal', 'work', 'search'],
   'get-upload-url': ['mail', 'calendar', 'outlook', 'personal', 'work'],
@@ -144,7 +147,10 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   },
 };
 
-export function getCombinedPresetPattern(presets: string[]): string {
+export function getCombinedPresetPattern(
+  presets: string[],
+  { attachmentUrls = false }: { attachmentUrls?: boolean } = {}
+): string {
   const patterns = presets.map((preset) => {
     const category = TOOL_CATEGORIES[preset];
     if (!category) {
@@ -154,6 +160,16 @@ export function getCombinedPresetPattern(presets: string[]): string {
     }
     return category.pattern.source;
   });
+  // With server-minted attachment URLs on, get-download-url is how an agent that found a mail or
+  // event attachment, recording or other $value resource gets a URL for it, so it must not depend
+  // on the preset having drive tools. Send-only presets stay free of byte readers.
+  if (
+    attachmentUrls &&
+    presets.some((p) => !PRESET_META[p]?.omitUniversalUtilities) &&
+    !patterns.some((p) => new RegExp(p).test('get-download-url'))
+  ) {
+    patterns.push('^get-download-url$');
+  }
   return patterns.join('|');
 }
 
