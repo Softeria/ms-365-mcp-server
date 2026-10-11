@@ -2750,9 +2750,9 @@ async function executeGraphTool(
             }
 
             combinedResponse.value = allItems;
-            if (combinedResponse['@odata.count']) {
-              combinedResponse['@odata.count'] = allItems.length;
-            }
+            // @odata.count is Graph's total for the filtered collection, so it is
+            // left as page one reported it (it can exceed allItems.length when
+            // maxPages/maxItems truncates the merge).
             delete combinedResponse['@odata.nextLink'];
             // The client's metadata described page one. Now that pages are
             // merged, restate all three for the whole read.

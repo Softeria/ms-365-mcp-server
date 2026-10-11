@@ -120,7 +120,7 @@ export function isSkiptokenApplicable(
 }
 
 export const COUNT_PARAM_DESCRIPTION =
-  'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains().';
+  'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains(). The response then includes @odata.count, the total for the filtered collection, which can exceed the items returned when fetchAllPages hits its page/item cap.';
 
 export const CONFIRM_PARAM_DESCRIPTION =
   'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
