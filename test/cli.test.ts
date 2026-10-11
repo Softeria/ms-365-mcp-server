@@ -422,4 +422,78 @@ describe('CLI Module', () => {
       expect(result.enableDynamicRegistration).toBeUndefined();
     });
   });
+
+  describe('--preset with --enable-attachment-urls', () => {
+    const allows = (tools: string | undefined, name: string) => new RegExp(tools!, 'i').test(name);
+
+    it.each(['mail', 'calendar', 'teams', 'mail,calendar'])(
+      'keeps get-download-url in --preset %s over HTTP so attachments can be minted',
+      (preset) => {
+        commanderMocks.mockCommand.opts.mockReturnValue({
+          preset,
+          http: '3000',
+          enableAttachmentUrls: true,
+        });
+        const { enabledTools } = parseArgs();
+        expect(allows(enabledTools, 'get-download-url')).toBe(true);
+        expect(allows(enabledTools, 'download-bytes')).toBe(true);
+        expect(allows(enabledTools, 'get-drive-item')).toBe(false);
+      }
+    );
+
+    it('leaves get-download-url out of a non-drive preset without the flag', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ preset: 'mail', http: '3000' });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+
+    it('ignores the flag in stdio mode, where it has no effect', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'mail',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+
+    it('adds get-download-url to teams-write,mail because mail lacks it', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'teams-write,mail',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(true);
+    });
+
+    it.each(['files', 'all'])('adds no duplicate entry for --preset %s', (preset) => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset,
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      const { enabledTools } = parseArgs();
+      expect(enabledTools!.match(/get-download-url/g)?.length ?? 0).toBeLessThanOrEqual(1);
+    });
+
+    it('lets ENABLED_TOOLS override the preset and the flag', () => {
+      process.env.ENABLED_TOOLS = '^list-mail-messages$';
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'mail',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      try {
+        expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+      } finally {
+        delete process.env.ENABLED_TOOLS;
+      }
+    });
+
+    it('does not add a byte reader to the send-only teams-write preset', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'teams-write',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+  });
 });
