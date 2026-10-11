@@ -45,9 +45,34 @@ const DIRECTORY_NAVIGATION_PATH =
   /^(?:\/me|\/users\/[^/]+)\/(?:manager|directReports)\/?$|^\/groups\/[^/]+\/(?:members|owners)\/?$/i;
 const EXPAND_USER_PATH = /^\/me\/?$|^\/groups(?:\/[^/]+)?\/?$/i;
 
+/**
+ * Graph decodes percent-escapes in the path before routing, so `/%75sers` is `/users` there.
+ * Match what Graph will route, not the spelling: decode (bounded, until stable) before testing.
+ */
 function normalizePath(path: string): string {
-  const withoutQuery = path.split('?')[0];
+  let withoutQuery = path.split('?')[0];
+  for (let i = 0; i < 4; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(withoutQuery);
+    } catch {
+      break;
+    }
+    if (next === withoutQuery) break;
+    withoutQuery = next;
+  }
   return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
+}
+
+/** Names the executor sends to Graph as `$<name>`: `select`, `$Select`, `$SELECT`, ... */
+function deleteOdataOption(params: URLSearchParams, name: string): string[] {
+  const values: string[] = [];
+  for (const key of [...new Set(params.keys())]) {
+    if (key.replace(/^\$/, '').toLowerCase() !== name) continue;
+    values.push(...params.getAll(key));
+    params.delete(key);
+  }
+  return values;
 }
 
 export function userFieldEnforcement(path: string): UserFieldEnforcement {
@@ -71,8 +96,7 @@ export function stripUserFieldExpandFromUrl(url: string): string {
   const [path, query = ''] = url.split('?');
   if (!shouldStripUserFieldExpand(path) || query === '') return url;
   const params = new URLSearchParams(query);
-  if (!params.has('$expand')) return url;
-  params.delete('$expand');
+  if (deleteOdataOption(params, 'expand').length === 0) return url;
   const rebuilt = params.toString();
   if (rebuilt === '') return path;
   return `${path}?${rebuilt.replace(/%24/gi, '$').replace(/%2C/gi, ',')}`;
@@ -116,14 +140,18 @@ export function restrictUserFieldUrl(
 ): { url: string; fields: string[] } {
   const [path, query = ''] = url.split('?');
   const params = new URLSearchParams(query);
+  const requested =
+    enforcement === 'request-and-response'
+      ? deleteOdataOption(params, 'select')
+      : params.getAll('$select');
   const fields = effectiveUserFields(
-    parseSelectFields(params.get('$select') ?? undefined),
+    parseSelectFields(requested.join(',') || undefined),
     allowlist
   );
   if (enforcement === 'request-and-response') {
     params.set('$select', fields.join(','));
   }
-  params.delete('$expand');
+  deleteOdataOption(params, 'expand');
   const rebuilt = params.toString();
   if (rebuilt === '') return { url: path, fields };
   // URLSearchParams percent-encodes the '$' of every OData option and the commas between
