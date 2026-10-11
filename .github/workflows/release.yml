@@ -81,11 +81,27 @@ jobs:
         shell: bash
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      # The registry validates mcpName against npm's version manifest, and npm can take
+      # minutes to serve a version it just accepted. 0.154.3 took over three, which
+      # outlasted the retries below and failed the release.
+      - name: Wait for npm
+        timeout-minutes: 12
+        run: |
+          # Spelled the way the registry's validator requests it, in case npm caches the
+          # variants apart. npm view reads the full packument, which can be ahead of this.
+          MANIFEST="https://registry.npmjs.org/@softeria%2Fms-365-mcp-server/$VERSION"
+          while [ "$SECONDS" -lt 600 ]; do
+            curl -fsS --max-time 10 -H 'Accept: application/json' "$MANIFEST" |
+              jq -e .mcpName >/dev/null && exit 0
+            echo "npm is not serving $VERSION yet, retrying in 15s"
+            sleep 15
+          done
+          echo "npm never served $VERSION" && exit 1
+
       - name: Publish to MCP Registry
         run: |
           ./mcp-publisher login github-oidc
-          # The registry validates mcpName against the npm tarball, which may not
-          # be readable immediately after publish.
+          # Retries left as a backstop for registry-side flakiness.
           for i in 1 2 3 4 5; do
             ./mcp-publisher publish && exit 0
             [ "$i" = 5 ] && break
@@ -143,12 +159,28 @@ jobs:
             echo "Not a version: '$VERSION'" && exit 1
           fi
 
+      # Same npm propagation window the registry publish waits out, and a multi-arch
+      # build is far too expensive to spend on a version npm will 404 on.
+      - name: Wait for npm
+        timeout-minutes: 12
+        run: |
+          PKG=https://registry.npmjs.org/@softeria%2fms-365-mcp-server
+          # The install packument is what npm i resolves the version from, and it is
+          # cached apart from the full one npm view reads.
+          while [ "$SECONDS" -lt 600 ]; do
+            TARBALL=$(curl -fsS --max-time 10 -H 'Accept: application/vnd.npm.install-v1+json' "$PKG" |
+              jq -er --arg v "$VERSION" '.versions[$v].dist.tarball') &&
+              curl -fsSI --max-time 10 -o /dev/null "$TARBALL" && exit 0
+            echo "npm is not serving $VERSION yet, retrying in 15s"
+            sleep 15
+          done
+          echo "npm never served $VERSION" && exit 1
+
       # Only the version tag here. :latest is promoted further down, once this image has
       # been proven to start.
       - name: Build and push image
         run: |
-          # The image installs the npm package, so it hits the same post-publish window
-          # the registry publish above retries around.
+          # Retries left as a backstop for buildx and registry flakiness.
           for i in 1 2 3 4 5; do
             docker buildx build \
               --file Dockerfile.ghcr \
