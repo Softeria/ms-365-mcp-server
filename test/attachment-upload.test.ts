@@ -262,6 +262,20 @@ describe('get-upload-url', () => {
     });
   });
 
+  it('mints a bare upload URL when no key is configured, redeemable by its ticket', async () => {
+    configureAttachmentMinting({
+      store,
+      config: { base: 'https://relay.example', keyId: '1', ttlSeconds: 120 },
+    });
+    const result = await tool.execute({ target: DRAFT_ATTACHMENTS, name: 'a.txt' }, ctx());
+    const url = new URL(parse(result as never).uploadUrl);
+    expect([...url.searchParams.keys()]).toEqual([TICKET_PARAM]);
+    expect(store.redeem(url.searchParams.get(TICKET_PARAM)!)).toMatchObject({
+      purpose: 'upload',
+      target: DRAFT_ATTACHMENTS,
+    });
+  });
+
   it('refuses anything but a message or event attachments collection', async () => {
     for (const target of [
       '/me/messages/AAA/attachments/BBB/$value',

@@ -24,7 +24,8 @@ import { signUrl } from './url-signing.js';
 export const TICKET_PARAM = 't';
 
 /**
- * Build the signed, redeemable URL for a minted ticket.
+ * Build the redeemable URL for a minted ticket, signed when a key is configured
+ * and bare (just the ticket) when it is not.
  *
  * **The ticket travels in the query, never the path**, and that is a hard
  * requirement of the verifying sidecar rather than a style choice: docglean's
@@ -39,6 +40,7 @@ export function buildAttachmentUrl(
 ): string {
   const url = new URL(ATTACHMENT_ROUTE, config.base);
   url.searchParams.set(TICKET_PARAM, ticketId);
+  if (!config.key) return url.toString();
   return signUrl(
     url.toString(),
     { key: config.key, keyId: config.keyId, ttlSeconds: config.ttlSeconds },

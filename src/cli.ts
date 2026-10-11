@@ -51,7 +51,7 @@ program
   )
   .option(
     '--enable-attachment-urls',
-    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE and MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE)'
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
   )
   .option(
     '--attachment-port <port>',
