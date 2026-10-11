@@ -51,7 +51,7 @@ program
   )
   .option(
     '--enable-attachment-urls',
-    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
   )
   .option(
     '--attachment-port <port>',
@@ -216,7 +216,10 @@ export function parseArgs(): CommandOptions {
   if (options.preset) {
     const presetNames = options.preset.split(',').map((p: string) => p.trim());
     try {
-      options.enabledTools = getCombinedPresetPattern(presetNames);
+      // The flag only acts in HTTP mode (server.ts ignores it under stdio).
+      options.enabledTools = getCombinedPresetPattern(presetNames, {
+        attachmentUrls: Boolean(options.http && options.enableAttachmentUrls),
+      });
 
       const requiresOrgMode = presetNames.some((preset: string) => presetRequiresOrgMode(preset));
       if (requiresOrgMode && !options.orgMode) {

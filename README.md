@@ -633,7 +633,7 @@ npx @softeria/ms-365-mcp-server --list-presets  # See all available presets
 
 Available presets: `mail`, `calendar`, `files`, `personal`, `work`, `excel`, `contacts`, `tasks`, `onenote`, `search`, `users`, `outlook`, `onedrive`, `teams`, `teams-write`, `all`
 
-Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset except `teams-write`, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets. So a preset that can find a file can always read its bytes.
+Each endpoint in `endpoints.json` declares which presets it belongs to via a `presets` array, so every preset is an exact tool-name allow-list that never over-matches across apps (e.g. `mail` does not include shared-mailbox tools; those are in `work`). The universal binary reader `download-bytes` is included in every preset except `teams-write`, so whatever an app returns (a file, an attachment, a photo, a recording) can always be fetched; `get-download-url` (a pre-authenticated URL for drive/SharePoint files) rides with the drive-backed presets, and joins every other preset (bar `teams-write`) when HTTP mode runs with `--enable-attachment-urls`. So a preset that can find a file can always read its bytes.
 
 The `outlook`, `onedrive` and `teams` presets are app-scoped: they expose exactly one Microsoft app. Use these for "expose exactly one app" deployments:
 
@@ -699,7 +699,8 @@ When running as an MCP server, the following options can be used:
                   --trust-proxy-auth
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
-                  exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs")
+                  exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs").
+                  Also adds get-download-url to any --preset that lacks it (except teams-write)
 --attachment-port <port> Serve /attachment on its own listener on this port instead of on the
                   MCP app, so a fetcher that can read attachments cannot also reach /mcp
                   (requires --enable-attachment-urls; see "Splitting the attachment listener")
@@ -761,7 +762,13 @@ agent's context. A 73 KB, 3-page PDF costs about 24,500 tokens that way, and the
 cannot parse them anyway.
 
 `--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
-URL of its own, `get-download-url` mints one this server serves:
+URL of its own, `get-download-url` mints one this server serves. With it on,
+`get-download-url` is registered under every `--preset` (except the send-only `teams-write`),
+so a `--preset mail` agent that lists an attachment can mint a URL for it. A minted URL only
+works if the preset's scopes cover the resource: a contacts, tasks or excel preset has no Mail
+scopes, so a URL minted for a mail attachment fails when fetched.
+
+The minted URL looks like:
 
 ```
 GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>

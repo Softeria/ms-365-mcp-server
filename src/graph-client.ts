@@ -654,7 +654,8 @@ class GraphClient {
             if (
               key.startsWith('@odata.') &&
               key !== '@odata.nextLink' &&
-              key !== '@odata.deltaLink'
+              key !== '@odata.deltaLink' &&
+              key !== '@odata.count'
             ) {
               delete obj[key];
             } else if (typeof obj[key] === 'object') {
@@ -694,7 +695,8 @@ class GraphClient {
           if (
             key.startsWith('@odata.') &&
             key !== '@odata.nextLink' &&
-            key !== '@odata.deltaLink'
+            key !== '@odata.deltaLink' &&
+            key !== '@odata.count'
           ) {
             delete obj[key];
           } else if (typeof obj[key] === 'object') {
