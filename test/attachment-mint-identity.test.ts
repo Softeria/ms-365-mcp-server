@@ -193,6 +193,65 @@ describe('a minted ticket is redeemed as the identity that asked', () => {
     expect(parse(result as never).downloadUrl).toBeUndefined();
   });
 
+  it.each([
+    '/me/messages/AAA/attachments/BBB',
+    '/users/u/events/AAA/attachments/BBB',
+    '/groups/g/messages/AAA/attachments/BBB',
+  ])(
+    'refuses the attachment metadata resource %s, whose JSON carries contentBytes',
+    async (target) => {
+      const result = await tool.execute({ target }, ctx());
+      expect(result.isError).toBe(true);
+      expect(parse(result as never).downloadUrl).toBeUndefined();
+      expect(parse(result as never).error).toContain('/$value');
+      expect(store.size()).toBe(0);
+    }
+  );
+
+  it.each([
+    '/me/messages/AAA/attachments/BBB/$value',
+    '/users/u/events/AAA/attachments/BBB/$value',
+    '/groups/g/messages/AAA/attachments/BBB/$value',
+    '/groups/g/events/AAA/attachments/BBB/$value',
+    '/me/messages/AAA/attachments/BBB/$value/',
+  ])('still mints the attachment byte endpoint %s', async (target) => {
+    const result = await tool.execute({ target }, ctx());
+    expect(result.isError).toBeFalsy();
+    expect(parse(result as never).downloadUrl).toMatch(/^http:\/\/m365:3000\/attachment\?/);
+  });
+
+  it.each([
+    '/me/onlineMeetings/AAA/recordings/BBB',
+    '/users/u/onlineMeetings/AAA/recordings/BBB',
+    '/communications/calls/AAA/recordings/BBB',
+  ])('refuses the recording metadata resource %s', async (target) => {
+    const result = await tool.execute({ target }, ctx());
+    expect(result.isError).toBe(true);
+    expect(parse(result as never).downloadUrl).toBeUndefined();
+    expect(parse(result as never).error).toContain('/content');
+    expect(store.size()).toBe(0);
+  });
+
+  it.each([
+    '/me/onlineMeetings/AAA/recordings/BBB/content',
+    '/users/u/onlineMeetings/AAA/recordings/BBB/content',
+    '/communications/calls/AAA/recordings/BBB/content',
+  ])('still mints the recording byte endpoint %s', async (target) => {
+    const result = await tool.execute({ target }, ctx());
+    expect(result.isError).toBeFalsy();
+    expect(parse(result as never).downloadUrl).toMatch(/^http:\/\/m365:3000\/attachment\?/);
+  });
+
+  it.each(['/me/messages/AAA/attachments/BBB', '/me/onlineMeetings/AAA/recordings/BBB'])(
+    'keeps the original refusal for %s when the feature is off',
+    async (target) => {
+      resetAttachmentMinting();
+      const result = await tool.execute({ target }, ctx());
+      expect(result.isError).toBe(true);
+      expect(parse(result as never).error).toMatch(/do not expose a pre-authenticated/i);
+    }
+  );
+
   it('does not mint at all when the feature is off', async () => {
     resetAttachmentMinting();
     const result = await tool.execute({ target: MAIL_ATTACHMENT }, ctx());
