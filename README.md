@@ -809,16 +809,21 @@ is refused with the same 404 as any other bad ticket.
 
 ```
 MS365_MCP_ATTACHMENT_URL_BASE=http://m365-mcp:3000   # required
-MS365_MCP_ATTACHMENT_URL_KEY=...                     # required (or _KEY_FILE=/path)
-MS365_MCP_ATTACHMENT_URL_KEY_ID=1                    # optional, default 1
+MS365_MCP_ATTACHMENT_URL_KEY=...                     # optional (or _KEY_FILE=/path), see below
+MS365_MCP_ATTACHMENT_URL_KEY_ID=1                    # optional, default 1; needs a key
 MS365_MCP_ATTACHMENT_URL_TTL_S=120                   # optional, default 120, max 300
 ```
 
 `MS365_MCP_ATTACHMENT_URL_BASE` is deliberately **not** `MS365_MCP_PUBLIC_URL`: that one is
 browser-facing, for OAuth redirects, while this is fetched server-to-server and is
 commonly a container address. A missing or malformed setting fails at startup rather than
-per-request — a signing feature that comes up without a key would mint URLs nothing can
-verify, silently.
+per-request.
+
+The signing key is optional. Without one, minted URLs are just `/attachment?t=<ticket>` and
+any HTTP client can fetch them; the ticket alone authorises redemption. Set a key only if
+the fetcher verifies the `dgk`/`dgx`/`dgs` signature (see below), such as a docglean-mcp
+sidecar, which will refuse an unsigned URL. Setting `_KEY_ID` without a key, or a `_KEY_FILE` that is
+empty or unreadable, fails at startup.
 
 ### Splitting the attachment listener
 
@@ -904,9 +909,10 @@ directly.
 `--attachment-host` takes a bare IPv4 address, IPv6 address (bracketed `[::1]` or bare
 `::1`) or hostname. It is refused rather than coerced — `--attachment-host 10.0.0.5:3001`
 is an error naming `--attachment-port`, not a bind to something else. Note that
-`MS365_MCP_ATTACHMENT_URL_BASE` still must not be an IPv6 literal (the URL signature covers
-the host and the two implementations normalise IPv6 differently); if you bind the listener
-to an IPv6 address, name it in the base by hostname.
+with a signing key set, `MS365_MCP_ATTACHMENT_URL_BASE` must not be an IPv6 literal (the URL
+signature covers the host and the two implementations normalise IPv6 differently); if you
+bind the listener to an IPv6 address, name it in the base by hostname. Without a key there
+is no such restriction.
 
 Point `MS365_MCP_ATTACHMENT_URL_BASE` at the attachment port. The server cannot check this
 for you: the base is usually a container name on a network this process cannot resolve, so
@@ -915,7 +921,7 @@ base and the bound port are logged at startup, one line apart, for exactly that 
 
 ### The signature, and who checks what
 
-`dgk`/`dgx`/`dgs` are **not** checked by this server on redemption, and that is deliberate.
+This server never checks `dgk`/`dgx`/`dgs` on redemption, and that is deliberate.
 They exist for the fetcher: a document-conversion sidecar that refuses to dial a private
 address unless the URL carries a valid HMAC from an origin it has been configured to trust.
 What authorises redemption _here_ is the ticket. Verifying the signature on the way back in

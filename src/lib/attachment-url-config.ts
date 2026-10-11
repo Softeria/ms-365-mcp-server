@@ -2,10 +2,10 @@
  * Configuration for server-minted attachment URLs.
  *
  * Off unless `--enable-attachment-urls` is passed. When it is on, every setting
- * below is validated here, at startup: a half-configured signing feature that
- * fails per-request gives the operator a stream of unexplained fetch errors,
- * while a missing key discovered at startup names itself once, in the place
- * that can be fixed.
+ * below is validated here, at startup: a half-configured feature that fails
+ * per-request gives the operator a stream of unexplained fetch errors, while a
+ * bad setting discovered at startup names itself once, in the place that can be
+ * fixed. The signing key is optional; see `readKey`.
  */
 
 import { readFileSync } from 'node:fs';
@@ -13,7 +13,8 @@ import { readFileSync } from 'node:fs';
 export interface AttachmentUrlConfig {
   /** Origin the minted URL points at, e.g. `http://m365-max-mcp:3000`. */
   readonly base: string;
-  readonly key: string;
+  /** HMAC key for the `dgk`/`dgx`/`dgs` signature; absent means minted URLs are unsigned. */
+  readonly key?: string;
   readonly keyId: string;
   readonly ttlSeconds: number;
 }
@@ -77,15 +78,22 @@ function pythonStrip(value: string): string {
   return value.slice(start, end);
 }
 
+/**
+ * The signing key, or '' when none is configured. A key file that is set but
+ * unreadable or empty is an error rather than "no key": silently minting
+ * unsigned URLs because a mounted secret went missing would be a downgrade
+ * nobody asked for.
+ */
 function readKey(env: Record<string, string | undefined>): string {
   const keyFile = env.MS365_MCP_ATTACHMENT_URL_KEY_FILE;
   if (keyFile) {
+    let key: string;
     try {
       // Stripped so a key file written with a trailing newline -- which every
       // ordinary editor and `echo` produces -- signs the same bytes the sidecar
       // reads, since docglean's `_KEY_FILE` strips too. `pythonStrip` rather
       // than `.trim()` because the two sets differ; see its docstring.
-      return pythonStrip(readFileSync(keyFile, 'utf8'));
+      key = pythonStrip(readFileSync(keyFile, 'utf8'));
     } catch {
       // The path, never the contents: a read error carrying file bytes would
       // put the key in the log that reports the failure.
@@ -93,6 +101,12 @@ function readKey(env: Record<string, string | undefined>): string {
         `MS365_MCP_ATTACHMENT_URL_KEY_FILE could not be read: ${keyFile}`
       );
     }
+    if (!key) {
+      throw new AttachmentUrlConfigError(
+        `MS365_MCP_ATTACHMENT_URL_KEY_FILE is empty: ${keyFile}. Unset it to mint unsigned URLs.`
+      );
+    }
+    return key;
   }
   return env.MS365_MCP_ATTACHMENT_URL_KEY ?? '';
 }
@@ -133,22 +147,8 @@ export function loadAttachmentUrlConfig(
       `MS365_MCP_ATTACHMENT_URL_BASE must be http or https, got ${parsedBase.protocol}`
     );
   }
-  // An IPv6 literal cannot be signed compatibly. WHATWG normalises some
-  // literals into a different spelling than the one written (`[::ffff:127.0.0.1]`
-  // becomes `::ffff:7f00:1`) while the verifier's Python preserves the original,
-  // so the two canonical strings differ on the host line and every minted URL is
-  // refused. Refused here, where the message can say so, rather than at the far
-  // end as an unexplained `blocked_host` on every fetch. Use a hostname.
-  if (parsedBase.hostname.startsWith('[')) {
-    throw new AttachmentUrlConfigError(
-      'MS365_MCP_ATTACHMENT_URL_BASE must not be an IPv6 literal: the URL signature ' +
-        'covers the host, and this runtime and the verifying sidecar normalise IPv6 ' +
-        'spellings differently, so every minted URL would be refused. Use a hostname ' +
-        `(a container or service name) instead of ${parsedBase.hostname}.`
-    );
-  }
   if (parsedBase.search || parsedBase.hash) {
-    // The query is signed, and the minted URL builds its own. A base carrying
+    // The query may be signed, and the minted URL builds its own. A base carrying
     // one would either be dropped (confusing) or merged (ambiguous).
     throw new AttachmentUrlConfigError(
       'MS365_MCP_ATTACHMENT_URL_BASE must not carry a query string or fragment.'
@@ -156,11 +156,31 @@ export function loadAttachmentUrlConfig(
   }
 
   const key = readKey(env);
-  if (!key) {
+  if (key && !key.trim()) {
+    // Not trimmed: a non-blank key keeps its spaces. A blank one is a mistake, not a key.
     throw new AttachmentUrlConfigError(
-      '--enable-attachment-urls requires MS365_MCP_ATTACHMENT_URL_KEY or ' +
-        'MS365_MCP_ATTACHMENT_URL_KEY_FILE -- the HMAC key shared with the sidecar that ' +
-        'will verify the minted URL.'
+      'MS365_MCP_ATTACHMENT_URL_KEY is whitespace only. Set a real key, or unset it to mint unsigned URLs.'
+    );
+  }
+  if (key) {
+    // An IPv6 literal cannot be signed compatibly. WHATWG normalises some
+    // literals into a different spelling than the one written (`[::ffff:127.0.0.1]`
+    // becomes `::ffff:7f00:1`) while the verifier's Python preserves the original,
+    // so the two canonical strings differ on the host line and every minted URL is
+    // refused. Refused here, where the message can say so, rather than at the far
+    // end as an unexplained `blocked_host` on every fetch. Use a hostname.
+    if (parsedBase.hostname.startsWith('[')) {
+      throw new AttachmentUrlConfigError(
+        'MS365_MCP_ATTACHMENT_URL_BASE must not be an IPv6 literal: the URL signature ' +
+          'covers the host, and this runtime and the verifying sidecar normalise IPv6 ' +
+          'spellings differently, so every minted URL would be refused. Use a hostname ' +
+          `(a container or service name) instead of ${parsedBase.hostname}.`
+      );
+    }
+  } else if (env.MS365_MCP_ATTACHMENT_URL_KEY_ID) {
+    throw new AttachmentUrlConfigError(
+      'MS365_MCP_ATTACHMENT_URL_KEY_ID is set but no signing key is: set ' +
+        'MS365_MCP_ATTACHMENT_URL_KEY or MS365_MCP_ATTACHMENT_URL_KEY_FILE, or unset the key id.'
     );
   }
   for (let index = 0; index < key.length; index += 1) {
@@ -196,7 +216,7 @@ export function loadAttachmentUrlConfig(
 
   return {
     base: parsedBase.origin,
-    key,
+    key: key || undefined,
     keyId,
     ttlSeconds,
   };

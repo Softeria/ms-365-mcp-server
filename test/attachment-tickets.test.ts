@@ -214,6 +214,15 @@ describe('buildAttachmentUrl', () => {
     );
   });
 
+  it('mints a bare ticket URL, with no signature parameters, when no key is configured', () => {
+    const url = new URL(
+      buildAttachmentUrl({ base: config.base, keyId: '1', ttlSeconds: 120 }, 'TICKET')
+    );
+    expect(url.pathname).toBe('/attachment');
+    expect([...url.searchParams.keys()]).toEqual([TICKET_PARAM]);
+    expect(url.searchParams.get(TICKET_PARAM)).toBe('TICKET');
+  });
+
   it('honours the configured key id', () => {
     const url = new URL(
       buildAttachmentUrl({ ...config, keyId: 'rotated' }, 'T', 1_780_000_000_000)
@@ -245,10 +254,89 @@ describe('loadAttachmentUrlConfig', () => {
     );
   });
 
-  it('refuses to start without a key', () => {
+  it('starts without a key, leaving key undefined', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    const config = loadAttachmentUrlConfig(true, keyless)!;
+    expect(config.key).toBeUndefined();
+    expect(config.ttlSeconds).toBe(120);
+  });
+
+  it('treats an empty key variable as unset', () => {
+    const config = loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: '' })!;
+    expect(config.key).toBeUndefined();
+  });
+
+  it('refuses a key id with no key, which can only be a lost key', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
     expect(() =>
-      loadAttachmentUrlConfig(true, { MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000' })
-    ).toThrow(AttachmentUrlConfigError);
+      loadAttachmentUrlConfig(true, { ...keyless, MS365_MCP_ATTACHMENT_URL_KEY_ID: '2' })
+    ).toThrow(/KEY_ID.*KEY/);
+  });
+
+  it('refuses a key file that is set but empty, rather than falling back to keyless', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'dgkey-'));
+    try {
+      const empty = join(dir, 'empty');
+      writeFileSync(empty, '\n');
+      expect(() =>
+        loadAttachmentUrlConfig(true, {
+          MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+          MS365_MCP_ATTACHMENT_URL_KEY_FILE: empty,
+        })
+      ).toThrow(/is empty/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a whitespace-only key but keeps the spaces of a real one', () => {
+    expect(() =>
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: '   ' })
+    ).toThrow(/whitespace only/);
+    expect(
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: ' pad ' })!.key
+    ).toBe(' pad ');
+  });
+
+  it('accepts a key id together with a key file', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'dgkey-'));
+    try {
+      const file = join(dir, 'key');
+      writeFileSync(file, 'secret\n');
+      const config = loadAttachmentUrlConfig(true, {
+        MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+        MS365_MCP_ATTACHMENT_URL_KEY_FILE: file,
+        MS365_MCP_ATTACHMENT_URL_KEY_ID: '7',
+      })!;
+      expect([config.key, config.keyId]).toEqual(['secret', '7']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('still validates the base when no key is configured', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    for (const base of ['ftp://h:3000', 'http://h:3000/?a=1', 'http://h:3000/#f', 'nope']) {
+      expect(
+        () => loadAttachmentUrlConfig(true, { ...keyless, MS365_MCP_ATTACHMENT_URL_BASE: base }),
+        base
+      ).toThrow(AttachmentUrlConfigError);
+    }
+  });
+
+  it('accepts an IPv6-literal base when no key is configured, since nothing is signed', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    const config = loadAttachmentUrlConfig(true, {
+      ...keyless,
+      MS365_MCP_ATTACHMENT_URL_BASE: 'http://[fd00::1]:3000',
+    })!;
+    expect(config.base).toBe('http://[fd00::1]:3000');
   });
 
   it('refuses an IPv6-literal base, which could never sign compatibly', () => {
@@ -506,6 +594,44 @@ describe('attachment redemption route', () => {
     expect(sent.headers['x-content-type-options']).toBe('nosniff');
     expect(sent.headers['cache-control']).toBe('no-store');
     expect(Buffer.concat(written)).toEqual(Buffer.from([1, 2, 3]));
+    expect(store.redeem(id)).toBeUndefined();
+  });
+
+  it('redeems a keyless minted URL, and still 404s a tampered or unknown ticket', async () => {
+    const downloadStream = vi.fn(async () => ({
+      body: new ReadableStream({
+        start(c) {
+          c.enqueue(new Uint8Array([7]));
+          c.close();
+        },
+      }),
+      contentType: 'application/pdf',
+      contentLength: 1,
+      contentDisposition: null,
+    }));
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: authManager as never,
+    });
+    const { id } = store.mint('/me/messages/1/attachments/2/$value', undefined);
+    const url = new URL(
+      buildAttachmentUrl({ base: 'http://m365:3000', keyId: '1', ttlSeconds: 120 }, id)
+    );
+    const query = Object.fromEntries(url.searchParams);
+
+    await handler(
+      { method: 'GET', query: { t: `${id}x` } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+    expect(sent.status).toBe(404);
+    expect(downloadStream).not.toHaveBeenCalled();
+
+    sent = { headers: {} };
+    await handler({ method: 'GET', query } as never, mockRes() as never, (() => {}) as never);
+    expect(sent.status).toBe(200);
+    expect(Buffer.concat(written)).toEqual(Buffer.from([7]));
     expect(store.redeem(id)).toBeUndefined();
   });
 

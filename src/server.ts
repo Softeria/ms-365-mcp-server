@@ -177,7 +177,7 @@ function isHostname(value: string): boolean {
  * IPv6 is accepted, bracketed (`[::1]`) or bare (`::1`), and normalised to the
  * bare form `net.Server.listen` wants. This does *not* contradict
  * `attachment-url-config.ts` refusing an IPv6 literal in
- * `MS365_MCP_ATTACHMENT_URL_BASE`: that refusal is about the URL *signature*,
+ * `MS365_MCP_ATTACHMENT_URL_BASE` when a signing key is set: that refusal is about the URL *signature*,
  * whose canonical string covers the host and which this runtime and the
  * verifying sidecar's Python normalise differently. A bind address is never
  * signed -- it is handed to the kernel. What follows from the pair is a
@@ -1109,10 +1109,8 @@ class MicrosoftGraphServer {
       // Server-minted attachment URLs (--enable-attachment-urls).
       //
       // loadAttachmentUrlConfig throws on a half-configured feature, and that
-      // exception is deliberately not caught: a signing feature that comes up
-      // without a key would mint URLs nothing can verify, and would do it
-      // silently. Failing to start names the missing variable once, to the
-      // person who can set it.
+      // exception is deliberately not caught: failing to start names the bad
+      // variable once, to the person who can fix it.
       const attachmentConfig = loadAttachmentUrlConfig(Boolean(this.options.enableAttachmentUrls));
       let attachmentApp: express.Express | null = null;
       if (attachmentConfig) {
@@ -1193,7 +1191,8 @@ class MicrosoftGraphServer {
         attachmentApp.put(ATTACHMENT_ROUTE, createAttachmentUploadHandler(attachmentDeps));
         logger.info(
           `  - Attachment URLs: ${attachmentConfig.base}${ATTACHMENT_ROUTE} ` +
-            `(ttl ${attachmentConfig.ttlSeconds}s, key id ${attachmentConfig.keyId})`
+            `(ttl ${attachmentConfig.ttlSeconds}s, ` +
+            `${attachmentConfig.key ? `signed, key id ${attachmentConfig.keyId}` : 'unsigned'})`
         );
         if (dedicated) {
           // The minted URL is built from MS365_MCP_ATTACHMENT_URL_BASE, which

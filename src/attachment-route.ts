@@ -5,6 +5,8 @@
  *
  *     GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
  *
+ * (or just `GET /attachment?t=<ticket>` when no signing key is configured).
+ *
  * **This route ignores `dgk`/`dgx`/`dgs` entirely, and that is correct.** Those
  * three exist for the sidecar, which verifies them before it will dial a
  * private address at all; they are the sidecar's authorisation to *dial*, not
