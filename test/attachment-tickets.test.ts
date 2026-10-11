@@ -13,6 +13,8 @@ import {
 } from '../src/lib/attachment-url-config.js';
 import { canonicalString, digest } from '../src/lib/url-signing.js';
 import { createAttachmentHandler, forceAttachment } from '../src/attachment-route.js';
+import GraphClient from '../src/graph-client.js';
+import logger from '../src/logger.js';
 
 describe('AttachmentTicketStore', () => {
   const NOW = 1_780_000_000_000;
@@ -36,7 +38,30 @@ describe('AttachmentTicketStore', () => {
   it('carries the account through to redemption', () => {
     const store = new AttachmentTicketStore(120);
     const { id } = store.mint('/target', 'olga@example.com', NOW);
-    expect(store.redeem(id, NOW)?.accountName).toBe('olga@example.com');
+    expect(store.redeem(id, NOW)).toMatchObject({
+      kind: 'server-account',
+      accountName: 'olga@example.com',
+    });
+  });
+
+  it('carries the token through to redemption', () => {
+    const store = new AttachmentTicketStore(120);
+    const { id } = store.mintWithToken('/target', 'CALLER_TOKEN', NOW);
+    const ticket = store.redeem(id, NOW);
+    expect(ticket).toMatchObject({ kind: 'request-token', accessToken: 'CALLER_TOKEN' });
+    expect(ticket).not.toHaveProperty('accountName');
+  });
+
+  it('refuses to mint a token ticket without a token', () => {
+    const store = new AttachmentTicketStore(120);
+    expect(() => store.mintWithToken('/target', '', NOW)).toThrow();
+    expect(store.size(NOW)).toBe(0);
+  });
+
+  it('counts both kinds against the same cap', () => {
+    const store = new AttachmentTicketStore(120);
+    for (let i = 0; i < 256; i += 1) store.mintWithToken(`/t${i}`, 'CALLER_TOKEN', NOW);
+    expect(() => store.mint('/one-too-many', undefined, NOW)).toThrow(TicketStoreFullError);
   });
 
   it('refuses a ticket that has expired', () => {
@@ -482,6 +507,108 @@ describe('attachment redemption route', () => {
     expect(sent.headers['cache-control']).toBe('no-store');
     expect(Buffer.concat(written)).toEqual(Buffer.from([1, 2, 3]));
     expect(store.redeem(id)).toBeUndefined();
+  });
+
+  it('redeems a request-token ticket with its own token, not the cache', async () => {
+    const downloadStream = vi.fn(async () => ({
+      body: new ReadableStream({
+        start(c) {
+          c.close();
+        },
+      }),
+      contentType: 'application/pdf',
+      contentLength: null,
+      contentDisposition: null,
+    }));
+    const getTokenForAccount = vi.fn(async () => 'tok');
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: { isOAuthModeEnabled: () => false, getTokenForAccount } as never,
+    });
+    const { id } = store.mintWithToken('/me/messages/1/attachments/2/$value', 'CALLER_TOKEN');
+
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+
+    expect(downloadStream).toHaveBeenCalledWith('/me/messages/1/attachments/2/$value', {
+      accessToken: 'CALLER_TOKEN',
+    });
+    expect(getTokenForAccount).not.toHaveBeenCalled();
+    expect(sent.status).toBe(200);
+  });
+
+  // The token a ticket holds cannot be refreshed, so an upstream refusal has to end
+  // there: no second attempt with whatever this server has cached, and no token in
+  // the log line that reports it.
+  it('502s a refused request-token ticket without asking the cache or logging the token', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"error":{"code":"InvalidAuthenticationToken"}}', { status: 401 })
+      );
+    const errorLog = vi.spyOn(logger, 'error').mockImplementation(() => logger);
+    const getToken = vi.fn(async () => 'SERVER_OWN_TOKEN');
+    const getTokenForAccount = vi.fn(async () => 'SERVER_OWN_TOKEN');
+    const authManager = { isOAuthModeEnabled: () => false, getToken, getTokenForAccount };
+    const graphClient = new GraphClient(authManager as never, {
+      clientId: 'id',
+      tenantId: 'common',
+      cloudType: 'global',
+    });
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => graphClient,
+      authManager: authManager as never,
+    });
+    const { id } = store.mintWithToken('/me/messages/1/attachments/2/$value', 'CALLER_TOKEN');
+
+    try {
+      await handler(
+        { method: 'GET', query: { t: id } } as never,
+        mockRes() as never,
+        (() => {}) as never
+      );
+
+      expect(sent.status).toBe(502);
+      expect(sent.body).toBe('Upstream fetch failed');
+      expect(store.redeem(id)).toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer CALLER_TOKEN');
+      expect(getToken).not.toHaveBeenCalled();
+      expect(getTokenForAccount).not.toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalled();
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain('CALLER_TOKEN');
+    } finally {
+      fetchMock.mockRestore();
+      errorLog.mockRestore();
+    }
+  });
+
+  it('502s rather than fetching when the cache yields no token', async () => {
+    const downloadStream = vi.fn();
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: {
+        isOAuthModeEnabled: () => false,
+        getTokenForAccount: async () => '',
+      } as never,
+    });
+    const { id } = store.mint('/t', undefined);
+
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+
+    expect(sent.status).toBe(502);
+    expect(downloadStream).not.toHaveBeenCalled();
   });
 
   it('forces a download disposition when Graph supplies none', async () => {

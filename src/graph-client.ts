@@ -2,13 +2,14 @@ import logger from './logger.js';
 import AuthManager from './auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
+import { getGraphBaseUrl } from './cloud-config.js';
 import { getRequestTokens } from './request-context.js';
 import {
   fetchWithResilience,
   getSharedBreaker,
   loadResilienceConfig,
 } from './lib/graph-resilience.js';
+import { applyBatchContentType } from './lib/batch-content-type.js';
 import { applyMessageSignoffToRequest } from './lib/message-signoff.js';
 import { TRANSPORT_OK_MESSAGE } from './lib/select-projection.js';
 import { open, stat, unlink } from 'fs/promises';
@@ -496,9 +497,8 @@ class GraphClient {
     accessToken: string,
     options: GraphRequestOptions
   ): Promise<Response> {
-    const cloudEndpoints = getCloudEndpoints(this.secrets.cloudType);
     const apiVersion = options.apiVersion || 'v1.0';
-    const url = `${cloudEndpoints.graphApi}/${apiVersion}${endpoint}`;
+    const url = `${getGraphBaseUrl(this.secrets.cloudType)}/${apiVersion}${endpoint}`;
 
     logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
 
@@ -506,7 +506,11 @@ class GraphClient {
     // Signoff gate sits at the outbound chokepoint, keyed on method + path, so
     // every route to a message write - tool aliases, PATCH edits and $batch
     // sub-requests alike - passes through it.
-    const body = applyMessageSignoffToRequest(method, endpoint, options.body);
+    const signedBody = applyMessageSignoffToRequest(method, endpoint, options.body);
+    // Graph 400s the whole batch when a write sub-request carries a body with
+    // no Content-Type, so fill it in rather than making every caller remember
+    // it (#677). After the gate, which has to judge the caller's own payload.
+    const body = applyBatchContentType(method, endpoint, signedBody);
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,

@@ -3,7 +3,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import logger from './logger.js';
 import AuthManager from './auth.js';
 import type { AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
+import { getCloudEndpoints, getGraphBaseUrl } from './cloud-config.js';
 
 export class MicrosoftOAuthProvider extends ProxyOAuthServerProvider {
   private authManager: AuthManager;
@@ -21,7 +21,7 @@ export class MicrosoftOAuthProvider extends ProxyOAuthServerProvider {
       },
       verifyAccessToken: async (token: string): Promise<AuthInfo> => {
         try {
-          const response = await fetch(`${cloudEndpoints.graphApi}/v1.0/me`, {
+          const response = await fetch(`${getGraphBaseUrl(secrets.cloudType)}/v1.0/me`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },

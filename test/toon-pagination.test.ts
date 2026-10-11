@@ -14,6 +14,7 @@ vi.mock('../src/cloud-config.js', () => ({
     graphApi: 'https://graph.microsoft.com',
     authority: 'https://login.microsoftonline.com',
   }),
+  getGraphBaseUrl: () => 'https://graph.microsoft.com',
 }));
 
 vi.mock('../src/lib/microsoft-auth.js', () => ({

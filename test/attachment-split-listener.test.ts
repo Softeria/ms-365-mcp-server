@@ -37,6 +37,8 @@ import MicrosoftGraphServer, {
   parseAttachmentPortOption,
 } from '../src/server.js';
 import GraphClient from '../src/graph-client.js';
+import OboClient from '../src/obo-client.js';
+import { clearSecretsCache } from '../src/secrets.js';
 import type AuthManager from '../src/auth.js';
 import { getAttachmentMinting, resetAttachmentMinting } from '../src/lib/attachment-minting.js';
 import type { CommandOptions } from '../src/cli.js';
@@ -527,49 +529,102 @@ describe('--attachment-port (split attachment listener)', () => {
     });
   });
 
-  // Minting is refused whenever Graph identity comes from the request, so outside
-  // --trust-proxy-auth the feature is configured, logged at startup, and unable to mint
-  // anything. The condition has to follow that guard rather than the flags: inferring it
-  // got --obo backwards, since OBO installs a request token on every call.
-  describe('warns when minting can never succeed', () => {
-    const WARNING = /minting is refused whenever it does/;
-
-    async function warningsFor(options: CommandOptions): Promise<string[]> {
+  // Every HTTP mode can mint, so the flag alone must not produce a warning that
+  // tells the operator the feature does nothing.
+  describe('does not warn about the identity mode', () => {
+    it.each([
+      ['plain --http', {}],
+      ['--trust-proxy-auth', { trustProxyAuth: true }],
+    ])('stays silent in %s', async (_name, options) => {
       const [port] = await reserveFreePorts(1);
       process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
       await start({ http: `127.0.0.1:${port}`, enableAttachmentUrls: true, ...options });
-      return vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
-    }
-
-    it('warns in plain --http, where every call carries a bearer token', async () => {
-      expect((await warningsFor({})).some((w) => WARNING.test(w))).toBe(true);
-    });
-
-    // The old condition was inferred from CLI flags and so missed this one entirely:
-    // MS365_MCP_OAUTH_TOKEN makes the guard refuse regardless of --trust-proxy-auth.
-    it('warns in OAuth mode even under --trust-proxy-auth', async () => {
-      const [port] = await reserveFreePorts(1);
-      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
-      const server = new MicrosoftGraphServer(
-        { ...fakeAuthManager(), isOAuthModeEnabled: () => true } as unknown as AuthManager,
-        {
-          http: `127.0.0.1:${port}`,
-          trustProxyAuth: true,
-          enableAttachmentUrls: true,
-        } as CommandOptions
-      );
-      await server.initialize('0.0.0-test');
-      started.push(server);
-      await server.start();
 
       const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
-      expect(warnings.some((w) => WARNING.test(w))).toBe(true);
+      expect(warnings.some((w) => /--enable-attachment-urls/.test(w))).toBe(false);
+    });
+  });
+
+  // The whole path over real HTTP: the bearer on /mcp is the only place the caller's
+  // identity exists, and the fetch that redeems the URL carries no header at all.
+  describe('minted over /mcp, redeemed with no header', () => {
+    function redeemedWith(): Array<string | undefined> {
+      return vi
+        .mocked(GraphClient.prototype.downloadStream)
+        .mock.calls.map(([, options]) => options?.accessToken);
+    }
+
+    async function callGetDownloadUrl(port: number, bearer: string): Promise<string> {
+      const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${bearer}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'get-download-url', arguments: { target: MAIL_ATTACHMENT } },
+        }),
+      });
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { result: { content: Array<{ text: string }> } };
+      return JSON.parse(body.result.content[0].text).downloadUrl;
+    }
+
+    it('plain --http: fetches each URL with the token of the caller that minted it', async () => {
+      const [port] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+      await start({ http: `127.0.0.1:${port}`, enableAttachmentUrls: true });
+
+      const aliceUrl = await callGetDownloadUrl(port, 'ALICE_TOKEN');
+      const bobUrl = await callGetDownloadUrl(port, 'BOB_TOKEN');
+      expect(aliceUrl).not.toContain('ALICE_TOKEN');
+
+      // Alice minted first and redeems last, so neither "the last token seen" nor
+      // "the first" can pass for the right one.
+      expect((await fetch(bobUrl)).status).toBe(200);
+      expect((await fetch(aliceUrl)).status).toBe(200);
+
+      expect(redeemedWith()).toEqual(['BOB_TOKEN', 'ALICE_TOKEN']);
     });
 
-    it('stays silent under --trust-proxy-auth, the one mode that can mint', async () => {
-      expect((await warningsFor({ trustProxyAuth: true })).some((w) => WARNING.test(w))).toBe(
-        false
-      );
+    // The ticket has to hold the token Graph accepts. The inbound one is for this
+    // server's own API, and redeeming with it would 502 every time.
+    it('--obo: redeems with the exchanged token, not the inbound one', async () => {
+      const [port] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+      process.env.MS365_MCP_CLIENT_SECRET = 'secret';
+      clearSecretsCache();
+      const exchange = vi
+        .spyOn(OboClient.prototype, 'exchangeToken')
+        .mockImplementation(async (assertion) => `GRAPH_FOR_${assertion}`);
+
+      try {
+        await start({ http: `127.0.0.1:${port}`, enableAttachmentUrls: true, obo: true });
+        const url = await callGetDownloadUrl(port, 'INBOUND_TOKEN');
+        expect((await fetch(url)).status).toBe(200);
+
+        expect(exchange).toHaveBeenCalledWith('INBOUND_TOKEN');
+        expect(redeemedWith()).toEqual(['GRAPH_FOR_INBOUND_TOKEN']);
+      } finally {
+        clearSecretsCache();
+      }
+    });
+
+    // Under --trust-proxy-auth the header is the proxy's business and is never read,
+    // so a forwarded one must not turn the ticket into a request-token ticket.
+    it('--trust-proxy-auth: ignores a forwarded bearer and reads as the server account', async () => {
+      const [port] = await reserveFreePorts(1);
+      process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+      await start({ http: `127.0.0.1:${port}`, enableAttachmentUrls: true, trustProxyAuth: true });
+
+      const url = await callGetDownloadUrl(port, 'FORWARDED_TOKEN');
+      expect((await fetch(url)).status).toBe(200);
+
+      expect(redeemedWith()).toEqual(['SERVER_OWN_TOKEN']);
     });
   });
 

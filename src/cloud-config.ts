@@ -61,6 +61,34 @@ export function getDefaultClientId(cloudType: CloudType = 'global'): string {
 }
 
 /**
+ * Deliberately not in the `.env` allowlist (see load-env.ts): a file in the
+ * client's cwd must not be able to redirect bearer-token traffic.
+ */
+const GRAPH_BASE_URL_ENV = 'MS365_MCP_GRAPH_BASE_URL';
+
+/**
+ * Reads and validates the Graph base URL override, if any.
+ * @returns The override without a trailing slash, or undefined when unset/blank
+ * @throws Error if the value is set but is not an absolute http(s) URL without query or fragment
+ */
+function getGraphBaseUrlOverride(): string | undefined {
+  const raw = process.env[GRAPH_BASE_URL_ENV]?.trim();
+  if (!raw) return undefined;
+  let parsed: URL | undefined;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    parsed = undefined;
+  }
+  if (!parsed || !/^https?:$/.test(parsed.protocol) || parsed.search || parsed.hash) {
+    throw new Error(
+      `${GRAPH_BASE_URL_ENV} must be an absolute http(s) URL without query or fragment, got: ${raw}`
+    );
+  }
+  return raw.replace(/\/+$/, '');
+}
+
+/**
  * Gets cloud endpoints for the specified cloud type.
  * @param cloudType - The cloud environment type (default: 'global')
  * @returns The endpoint configuration for the specified cloud
@@ -74,6 +102,24 @@ export function getCloudEndpoints(cloudType: CloudType = 'global'): CloudEndpoin
     );
   }
   return endpoints;
+}
+
+/**
+ * The base URL Graph requests are sent to: `MS365_MCP_GRAPH_BASE_URL` when set,
+ * otherwise the cloud's `graphApi`.
+ *
+ * The override is for deployments that put an egress proxy in front of Graph:
+ * the server dials the proxy over plain HTTP and the proxy originates TLS to
+ * Microsoft. A path prefix is kept as-is (`http://proxy:10255/tenant-a/graph`
+ * + `/v1.0/me`). The login authority is not affected; use `--cloud` /
+ * `MS365_MCP_CLOUD_TYPE` for that.
+ *
+ * Use this where `graphApi` is dialled as a URL. Do not use it where `graphApi`
+ * names the Graph resource (the OBO scope in obo-client.ts): the token's
+ * audience is the real Graph origin whatever proxy the requests go through.
+ */
+export function getGraphBaseUrl(cloudType: CloudType = 'global'): string {
+  return getGraphBaseUrlOverride() ?? getCloudEndpoints(cloudType).graphApi;
 }
 
 /**
