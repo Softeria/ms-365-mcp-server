@@ -2702,6 +2702,7 @@ async function executeGraphTool(
           // response — otherwise fetchAllPages on a /delta endpoint silently drops
           // the resume token and forces callers to re-list from scratch.
           let deltaLink = combinedResponse['@odata.deltaLink'];
+          let unmergeablePage = false;
 
           while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
             logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
@@ -2725,9 +2726,18 @@ async function executeGraphTool(
             }
             if (nextResponse?.content?.[0]?.text) {
               const nextJsonResponse = JSON.parse(nextResponse.content[0].text) as ODataPage;
-              if (Array.isArray(nextJsonResponse.value)) {
-                allItems = allItems.concat(nextJsonResponse.value);
+              // A page that is not a collection cannot be merged. Falling through would
+              // clear nextLink and stamp the short list as complete, so stop here and
+              // leave nextLink set: result_has_more then reports the read as incomplete,
+              // and this page's bytes stay out of the total.
+              if (!Array.isArray(nextJsonResponse.value)) {
+                logger.warn(
+                  `Pagination stopped at page ${pageCount + 1}: response was not a collection`
+                );
+                unmergeablePage = true;
+                break;
               }
+              allItems = allItems.concat(nextJsonResponse.value);
               nextLink = nextJsonResponse['@odata.nextLink'];
               if (
                 typeof totalResponseBytes === 'number' &&
@@ -2740,6 +2750,7 @@ async function executeGraphTool(
               }
               pageCount++;
             } else {
+              unmergeablePage = true;
               break;
             }
           }
@@ -2758,14 +2769,21 @@ async function executeGraphTool(
             if (combinedResponse['@odata.count']) {
               combinedResponse['@odata.count'] = allItems.length;
             }
-            delete combinedResponse['@odata.nextLink'];
+            // A page that could not be merged is not a limit the caller chose, so
+            // the body keeps the link to it. Without it the short list reads as
+            // the whole collection.
+            if (unmergeablePage && nextLink) {
+              combinedResponse['@odata.nextLink'] = nextLink;
+            } else {
+              delete combinedResponse['@odata.nextLink'];
+            }
             // The client's metadata described page one. Now that pages are
             // merged, restate all three for the whole read.
             //
-            // nextLink still being set means the loop stopped on maxPages or
-            // maxItems, not on running out: Graph has more. The merged body
-            // drops @odata.nextLink either way, so the audit event is the only
-            // place that truncation is visible.
+            // nextLink still being set means the loop stopped early: on maxPages,
+            // on maxItems, or on a page it could not merge. Graph has more. For
+            // the two limits the merged body drops @odata.nextLink, so the audit
+            // event is the only place that truncation is visible.
             response._meta = {
               ...response._meta,
               result_count: allItems.length,
@@ -2777,7 +2795,7 @@ async function executeGraphTool(
             }
 
             logger.info(
-              `Pagination complete: collected ${allItems.length} items across ${pageCount} pages`
+              `Pagination ${nextLink ? 'incomplete' : 'complete'}: collected ${allItems.length} items across ${pageCount} pages`
             );
           }
         }

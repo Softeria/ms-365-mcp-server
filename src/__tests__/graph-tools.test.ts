@@ -554,12 +554,13 @@ describe('graph-tools', () => {
         const { registerGraphTools } = await loadModule();
         registerGraphTools(server as any, graphClient as any);
 
-        await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+        const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
 
         const [payload] = auditLogMock.mock.calls[0];
         expect(payload.result_count).toBe(2);
         // Truncated at the cap: the merged body drops @odata.nextLink, so the
         // audit event is the only place Graph-has-more survives.
+        expect(JSON.parse(result.content[0].text)['@odata.nextLink']).toBeUndefined();
         expect(payload.result_has_more).toBe(true);
         expect(payload.response_bytes).toBe(100);
       } finally {
@@ -569,6 +570,78 @@ describe('graph-tools', () => {
           process.env.MS365_MCP_MAX_PAGES = prevMaxPages;
         }
       }
+    });
+
+    it('reports result_has_more when a page is not a collection', async () => {
+      mockEndpoints.push(makeEndpoint());
+      mockEndpointsJson = [makeConfig()];
+
+      const pageThreeLink = 'https://graph.microsoft.com/v1.0/me/messages?$skip=4';
+      // Page three came back as bytes rather than a collection, which is what the client
+      // returns for a body that is not valid UTF-8 (#679). It cannot be merged; the risk
+      // is reporting the short list as the whole list.
+      const graphClient = createMockGraphClient([
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '1' }, { id: '2' }],
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=2',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 1000 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '3' }, { id: '4' }],
+                '@odata.nextLink': pageThreeLink,
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 900 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'OK!',
+                contentType: 'application/json',
+                encoding: 'base64',
+                contentLength: 9,
+                contentBytes: 'eyJ2YWx1',
+              }),
+            },
+          ],
+          _meta: { http_status: 200, response_bytes: 700 },
+        },
+      ]);
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      // Page one alone would satisfy a has-more check, so pin that all three were asked for.
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(3);
+
+      const body = JSON.parse(result.content[0].text);
+      expect(body.value.map((item: { id: string }) => item.id)).toEqual(['1', '2', '3', '4']);
+      // The caller reads the body, not the audit event, and needs the link to resume.
+      expect(body['@odata.nextLink']).toBe(pageThreeLink);
+
+      const [payload] = auditLogMock.mock.calls[0];
+      expect(payload.result_count).toBe(4);
+      // The unmergeable page must not read as the end of the collection.
+      expect(payload.result_has_more).toBe(true);
+      // Its bytes never reached the caller, so they are not part of the total.
+      expect(payload.response_bytes).toBe(1900);
     });
 
     it('omits the volume fields when the client supplied none', async () => {
