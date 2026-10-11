@@ -2771,7 +2771,7 @@ async function executeGraphTool(
             }
             // A page that could not be merged is not a limit the caller chose, so
             // the body keeps the link to it. Without it the short list reads as
-            // the whole collection and there is nothing to resume from.
+            // the whole collection.
             if (unmergeablePage && nextLink) {
               combinedResponse['@odata.nextLink'] = nextLink;
             } else {
@@ -2795,7 +2795,7 @@ async function executeGraphTool(
             }
 
             logger.info(
-              `Pagination ${unmergeablePage ? 'incomplete' : 'complete'}: collected ${allItems.length} items across ${pageCount} pages`
+              `Pagination ${nextLink ? 'incomplete' : 'complete'}: collected ${allItems.length} items across ${pageCount} pages`
             );
           }
         }
