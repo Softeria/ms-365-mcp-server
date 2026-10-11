@@ -81,19 +81,18 @@ jobs:
         shell: bash
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
-      # The registry validates mcpName against the npm tarball, and npm can take
+      # The registry validates mcpName against npm's version manifest, and npm can take
       # minutes to serve a version it just accepted. 0.154.3 took over three, which
       # outlasted the retries below and failed the release.
       - name: Wait for npm
         timeout-minutes: 12
         run: |
-          PKG=https://registry.npmjs.org/@softeria%2fms-365-mcp-server
-          # The version manifest and the tarball are what the registry reads. npm view
-          # reads the full packument, which can be ahead of both.
+          # Spelled the way the registry's validator requests it, in case npm caches the
+          # variants apart. npm view reads the full packument, which can be ahead of this.
+          MANIFEST="https://registry.npmjs.org/@softeria%2Fms-365-mcp-server/$VERSION"
           while [ "$SECONDS" -lt 600 ]; do
-            TARBALL=$(curl -fsS --max-time 10 "$PKG/$VERSION" |
-              jq -er 'select(.mcpName) | .dist.tarball') &&
-              curl -fsSI --max-time 10 -o /dev/null "$TARBALL" && exit 0
+            curl -fsS --max-time 10 -H 'Accept: application/json' "$MANIFEST" |
+              jq -e .mcpName >/dev/null && exit 0
             echo "npm is not serving $VERSION yet, retrying in 15s"
             sleep 15
           done
