@@ -1088,8 +1088,13 @@ async function mintUploadUrl(
 ): Promise<CallToolResult> {
   const minting = getAttachmentMinting();
   if (!minting) {
+    const smallFileTool = target.includes('/events/')
+      ? 'add-calendar-event-attachment'
+      : target.startsWith('/users/')
+        ? 'add-shared-mailbox-attachment'
+        : 'add-mail-attachment';
     return uploadError(
-      'This server is not running with --enable-attachment-urls, so no upload URL can be minted. Attach small files with add-mail-attachment (base64 contentBytes).'
+      `This server is not running with --enable-attachment-urls, so no upload URL can be minted. Attach small files with ${smallFileTool} (base64 contentBytes).`
     );
   }
   if (!UPLOAD_TARGET.test(target) || !isPlainGraphPath(target)) {

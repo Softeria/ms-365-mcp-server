@@ -281,4 +281,16 @@ describe('get-upload-url', () => {
     expect(result.isError).toBe(true);
     expect(parse(result as never).error).toMatch(/--enable-attachment-urls/);
   });
+
+  it('names the small-file tool that fits the target when attachment URLs are not enabled', async () => {
+    resetAttachmentMinting();
+    for (const [target, expected] of [
+      [DRAFT_ATTACHMENTS, 'add-mail-attachment'],
+      ['/me/events/EEE/attachments', 'add-calendar-event-attachment'],
+      ['/users/shared@example.com/messages/AAA/attachments', 'add-shared-mailbox-attachment'],
+    ]) {
+      const result = await tool.execute({ target, name: 'a.txt' }, ctx());
+      expect(parse(result as never).error, target).toContain(`with ${expected} (`);
+    }
+  });
 });
