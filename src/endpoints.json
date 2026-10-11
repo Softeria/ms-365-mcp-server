@@ -198,6 +198,64 @@
     "llmTip": "Send an existing draft from a shared mailbox. No request body needed — just call with the message ID and the shared mailbox user-id. Draft must exist in the shared mailbox's Drafts folder. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
+    "pathPattern": "/users/{user-id}/mailFolders",
+    "method": "get",
+    "toolName": "list-shared-mailbox-folders",
+    "descriptionOverride": "List the top-level mail folders in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-shared-mailbox-child-folders",
+    "descriptionOverride": "List the child folders of a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders",
+    "method": "post",
+    "toolName": "create-shared-mailbox-folder",
+    "descriptionOverride": "Create a top-level mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
+    "method": "post",
+    "toolName": "create-shared-mailbox-child-folder",
+    "descriptionOverride": "Create a subfolder inside a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
+    "method": "get",
+    "toolName": "list-shared-mailbox-attachments",
+    "descriptionOverride": "List the attachments on a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "llmTip": "To download the bytes, call download-bytes or get-download-url with target=/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
+    "method": "post",
+    "toolName": "add-shared-mailbox-attachment",
+    "descriptionOverride": "Add an attachment under 3MB to a draft message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}. Graph has no working path for 3MB and above here: upload sessions return 403 in a shared or delegated mailbox."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}",
+    "method": "delete",
+    "toolName": "delete-shared-mailbox-attachment",
+    "descriptionOverride": "Delete an attachment from a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
@@ -2393,6 +2451,22 @@
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.ReadWrite"],
     "llmTip": "Dismisses a triggered event reminder so it won't re-fire. No request body required. Pair with list-calendar-events or get-schedule to find active reminders."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/attachments",
+    "method": "post",
+    "toolName": "add-calendar-event-attachment",
+    "presets": ["calendar", "outlook", "personal"],
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Under 3MB only. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}. At 3MB and above use create-calendar-event-attachment-upload-session."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/attachments/createUploadSession",
+    "method": "post",
+    "toolName": "create-calendar-event-attachment-upload-session",
+    "presets": ["calendar", "outlook", "personal"],
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "For attachments 3MB to 150MB; under 3MB use add-calendar-event-attachment. Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself in ranges up to 4MB."
   },
   {
     "pathPattern": "/me/events/delta()",
