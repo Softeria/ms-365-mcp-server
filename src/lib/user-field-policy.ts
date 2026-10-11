@@ -48,22 +48,23 @@ const EXPAND_USER_PATH = /^\/me\/?$|^\/groups(?:\/[^/]+)?\/?$/i;
 /**
  * Graph decodes percent-escapes in the path before routing, so `/%75sers` is `/users` there.
  * Match what Graph will route, not the spelling: decode (bounded, until stable) before testing.
+ * Only the copy used for matching is decoded; the string that is sent is never rewritten here.
+ * An escape that is not valid ("100%") is left as text rather than aborting the decode.
  */
 function normalizePath(path: string): string {
   let withoutQuery = path.split('?')[0];
   for (let i = 0; i < 4; i++) {
-    let next: string;
-    try {
-      next = decodeURIComponent(withoutQuery);
-    } catch {
-      break;
-    }
+    const next = withoutQuery.replace(/%([0-9a-f]{2})/gi, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
     if (next === withoutQuery) break;
     withoutQuery = next;
   }
   return withoutQuery.startsWith('/') ? withoutQuery : `/${withoutQuery}`;
 }
 
+/** An encoded `/` or `\` (at any encoding depth) hides where a segment ends. */
+const ENCODED_SEPARATOR = /%(?:25)*(?:2f|5c)/i;
 /** Names the executor sends to Graph as `$<name>`: `select`, `$Select`, `$SELECT`, ... */
 function deleteOdataOption(params: URLSearchParams, name: string): string[] {
   const values: string[] = [];
@@ -76,6 +77,9 @@ function deleteOdataOption(params: URLSearchParams, name: string): string[] {
 }
 
 export function userFieldEnforcement(path: string): UserFieldEnforcement {
+  // Fails closed: a path whose segment boundaries cannot be read is treated as a user profile
+  // read (the strictest rule) rather than matched on a guess. Graph would not route it anyway.
+  if (ENCODED_SEPARATOR.test(path.split('?')[0])) return 'request-and-response';
   const normalized = normalizePath(path);
   if (USER_ENTITY_PATH.test(normalized)) return 'request-and-response';
   if (DIRECTORY_NAVIGATION_PATH.test(normalized)) return 'response-only';
