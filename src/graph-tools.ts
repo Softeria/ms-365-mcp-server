@@ -2766,9 +2766,9 @@ async function executeGraphTool(
             }
 
             combinedResponse.value = allItems;
-            if (combinedResponse['@odata.count']) {
-              combinedResponse['@odata.count'] = allItems.length;
-            }
+            // @odata.count is Graph's total for the filtered collection, so it is
+            // left as page one reported it (it can exceed allItems.length when
+            // maxPages/maxItems truncates the merge).
             // A page that could not be merged is not a limit the caller chose, so
             // the body keeps the link to it. Without it the short list reads as
             // the whole collection.
