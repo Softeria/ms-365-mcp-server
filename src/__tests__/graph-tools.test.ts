@@ -575,7 +575,8 @@ describe('graph-tools', () => {
       mockEndpoints.push(makeEndpoint());
       mockEndpointsJson = [makeConfig()];
 
-      // Page two came back as bytes rather than a collection, which is what the client
+      const pageThreeLink = 'https://graph.microsoft.com/v1.0/me/messages?$skip=4';
+      // Page three came back as bytes rather than a collection, which is what the client
       // returns for a body that is not valid UTF-8 (#679). It cannot be merged; the risk
       // is reporting the short list as the whole list.
       const graphClient = createMockGraphClient([
@@ -590,6 +591,18 @@ describe('graph-tools', () => {
             },
           ],
           _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 1000 },
+        },
+        {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                value: [{ id: '3' }, { id: '4' }],
+                '@odata.nextLink': pageThreeLink,
+              }),
+            },
+          ],
+          _meta: { http_status: 200, result_count: 2, result_has_more: true, response_bytes: 900 },
         },
         {
           content: [
@@ -612,14 +625,22 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, graphClient as any);
 
-      await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+      const result = await server.tools.get('test-tool')!.handler({ fetchAllPages: true });
+
+      // Page one alone would satisfy a has-more check, so pin that all three were asked for.
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(3);
+
+      const body = JSON.parse(result.content[0].text);
+      expect(body.value.map((item: { id: string }) => item.id)).toEqual(['1', '2', '3', '4']);
+      // The caller reads the body, not the audit event, and needs the link to resume.
+      expect(body['@odata.nextLink']).toBe(pageThreeLink);
 
       const [payload] = auditLogMock.mock.calls[0];
-      expect(payload.result_count).toBe(2);
+      expect(payload.result_count).toBe(4);
       // The unmergeable page must not read as the end of the collection.
       expect(payload.result_has_more).toBe(true);
       // Its bytes never reached the caller, so they are not part of the total.
-      expect(payload.response_bytes).toBe(1000);
+      expect(payload.response_bytes).toBe(1900);
     });
 
     it('omits the volume fields when the client supplied none', async () => {

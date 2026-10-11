@@ -88,8 +88,8 @@ export const EXPAND_PARAM_DESCRIPTION =
   'navigation properties can be expanded: expanding a non-navigation property such ' +
   'as a message body fails with "Parsing OData Select and Expand failed". Request ' +
   'ordinary fields with $select instead. Some APIs accept only one relationship per ' +
-  'request, so prefer a single value. Nested selection is supported, e.g. ' +
-  'children($select=id,name).';
+  'request, so prefer a single value. Some relationships support nested selection, ' +
+  'e.g. children($select=id,name).';
 
 export const ORDERBY_PARAM_DESCRIPTION = 'Sort expression, e.g. receivedDateTime desc';
 
