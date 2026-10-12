@@ -1322,7 +1322,7 @@
     "toolName": "create-todo-task",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Creates a new task in a Microsoft To Do list. Body: { title: \"...\" }; optional dueDateTime, reminderDateTime, importance, body (notes), recurrence, categories. Requires todoTaskListId from list-todo-task-lists."
+    "llmTip": "Creates a new task in a Microsoft To Do list. Body: { title: \"...\" }; optional dueDateTime, reminderDateTime, importance, body (notes), recurrence, categories, and checklistItems: [{ displayName: \"...\", isChecked: false }] to create the task's steps inline (isChecked is optional). Requires todoTaskListId from list-todo-task-lists. To change steps after the task exists, use the *-todo-checklist-item tools."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
@@ -1330,7 +1330,7 @@
     "toolName": "update-todo-task",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Updates a Microsoft To Do task. Use this to mark a to-do item complete or done (body: { status: \"completed\" }), reopen it (status: \"notStarted\"), rename it (title), or change its due date (dueDateTime), reminder (reminderDateTime), importance, or notes (body). Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
+    "llmTip": "Updates a Microsoft To Do task. Use this to mark a to-do item complete or done (body: { status: \"completed\" }), reopen it (status: \"notStarted\"), rename it (title), or change its due date (dueDateTime), reminder (reminderDateTime), importance, or notes (body). Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks. Steps (checklistItems) can't be changed here: Graph rejects checklistItems in a PATCH on the task with 400. Use create-todo-checklist-item, update-todo-checklist-item, or delete-todo-checklist-item instead."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
@@ -1362,6 +1362,38 @@
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
     "llmTip": "Removes a linked resource from a To Do task."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "get",
+    "toolName": "list-todo-checklist-items",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists the steps (checklist items) of a To Do task. Each item has id, displayName, isChecked, checkedDateTime, and createdDateTime. Graph supports no OData query parameters on this endpoint, so do not pass select, filter, orderby, or top. Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "post",
+    "toolName": "create-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Adds a step (checklist item) to an existing To Do task. Body: { displayName: \"...\" }; optional isChecked (defaults to false). Returns the new item with its id. To add steps while creating a task, pass checklistItems in the create-todo-task body instead."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "patch",
+    "toolName": "update-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a step (checklist item) of a To Do task. Use this to check a step off (body: { isChecked: true }), uncheck it (isChecked: false), or rename it (displayName). Requires checklistItemId from list-todo-checklist-items."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "delete",
+    "toolName": "delete-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a step (checklist item) from a To Do task. This cannot be undone. Requires checklistItemId from list-todo-checklist-items."
   },
   {
     "pathPattern": "/me/planner/tasks",
