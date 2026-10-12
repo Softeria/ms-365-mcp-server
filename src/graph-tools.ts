@@ -15,7 +15,7 @@ import AuthManager, {
 } from './auth.js';
 import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
-import GraphClient from './graph-client.js';
+import GraphClient, { getBlobMaxBytes, isBlobOutputEnabled } from './graph-client.js';
 import { getAttachmentMinting } from './lib/attachment-minting.js';
 import { MAX_UPLOAD_BYTES } from './attachment-route.js';
 import {
@@ -95,6 +95,9 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  // A file download. With MS365_MCP_BLOB_OUTPUT on, the tool answers a short JSON text block
+  // plus an MCP blob resource (capped by MS365_MCP_BLOB_MAX_BYTES); it takes an optional fileName.
+  blobOutput?: boolean;
   readOnly?: boolean; // When true, allow this endpoint in read-only mode even if method is not GET
   presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
   // JSON Schema for the request body of an endpoint that Microsoft has NOT published
@@ -2217,6 +2220,7 @@ async function executeGraphTool(
     const strayBodyFields: Record<string, unknown> = {};
 
     for (const [paramName, paramValue] of Object.entries(params)) {
+      if (paramName === 'fileName' && config?.blobOutput) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -2587,10 +2591,21 @@ async function executeGraphTool(
       accessToken?: string;
       apiVersion?: string;
       forceJsonOutput?: boolean;
+      forceBinary?: boolean;
+      maxBytes?: number;
+      blobOutput?: { fileName?: string };
     } = {
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    if (config?.blobOutput && isBlobOutputEnabled()) {
+      options.forceBinary = true;
+      options.maxBytes = getBlobMaxBytes();
+      options.blobOutput = {
+        fileName: typeof params.fileName === 'string' ? params.fileName : undefined,
+      };
+    }
 
     // Route beta-flagged endpoints to the /beta surface; everything else stays on v1.0.
     if (config?.apiVersion) {
@@ -2883,10 +2898,11 @@ async function executeGraphTool(
     }
 
     // Convert McpResponse to CallToolResult with the correct structure
-    const content: ContentItem[] = response.content.map((item) => ({
-      type: 'text' as const,
-      text: item.text,
-    }));
+    const content: ContentItem[] = response.content.map((item) =>
+      (item as { type: string }).type === 'resource'
+        ? (item as unknown as ResourceContent)
+        : { type: 'text' as const, text: item.text }
+    );
 
     auditLog({
       event: 'tool.call',
@@ -3066,6 +3082,15 @@ export function registerGraphTools(
       paramSchema['Accept'] = z
         .string()
         .describe(getAcceptParamDescription(endpointConfig.acceptType))
+        .optional();
+    }
+
+    if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
+      paramSchema['fileName'] = z
+        .string()
+        .describe(
+          'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
+        )
         .optional();
     }
 

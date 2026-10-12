@@ -77,6 +77,11 @@ interface GraphRequestOptions {
   // and any other unlisted type come back as UTF-8 text with every invalid byte
   // sequence replaced by U+FFFD, and the file cannot be rebuilt.
   forceBinary?: boolean;
+  // Stop reading the body past this many bytes and fail with an error naming the limit.
+  maxBytes?: number;
+  // Answer a binary body as a short JSON text block (name, contentType, size) plus an MCP
+  // EmbeddedResource with BlobResourceContents, instead of base64 JSON in text.
+  blobOutput?: { fileName?: string };
 
   [key: string]: unknown;
 }
@@ -217,6 +222,73 @@ function extractBatchMetadata(data: unknown): Partial<GraphResponseMetadata> {
   };
 }
 
+/** Default cap for a blob download: base64 and framing of 5 MiB stay under an 8 MiB transport. */
+export const DEFAULT_BLOB_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Whether file tools answer a blob resource (MS365_MCP_BLOB_OUTPUT=1|true). */
+export function isBlobOutputEnabled(): boolean {
+  return /^(1|true)$/i.test(process.env.MS365_MCP_BLOB_OUTPUT ?? '');
+}
+
+/** Byte cap for blob downloads (MS365_MCP_BLOB_MAX_BYTES, default 5 MiB). */
+export function getBlobMaxBytes(): number {
+  const n = Number(process.env.MS365_MCP_BLOB_MAX_BYTES);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_BLOB_MAX_BYTES;
+}
+
+/**
+ * Read a response body as bytes. With a cap it stops reading as soon as the cap is passed,
+ * so an oversized file is never held in memory.
+ */
+async function readBody(response: Response, maxBytes?: number): Promise<Buffer> {
+  if (maxBytes === undefined) return Buffer.from(await response.arrayBuffer());
+  const tooLarge = () =>
+    new Error(`The file is larger than the download limit of ${maxBytes} bytes.`);
+  const declared = Number(response.headers?.get?.('content-length'));
+  if (declared > maxBytes) {
+    await response.body?.cancel();
+    throw tooLarge();
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = response.body?.getReader();
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+/** The binary envelope of makeRequestWithMetadata as a text block plus a blob resource. */
+function toBlobResponse(data: unknown, blob: { fileName?: string }): McpResponse | undefined {
+  const d = data as { contentBytes?: unknown; contentType?: string } | null;
+  if (!d || typeof d.contentBytes !== 'string') return undefined;
+  const mimeType = d.contentType?.split(';')[0].trim() || 'application/octet-stream';
+  const name =
+    blob.fileName?.split('/').join('_').split(String.fromCharCode(92)).join('_') || 'download';
+  const size = Buffer.byteLength(d.contentBytes, 'base64');
+  return {
+    content: [
+      { type: 'text', text: JSON.stringify({ name, contentType: mimeType, size }) },
+      // shortcut: ContentItem is text-only; this is the one non-text item, passed through as is.
+      {
+        type: 'resource',
+        resource: {
+          uri: `file:///${encodeURIComponent(name)}`,
+          mimeType,
+          blob: d.contentBytes,
+        },
+      } as unknown as ContentItem,
+    ],
+  };
+}
+
 class GraphClient {
   private authManager: AuthManager;
   private secrets: AppSecrets;
@@ -273,7 +345,7 @@ class GraphClient {
       // Content-Type we failed to list (application/msword, application/rtf,
       // message/rfc822) or a text/* body in another encoding can no longer come
       // back with its bytes replaced by U+FFFD.
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readBody(response, options.maxBytes);
       // Bytes actually transferred, before base64 inflates them ~1.37x.
       metadata = { ...metadata, response_bytes: buffer.byteLength };
 
@@ -567,8 +639,13 @@ class GraphClient {
       // it; otherwise --toon would make the merge's JSON.parse throw (#560).
       const outputFormat = options.forceJsonOutput ? 'json' : this.outputFormat;
 
+      const blobResponse =
+        options.blobOutput && !options.excludeResponse
+          ? toBlobResponse(data, options.blobOutput)
+          : undefined;
       return this.withResponseMetadata(
-        this.formatJsonResponse(data, options.rawResponse, options.excludeResponse, outputFormat),
+        blobResponse ??
+          this.formatJsonResponse(data, options.rawResponse, options.excludeResponse, outputFormat),
         metadata
       );
     } catch (error) {
