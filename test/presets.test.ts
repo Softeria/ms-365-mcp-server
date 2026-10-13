@@ -157,6 +157,15 @@ describe('utility tools in presets', () => {
     }
   });
 
+  it('upload-attachment-from-file rides with the mail and calendar presets only', () => {
+    for (const preset of ['mail', 'calendar', 'outlook', 'personal', 'work']) {
+      expect(inPreset(preset, 'upload-attachment-from-file'), `missing from ${preset}`).toBe(true);
+    }
+    for (const preset of ['files', 'teams-write']) {
+      expect(inPreset(preset, 'upload-attachment-from-file'), `present in ${preset}`).toBe(false);
+    }
+  });
+
   it('mail preset has download-bytes but not the drive-only download-url helper', () => {
     expect(inPreset('mail', 'download-bytes')).toBe(true);
     expect(inPreset('mail', 'get-download-url')).toBe(false);

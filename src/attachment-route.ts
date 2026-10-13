@@ -36,6 +36,7 @@ import {
   isPlainGraphPath,
   TICKET_PARAM,
 } from './lib/attachment-tickets.js';
+import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
 
 export interface AttachmentRouteDeps {
   store: AttachmentTicketStore;
@@ -213,40 +214,6 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
 // Upload: PUT /attachment?t=<ticket>  (raw file bytes, Content-Length required)
 // ---------------------------------------------------------------------------
 
-/** Graph attaches up to 150 MB to a message or event. */
-export const MAX_UPLOAD_BYTES = 150 * 1024 * 1024;
-/** Below this Graph takes the bytes inline as base64 contentBytes; at or above it needs an upload session. */
-const INLINE_UPLOAD_LIMIT = 3 * 1024 * 1024;
-/** Upload-session chunk: a multiple of 320 KiB, as Graph requires. */
-const UPLOAD_CHUNK_BYTES = 320 * 1024 * 12;
-
-interface UploadSessionResponse {
-  uploadUrl?: string;
-}
-
-async function putChunk(
-  uploadUrl: string,
-  chunk: Buffer,
-  start: number,
-  total: number
-): Promise<void> {
-  const end = start + chunk.length - 1;
-  const response = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': String(chunk.length),
-      'Content-Range': `bytes ${start}-${end}/${total}`,
-    },
-    // A standalone ArrayBuffer: fetch's body typing wants a BufferSource, and a
-    // Buffer view over a pooled slab is neither the right type nor the right bytes.
-    body: chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer,
-  });
-  if (![200, 201, 202].includes(response.status)) {
-    throw new Error(`Upload session chunk ${start}-${end} answered HTTP ${response.status}`);
-  }
-}
-
 /**
  * Redeem an upload ticket: the request body is the file, and it becomes an
  * attachment in the ticket's target collection as the identity that minted
@@ -319,66 +286,18 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
     res.setHeader('x-content-type-options', 'nosniff');
 
     try {
-      if (declared < INLINE_UPLOAD_LIMIT) {
-        const chunks: Buffer[] = [];
-        let received = 0;
-        for await (const chunk of req) {
-          received += (chunk as Buffer).length;
-          if (received > declared) throw new Error('Body exceeds Content-Length');
-          chunks.push(chunk as Buffer);
-        }
-        if (received !== declared) throw new Error('Body shorter than Content-Length');
-        const created = (await graphClient.makeRequest(ticket.target, {
-          method: 'POST',
+      const created = await uploadAttachment(
+        graphClient,
+        {
+          target: ticket.target,
+          name: ticket.name,
+          contentType: ticket.contentType,
+          size: declared,
           accessToken,
-          body: JSON.stringify({
-            '@odata.type': '#microsoft.graph.fileAttachment',
-            name: ticket.name,
-            contentType: ticket.contentType,
-            contentBytes: Buffer.concat(chunks).toString('base64'),
-          }),
-        })) as { id?: string };
-        res.status(201).json({ ok: true, name: ticket.name, size: declared, id: created?.id });
-        return;
-      }
-
-      const session = (await graphClient.makeRequest(`${ticket.target}/createUploadSession`, {
-        method: 'POST',
-        accessToken,
-        body: JSON.stringify({
-          AttachmentItem: {
-            attachmentType: 'file',
-            name: ticket.name,
-            size: declared,
-            contentType: ticket.contentType,
-          },
-        }),
-      })) as UploadSessionResponse;
-      if (!session?.uploadUrl) throw new Error('Upload session returned no uploadUrl');
-
-      let pending: Buffer[] = [];
-      let pendingBytes = 0;
-      let offset = 0;
-      for await (const piece of req) {
-        pending.push(piece as Buffer);
-        pendingBytes += (piece as Buffer).length;
-        if (offset + pendingBytes > declared) throw new Error('Body exceeds Content-Length');
-        while (pendingBytes >= UPLOAD_CHUNK_BYTES) {
-          const joined = Buffer.concat(pending);
-          const chunk = joined.subarray(0, UPLOAD_CHUNK_BYTES);
-          await putChunk(session.uploadUrl, chunk, offset, declared);
-          offset += chunk.length;
-          const rest = joined.subarray(UPLOAD_CHUNK_BYTES);
-          pending = rest.length ? [Buffer.from(rest)] : [];
-          pendingBytes = rest.length;
-        }
-      }
-      if (pendingBytes > 0) {
-        await putChunk(session.uploadUrl, Buffer.concat(pending), offset, declared);
-        offset += pendingBytes;
-      }
-      if (offset !== declared) throw new Error('Body shorter than Content-Length');
-      res.status(201).json({ ok: true, name: ticket.name, size: declared });
+        },
+        req
+      );
+      res.status(201).json({ ok: true, name: ticket.name, size: declared, id: created.id });
     } catch (error) {
       logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
       if (!res.headersSent) res.status(502).type('text/plain').send('Upstream upload failed');

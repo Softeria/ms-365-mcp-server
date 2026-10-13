@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -3009,6 +3017,178 @@ describe('graph-tools', () => {
       registerGraphTools(httpServer as any, {} as any, { httpMode: true });
       expect(httpServer.tools.has('download-bytes-to-file')).toBe(false);
       expect(httpServer.tools.has('download-bytes')).toBe(true);
+    });
+  });
+
+  // ---- 9a2. upload-attachment-from-file utility tool ----
+  describe('upload-attachment-from-file', () => {
+    const TOOL = 'upload-attachment-from-file';
+    const TARGET = '/me/events/evt1/attachments';
+    let tmpDir: string;
+    let allowed: string;
+
+    beforeEach(() => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      tmpDir = realpathSync(mkdtempSync(join(tmpdir(), 'uaff-')));
+      allowed = join(tmpDir, 'allowed');
+      mkdirSync(allowed);
+      process.env.MS365_MCP_UPLOAD_DIRS = allowed;
+    });
+
+    afterEach(() => {
+      delete process.env.MS365_MCP_UPLOAD_DIRS;
+      vi.unstubAllGlobals();
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    async function register(graphClient: unknown, options?: Record<string, unknown>) {
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any, options as any);
+      return server;
+    }
+
+    it('is not registered unless MS365_MCP_UPLOAD_DIRS is set', async () => {
+      delete process.env.MS365_MCP_UPLOAD_DIRS;
+      const server = await register({});
+      expect(server.tools.has(TOOL)).toBe(false);
+      expect(server.tools.has('download-bytes-to-file')).toBe(true);
+    });
+
+    it('is not registered in read-only mode or over HTTP', async () => {
+      expect((await register({}, { readOnly: true })).tools.has(TOOL)).toBe(false);
+      expect((await register({}, { httpMode: true })).tools.has(TOOL)).toBe(false);
+    });
+
+    it('attaches a small file inline, named after the file', async () => {
+      const bytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]);
+      writeFileSync(join(allowed, 'invitation.pdf'), bytes);
+      const graphClient = { makeRequest: vi.fn().mockResolvedValue({ id: 'att1' }) };
+      const server = await register(graphClient);
+
+      const result = await server.tools
+        .get(TOOL)!
+        .handler({ target: TARGET, filePath: join(allowed, 'invitation.pdf') });
+
+      expect(result.isError).toBeUndefined();
+      expect(JSON.parse(result.content[0].text)).toEqual({
+        name: 'invitation.pdf',
+        size: bytes.length,
+        id: 'att1',
+      });
+      expect(graphClient.makeRequest).toHaveBeenCalledTimes(1);
+      const [reqPath, options] = graphClient.makeRequest.mock.calls[0];
+      expect(reqPath).toBe(TARGET);
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body)).toEqual({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: 'invitation.pdf',
+        contentType: 'application/octet-stream',
+        contentBytes: bytes.toString('base64'),
+      });
+      expect(auditLogMock).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'tool.call', tool: TOOL, status: 'success' })
+      );
+    });
+
+    it('uses the given name and content type', async () => {
+      writeFileSync(join(allowed, 'scan-0042.bin'), 'x');
+      const graphClient = { makeRequest: vi.fn().mockResolvedValue({ id: 'att1' }) };
+      const server = await register(graphClient);
+
+      await server.tools.get(TOOL)!.handler({
+        target: '/me/messages/msg1/attachments',
+        filePath: join(allowed, 'scan-0042.bin'),
+        name: 'flyer.pdf',
+        contentType: 'application/pdf',
+      });
+
+      const body = JSON.parse(graphClient.makeRequest.mock.calls[0][1].body);
+      expect(body.name).toBe('flyer.pdf');
+      expect(body.contentType).toBe('application/pdf');
+    });
+
+    it('sends a file of 3 MB or more through an upload session in chunks', async () => {
+      const size = 4 * 1024 * 1024 + 123;
+      const bytes = Buffer.alloc(size, 7);
+      writeFileSync(join(allowed, 'big.bin'), bytes);
+      const graphClient = {
+        makeRequest: vi.fn().mockResolvedValue({ uploadUrl: 'https://upload.example/session' }),
+      };
+      const ranges: string[] = [];
+      let uploaded = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async (_url: string, init: { headers: Record<string, string>; body: ArrayBuffer }) => {
+            ranges.push(init.headers['Content-Range']);
+            uploaded += init.body.byteLength;
+            return new Response(null, { status: 202 });
+          }
+        )
+      );
+      const server = await register(graphClient);
+
+      const result = await server.tools
+        .get(TOOL)!
+        .handler({ target: TARGET, filePath: join(allowed, 'big.bin') });
+
+      expect(result.isError).toBeUndefined();
+      expect(JSON.parse(result.content[0].text)).toEqual({ name: 'big.bin', size });
+      const [reqPath, options] = graphClient.makeRequest.mock.calls[0];
+      expect(reqPath).toBe(`${TARGET}/createUploadSession`);
+      expect(JSON.parse(options.body).AttachmentItem).toMatchObject({ name: 'big.bin', size });
+      const chunk = 320 * 1024 * 12;
+      expect(ranges).toEqual([
+        `bytes 0-${chunk - 1}/${size}`,
+        `bytes ${chunk}-${size - 1}/${size}`,
+      ]);
+      expect(uploaded).toBe(size);
+    });
+
+    it('refuses a file outside the allowed directories, also through a symlink', async () => {
+      writeFileSync(join(tmpDir, 'secret.txt'), 'secret');
+      symlinkSync(join(tmpDir, 'secret.txt'), join(allowed, 'link.txt'));
+      const graphClient = { makeRequest: vi.fn() };
+      const server = await register(graphClient);
+
+      for (const filePath of [join(tmpDir, 'secret.txt'), join(allowed, 'link.txt')]) {
+        const result = await server.tools.get(TOOL)!.handler({ target: TARGET, filePath });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text).error).toMatch(/does not exist or is outside/);
+      }
+      expect(graphClient.makeRequest).not.toHaveBeenCalled();
+    });
+
+    it('refuses an empty file and a target that is not an attachments collection', async () => {
+      writeFileSync(join(allowed, 'empty.txt'), '');
+      writeFileSync(join(allowed, 'a.txt'), 'a');
+      const graphClient = { makeRequest: vi.fn() };
+      const server = await register(graphClient);
+      const call = async (args: Record<string, unknown>) =>
+        JSON.parse((await server.tools.get(TOOL)!.handler(args)).content[0].text).error;
+
+      expect(await call({ target: TARGET, filePath: join(allowed, 'empty.txt') })).toMatch(
+        /file is empty/
+      );
+      expect(
+        await call({ target: '/me/drive/root:/a.txt:/content', filePath: join(allowed, 'a.txt') })
+      ).toMatch(/attachments collection/);
+      expect(graphClient.makeRequest).not.toHaveBeenCalled();
+    });
+
+    it('answers a Graph failure as a tool error', async () => {
+      writeFileSync(join(allowed, 'a.txt'), 'a');
+      const graphClient = { makeRequest: vi.fn().mockRejectedValue(new Error('Graph said no')) };
+      const server = await register(graphClient);
+
+      const result = await server.tools
+        .get(TOOL)!
+        .handler({ target: TARGET, filePath: join(allowed, 'a.txt') });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('Graph said no');
     });
   });
 

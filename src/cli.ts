@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
+import { assertUploadDirsAbsolute } from './lib/upload-dirs.js';
 import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -118,7 +119,7 @@ program
   )
   .option(
     '--http-local-file-tools',
-    "In HTTP mode, also register download-bytes-to-file, which writes files on the server as the server's user. Anyone who can reach the port can use it, so enable only on a single-user machine. Refused unless --http binds a loopback host with no --public-url and no --trust-proxy-auth."
+    "In HTTP mode, also register the local file tools: download-bytes-to-file, which writes files on the server as the server's user, and upload-attachment-from-file, which reads files from the MS365_MCP_UPLOAD_DIRS directories when that is set. Anyone who can reach the port can use them, so enable only on a single-user machine. Refused unless --http binds a loopback host with no --public-url and no --trust-proxy-auth."
   )
   .option(
     '--allow-unauthenticated-discovery',
@@ -206,6 +207,7 @@ export function parseArgs(): CommandOptions {
   // Markup in a marker is allowed (e.g. a coloured <span>), but refuse to start
   // with one that renders as empty text - html sends would look unsigned.
   assertSignoffMarkersVisible();
+  assertUploadDirsAbsolute();
 
   if (options.listPresets) {
     const presets = listPresets();
