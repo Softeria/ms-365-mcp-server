@@ -695,6 +695,8 @@ When running as an MCP server, the following options can be used:
 --http-local-file-tools Register download-bytes-to-file over HTTP. Anyone who can reach the port
                   can write files as the server's user (without a valid token, only an empty
                   file that is removed again), so enable it only on a single-user machine.
+                  With MS365_MCP_UPLOAD_DIRS set it also registers upload-attachment-from-file,
+                  which reads files from those directories.
                   Refused unless --http binds a loopback host with no --public-url and no
                   --trust-proxy-auth
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
@@ -735,7 +737,8 @@ Environment variables:
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
-- `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file over HTTP (alternative to --http-local-file-tools; same restrictions)
+- `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file, and upload-attachment-from-file when `MS365_MCP_UPLOAD_DIRS` is set, over HTTP (alternative to --http-local-file-tools; same restrictions)
+- `MS365_MCP_UPLOAD_DIRS=<dirs>`: Directories `upload-attachment-from-file` may read from, as absolute paths separated like `PATH`. Unset (the default) leaves the tool unregistered. See "Attaching a local file in stdio mode"
 - `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
 - `MS365_MCP_GRAPH_BASE_URL=<url>`: Send Graph API requests to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL without query or fragment; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority and the On-Behalf-Of token resource are unchanged. Two things bypass it: `get-download-url` returns Graph's pre-authenticated SharePoint URL, and the `302` from `/content` points straight at SharePoint, so whoever follows either connects to SharePoint directly; if you control egress, allow those SharePoint hosts or disable those tools. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
@@ -804,6 +807,26 @@ through an upload session in 3.75 MiB chunks, so the server never holds more tha
 whatever the outcome, and the upload is attached as the identity that minted it, exactly as
 downloads are fetched. An upload ticket presented to `GET` (or a download ticket to `PUT`)
 is refused with the same 404 as any other bad ticket.
+
+### Attaching a local file in stdio mode
+
+In stdio mode the server and the files are on the same machine, so no URL is needed.
+`upload-attachment-from-file` takes the same `target` and an absolute `filePath`, reads the
+file from disk and attaches it, with the same 3 MB and 150 MB limits. It is the upload
+counterpart of `download-bytes-to-file`.
+
+The tool is off until you list the directories it may read from:
+
+```
+MS365_MCP_UPLOAD_DIRS=/Users/me/Documents/invitations:/Users/me/Scans
+```
+
+Entries are absolute paths, separated like `PATH` (`:` on macOS and Linux, `;` on Windows).
+A file outside them is refused, and symlinks are resolved first, so a link inside an allowed
+directory cannot point the read somewhere else. The variable is not read from `.env`.
+
+Over HTTP the tool is registered only with `--http-local-file-tools`, like
+`download-bytes-to-file`.
 
 ### Configuration
 

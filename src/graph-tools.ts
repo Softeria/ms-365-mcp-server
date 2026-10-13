@@ -17,7 +17,8 @@ import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
 import GraphClient from './graph-client.js';
 import { getAttachmentMinting } from './lib/attachment-minting.js';
-import { MAX_UPLOAD_BYTES } from './attachment-route.js';
+import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
+import { getUploadDirs, openUploadFile, type UploadFile } from './lib/upload-dirs.js';
 import {
   buildAttachmentUrl,
   isPlainGraphPath,
@@ -870,9 +871,11 @@ interface UtilityTool {
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
   openWorldHint?: boolean;
-  // When true, this tool writes to the server's local filesystem and is only
+  // When true, this tool reads or writes the server's local filesystem and is only
   // registered in stdio mode, or over HTTP with --http-local-file-tools.
   stdioOnly?: boolean;
+  // Registered only while this returns true, for a tool that needs operator opt-in.
+  enabled?: () => boolean;
 }
 
 interface DisabledToolScope {
@@ -959,6 +962,7 @@ function collectDeniedToolPolicies(options: {
   for (const utility of UTILITY_TOOLS) {
     if (options.readOnly && !utility.readOnlyHint) continue;
     if (options.httpMode && utility.stdioOnly) continue;
+    if (utility.enabled && !utility.enabled()) continue;
     if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
       deniedTools.set(utility.name, {
         toolName: utility.name,
@@ -1069,8 +1073,21 @@ async function checkAccountParamInBearerMode(
 const UPLOAD_TARGET = /^(\/me|\/users\/[^/]+)\/(messages|events)\/[^/]+\/attachments$/;
 const UPLOAD_CONTENT_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
 
+const UPLOAD_TARGET_ERROR =
+  'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.';
+
 function uploadError(message: string): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
+}
+
+function cleanAttachmentName(name: string): string {
+  return Array.from(name.trim())
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('')
+    .slice(0, 255);
 }
 
 /**
@@ -1098,17 +1115,9 @@ async function mintUploadUrl(
     );
   }
   if (!UPLOAD_TARGET.test(target) || !isPlainGraphPath(target)) {
-    return uploadError(
-      'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
-    );
+    return uploadError(UPLOAD_TARGET_ERROR);
   }
-  const cleanName = Array.from(name.trim())
-    .filter((char) => {
-      const code = char.charCodeAt(0);
-      return code > 0x1f && code !== 0x7f;
-    })
-    .join('')
-    .slice(0, 255);
+  const cleanName = cleanAttachmentName(name);
   if (!cleanName) return uploadError('name is required.');
   if (!UPLOAD_CONTENT_TYPE.test(contentType)) {
     return uploadError('contentType must be a MIME type such as application/pdf.');
@@ -1317,6 +1326,132 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         params.account as string | undefined,
         authManager
       );
+    },
+  },
+  {
+    name: 'upload-attachment-from-file',
+    method: 'POST',
+    path: 'tool:upload-attachment-from-file',
+    searchKeywords:
+      'attach local file upload file from disk attach file path draft email attach file event attachment without base64',
+    description:
+      'Attach a local file on the server to a draft message or an event, read straight from disk instead of passing as base64 through the agent context. target is the attachments collection, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments. Files up to 150 MB; the server picks an inline upload or an upload session by size. filePath must be absolute and inside a directory listed in MS365_MCP_UPLOAD_DIRS. stdio mode, or HTTP with --http-local-file-tools.',
+    readOnlyHint: false,
+    openWorldHint: true,
+    stdioOnly: true,
+    enabled: () => getUploadDirs().length > 0,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        target: z
+          .string()
+          .describe(
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+          ),
+        filePath: z
+          .string()
+          .describe(
+            "Absolute path of the file on the server's filesystem, e.g. /Users/me/documents/invitation.pdf. Must be inside a directory the server allows uploads from."
+          ),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            'Attachment file name as the recipient will see it. Defaults to the file name of filePath.'
+          ),
+        contentType: z
+          .string()
+          .optional()
+          .describe(
+            'MIME type of the file, e.g. application/pdf. Defaults to application/octet-stream.'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const target = params.target;
+      const filePath = params.filePath;
+      const accountParam = params.account as string | undefined;
+      if (typeof target !== 'string' || target.length === 0) {
+        return uploadError('target is required and must be a non-empty string.');
+      }
+      if (typeof filePath !== 'string' || filePath.length === 0) {
+        return uploadError('filePath is required and must be a non-empty string.');
+      }
+      if (!UPLOAD_TARGET.test(target) || !isPlainGraphPath(target)) {
+        return uploadError(UPLOAD_TARGET_ERROR);
+      }
+      const contentType =
+        typeof params.contentType === 'string' && params.contentType.length > 0
+          ? params.contentType
+          : 'application/octet-stream';
+      if (!UPLOAD_CONTENT_TYPE.test(contentType)) {
+        return uploadError('contentType must be a MIME type such as application/pdf.');
+      }
+      const name = cleanAttachmentName(
+        typeof params.name === 'string' && params.name.trim().length > 0
+          ? params.name
+          : path.basename(filePath)
+      );
+      if (!name) return uploadError('name is required.');
+
+      let file: UploadFile;
+      try {
+        file = await openUploadFile(filePath, getUploadDirs());
+      } catch (error) {
+        return uploadError((error as Error).message);
+      }
+      try {
+        if (file.size === 0) return uploadError('The file is empty.');
+        if (file.size > MAX_UPLOAD_BYTES) {
+          return uploadError(
+            `The file is ${file.size} bytes; the largest attachment is ${MAX_UPLOAD_BYTES} bytes.`
+          );
+        }
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) return uploadError(accountModeError);
+        let accountAccessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accountAccessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        const created = await uploadAttachment(
+          graphClient,
+          { target, name, contentType, size: file.size, accessToken: accountAccessToken },
+          // end pins the read to the size that was declared, should the file grow meanwhile
+          file.handle.createReadStream({
+            autoClose: false,
+            highWaterMark: 1024 * 1024,
+            end: file.size - 1,
+          })
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                name,
+                size: file.size,
+                ...(created.id ? { id: created.id } : {}),
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        const metadata = thrownErrorAuditFields(error);
+        return {
+          ...uploadError((error as Error).message),
+          ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+        };
+      } finally {
+        await file.handle.close();
+      }
     },
   },
   {
@@ -3189,6 +3324,7 @@ export function registerGraphTools(
   for (const utility of UTILITY_TOOLS) {
     if (readOnly && !utility.readOnlyHint) continue;
     if (httpMode && utility.stdioOnly) continue;
+    if (utility.enabled && !utility.enabled()) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
@@ -3408,6 +3544,7 @@ export function registerDiscoveryTools(
   const utilityTools = UTILITY_TOOLS.filter((u) => {
     if (readOnly && !u.readOnlyHint) return false;
     if (httpMode && u.stdioOnly) return false;
+    if (u.enabled && !u.enabled()) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
     return true;
   });

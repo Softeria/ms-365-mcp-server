@@ -7,11 +7,8 @@ import {
   configureAttachmentMinting,
   resetAttachmentMinting,
 } from '../src/lib/attachment-minting.js';
-import {
-  createAttachmentHandler,
-  createAttachmentUploadHandler,
-  MAX_UPLOAD_BYTES,
-} from '../src/attachment-route.js';
+import { createAttachmentHandler, createAttachmentUploadHandler } from '../src/attachment-route.js';
+import { MAX_UPLOAD_BYTES } from '../src/lib/attachment-upload.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },

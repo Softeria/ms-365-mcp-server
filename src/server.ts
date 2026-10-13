@@ -411,11 +411,11 @@ class MicrosoftGraphServer {
         );
       }
       logger.warn(
-        "--http-local-file-tools: download-bytes-to-file is registered over HTTP; anyone who can reach this port can write files as the server's user."
+        "--http-local-file-tools: download-bytes-to-file is registered over HTTP, and upload-attachment-from-file too when MS365_MCP_UPLOAD_DIRS is set; anyone who can reach this port can write files, and read files from those directories, as the server's user."
       );
     } else if (this.options.httpLocalFileTools) {
       logger.warn(
-        '--http-local-file-tools has no effect in stdio mode, where download-bytes-to-file is always registered.'
+        '--http-local-file-tools has no effect in stdio mode, where the local file tools need no flag.'
       );
     }
 
