@@ -30,7 +30,7 @@ function buildResourceMetadataUrl(req: Request, publicUrl?: string | null): stri
   return `${origin}/.well-known/oauth-protected-resource`;
 }
 
-function buildWwwAuthenticate(
+export function buildWwwAuthenticate(
   req: Request,
   error: string,
   description: string,
