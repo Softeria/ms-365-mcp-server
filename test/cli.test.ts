@@ -56,6 +56,7 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
+    delete process.env.MS365_MCP_BLOB_OUTPUT;
   });
 
   afterEach(() => {
@@ -66,6 +67,7 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
     delete process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS;
+    delete process.env.MS365_MCP_BLOB_OUTPUT;
   });
 
   describe('parseArgs', () => {
@@ -127,6 +129,22 @@ describe('CLI Module', () => {
       commanderMocks.mockCommand.opts.mockReturnValue({});
 
       expect(parseArgs().httpLocalFileTools).toBeUndefined();
+    });
+
+    it('should fold --blob-output into MS365_MCP_BLOB_OUTPUT', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ blobOutput: true });
+
+      parseArgs();
+
+      expect(process.env.MS365_MCP_BLOB_OUTPUT).toBe('true');
+    });
+
+    it('should leave MS365_MCP_BLOB_OUTPUT unset without --blob-output', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      parseArgs();
+
+      expect(process.env.MS365_MCP_BLOB_OUTPUT).toBeUndefined();
     });
 
     it('should use MS365_MCP_ALLOWED_SCOPES as a fallback', () => {

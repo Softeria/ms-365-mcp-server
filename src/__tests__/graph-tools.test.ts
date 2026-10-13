@@ -2783,6 +2783,33 @@ describe('graph-tools', () => {
       // the Content-Type Graph reports (application/msword is not on the allowlist).
       expect(options.forceBinary).toBe(true);
       expect(options.rawResponse).toBe(true);
+      expect(options.blobOutput).toBeUndefined();
+      expect(options.maxBytes).toBeUndefined();
+    });
+
+    it('asks for a capped blob resource when blob output is on', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+      process.env.MS365_MCP_BLOB_OUTPUT = 'true';
+      process.env.MS365_MCP_BLOB_MAX_BYTES = '1234';
+      try {
+        const graphClient = { graphRequest: vi.fn().mockResolvedValue({ content: [] }) };
+        const server = createMockServer();
+        const { registerGraphTools } = await loadModule();
+        registerGraphTools(server as any, graphClient as any);
+
+        await server.tools
+          .get('download-bytes')!
+          .handler({ target: '/me/messages/m1/attachments/a1/$value', fileName: 'drawing.pdf' });
+
+        const [, options] = graphClient.graphRequest.mock.calls[0];
+        expect(options.forceBinary).toBe(true);
+        expect(options.maxBytes).toBe(1234);
+        expect(options.blobOutput).toEqual({ fileName: 'drawing.pdf' });
+      } finally {
+        delete process.env.MS365_MCP_BLOB_OUTPUT;
+        delete process.env.MS365_MCP_BLOB_MAX_BYTES;
+      }
     });
 
     it('rejects absolute URLs (Graph paths only)', async () => {

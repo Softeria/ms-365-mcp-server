@@ -949,7 +949,39 @@
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
+    "blobOutput": true,
     "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/$value",
+    "method": "get",
+    "toolName": "get-shared-mailbox-message-mime",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "acceptType": "text/plain",
+    "blobOutput": true,
+    "llmTip": "Download a message of a shared mailbox as an .eml. Find the message id with list-shared-mailbox-messages first. With the server's blob output on, the bytes come back as a file resource; pass fileName to name it."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}/$value",
+    "method": "get",
+    "toolName": "get-mail-attachment-content",
+    "descriptionOverride": "Download the raw bytes of a file attachment of an Outlook message in the signed-in user's mailbox, by message ID and attachment ID.",
+    "presets": ["mail", "outlook", "personal"],
+    "scopes": ["Mail.Read"],
+    "blobOutput": true,
+    "llmTip": "Find the attachment id with list-mail-attachments first. With the server's blob output on, the bytes come back as a file resource; pass fileName (the attachment's name) to name it. Files over the server's download limit are refused with an error naming the limit."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value",
+    "method": "get",
+    "toolName": "get-shared-mailbox-attachment-content",
+    "descriptionOverride": "Download the raw bytes of a file attachment of a message in another user's mailbox or a shared mailbox, by message ID and attachment ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "blobOutput": true,
+    "llmTip": "Find the attachment id with list-shared-mailbox-attachments first. With the server's blob output on, the bytes come back as a file resource; pass fileName (the attachment's name) to name it. Files over the server's download limit are refused with an error naming the limit."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
