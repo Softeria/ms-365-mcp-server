@@ -61,6 +61,7 @@ import {
   PREFER_TEXT_BODY,
   oversizeError,
   toMailTextEntry,
+  validateMailTextArgs,
   type GraphMessage,
   type MailTextEntry,
 } from './lib/mail-text.js';
@@ -1503,9 +1504,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'GET',
     path: 'tool:read-mail-text',
     searchKeywords:
-      'read email text clean text triage inbox several messages without quoted history signature footer tracking links',
+      'triage inbox skim many emails at once without quoted history signature footer tracking links',
     description:
-      'Clean text of up to 20 mail messages for reading and triage, with the clutter removed: quoted reply history, signatures, footers (unsubscribe, legal notices), image placeholders and long tracking/Safe Links URLs (shortened to [link: domain]). The message text itself is kept complete; nothing is summarised. Use it to read or triage messages instead of get-mail-message, whose body carries all of that clutter. Give messageIds (up to 20), or folderId with optional top/filter/search for the newest messages in a folder. Text is never cut unless maxChars is set. If the whole result would exceed the server limit (MS365_MCP_READ_MAIL_TEXT_MAX_CHARS, default 80000) the call fails, listing the largest messages, instead of returning part of it. Returns [{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }].',
+      'Triage view of up to 20 mail messages at once: their text with quoted reply history, signatures, footers (unsubscribe, legal notices), image placeholders and tracking/Safe Links URLs removed; links appear as \u27e6link: domain\u27e7. Nothing is summarised, but the cleaning is pattern-based and lossy: use get-mail-message for the exact body, full links or the quoted thread. Give messageIds (up to 20), or folderId with optional top and filter or search for the newest messages in a folder. Text is cut only when maxChars is set or a message exceeds 300,000 characters (truncated: true). If the whole result would exceed the server limit (MS365_MCP_READ_MAIL_TEXT_MAX_CHARS, default 80000) the call fails, listing the largest messages, instead of returning part of it. Returns [{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }].',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1542,7 +1543,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .string()
           .optional()
           .describe(
-            'With folderId: KQL search, e.g. from:paul subject:invoice. Graph cannot combine it with filter.'
+            'With folderId: KQL search, e.g. from:paul subject:"quarterly report" (quoting is normalised as for list-mail-messages). Graph cannot combine it with filter.'
           ),
         maxChars: z
           .number()
@@ -1550,7 +1551,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .min(1)
           .optional()
           .describe(
-            'Cut each message text to this many characters (marked truncated). Unset = full text.'
+            'Cut each message text to this many characters (marked truncated). Unset = the full cleaned text.'
           ),
       };
       if (ctx.multiAccount) {
@@ -1568,6 +1569,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         content: [{ type: 'text', text: JSON.stringify({ error }) }],
         isError: true,
       });
+      // Discovery mode's execute-tool passes raw parameters (no zod), so validate here.
+      const invalid = validateMailTextArgs(params);
+      if (invalid) return fail(invalid);
       const ids = params.messageIds as string[] | undefined;
       const folderId = params.folderId as string | undefined;
       const top = params.top as number | undefined;
@@ -1575,26 +1579,6 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       const search = params.search as string | undefined;
       const maxChars = params.maxChars as number | undefined;
       const accountParam = params.account as string | undefined;
-      if ((ids === undefined) === (folderId === undefined)) {
-        return fail('Give messageIds or folderId (exactly one).');
-      }
-      if (ids !== undefined) {
-        if (
-          !Array.isArray(ids) ||
-          ids.length === 0 ||
-          ids.some((x) => typeof x !== 'string' || !x)
-        ) {
-          return fail('messageIds must be a non-empty list of message ids.');
-        }
-        if (ids.length > MAIL_TEXT_MAX_IDS) {
-          return fail(`At most ${MAIL_TEXT_MAX_IDS} messageIds per call.`);
-        }
-        if (top !== undefined || filter !== undefined || search !== undefined) {
-          return fail('top, filter and search apply only with folderId.');
-        }
-      } else if (filter !== undefined && search !== undefined) {
-        return fail('Microsoft Graph cannot combine filter and search on messages; use one.');
-      }
       const envLimit = Number(process.env.MS365_MCP_READ_MAIL_TEXT_MAX_CHARS);
       const limit =
         Number.isInteger(envLimit) && envLimit > 0
@@ -1663,14 +1647,23 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             return toMailTextEntry(x.body ?? {}, maxChars);
           });
         } else {
-          const query = new URLSearchParams({
+          const queryParams: Record<string, string> = {
             $select: MAIL_TEXT_SELECT,
             $top: String(top ?? MAIL_TEXT_MAX_TOP),
-          });
-          if (filter) query.set('$filter', filter);
-          if (search) query.set('$search', search.startsWith('"') ? search : `"${search}"`);
+          };
+          if (filter !== undefined) queryParams['$filter'] = filter;
+          if (search !== undefined) {
+            // The same KQL quoting repair list-mail-messages gets.
+            queryParams['$search'] = search;
+            const searchError = normalizeSearchQueryParam(
+              queryParams,
+              '/me/mailFolders/{mailFolder-id}/messages',
+              'read-mail-text'
+            );
+            if (searchError) return searchError;
+          }
           const r = await requestJson(
-            `/me/mailFolders/${encodeURIComponent(folderId as string)}/messages?${query}`,
+            `/me/mailFolders/${encodeURIComponent(folderId as string)}/messages?${new URLSearchParams(queryParams)}`,
             { headers: { Prefer: PREFER_TEXT_BODY } }
           );
           if (r.error) return r.error;

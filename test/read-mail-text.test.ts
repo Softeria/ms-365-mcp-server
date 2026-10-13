@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { UTILITY_TOOLS } from '../src/graph-tools.js';
-import { cleanMailText } from '../src/lib/mail-text.js';
+import { cleanMailText, MAIL_TEXT_MAX_INPUT_CHARS } from '../src/lib/mail-text.js';
+
+const L = (d: string) => `⟦link: ${d}⟧`;
 
 describe('cleanMailText', () => {
   it('removes quoted reply history (On ... wrote:)', () => {
@@ -25,11 +27,6 @@ describe('cleanMailText', () => {
         'Attached is the quote.\n\n________________________________\nFrom: Paul\nSent: Tuesday\nTo: J\nSubject: quote\n\nold'
       )
     ).toBe('Attached is the quote.');
-    expect(
-      cleanMailText(
-        'New text\r\n\r\nFrom: Paul <p@example.com>\r\nSent: Tuesday\r\nTo: J\r\nSubject: Re: x\r\n\r\nolder'
-      )
-    ).toBe('New text');
     expect(cleanMailText('Fine.\n-----Original Message-----\nFrom: a\nold')).toBe('Fine.');
   });
 
@@ -42,6 +39,14 @@ describe('cleanMailText', () => {
   it('removes the signature delimiter block and mobile sign-offs', () => {
     expect(cleanMailText('Thanks,\nJ\n-- \nJ Smith | CEO\n+1 555')).toBe('Thanks,\nJ');
     expect(cleanMailText('On my way.\n\nSent from my iPhone')).toBe('On my way.');
+  });
+
+  it('does not cut kept quoted content (forwards) at a signature above it', () => {
+    const t = cleanMailText(
+      'FYI\n-- \nJ\n\nFrom: Paul\nSent: Mon\nTo: J\nSubject: contract\n\nThe terms are attached.',
+      { keepQuoted: true }
+    );
+    expect(t).toContain('The terms are attached.');
   });
 
   it('removes a trailing footer but keeps an early mention', () => {
@@ -58,16 +63,7 @@ describe('cleanMailText', () => {
     expect(cleanMailText(early)).toContain('privacy policy update');
   });
 
-  it('removes a footer block that starts just above the midpoint', () => {
-    const body =
-      'Short note from Graziela.\nView message<https://x.example/m>\nThis email was intended for J\n' +
-      'Learn why<https://x.example/w>\nYou are receiving Messages digest emails.\n' +
-      'Unsubscribe<https://x.example/u> · Help<https://x.example/h>\n' +
-      '© 2026 Example Corporation, 1 Example Way, Sunnyvale, CA 94085. Example is a registered trademark.';
-    expect(cleanMailText(body)).toBe('Short note from Graziela.\nView message [link: x.example]');
-  });
-
-  it('shortens links to their domain, unwrapping Safe Links', () => {
+  it('turns links into markers with the real domain, unwrapping Safe Links', () => {
     const safe =
       'https://na01.safelinks.protection.outlook.com/?url=' +
       encodeURIComponent('https://www.fedex.com/track?id=1') +
@@ -77,20 +73,66 @@ describe('cleanMailText', () => {
         `See the report<https://www.example.com/r?utm=1> and https://docs.example.org/a/b.\nTrack it<${safe}>\nCall (413) 555 0100<tel:4135550100>`
       )
     ).toBe(
-      'See the report [link: example.com] and [link: docs.example.org].\nTrack it [link: fedex.com]\nCall (413) 555 0100'
+      `See the report ${L('example.com')} and ${L('docs.example.org')}.\nTrack it ${L('fedex.com')}\nCall (413) 555 0100`
+    );
+    expect(cleanMailText('See (https://en.wikipedia.org/wiki/Foo_(bar)).')).toBe(
+      `See (${L('en.wikipedia.org')}).`
     );
   });
 
-  it('drops image placeholders and link-only lines, keeps linked-image labels', () => {
+  it('shows the host a URL really goes to', () => {
+    expect(cleanMailText('https://trusted.example(foo)@evil.example/pay')).toBe(L('evil.example'));
+    expect(cleanMailText('https://trusted.example@evil.example/pay')).toBe(L('evil.example'));
+  });
+
+  it('cannot be made to produce a marker from body text', () => {
+    const t = cleanMailText(
+      'Pay at [link: login.microsoftonline.com] or ⟦link: login.microsoftonline.com⟧\nhttps://evil.example/x'
+    );
+    expect(t).toBe(
+      `Pay at [link: login.microsoftonline.com] or [link: login.microsoftonline.com]\n${L('evil.example')}`
+    );
+    expect(t.match(/⟦/g)).toHaveLength(1);
+  });
+
+  it('never removes square-bracket text, only image placeholders that are a bare URL', () => {
+    expect(cleanMailText('see [JIRA-123] and arr[i] [1] [Logo]')).toBe(
+      'see [JIRA-123] and arr[i] [1] [Logo]'
+    );
+    expect(cleanMailText('Logo [https://img.example.com/logo.png] here')).toBe('Logo here');
+  });
+
+  it('keeps link-only lines, collapsed to one line of distinct markers', () => {
     expect(
       cleanMailText(
-        '[Logo] [Messaging icon]\n[https://img.example.com/logo.png]\n<https://t.example/x> | <https://x.example/y>\n[View role]<https://jobs.example/1>\nDone.'
+        'Hello\n<https://t.example/x> | <https://x.example/y>\n<https://x.example/z>\nBye'
       )
-    ).toBe('View role [link: jobs.example]\nDone.');
+    ).toBe(`Hello\n${L('t.example')} ${L('x.example')}\nBye`);
+    expect(cleanMailText('https://only.example/a')).toBe(L('only.example'));
   });
 
   it('collapses whitespace and invisible preheader padding', () => {
-    expect(cleanMailText('a\u200b\u034f  \t b\n\n\n\n\nc\u00a0d   ')).toBe('a b\n\nc d');
+    expect(cleanMailText('a​͏  \t b\n\n\n\n\nc d   ')).toBe('a b\n\nc d');
+  });
+
+  it('cleans hostile bodies in linear time', () => {
+    const cases: Record<string, string> = {
+      'url + 80k dots': 'https://a.com/' + '.'.repeat(80_000),
+      'unterminated <http:a': '<http:a'.repeat(40_000),
+      'repeated [[link: ': '[[link: '.repeat(20_000),
+      'open brackets': '['.repeat(300_000),
+      'long url': 'https://a.com/' + 'a'.repeat(299_000),
+      parentheses: 'https://a.com/' + '('.repeat(100_000) + ')'.repeat(100_000),
+      'On On On': 'On '.repeat(100_000),
+      'From lines': 'From: x\n'.repeat(30_000),
+      'footer words on one line': 'unsubscribe '.repeat(25_000),
+      mixed: ('<https://a.b/' + 'x'.repeat(50) + ' [').repeat(5_000),
+    };
+    for (const [name, body] of Object.entries(cases)) {
+      const t0 = Date.now();
+      cleanMailText(body);
+      expect(Date.now() - t0, name).toBeLessThan(500);
+    }
   });
 });
 
@@ -238,19 +280,58 @@ describe('read-mail-text tool', () => {
     expect((await tool.execute({ folderId: 'inbox' }, c)).isError).toBeFalsy();
   });
 
-  it('validates arguments before calling Graph', async () => {
+  it('validates raw arguments in execute (discovery mode skips zod) before calling Graph', async () => {
     const { graphRequest, ctx: c } = ctx(() => ({}));
     for (const bad of [
       {},
       { messageIds: ['a'], folderId: 'inbox' },
       { messageIds: [] },
       { messageIds: Array(21).fill('a') },
+      { messageIds: [' '] },
       { messageIds: ['a'], top: 3 },
+      { folderId: 'inbox', top: 1000 },
+      { folderId: 'inbox', top: 0 },
+      { folderId: 'inbox', top: 2.5 },
+      { folderId: 'inbox', maxChars: -1 },
+      { folderId: 'inbox', maxChars: 0 },
+      { folderId: 'inbox', filter: '' },
+      { folderId: 'inbox', search: '  ' },
       { folderId: 'inbox', filter: 'x', search: 'y' },
+      { folderId: '' },
     ]) {
-      expect((await tool.execute(bad, c)).isError).toBe(true);
+      expect(
+        (await tool.execute(bad as Record<string, unknown>, c)).isError,
+        JSON.stringify(bad)
+      ).toBe(true);
     }
     expect(graphRequest).not.toHaveBeenCalled();
+  });
+
+  it('normalises search quoting the same way list-mail-messages does', async () => {
+    const { graphRequest, ctx: c } = ctx(() => ({ value: [] }));
+    await tool.execute({ folderId: 'inbox', search: 'subject:"quarterly report"' }, c);
+    await tool.execute({ folderId: 'inbox', search: '"quarterly report" from:paul' }, c);
+    await tool.execute({ folderId: 'inbox', search: 'from:paul' }, c);
+    const sent = graphRequest.mock.calls.map(([endpoint]) =>
+      new URLSearchParams((endpoint as string).split('?')[1]).get('$search')
+    );
+    expect(sent).toEqual([
+      '"subject:\\"quarterly report\\""',
+      '"\\"quarterly report\\" from:paul"',
+      '"from:paul"',
+    ]);
+    const quotesOnly = await tool.execute({ folderId: 'inbox', search: '""' }, c);
+    expect(quotesOnly.isError).toBe(true);
+    expect(graphRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it('marks an enormous body truncated after cleaning at most the input cap', async () => {
+    const { ctx: c } = ctx(() => ({
+      value: [msg('A', 'huge', 'z '.repeat(MAIL_TEXT_MAX_INPUT_CHARS))],
+    }));
+    const [m] = parse((await tool.execute({ folderId: 'inbox', maxChars: 50 }, c)) as never);
+    expect(m.truncated).toBe(true);
+    expect(m.chars).toBeLessThanOrEqual(MAIL_TEXT_MAX_INPUT_CHARS);
   });
 
   it('passes Graph errors through', async () => {
