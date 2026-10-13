@@ -1357,7 +1357,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'GET',
     path: 'tool:download-bytes',
     description:
-      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For large drive/SharePoint file content, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context.',
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For large drive/SharePoint file content, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context. With the server\'s blob output on, the bytes come back as a file resource instead (capped by the server\'s download limit); pass fileName to name it.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1373,6 +1373,12 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
               '/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{chatMessageHostedContent-id}/$value (Teams channel hosted content). ' +
               'For meeting recordings, use get-meeting-recording-content where available; Microsoft Graph returns authenticated recording bytes, not a pre-authenticated download URL.'
           ),
+        fileName: z
+          .string()
+          .describe(
+            'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
+          )
+          .optional(),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -1435,10 +1441,21 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         // decoded as UTF-8 text with every invalid sequence replaced by U+FFFD —
         // unrecoverable. rawResponse is kept for the JSON-body case (issue #546) but
         // is not reached while forceBinary is set.
+        // With blob output on, the same bytes come back as a file resource, capped like
+        // the typed file tools.
+        const blob = isBlobOutputEnabled()
+          ? {
+              maxBytes: getBlobMaxBytes(),
+              blobOutput: {
+                fileName: typeof params.fileName === 'string' ? params.fileName : undefined,
+              },
+            }
+          : {};
         return await graphClient.graphRequest(target, {
           accessToken: accountAccessToken,
           rawResponse: true,
           forceBinary: true,
+          ...blob,
         });
       } catch (error) {
         return {
