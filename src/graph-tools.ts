@@ -330,6 +330,28 @@ function rewriteMailSearchQuotes(expr: string): string {
   return balanceTrailingSlashes(out.trim());
 }
 
+const MEMBER_NAME_FILTER_TOOLS = new Set(['list-team-members', 'list-chat-members']);
+
+const MEMBER_NAME_PARAM_DESCRIPTION =
+  "Case-insensitive text to match against each member's displayName and email. Applied after $select projection, so only fields you can see are matched. Without fetchAllPages only the fetched page is filtered, and @odata.count still reports the unfiltered total.";
+
+/**
+ * Keeps only the members whose displayName or email contains `name`. Runs on the final
+ * response body, after $select projection, so a field the caller cannot see is never
+ * matched on. Blank `name` and non-collection bodies pass through unchanged.
+ */
+export function filterMembersByName(parsed: unknown, name: string): unknown {
+  const needle = name.trim().toLowerCase();
+  if (needle === '' || !isPlainObject(parsed) || !Array.isArray(parsed.value)) return parsed;
+  const matches = (member: unknown): boolean =>
+    isPlainObject(member) &&
+    ['displayName', 'email'].some((field) => {
+      const value = member[field];
+      return typeof value === 'string' && value.toLowerCase().includes(needle);
+    });
+  return { ...parsed, value: parsed.value.filter(matches) };
+}
+
 /**
  * Outlook mail wants the whole KQL expression inside one pair of double quotes
  * ($search="from:x AND subject:y"). Models quote each clause instead

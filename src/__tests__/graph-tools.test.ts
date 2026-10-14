@@ -5099,4 +5099,52 @@ describe('graph-tools', () => {
       expect(isDestructiveOperation('DELETE', { readOnly: true } as any)).toBe(true);
     });
   });
+
+  describe('filterMembersByName', () => {
+    const body = {
+      value: [
+        { id: '1', displayName: 'Jane Doe', email: 'jane@contoso.com' },
+        { id: '2', displayName: 'John Smith', email: 'jsmith@contoso.com' },
+        { id: '3', displayName: null, email: null },
+      ],
+      '@odata.count': 3,
+    };
+    const ids = (r: any) => r.value.map((m: any) => m.id);
+
+    it('matches displayName case-insensitively', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'JANE'))).toEqual(['1']);
+    });
+
+    it('matches email', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'jsmith@'))).toEqual(['2']);
+    });
+
+    it('returns an empty value array when nothing matches', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'zzz'))).toEqual([]);
+    });
+
+    it('returns everything for an empty or whitespace-only name', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, '   '))).toEqual(['1', '2', '3']);
+    });
+
+    it('does not match or throw on null fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'null'))).toEqual([]);
+    });
+
+    it('keeps other top-level fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect((filterMembersByName(body, 'jane') as any)['@odata.count']).toBe(3);
+    });
+
+    it('returns non-collection input unchanged', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(filterMembersByName('plain', 'x')).toBe('plain');
+      expect(filterMembersByName({ id: '1' }, 'x')).toEqual({ id: '1' });
+    });
+  });
 });
