@@ -2877,6 +2877,18 @@ async function executeGraphTool(
 
     const shouldProject = willProject && !response?.isError;
     let projectionHandled = false;
+    // Filter before serialize(), like projection: under --toon serialize() emits TOON and
+    // JSON.parse on it would throw, silently skipping the filter (#560).
+    let memberFilterHandled = false;
+    const applyMemberFilter = (body: unknown): unknown => {
+      if (!willFilterMembers) return body;
+      memberFilterHandled = true;
+      const filtered = filterMembersByName(body, memberNameFilter as string);
+      if (isPlainObject(filtered) && Array.isArray(filtered.value) && response._meta) {
+        response._meta = { ...response._meta, result_count: filtered.value.length };
+      }
+      return filtered;
+    };
     const applyProjection = (body: unknown): unknown => {
       // Binary, raw-text and ack payloads are wrapped in an envelope of this server's
       // own making. Projecting one strips every key and hands back {}, losing the
@@ -3035,7 +3047,9 @@ async function executeGraphTool(
       if (combinedResponse !== undefined) {
         // Project before serialize(), not after: under --toon serialize() emits TOON and
         // parsing that back as JSON would throw, silently skipping the projection.
-        const merged = shouldProject ? applyProjection(combinedResponse) : combinedResponse;
+        const merged = applyMemberFilter(
+          shouldProject ? applyProjection(combinedResponse) : combinedResponse
+        );
         projectionHandled = shouldProject;
         response.content[0].text = graphClient.serialize(merged);
       }
@@ -3046,7 +3060,9 @@ async function executeGraphTool(
     if (shouldProject && !projectionHandled && !response?.isError && response?.content?.[0]?.text) {
       try {
         const parsed = JSON.parse(response.content[0].text);
-        response.content[0].text = graphClient.serialize(applyProjection(parsed));
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(applyProjection(parsed))
+        );
       } catch {
         // Body was not JSON after all; nothing to project.
       }
@@ -3063,16 +3079,16 @@ async function executeGraphTool(
       }
     }
 
-    if (willFilterMembers && !response?.isError && response?.content?.[0]?.text) {
+    if (
+      willFilterMembers &&
+      !memberFilterHandled &&
+      !response?.isError &&
+      response?.content?.[0]?.text
+    ) {
       try {
-        const filtered = filterMembersByName(
-          JSON.parse(response.content[0].text),
-          memberNameFilter as string
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(JSON.parse(response.content[0].text))
         );
-        response.content[0].text = graphClient.serialize(filtered);
-        if (isPlainObject(filtered) && Array.isArray(filtered.value) && response._meta) {
-          response._meta = { ...response._meta, result_count: filtered.value.length };
-        }
       } catch {
         // Body was not JSON after all; nothing to filter.
       }

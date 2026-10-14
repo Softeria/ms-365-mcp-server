@@ -5164,11 +5164,12 @@ describe('graph-tools', () => {
       args: Record<string, unknown>,
       responses: any[] = [page(membersBody)],
       alias = 'list-team-members',
-      path = '/teams/{team-id}/members'
+      path = '/teams/{team-id}/members',
+      outputFormat: 'json' | 'toon' = 'json'
     ) {
       mockEndpoints.push(makeEndpoint({ alias, path }));
       mockEndpointsJson = [makeConfig({ toolName: alias, pathPattern: path })];
-      const graphClient = createMockGraphClient(responses);
+      const graphClient = createMockGraphClient(responses, outputFormat);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, graphClient as any);
@@ -5231,6 +5232,39 @@ describe('graph-tools', () => {
     it('matches only fields that survive $select projection', async () => {
       const { result } = await run({ select: 'id,displayName', name: 'contoso' });
       expect(ids(result)).toEqual([]);
+    });
+
+    describe('under --toon', () => {
+      // The mock serialize() prefixes TOON: so a filter that parses serialized output throws
+      const parseToon = (result: any) => JSON.parse(result.content[0].text.replace(/^TOON:/, ''));
+      const toon = (args: Record<string, unknown>, responses = [page(membersBody)]) =>
+        run(args, responses, 'list-team-members', '/teams/{team-id}/members', 'toon');
+
+      it('filters when no projection or merge applies', async () => {
+        const { result } = await toon({ name: 'jane' });
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1']);
+      });
+
+      it('filters when $select projects the body', async () => {
+        const { result } = await toon({ select: 'id,displayName', name: 'jane' });
+        expect(parseToon(result).value).toEqual([{ id: '1', displayName: 'Jane Doe' }]);
+      });
+
+      it('filters after fetchAllPages merges the pages', async () => {
+        const { result } = await toon({ name: 'ann', fetchAllPages: true }, [
+          page({
+            value: [{ id: '1', displayName: 'Ann', email: 'a@x.com' }],
+            '@odata.nextLink': 'https://graph.microsoft.com/v1.0/teams/t1/members?$skiptoken=x',
+          }),
+          page({
+            value: [
+              { id: '2', displayName: 'Bob', email: 'b@x.com' },
+              { id: '3', displayName: 'Annette', email: 'n@x.com' },
+            ],
+          }),
+        ]);
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1', '3']);
+      });
     });
 
     it('still matches a projected field', async () => {
