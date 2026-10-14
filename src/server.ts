@@ -28,6 +28,7 @@ import { ATTACHMENT_ROUTE, loadAttachmentUrlConfig } from './lib/attachment-url-
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
+  buildWwwAuthenticate,
   OAuthUpstreamError,
   refreshAccessToken,
   toOAuthErrorResponse,
@@ -38,6 +39,7 @@ import { buildMcpServerInstructions } from './mcp-instructions.js';
 import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import OboClient from './obo-client.js';
+import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './lib/obo-access.js';
 import { requestContext } from './request-context.js';
 import { getSecrets, type AppSecrets } from './secrets.js';
 
@@ -1044,6 +1046,13 @@ class MicrosoftGraphServer {
       // Microsoft Graph MCP endpoints with bearer token auth (or pass-through
       // when --trust-proxy-auth is set; see microsoftBearerTokenAuthMiddleware
       // for the AuthManager fallback that makes that mode work).
+      // Optional caller allowlist for --obo (MS365_MCP_OBO_ALLOWED_TENANTS / _USERS).
+      const oboAllowlist = this.oboClient ? readOboAllowlist() : null;
+      if (oboAllowlist && (oboAllowlist.tenants.size > 0 || oboAllowlist.users.size > 0)) {
+        logger.info(
+          `OBO allowlist: ${oboAllowlist.tenants.size} tenant(s), ${oboAllowlist.users.size} user(s)`
+        );
+      }
       const mcpAuth = microsoftBearerTokenAuthMiddleware({
         trustProxyAuth: this.options.trustProxyAuth,
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
@@ -1084,7 +1093,28 @@ class MicrosoftGraphServer {
             if (req.microsoftAuth) {
               let accessToken = req.microsoftAuth.accessToken;
               if (this.oboClient) {
-                accessToken = await this.oboClient.exchangeToken(accessToken);
+                const refusal = oboAllowlist && oboAllowlistRefusal(accessToken, oboAllowlist);
+                if (refusal) {
+                  logger.warn(`OBO caller refused by the allowlist: ${refusal}`);
+                  res.status(403).json({ error: 'access_denied', error_description: refusal });
+                  return;
+                }
+                try {
+                  accessToken = await this.oboClient.exchangeToken(accessToken);
+                } catch (error) {
+                  // Entra refused the assertion itself: ask the client to sign in again
+                  // instead of reporting a server fault (#696).
+                  if (!isRejectedAssertion(error)) throw error;
+                  const description = 'The access token was rejected; sign in again';
+                  res
+                    .status(401)
+                    .set(
+                      'WWW-Authenticate',
+                      buildWwwAuthenticate(req, 'invalid_token', description, publicBase)
+                    )
+                    .json({ error: 'invalid_token', error_description: description });
+                  return;
+                }
               }
               await requestContext.run({ accessToken }, handler);
             } else {
