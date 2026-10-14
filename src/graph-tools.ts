@@ -2392,9 +2392,14 @@ async function executeGraphTool(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
     const strayBodyFields: Record<string, unknown> = {};
+    const memberNameFilter =
+      MEMBER_NAME_FILTER_TOOLS.has(tool.alias) && typeof params.name === 'string'
+        ? params.name
+        : undefined;
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       if (paramName === 'fileName' && config?.blobOutput) continue;
+      if (paramName === 'name' && MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -2860,7 +2865,11 @@ async function executeGraphTool(
     const willProject =
       (requestedSelect.length > 0 || isUserFieldBoundary) && params.excludeResponse !== true;
     const willProjectBatch = batchRestricted.size > 0 && params.excludeResponse !== true;
-    if (mergePages || willProject || willProjectBatch) {
+    const willFilterMembers =
+      memberNameFilter !== undefined &&
+      memberNameFilter.trim() !== '' &&
+      params.excludeResponse !== true;
+    if (mergePages || willProject || willProjectBatch || willFilterMembers) {
       options.forceJsonOutput = true;
     }
 
@@ -3051,6 +3060,21 @@ async function executeGraphTool(
         );
       } catch {
         // Body was not JSON after all; nothing to project.
+      }
+    }
+
+    if (willFilterMembers && !response?.isError && response?.content?.[0]?.text) {
+      try {
+        const filtered = filterMembersByName(
+          JSON.parse(response.content[0].text),
+          memberNameFilter as string
+        );
+        response.content[0].text = graphClient.serialize(filtered);
+        if (isPlainObject(filtered) && Array.isArray(filtered.value) && response._meta) {
+          response._meta = { ...response._meta, result_count: filtered.value.length };
+        }
+      } catch {
+        // Body was not JSON after all; nothing to filter.
       }
     }
 
@@ -3274,6 +3298,10 @@ export function registerGraphTools(
         .boolean()
         .describe(getFetchAllPagesParamDescription(maxPages, tool.alias))
         .optional();
+    }
+
+    if (MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) {
+      paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
     }
 
     if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {
