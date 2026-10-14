@@ -1,5 +1,5 @@
 /**
- * read-mail-text: a triage view of mail messages, with the clutter removed.
+ * read-mail-text: mail messages as text with the bulk junk removed.
  *
  * Graph already returns bodies as plain text when asked (Prefer:
  * outlook.body-content-type="text"), but that text is still mostly not the
@@ -9,21 +9,19 @@
  * thread. Between bodyPreview (255 characters) and the full body there is
  * nothing; a 20-message inbox page is easily 300-400k characters.
  *
- * cleanMailText() removes that clutter by pattern: quoted reply history, the
- * RFC 3676 signature, mobile sign-offs, a trailing footer block (unsubscribe,
- * legal notice, copyright) and image placeholders whose only content is a URL;
- * every link becomes a ⟦link: domain⟧ marker (Safe Links unwrapped). It never
- * summarises, but it is a lossy view: get-mail-message has the exact text.
+ * The rule is: remove obvious junk, never cut or rewrite the message itself.
+ * cleanMailText() removes invisible padding characters, image placeholders
+ * whose only content is an image address, and quoted reply history (forwards
+ * keep theirs). Links are kept: Safe Links are unwrapped to the real address,
+ * which is kept in full when short; only long tracking-style addresses become a
+ * ⟦link: domain⟧ marker naming the real host. Signatures, footers and
+ * everything else in the message are left as they are.
  *
- * Mail bodies are attacker-controlled, so:
- *  - every pattern is bounded and the run delimiters are excluded from the runs,
- *    so cleaning is linear in the body size; the cleaner also reads at most
- *    MAIL_TEXT_MAX_INPUT_CHARS per message (beyond that the entry is truncated);
- *  - the marker brackets (U+27E6/U+27E7) are rewritten to [ ] in the input, so
- *    body text cannot produce a marker, and the marker shows the host the URL
- *    really points at (userinfo, parentheses and Safe Links included);
- *  - square-bracket text is kept ([JIRA-123], arr[i], [1]); lines that are
- *    only links collapse to one line of markers instead of disappearing.
+ * Mail bodies are attacker-controlled, so every pattern is bounded and excludes
+ * its own delimiters (cleaning is linear in the body size), at most
+ * MAIL_TEXT_MAX_INPUT_CHARS per message are cleaned (beyond that the entry is
+ * truncated), and the marker brackets (U+27E6/U+27E7) are rewritten to [ ] in
+ * the input so body text cannot produce a marker.
  */
 
 export const MAIL_TEXT_MAX_IDS = 20;
@@ -43,26 +41,6 @@ const QUOTE_START = [
 ];
 const HEADER_FROM = /^\*?From:\*?\s+\S/i;
 const HEADER_NEXT = /^\*?(Sent|Date|To|Subject):\*?\s/i;
-const SIGNOFF_LINE =
-  /^(Sent from my \w+|Get Outlook for (iOS|Android)|Sent from (Mail|Outlook) for \w+)\b.{0,200}$/i;
-const FOOTER = new RegExp(
-  [
-    '\\bunsubscribe\\b',
-    'view (this (e-?mail|message) )?(in|on) (your |a )?(web )?browser',
-    'manage (your )?(e-?mail |subscription |communication )?preferences',
-    'privacy (policy|notice|statement)',
-    '\\bopt[ -]out\\b',
-    "you('re| are) receiving (this|these|[\\w ]{0,40}(e-?mails?|messages|notifications))",
-    'this (e-?mail|message)( and any (files|attachments)[^.]{0,40})? (is|are|may be|contains?) (strictly )?(confidential|privileged|intended)',
-    'this (e-?mail|message) was (sent|intended) (to|for)\\b',
-    'if you (are not|have received this)[^.]{0,60}(intended recipient|in error)',
-    '©',
-    '\\bcopyright\\s+(©\\s*)?\\d{4}',
-    'all rights reserved',
-  ].join('|'),
-  'i'
-);
-
 function quoteStart(lines: string[]): number {
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i].trim();
@@ -88,21 +66,38 @@ function quoteStart(lines: string[]): number {
   return -1;
 }
 
-const MARK_RE = /\u27e6link: [^\u27e6\u27e7\n]{1,300}\u27e7/g;
+const MARK_OPEN = '\u27e6';
 const mark = (host: string): string => `\u27e6link: ${host}\u27e7`;
+// Longer addresses are tracking-style junk and are shortened to their domain.
+const MAX_KEPT_URL = 120;
 
-function linkHost(u: string): string {
+// The real address behind a link: Outlook / Defender Safe Links wrap it.
+function unwrapLink(u: string): string {
   try {
-    let url = new URL(u);
-    // Outlook / Defender Safe Links wrap the real target: show the real domain.
+    const url = new URL(u);
     const wrapped = url.searchParams.get('url');
     if (/(^|\.)safelinks\.protection\.outlook\.com$/i.test(url.hostname) && wrapped) {
-      url = new URL(wrapped);
+      return new URL(wrapped).href;
     }
-    return url.hostname.replace(/^www\./, '') || 'link';
+    return u;
+  } catch {
+    return u;
+  }
+}
+
+function hostOf(u: string): string {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '') || 'link';
   } catch {
     return 'link';
   }
+}
+
+// A link as shown: the real address in full when short, otherwise a marker
+// naming the real host (userinfo and parentheses included in the parse).
+function showLink(u: string): string {
+  const real = unwrapLink(u);
+  return real.length <= MAX_KEPT_URL ? real : mark(hostOf(real));
 }
 
 // A bare URL ends at whitespace, quotes, angle or square brackets; trailing
@@ -129,19 +124,26 @@ function splitUrlTail(u: string): [string, string] {
   return [u.slice(0, end), u.slice(end)];
 }
 
-function shortenLinks(t: string): string {
-  // Graph's text conversion writes anchors as "label<https://...>", images as
-  // "[alt]" and image sources as "[https://...]"; bare URLs also occur.
-  t = t.replace(/<((?:https?|mailto|tel):[^<>\s]{1,4096})>/gi, (_m, u: string) =>
-    /^(mailto|tel):/i.test(u) ? '' : ` ${mark(linkHost(u))}`
-  );
-  t = t.replace(/\bhttps?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096}/gi, (raw) => {
-    const [u, tail] = splitUrlTail(raw);
-    return mark(linkHost(u)) + tail;
+function cleanLinks(t: string): string {
+  // "[<image url>]": an image placeholder whose only content is its address.
+  t = t.replace(/\[[ \t]{0,20}https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096}[ \t]{0,20}\]/gi, '');
+  // Graph's text conversion writes anchors as "label<https://...>"; bare URLs also
+  // occur. Bounded quantifiers with the delimiters excluded keep this linear.
+  t = t.replace(/<((?:https?|mailto|tel):[^<>\s]{1,4096})>/gi, (m, u: string) => {
+    if (/^(mailto|tel):/i.test(u)) return m;
+    const shown = showLink(u);
+    return shown.startsWith(MARK_OPEN) ? ` ${shown}` : ` <${shown}>`;
   });
-  // "[<image url>]": an image placeholder whose only content is its source.
-  return t.replace(/\[[ \t]{0,20}\u27e6link: [^\u27e6\u27e7\n]{1,300}\u27e7[ \t]{0,20}\]/g, '');
+  return t.replace(
+    /(^|[^<])\b(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})/gi,
+    (_m, pre: string, raw: string) => {
+      const [u, tail] = splitUrlTail(raw);
+      return pre + showLink(u) + tail;
+    }
+  );
 }
+
+const LINK_TOKEN = /<?https?:\/\/[^\s<>]{1,4096}>?|\u27e6link: [^\u27e6\u27e7\n]{1,300}\u27e7/g;
 
 export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}): string {
   const t = String(raw ?? '')
@@ -156,55 +158,32 @@ export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}):
     const q = quoteStart(lines);
     if (q >= 0 && lines.slice(0, q).join('').trim()) lines = lines.slice(0, q);
     lines = lines.filter((l) => !/^\s*>/.test(l));
-    // Signature: the RFC 3676 delimiter "-- " (also a bare "--"). Not when the
-    // quoted part is kept: a forward sits below the sender's signature.
-    const sig = lines.findIndex((l) => l === '-- ' || l === '--');
-    if (sig > 0 && lines.slice(0, sig).join('').trim()) lines = lines.slice(0, sig);
   }
-  lines = lines.filter((l) => l.length > 300 || !SIGNOFF_LINE.test(l.trim()));
 
-  lines = shortenLinks(lines.join('\n'))
+  lines = cleanLinks(lines.join('\n'))
     .split('\n')
     .map((l) => l.replace(/[ \t]+/g, ' ').trim());
 
   // Runs of lines that are nothing but links (nav bars, social icons) collapse
-  // to one line of their distinct markers: the links stay, the clutter goes.
+  // to one line of their distinct links: every link stays, the clutter goes.
   const collapsed: Array<string | string[]> = [];
   let run: string[] | null = null;
   for (const l of lines) {
-    const marks = l.match(MARK_RE);
-    const linkOnly = !!marks && l.replace(MARK_RE, '').replace(/[\s|•·\-–]/g, '') === '';
+    const links = l.match(LINK_TOKEN);
+    const linkOnly = !!links && l.replace(LINK_TOKEN, '').replace(/[\s|•·\-–]/g, '') === '';
     if (linkOnly) {
       if (!run) {
         run = [];
         collapsed.push(run);
       }
-      for (const m of marks) if (!run.includes(m)) run.push(m);
+      for (const k of links) if (!run.includes(k)) run.push(k);
     } else {
       run = null;
       collapsed.push(l);
     }
   }
-  lines = collapsed.map((x) => (Array.isArray(x) ? x.join(' ') : x));
-
-  // Footer: from the first footer-like line in the second half of the text to the
-  // end, walking back over footer-like lines just above it (a block can straddle
-  // the midpoint). Only reasonably short lines are tested.
-  const isFooter = (l: string): boolean => l.length <= 2000 && FOOTER.test(l);
-  const total = lines.reduce((n, l) => n + l.length + 1, 0);
-  let seen = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (seen >= total / 2 && isFooter(lines[i])) {
-      let cut = i;
-      for (let j = cut - 1; j >= Math.max(0, cut - 4); j--) {
-        if (isFooter(lines[j])) cut = j;
-      }
-      if (lines.slice(0, cut).join('').trim()) lines = lines.slice(0, cut);
-      break;
-    }
-    seen += lines[i].length + 1;
-  }
-  return lines
+  return collapsed
+    .map((x) => (Array.isArray(x) ? x.join(' ') : x))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

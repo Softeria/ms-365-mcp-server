@@ -36,58 +36,61 @@ describe('cleanMailText', () => {
     );
   });
 
-  it('removes the signature delimiter block and mobile sign-offs', () => {
-    expect(cleanMailText('Thanks,\nJ\n-- \nJ Smith | CEO\n+1 555')).toBe('Thanks,\nJ');
-    expect(cleanMailText('On my way.\n\nSent from my iPhone')).toBe('On my way.');
-  });
-
-  it('does not cut kept quoted content (forwards) at a signature above it', () => {
-    const t = cleanMailText(
-      'FYI\n-- \nJ\n\nFrom: Paul\nSent: Mon\nTo: J\nSubject: contract\n\nThe terms are attached.',
-      { keepQuoted: true }
+  it('never cuts the message: signatures, a bare "--" separator and footer lines are kept', () => {
+    expect(cleanMailText('Thanks,\nJ\n-- \nJ Smith | CEO\n+1 555')).toBe(
+      'Thanks,\nJ\n--\nJ Smith | CEO\n+1 555'
     );
-    expect(t).toContain('The terms are attached.');
-  });
-
-  it('removes a trailing footer but keeps an early mention', () => {
-    const body =
-      'Your order has shipped and will arrive Friday. Track it from your account page any time you like.\n\n' +
-      'Questions? Reply to this email.\n\nYou are receiving this because you bought something. Unsubscribe here.\n\n' +
-      '© 2026 Shop Inc. All rights reserved.';
-    expect(cleanMailText(body)).toBe(
-      'Your order has shipped and will arrive Friday. Track it from your account page any time you like.\n\nQuestions? Reply to this email.'
+    expect(cleanMailText('On my way.\n\nSent from my iPhone')).toBe(
+      'On my way.\n\nSent from my iPhone'
     );
-    const early =
-      'Please read our privacy policy update before Friday.\n\n' +
-      'It changes how we store data. '.repeat(10);
-    expect(cleanMailText(early)).toContain('privacy policy update');
+    // A ticketing system's layout: a header, a bare "--", then the actual content.
+    const ticket =
+      '520631 - Project\nPaul Martin\nExample Inc.\n.\n--\nTue 10/13 Paul Martin-\nStatus and next steps\n1. Confirm the scopes.';
+    expect(cleanMailText(ticket)).toBe(ticket);
+    const footerish =
+      'Your order shipped. Track it from your account page any time you like.\n\nQuestions? Reply.\n\n' +
+      'You are receiving this because you bought something. Unsubscribe here.\n\n© 2026 Shop Inc. All rights reserved.';
+    expect(cleanMailText(footerish)).toBe(footerish);
+    expect(
+      cleanMailText(
+        'Short note.\nPlease read our privacy policy\nThe important part comes after it.'
+      )
+    ).toContain('The important part comes after it.');
   });
 
-  it('turns links into markers with the real domain, unwrapping Safe Links', () => {
+  it('keeps links: Safe Links unwrapped, short addresses in full, long tracking addresses shortened to the real domain', () => {
     const safe =
       'https://na01.safelinks.protection.outlook.com/?url=' +
       encodeURIComponent('https://www.fedex.com/track?id=1') +
       '&data=abc';
     expect(
       cleanMailText(
-        `See the report<https://www.example.com/r?utm=1> and https://docs.example.org/a/b.\nTrack it<${safe}>\nCall (413) 555 0100<tel:4135550100>`
+        `See the report<https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it<${safe}>`
       )
     ).toBe(
-      `See the report ${L('example.com')} and ${L('docs.example.org')}.\nTrack it ${L('fedex.com')}\nCall (413) 555 0100`
+      'See the report <https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it <https://www.fedex.com/track?id=1>'
     );
+    const long = 'https://click.mailer.example.com/ls/click?upn=' + 'A'.repeat(200);
+    expect(cleanMailText(`Read more<${long}>`)).toBe(`Read more ${L('click.mailer.example.com')}`);
     expect(cleanMailText('See (https://en.wikipedia.org/wiki/Foo_(bar)).')).toBe(
-      `See (${L('en.wikipedia.org')}).`
+      'See (https://en.wikipedia.org/wiki/Foo_(bar)).'
+    );
+    expect(cleanMailText('(413) 555 0100<tel:4135550100> a@b.example<mailto:a@b.example>')).toBe(
+      '(413) 555 0100<tel:4135550100> a@b.example<mailto:a@b.example>'
     );
   });
 
-  it('shows the host a URL really goes to', () => {
-    expect(cleanMailText('https://trusted.example(foo)@evil.example/pay')).toBe(L('evil.example'));
-    expect(cleanMailText('https://trusted.example@evil.example/pay')).toBe(L('evil.example'));
+  it('names the host a shortened link really goes to', () => {
+    const tail = '/pay?x=' + 'y'.repeat(150);
+    expect(cleanMailText('https://trusted.example(foo)@evil.example' + tail)).toBe(
+      L('evil.example')
+    );
   });
 
   it('cannot be made to produce a marker from body text', () => {
+    const long = 'https://evil.example/x?' + 'z'.repeat(150);
     const t = cleanMailText(
-      'Pay at [link: login.microsoftonline.com] or ⟦link: login.microsoftonline.com⟧\nhttps://evil.example/x'
+      `Pay at [link: login.microsoftonline.com] or ⟦link: login.microsoftonline.com⟧\n${long}`
     );
     expect(t).toBe(
       `Pay at [link: login.microsoftonline.com] or [link: login.microsoftonline.com]\n${L('evil.example')}`
@@ -95,20 +98,19 @@ describe('cleanMailText', () => {
     expect(t.match(/⟦/g)).toHaveLength(1);
   });
 
-  it('never removes square-bracket text, only image placeholders that are a bare URL', () => {
+  it('never removes square-bracket text, only image placeholders that are an image address', () => {
     expect(cleanMailText('see [JIRA-123] and arr[i] [1] [Logo]')).toBe(
       'see [JIRA-123] and arr[i] [1] [Logo]'
     );
     expect(cleanMailText('Logo [https://img.example.com/logo.png] here')).toBe('Logo here');
   });
 
-  it('keeps link-only lines, collapsed to one line of distinct markers', () => {
+  it('keeps link-only lines, collapsed to one line of their distinct links', () => {
     expect(
       cleanMailText(
-        'Hello\n<https://t.example/x> | <https://x.example/y>\n<https://x.example/z>\nBye'
+        'Hello\n<https://t.example/x> | <https://x.example/y>\n<https://x.example/y>\nBye'
       )
-    ).toBe(`Hello\n${L('t.example')} ${L('x.example')}\nBye`);
-    expect(cleanMailText('https://only.example/a')).toBe(L('only.example'));
+    ).toBe('Hello\n<https://t.example/x> <https://x.example/y>\nBye');
   });
 
   it('collapses whitespace and invisible preheader padding', () => {
@@ -125,7 +127,7 @@ describe('cleanMailText', () => {
       parentheses: 'https://a.com/' + '('.repeat(100_000) + ')'.repeat(100_000),
       'On On On': 'On '.repeat(100_000),
       'From lines': 'From: x\n'.repeat(30_000),
-      'footer words on one line': 'unsubscribe '.repeat(25_000),
+      'image placeholders': '[https://a.b/c.png]'.repeat(15_000),
       mixed: ('<https://a.b/' + 'x'.repeat(50) + ' [').repeat(5_000),
     };
     for (const [name, body] of Object.entries(cases)) {
