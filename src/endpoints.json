@@ -1760,7 +1760,7 @@
     "toolName": "update-chat-message",
     "presets": ["teams", "work"],
     "workScopes": ["Chat.ReadWrite"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType html in the body."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
@@ -1776,7 +1776,7 @@
     "toolName": "send-chat-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChatMessage.Send"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
     "pathPattern": "/me/joinedTeams",
@@ -1880,7 +1880,7 @@
     "toolName": "update-channel-message",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.ReadWrite"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType html in the body."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents",
@@ -1896,7 +1896,7 @@
     "toolName": "send-channel-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
@@ -1904,7 +1904,7 @@
     "toolName": "reply-to-channel-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies",
@@ -1919,7 +1919,7 @@
     "toolName": "update-channel-message-reply",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.ReadWrite"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType html in the body."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
     "pathPattern": "/teams/{team-id}/members",
@@ -1984,7 +1984,7 @@
     "toolName": "reply-to-chat-message",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMessage.Send"],
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content (contentType html); the server numbers the tag and builds the mentions array. Get the id from list-team-members or list-chat-members (name param). Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. To @mention someone, put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
+    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/setReaction",

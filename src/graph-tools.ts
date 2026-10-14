@@ -741,19 +741,28 @@ const MENTION_SHORTHAND_TOOLS = new Set([
 
 const AAD_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHORTHAND_AT = /<at\s+user-id="([^"]*)">([^<]*)<\/at>/gi;
+// Any tag that tries the shorthand, well-formed or not. A malformed one must be refused:
+// left alone it is posted to colleagues as literal text and nobody is notified.
+const HAS_SHORTHAND = /<at\b[^>]*\buser-id\b/i;
 
 /**
  * Teams mentions need numbered <at id="N"> tags plus a matching `mentions` array, and a
  * mismatch is a 400. Models write <at user-id="<aad-guid>">Name</at> instead; this
  * numbers each tag above any id already present and builds the mentions entries.
- * Bodies without the shorthand, non-html content and non-object bodies pass through.
+ * Bodies without the shorthand and non-object bodies pass through. The shorthand with
+ * non-html content, or in a form it cannot rewrite, is an error rather than a literal tag.
  */
 export function rewriteMentionShorthand(body: unknown): { body: unknown; error?: string } {
   if (!isPlainObject(body) || !isPlainObject(body.body)) return { body };
   const itemBody = body.body;
   const content = itemBody.content;
-  if (typeof content !== 'string' || String(itemBody.contentType).toLowerCase() !== 'html') {
-    return { body };
+  if (typeof content !== 'string' || !HAS_SHORTHAND.test(content)) return { body };
+  if (String(itemBody.contentType).toLowerCase() !== 'html') {
+    return {
+      body,
+      error:
+        'The <at user-id> mention shorthand needs contentType "html" on the message body. Set body.contentType to "html".',
+    };
   }
 
   const existing = Array.isArray(body.mentions) ? body.mentions : [];
@@ -782,7 +791,13 @@ export function rewriteMentionShorthand(body: unknown): { body: unknown; error?:
   });
 
   if (error) return { body, error };
-  if (added.length === 0) return { body };
+  if (HAS_SHORTHAND.test(rewritten)) {
+    return {
+      body,
+      error:
+        'Unsupported mention tag form. Write <at user-id="<guid>">Name</at> with double quotes, no other attributes and plain text inside.',
+    };
+  }
   return {
     body: { ...body, body: { ...itemBody, content: rewritten }, mentions: [...existing, ...added] },
   };

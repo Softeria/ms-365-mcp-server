@@ -5157,16 +5157,36 @@ describe('graph-tools', () => {
       expect(out.body).toBe(input);
     });
 
-    it('leaves non-html content alone', async () => {
+    it('leaves non-html content without the shorthand alone', async () => {
       const { rewriteMentionShorthand } = await loadModule();
-      const input = { body: { contentType: 'text', content: `<at user-id="${U1}">Jane</at>` } };
-      expect(rewriteMentionShorthand(input).body).toBe(input);
+      const text = { body: { contentType: 'text', content: 'plain words' } };
+      const bare = { body: { content: 'plain words' } };
+      expect(rewriteMentionShorthand(text).body).toBe(text);
+      expect(rewriteMentionShorthand(bare).body).toBe(bare);
     });
 
-    it('leaves a body with no contentType alone', async () => {
+    it.each([
+      ['text', { contentType: 'text' }],
+      ['missing', {}],
+    ])('returns an error for the shorthand when contentType is %s', async (_label, type) => {
       const { rewriteMentionShorthand } = await loadModule();
-      const input = { body: { content: `<at user-id="${U1}">Jane</at>` } };
-      expect(rewriteMentionShorthand(input).body).toBe(input);
+      const input = { body: { ...type, content: `<at user-id="${U1}">Jane</at>` } };
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('contentType');
+      expect(out.body).toBe(input);
+    });
+
+    it.each([
+      ['single-quoted user-id', `<at user-id='${U1}'>Jane</at>`],
+      ['spaces around =', `<at user-id = "${U1}">Jane</at>`],
+      ['an extra attribute', `<at user-id="${U1}" class="x">Jane</at>`],
+      ['nested markup in the name', `<at user-id="${U1}"><b>Jane</b></at>`],
+    ])('returns an error for an unsupported tag form: %s', async (_label, tag) => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html(`Hi ${tag}`);
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('Unsupported mention tag form');
+      expect(out.body).toBe(input);
     });
 
     it('leaves a raw string body alone', async () => {
@@ -5261,7 +5281,14 @@ describe('graph-tools', () => {
       for (const [alias] of aliases) {
         const entry = endpoints.find((e) => e.toolName === alias);
         expect(entry, alias).toBeDefined();
-        expect(entry!.llmTip, alias).toContain('user-id=');
+        const tip = entry!.llmTip!;
+        expect(tip, alias).toContain('user-id=');
+        // the name param ships in a separate PR; this one must stand alone
+        expect(tip, alias).not.toContain('name param');
+        // conversationMember has both id (membership id) and userId (the GUID)
+        expect(tip, alias).toContain('userId');
+        // the raw form is the fallback, not a second copy of the same instruction
+        expect(tip.split('To @mention someone').length - 1, alias).toBe(1);
       }
     });
   });
