@@ -5099,4 +5099,88 @@ describe('graph-tools', () => {
       expect(isDestructiveOperation('DELETE', { readOnly: true } as any)).toBe(true);
     });
   });
+
+  describe('rewriteMentionShorthand', () => {
+    const U1 = '11111111-2222-3333-4444-555555555555';
+    const U2 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const html = (content: string, extra: Record<string, unknown> = {}) => ({
+      body: { contentType: 'html', content },
+      ...extra,
+    });
+    const mention = (id: number, userId: string, name: string) => ({
+      id,
+      mentionText: name,
+      mentioned: { user: { id: userId, displayName: name, userIdentityType: 'aadUser' } },
+    });
+
+    it('rewrites one tag and builds the mentions array', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      expect(rewriteMentionShorthand(html(`Hi <at user-id="${U1}">Jane Doe</at>!`)).body).toEqual(
+        html('Hi <at id="0">Jane Doe</at>!', { mentions: [mention(0, U1, 'Jane Doe')] })
+      );
+    });
+
+    it('numbers several tags in order, including a repeated user', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const out = rewriteMentionShorthand(
+        html(
+          `<at user-id="${U1}">Jane</at> <at user-id="${U2}">Bob</at> <at user-id="${U1}">Jane</at>`
+        )
+      ).body as any;
+      expect(out.body.content).toBe(
+        '<at id="0">Jane</at> <at id="1">Bob</at> <at id="2">Jane</at>'
+      );
+      expect(out.mentions.map((m: any) => m.id)).toEqual([0, 1, 2]);
+    });
+
+    it('starts above ids already in the content and mentions', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html(`<at id="0">Old</at> <at user-id="${U1}">Jane</at>`, {
+        mentions: [mention(0, U2, 'Old')],
+      });
+      const out = rewriteMentionShorthand(input).body as any;
+      expect(out.body.content).toBe('<at id="0">Old</at> <at id="1">Jane</at>');
+      expect(out.mentions).toEqual([mention(0, U2, 'Old'), mention(1, U1, 'Jane')]);
+    });
+
+    it('passes a correct hand-built body through unchanged', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html('<at id="0">Jane</at>', { mentions: [mention(0, U1, 'Jane')] });
+      expect(rewriteMentionShorthand(input).body).toBe(input);
+    });
+
+    it('returns an error for a user-id that is not a GUID', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html('<at user-id="jane@contoso.com">Jane</at>');
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('jane@contoso.com');
+      expect(out.body).toBe(input);
+    });
+
+    it('leaves non-html content alone', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = { body: { contentType: 'text', content: `<at user-id="${U1}">Jane</at>` } };
+      expect(rewriteMentionShorthand(input).body).toBe(input);
+    });
+
+    it('leaves a body with no contentType alone', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = { body: { content: `<at user-id="${U1}">Jane</at>` } };
+      expect(rewriteMentionShorthand(input).body).toBe(input);
+    });
+
+    it('leaves a raw string body alone', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      expect(rewriteMentionShorthand('{"body":{}}').body).toBe('{"body":{}}');
+      expect(rewriteMentionShorthand(null).body).toBeNull();
+    });
+
+    it('keeps the display name verbatim', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const out = rewriteMentionShorthand(html(`<at user-id="${U1}">Smith &amp; Co</at>`))
+        .body as any;
+      expect(out.body.content).toBe('<at id="0">Smith &amp; Co</at>');
+      expect(out.mentions[0].mentionText).toBe('Smith &amp; Co');
+    });
+  });
 });

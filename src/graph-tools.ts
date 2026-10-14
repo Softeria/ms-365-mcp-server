@@ -729,6 +729,65 @@ function collectRecipients(
   }
 }
 
+const MENTION_SHORTHAND_TOOLS = new Set([
+  'send-channel-message',
+  'reply-to-channel-message',
+  'update-channel-message',
+  'update-channel-message-reply',
+  'send-chat-message',
+  'reply-to-chat-message',
+  'update-chat-message',
+]);
+
+const AAD_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHORTHAND_AT = /<at\s+user-id="([^"]*)">([^<]*)<\/at>/gi;
+
+/**
+ * Teams mentions need numbered <at id="N"> tags plus a matching `mentions` array, and a
+ * mismatch is a 400. Models write <at user-id="<aad-guid>">Name</at> instead; this
+ * numbers each tag above any id already present and builds the mentions entries.
+ * Bodies without the shorthand, non-html content and non-object bodies pass through.
+ */
+export function rewriteMentionShorthand(body: unknown): { body: unknown; error?: string } {
+  if (!isPlainObject(body) || !isPlainObject(body.body)) return { body };
+  const itemBody = body.body;
+  const content = itemBody.content;
+  if (typeof content !== 'string' || String(itemBody.contentType).toLowerCase() !== 'html') {
+    return { body };
+  }
+
+  const existing = Array.isArray(body.mentions) ? body.mentions : [];
+  let nextId = 0;
+  for (const m of existing) {
+    if (isPlainObject(m) && typeof m.id === 'number') nextId = Math.max(nextId, m.id + 1);
+  }
+  for (const m of content.matchAll(/<at\s+id="(\d+)"/gi)) {
+    nextId = Math.max(nextId, Number(m[1]) + 1);
+  }
+
+  const added: unknown[] = [];
+  let error: string | undefined;
+  const rewritten = content.replace(SHORTHAND_AT, (tag, userId: string, name: string) => {
+    if (!AAD_GUID.test(userId)) {
+      error ??= `Mention user-id "${userId}" is not an Entra object id (GUID). Use the userId from list-team-members or list-chat-members.`;
+      return tag;
+    }
+    const id = nextId++;
+    added.push({
+      id,
+      mentionText: name,
+      mentioned: { user: { id: userId, displayName: name, userIdentityType: 'aadUser' } },
+    });
+    return `<at id="${id}">${name}</at>`;
+  });
+
+  if (error) return { body, error };
+  if (added.length === 0) return { body };
+  return {
+    body: { ...body, body: { ...itemBody, content: rewritten }, mentions: [...existing, ...added] },
+  };
+}
+
 // A body that failed schema parsing goes to Graph as a raw string, and mail sent that way
 // would record nothing. Only a JSON-shaped string can carry recipients though: the binary
 // upload tools send base64, and parsing that threw on every single upload.
