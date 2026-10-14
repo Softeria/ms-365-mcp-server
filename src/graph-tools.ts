@@ -2696,6 +2696,17 @@ async function executeGraphTool(
       }
     }
 
+    if (MENTION_SHORTHAND_TOOLS.has(tool.alias)) {
+      const rewritten = rewriteMentionShorthand(body);
+      if (rewritten.error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: rewritten.error }) }],
+          isError: true,
+        };
+      }
+      body = rewritten.body;
+    }
+
     // Defense-in-depth: the calendar delta tools don't support $top (see
     // TOP_UNSUPPORTED_DELTA_TOOLS). Their user-facing schema strips top/$top, so
     // freshly-connected clients can't send it. Cached/stale clients (and ad-hoc

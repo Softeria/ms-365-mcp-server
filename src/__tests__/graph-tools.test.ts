@@ -5183,4 +5183,86 @@ describe('graph-tools', () => {
       expect(out.mentions[0].mentionText).toBe('Smith &amp; Co');
     });
   });
+
+  describe('mention shorthand (tool wiring)', () => {
+    const U1 = '11111111-2222-3333-4444-555555555555';
+    const aliases = [
+      ['send-channel-message', 'post'],
+      ['reply-to-channel-message', 'post'],
+      ['update-channel-message', 'patch'],
+      ['update-channel-message-reply', 'patch'],
+      ['send-chat-message', 'post'],
+      ['reply-to-chat-message', 'post'],
+      ['update-chat-message', 'patch'],
+    ] as const;
+
+    async function call(alias: string, method: string, body: unknown) {
+      mockEndpoints.push(
+        makeEndpoint({
+          alias,
+          method,
+          path: '/chats/{chat-id}/messages',
+          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ toolName: alias, method, pathPattern: '/chats/{chat-id}/messages' }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'm1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools
+        .get(alias)!
+        .handler({ 'chat-id': 'c1', body, confirm: true });
+      return { result, graphClient };
+    }
+    const sent = (graphClient: any) => JSON.parse(graphClient.graphRequest.mock.calls[0][1].body);
+
+    it.each(aliases)('rewrites the shorthand on %s', async (alias, method) => {
+      const { graphClient } = await call(alias, method, {
+        body: { contentType: 'html', content: `Hi <at user-id="${U1}">Jane</at>` },
+      });
+      const out = sent(graphClient);
+      expect(out.body.content).toBe('Hi <at id="0">Jane</at>');
+      expect(out.mentions).toEqual([
+        {
+          id: 0,
+          mentionText: 'Jane',
+          mentioned: { user: { id: U1, displayName: 'Jane', userIdentityType: 'aadUser' } },
+        },
+      ]);
+    });
+
+    it('returns a tool error and sends nothing for a bad user-id', async () => {
+      const { result, graphClient } = await call('send-chat-message', 'post', {
+        body: { contentType: 'html', content: '<at user-id="jane">Jane</at>' },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('not an Entra object id');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('does not rewrite on a tool outside the seven', async () => {
+      const { graphClient } = await call('create-draft-email', 'post', {
+        body: { contentType: 'html', content: `<at user-id="${U1}">Jane</at>` },
+      });
+      expect(sent(graphClient).body.content).toBe(`<at user-id="${U1}">Jane</at>`);
+    });
+
+    it('lists only tools that exist in endpoints.json and documents the shorthand', async () => {
+      // fs is mocked above to serve mockEndpointsJson for this path; read the real file
+      const actualFs = await vi.importActual<typeof import('fs')>('fs');
+      const endpoints = JSON.parse(
+        actualFs.readFileSync(join(__dirname, '..', 'endpoints.json'), 'utf8')
+      ) as Array<{ toolName: string; llmTip?: string }>;
+      for (const [alias] of aliases) {
+        const entry = endpoints.find((e) => e.toolName === alias);
+        expect(entry, alias).toBeDefined();
+        expect(entry!.llmTip, alias).toContain('user-id=');
+      }
+    });
+  });
 });
