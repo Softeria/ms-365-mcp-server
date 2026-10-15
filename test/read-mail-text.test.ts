@@ -42,6 +42,18 @@ describe('cleanMailText', () => {
     ).toBe('Reply.');
   });
 
+  it('keeps text that only looks like quoting: ">" lines and undated "On ... wrote:"', () => {
+    const note = 'Build note:\n> Deploy only after the change window.\nPlease acknowledge.';
+    expect(cleanMailText(note)).toBe(note);
+    const doc =
+      'The parser looks for this literal:\nOn {person} wrote:\nthen the example, which must remain.';
+    expect(cleanMailText(doc)).toBe(doc);
+    // Apple Mail quotes the whole history with ">", its header included.
+    expect(
+      cleanMailText('Top reply\n\n> On Sep 21, 2026, at 12:10 AM, J <j@x.example> wrote:\n>\n> old')
+    ).toBe('Top reply');
+  });
+
   it('keeps the history when nothing precedes it', () => {
     expect(cleanMailText('From: Paul\nSent: Tuesday\nTo: J\nSubject: x\n\nThe content')).toContain(
       'The content'
@@ -120,11 +132,13 @@ describe('cleanMailText', () => {
   it('drops tracking parameters and keeps the others', () => {
     expect(
       cleanMailText(
-        'Job<https://www.linkedin.com/comm/jobs/view/42/?trackingId=abc&refId=x&lipi=y&otpToken=' +
-          't'.repeat(300) +
-          '&eid=e1>'
+        'Job<https://www.linkedin.com/comm/jobs/view/42/?trackingId=abc&refId=x&lipi=y&eid=e1>'
       )
     ).toBe('Job <https://www.linkedin.com/comm/jobs/view/42/?eid=e1>');
+    // A parameter that may make the link work (a one-time token) is not tracking.
+    expect(
+      cleanMailText('Complete it: https://service.example/approve?otpToken=one-time&case=42')
+    ).toBe('Complete it: https://service.example/approve?otpToken=one-time&case=42');
     expect(cleanMailText('https://shop.example/p?id=7&utm_source=mail&utm_campaign=fall')).toBe(
       'https://shop.example/p?id=7'
     );
@@ -151,7 +165,11 @@ describe('cleanMailText', () => {
     expect(t.match(/⟦/g)).toHaveLength(1);
   });
 
-  it('never removes square-bracket text, only image placeholders that are an image address', () => {
+  it('never removes square-bracket text; only placeholders whose address is an image file', () => {
+    expect(cleanMailText('Runbook: [https://portal.example.test/runbook] before deploying.')).toBe(
+      'Runbook: [https://portal.example.test/runbook] before deploying.'
+    );
+    expect(cleanMailText('Pixel [https://img.example.com/a/logo.PNG?w=2] here')).toBe('Pixel here');
     expect(cleanMailText('see [JIRA-123] and arr[i] [1] [Logo]')).toBe(
       'see [JIRA-123] and arr[i] [1] [Logo]'
     );
@@ -166,8 +184,12 @@ describe('cleanMailText', () => {
     ).toBe('Hello\n<https://t.example/x> <https://x.example/y>\nBye');
   });
 
+  it('keeps a single invisible character that is part of the text', () => {
+    expect(cleanMailText('co\u00adoperate and a\u200bb')).toBe('co\u00adoperate and a\u200bb');
+  });
+
   it('collapses whitespace and invisible preheader padding', () => {
-    expect(cleanMailText('a​͏  \t b\n\n\n\n\nc d   ')).toBe('a b\n\nc d');
+    expect(cleanMailText('a\u200b\u034f\u200c\u034f  \t b\n\n\n\n\nc\u00a0d   ')).toBe('a b\n\nc d');
   });
 
   it('cleans hostile bodies in linear time', () => {
@@ -191,6 +213,11 @@ describe('cleanMailText', () => {
         50
       ),
       separators: '______________________________\n\n\n'.repeat(30_000),
+      'distinct link-only lines': Array.from({ length: 14_000 }, (_, i) => `https://a.example/${i}`)
+        .join('\n')
+        .slice(0, MAIL_TEXT_MAX_INPUT_CHARS),
+      'quoted header lines': '> On 1 x wrote: y\n'.repeat(15_000),
+      'padding runs': '\u034f \u200c'.repeat(100_000),
       mixed: ('<https://a.b/' + 'x'.repeat(50) + ' [').repeat(5_000),
     };
     for (const [name, body] of Object.entries(cases)) {
@@ -251,7 +278,11 @@ describe('read-mail-text tool', () => {
     const { graphRequest, ctx: c } = ctx(() => ({
       responses: [
         { id: '1', status: 404, body: { error: { code: 'ErrorItemNotFound', message: 'x' } } },
-        { id: '0', status: 200, body: msg('A', 'Hello', 'Hi J\n\nOn Mon, Paul wrote:\n> old') },
+        {
+          id: '0',
+          status: 200,
+          body: msg('A', 'Hello', 'Hi J\n\nOn Mon, 6 Oct 2026, Paul wrote:\n> old'),
+        },
       ],
     }));
     const r = await tool.execute({ messageIds: ['A', 'B/='] }, c);

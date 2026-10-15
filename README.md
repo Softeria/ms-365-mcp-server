@@ -771,10 +771,12 @@ replies carry the whole quoted thread. On a real mailbox, 20 inbox messages came
 to about 280,000 characters through `list-mail-messages` and 70,000 through
 `read-mail-text`.
 
-The rule is: remove obvious junk, never cut or rewrite the message. It removes
-invisible padding characters, image placeholders, and quoted reply history
-(`On … wrote:`, an Outlook `From:/Sent:` block, `-----Original Message-----`,
-`>` lines); forwards (`FW:` / `Fwd:`) keep the forwarded content. Links are kept:
+The rule is: remove obvious junk, never cut or rewrite the message; anything
+ambiguous is kept. It removes runs of invisible padding characters, image
+placeholders (a bracketed address of an image file), and quoted reply history
+from its header down (a dated `On … wrote:`, also `>`-quoted, an Outlook
+`From:/Sent:` block, `-----Original Message-----`); forwards (`FW:` / `Fwd:`)
+keep the forwarded content. Links are kept:
 Safe Links, Proofpoint URL Defense and Google redirects are unwrapped to the real
 address, tracking parameters (`utm_*` and similar) are dropped, and only an
 address still longer than 300 characters (a tracking redirect) is shortened to
