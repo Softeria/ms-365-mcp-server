@@ -93,12 +93,16 @@ function quoteStart(lines: string[]): number {
 const MARK_OPEN = '\u27e6';
 const mark = (host: string): string => `\u27e6link: ${host}\u27e7`;
 // Longer addresses (after unwrapping and tracking parameters are removed) are
-// shortened to their domain: at that length they are tracking redirects.
+// shortened to their domain. Nearly all are tracking redirects; the exact address
+// of any link is in get-mail-message.
 const MAX_KEPT_URL = 300;
 
-// Query parameters that only identify the recipient or campaign to a tracker.
+// Query parameters that only identify the recipient or campaign to a tracker:
+// ones defined by analytics and ad platforms, valid on any site, and LinkedIn's
+// own, only on LinkedIn links.
 const TRACKING_PARAM =
-  /^(utm_[a-z_]+|mc_cid|mc_eid|_hsenc|_hsmi|__hstc|__hssc|__hsfp|mkt_tok|gclid|dclid|fbclid|msclkid|yclid|igshid|trackingid|refid|lipi|midtoken|midsig|trk|trkemail)$/i;
+  /^(utm_[a-z_]+|mc_cid|mc_eid|_hsenc|_hsmi|__hstc|__hssc|__hsfp|mkt_tok|gclid|dclid|fbclid|msclkid|yclid|igshid)$/i;
+const LINKEDIN_TRACKING_PARAM = /^(trackingid|refid|lipi|midtoken|midsig|trk|trkemail)$/i;
 
 // Proofpoint URL Defense v3: the real address sits between "__" markers, with
 // some characters replaced by "*" (one) or "**<c>" (a run) and listed, base64
@@ -161,9 +165,10 @@ function unwrapLink(u: string): string {
   }
   try {
     const r = new URL(real);
+    const linkedIn = /(^|\.)linkedin\.com$/i.test(r.hostname);
     let dropped = false;
     for (const k of [...r.searchParams.keys()]) {
-      if (TRACKING_PARAM.test(k)) {
+      if (TRACKING_PARAM.test(k) || (linkedIn && LINKEDIN_TRACKING_PARAM.test(k))) {
         r.searchParams.delete(k);
         dropped = true;
       }

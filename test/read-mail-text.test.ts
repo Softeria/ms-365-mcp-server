@@ -135,6 +135,10 @@ describe('cleanMailText', () => {
         'Job<https://www.linkedin.com/comm/jobs/view/42/?trackingId=abc&refId=x&lipi=y&eid=e1>'
       )
     ).toBe('Job <https://www.linkedin.com/comm/jobs/view/42/?eid=e1>');
+    // LinkedIn's parameter names are tracking only on LinkedIn links.
+    expect(cleanMailText('Redeem: https://portal.example/redeem?midsig=signature&case=42')).toBe(
+      'Redeem: https://portal.example/redeem?midsig=signature&case=42'
+    );
     // A parameter that may make the link work (a one-time token) is not tracking.
     expect(
       cleanMailText('Complete it: https://service.example/approve?otpToken=one-time&case=42')
@@ -189,7 +193,9 @@ describe('cleanMailText', () => {
   });
 
   it('collapses whitespace and invisible preheader padding', () => {
-    expect(cleanMailText('a\u200b\u034f\u200c\u034f  \t b\n\n\n\n\nc\u00a0d   ')).toBe('a b\n\nc d');
+    expect(cleanMailText('a\u200b\u034f\u200c\u034f  \t b\n\n\n\n\nc\u00a0d   ')).toBe(
+      'a b\n\nc d'
+    );
   });
 
   it('cleans hostile bodies in linear time', () => {
