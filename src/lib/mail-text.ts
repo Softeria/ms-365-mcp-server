@@ -12,8 +12,10 @@
  * The rule is: remove obvious junk, never cut or rewrite the message itself.
  * cleanMailText() removes invisible padding characters, image placeholders
  * whose only content is an image address, and quoted reply history (forwards
- * keep theirs). Links are kept: Safe Links are unwrapped to the real address,
- * which is kept in full when short; only long tracking-style addresses become a
+ * keep theirs). Links are kept: links wrapped by mail security or webmail
+ * (Safe Links, Proofpoint URL Defense, Google's redirect) are unwrapped to the
+ * real address and tracking parameters (utm_* and the like) are dropped; only
+ * an address still longer than 300 characters, a tracking redirect, becomes a
  * ⟦link: domain⟧ marker naming the real host. Signatures, footers and
  * everything else in the message are left as they are.
  *
@@ -35,12 +37,24 @@ export const PREFER_TEXT_BODY = 'outlook.body-content-type="text"';
 const QUOTE_START = [
   /^On .{1,300}wrote:\s*$/i, // Gmail / Apple Mail: "On <date>, <name> wrote:"
   /^-{2,}\s*Original Message\s*-{2,}/i, // Outlook classic
-  /^_{10,}\s*$/, // Outlook separator above From:/Sent:
   /^Le .{1,300}a écrit\s*:\s*$/i,
   /^Am .{1,300}schrieb .{0,200}:\s*$/i,
 ];
 const HEADER_FROM = /^\*?From:\*?\s+\S/i;
 const HEADER_NEXT = /^\*?(Sent|Date|To|Subject):\*?\s/i;
+const SEPARATOR = /^_{10,}\s*$/; // Outlook's line above a From:/Sent: block
+
+// "From: ..." followed by at least two of Sent/Date/To/Subject: a quoted
+// message's header block.
+function isHeaderBlock(lines: string[], i: number): boolean {
+  const l = lines[i]?.trim() ?? '';
+  if (l.length > 2000 || !HEADER_FROM.test(l)) return false;
+  let headers = 0;
+  for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
+    if (lines[j].length < 2000 && HEADER_NEXT.test(lines[j].trim())) headers++;
+  }
+  return headers >= 2;
+}
 function quoteStart(lines: string[]): number {
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i].trim();
@@ -55,12 +69,13 @@ function quoteStart(lines: string[]): number {
     ) {
       return i;
     }
-    if (HEADER_FROM.test(l)) {
-      let headers = 0;
-      for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
-        if (lines[j].length < 2000 && HEADER_NEXT.test(lines[j].trim())) headers++;
-      }
-      if (headers >= 2) return i;
+    if (isHeaderBlock(lines, i)) return i;
+    // The separator counts only above a header block: ticket systems and
+    // receipts use the same line between parts of the message itself.
+    if (SEPARATOR.test(l)) {
+      let j = i + 1;
+      while (j < lines.length && j <= i + 2 && !lines[j].trim()) j++;
+      if (isHeaderBlock(lines, j)) return i;
     }
   }
   return -1;
@@ -68,20 +83,85 @@ function quoteStart(lines: string[]): number {
 
 const MARK_OPEN = '\u27e6';
 const mark = (host: string): string => `\u27e6link: ${host}\u27e7`;
-// Longer addresses are tracking-style junk and are shortened to their domain.
-const MAX_KEPT_URL = 120;
+// Longer addresses (after unwrapping and tracking parameters are removed) are
+// shortened to their domain: at that length they are tracking redirects.
+const MAX_KEPT_URL = 300;
 
-// The real address behind a link: Outlook / Defender Safe Links wrap it.
+// Query parameters that only identify the recipient or campaign to a tracker.
+const TRACKING_PARAM =
+  /^(utm_[a-z_]+|mc_cid|mc_eid|_hsenc|_hsmi|__hstc|__hssc|__hsfp|mkt_tok|gclid|dclid|fbclid|msclkid|yclid|igshid|trackingid|refid|lipi|midtoken|midsig|trk|trkemail|otptoken)$/i;
+
+// Proofpoint URL Defense v3: the real address sits between "__" markers, with
+// some characters replaced by "*" (one) or "**<c>" (a run) and listed, base64
+// encoded, after the ";".
+const RUN_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function unwrapUrlDefenseV3(u: string): string | undefined {
+  const m = /^https:\/\/urldefense\.com\/v3\/__(.{1,4096}?)__;([A-Za-z0-9_-]{0,4096})!/.exec(u);
+  if (!m) return undefined;
+  const replaced = [...Buffer.from(m[2], 'base64url').toString('utf8')];
+  let next = 0;
+  let out = m[1].replace(/\*\*(.)|\*/g, (tok, run?: string) => {
+    const n = run === undefined ? 1 : RUN_CHARS.indexOf(run) + 2;
+    if (n < 1) return tok;
+    const s = replaced.slice(next, next + n).join('');
+    next += n;
+    return s;
+  });
+  out = out.replace(/^(https?:)\/(?!\/)/i, '$1//');
+  return new URL(out).href;
+}
+
+// One wrapper removed, or undefined when the link is not wrapped.
+function unwrapOnce(u: string): string | undefined {
+  const url = new URL(u);
+  const host = url.hostname.toLowerCase();
+  if (/(^|\.)safelinks\.protection\.outlook\.com$/.test(host)) {
+    const w = url.searchParams.get('url');
+    return w ? new URL(w).href : undefined;
+  }
+  if (host === 'urldefense.com') return unwrapUrlDefenseV3(u);
+  if (host === 'urldefense.proofpoint.com') {
+    // v2: "-" stands for "%" and "_" for "/" in the encoded address.
+    const w = url.searchParams.get('u');
+    return w
+      ? new URL(decodeURIComponent(w.replace(/_/g, '/').replace(/-/g, '%'))).href
+      : undefined;
+  }
+  if (/^(www\.)?google\.[a-z.]{2,6}$/.test(host) && url.pathname === '/url') {
+    const w = url.searchParams.get('q') ?? url.searchParams.get('url');
+    return w && /^https?:\/\//i.test(w) ? new URL(w).href : undefined;
+  }
+  return undefined;
+}
+
+// The real address behind a link. Mail security and webmail wrap links in their
+// own redirect (Outlook / Defender Safe Links, Proofpoint URL Defense, Google's
+// /url redirect), sometimes one inside another. Tracking parameters are then
+// dropped.
 function unwrapLink(u: string): string {
-  try {
-    const url = new URL(u);
-    const wrapped = url.searchParams.get('url');
-    if (/(^|\.)safelinks\.protection\.outlook\.com$/i.test(url.hostname) && wrapped) {
-      return new URL(wrapped).href;
+  let real = u;
+  for (let i = 0; i < 3; i++) {
+    let next: string | undefined;
+    try {
+      next = unwrapOnce(real);
+    } catch {
+      next = undefined;
     }
-    return u;
+    if (!next || next === real) break;
+    real = next;
+  }
+  try {
+    const r = new URL(real);
+    let dropped = false;
+    for (const k of [...r.searchParams.keys()]) {
+      if (TRACKING_PARAM.test(k)) {
+        r.searchParams.delete(k);
+        dropped = true;
+      }
+    }
+    return dropped ? r.href : real;
   } catch {
-    return u;
+    return real;
   }
 }
 

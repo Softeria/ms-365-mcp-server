@@ -763,19 +763,23 @@ Environment variables:
 
 ## Reading Mail as Clean Text
 
-`read-mail-text` returns what messages actually say. Graph's plain-text body is
-still mostly not the message: every link is a Safe Links URL several hundred
-characters long, marketing mail pads its preheader with invisible characters,
-images become `[https://…png]` lines, and replies carry the whole quoted thread.
-On a real inbox, 20 messages through `list-mail-messages` with `body` came to
-about 400,000 characters; the same 20 through `read-mail-text` came to 42,000.
+`read-mail-text` returns messages as text with the bulk junk removed. Graph's
+plain-text body is still mostly not the message: links are wrapped in Safe Links
+or tracking redirects several hundred characters long, marketing mail pads its
+preheader with invisible characters, images become `[https://…png]` lines, and
+replies carry the whole quoted thread. On a real mailbox, 20 inbox messages came
+to about 280,000 characters through `list-mail-messages` and 70,000 through
+`read-mail-text`.
 
-The tool removes, by pattern: quoted reply history (`On … wrote:`, Outlook
-`From:/Sent:` blocks, `-----Original Message-----`, `>` lines), the `-- `
-signature and mobile sign-offs, a trailing footer block (unsubscribe, legal
-notice, copyright), image placeholders and link-only lines; links are shortened
-to their real domain (`[link: example.com]`, Safe Links unwrapped). It never
-summarises or rewrites; forwards (`FW:` / `Fwd:`) keep the forwarded content.
+The rule is: remove obvious junk, never cut or rewrite the message. It removes
+invisible padding characters, image placeholders, and quoted reply history
+(`On … wrote:`, an Outlook `From:/Sent:` block, `-----Original Message-----`,
+`>` lines); forwards (`FW:` / `Fwd:`) keep the forwarded content. Links are kept:
+Safe Links, Proofpoint URL Defense and Google redirects are unwrapped to the real
+address, tracking parameters (`utm_*` and similar) are dropped, and only an
+address still longer than 300 characters (a tracking redirect) is shortened to
+`⟦link: domain⟧`. Signatures, footers and the rest of the message are left as
+they are. `get-mail-message` returns the raw body.
 
 - `messageIds` (up to 20, one `$batch`), or `folderId` with optional `top`
   (max 20), `filter` or `search`.

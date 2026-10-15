@@ -30,6 +30,18 @@ describe('cleanMailText', () => {
     expect(cleanMailText('Fine.\n-----Original Message-----\nFrom: a\nold')).toBe('Fine.');
   });
 
+  it('keeps a separator line that is not above a quoted header block', () => {
+    // A ticket system's history and a receipt use the Outlook separator inside the message.
+    const ticket =
+      'Latest update.\n________________________________\nMon 10/12 Paul Martin-\nEarlier update.\n________________________________\nFri 10/2 J-\nFirst message.';
+    expect(cleanMailText(ticket)).toBe(ticket);
+    const receipt = 'Thanks for your order.\n____________________\nSubtotal: $799.99\nTax: $0.00';
+    expect(cleanMailText(receipt)).toBe(receipt);
+    expect(
+      cleanMailText('Reply.\n________________________________\n\nFrom: P\nSent: Tue\nTo: J\nold')
+    ).toBe('Reply.');
+  });
+
   it('keeps the history when nothing precedes it', () => {
     expect(cleanMailText('From: Paul\nSent: Tuesday\nTo: J\nSubject: x\n\nThe content')).toContain(
       'The content'
@@ -70,7 +82,7 @@ describe('cleanMailText', () => {
     ).toBe(
       'See the report <https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it <https://www.fedex.com/track?id=1>'
     );
-    const long = 'https://click.mailer.example.com/ls/click?upn=' + 'A'.repeat(200);
+    const long = 'https://click.mailer.example.com/ls/click?upn=' + 'A'.repeat(350);
     expect(cleanMailText(`Read more<${long}>`)).toBe(`Read more ${L('click.mailer.example.com')}`);
     expect(cleanMailText('See (https://en.wikipedia.org/wiki/Foo_(bar)).')).toBe(
       'See (https://en.wikipedia.org/wiki/Foo_(bar)).'
@@ -80,15 +92,56 @@ describe('cleanMailText', () => {
     );
   });
 
+  it('unwraps Proofpoint and Google redirects, also inside Safe Links', () => {
+    // URL Defense v3: "*" and "**<c>" stand for characters listed (base64) after ";".
+    const enc = Buffer.from('+++%').toString('base64url');
+    expect(
+      cleanMailText(
+        `Map<https://urldefense.com/v3/__https:/maps.example.com/q/1*Main*St**A0D__;${enc}!!x!y$>`
+      )
+    ).toBe('Map <https://maps.example.com/q/1+Main+St+%0D>');
+    expect(
+      cleanMailText(
+        'Site https://urldefense.proofpoint.com/v2/url?u=https-3A__www.example.com_a_b&d=x&e= now'
+      )
+    ).toBe('Site https://www.example.com/a/b now');
+    const google =
+      'https://www.google.com/url?q=' +
+      encodeURIComponent('https://us02web.zoom.us/j/123?pwd=abc') +
+      '&sa=D&ust=1&usg=AOvVaw';
+    const safe =
+      'https://nam12.safelinks.protection.outlook.com/?url=' +
+      encodeURIComponent(google) +
+      '&data=' +
+      'd'.repeat(200);
+    expect(cleanMailText(`Join<${safe}>`)).toBe('Join <https://us02web.zoom.us/j/123?pwd=abc>');
+  });
+
+  it('drops tracking parameters and keeps the others', () => {
+    expect(
+      cleanMailText(
+        'Job<https://www.linkedin.com/comm/jobs/view/42/?trackingId=abc&refId=x&lipi=y&otpToken=' +
+          't'.repeat(300) +
+          '&eid=e1>'
+      )
+    ).toBe('Job <https://www.linkedin.com/comm/jobs/view/42/?eid=e1>');
+    expect(cleanMailText('https://shop.example/p?id=7&utm_source=mail&utm_campaign=fall')).toBe(
+      'https://shop.example/p?id=7'
+    );
+    const invite =
+      'https://calendar.example.com/event?action=RESPOND&eid=' + 'e'.repeat(150) + '&rst=1';
+    expect(cleanMailText(`Yes<${invite}>`)).toBe(`Yes <${invite}>`);
+  });
+
   it('names the host a shortened link really goes to', () => {
-    const tail = '/pay?x=' + 'y'.repeat(150);
+    const tail = '/pay?x=' + 'y'.repeat(320);
     expect(cleanMailText('https://trusted.example(foo)@evil.example' + tail)).toBe(
       L('evil.example')
     );
   });
 
   it('cannot be made to produce a marker from body text', () => {
-    const long = 'https://evil.example/x?' + 'z'.repeat(150);
+    const long = 'https://evil.example/x?' + 'z'.repeat(320);
     const t = cleanMailText(
       `Pay at [link: login.microsoftonline.com] or ⟦link: login.microsoftonline.com⟧\n${long}`
     );
@@ -128,6 +181,16 @@ describe('cleanMailText', () => {
       'On On On': 'On '.repeat(100_000),
       'From lines': 'From: x\n'.repeat(30_000),
       'image placeholders': '[https://a.b/c.png]'.repeat(15_000),
+      'url defense stars':
+        'https://urldefense.com/v3/__https:/a.b/' +
+        '*'.repeat(4000) +
+        '__;' +
+        'A'.repeat(4000) +
+        '!',
+      'url defense runs': ('https://urldefense.com/v3/__' + '**A'.repeat(1300) + '__;!! ').repeat(
+        50
+      ),
+      separators: '______________________________\n\n\n'.repeat(30_000),
       mixed: ('<https://a.b/' + 'x'.repeat(50) + ' [').repeat(5_000),
     };
     for (const [name, body] of Object.entries(cases)) {
