@@ -1737,7 +1737,7 @@
     "toolName": "list-chat-members",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMember.Read"],
-    "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat."
+    "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
   {
     "pathPattern": "/chats/{chat-id}/messages",
@@ -1961,7 +1961,8 @@
     "method": "get",
     "toolName": "list-team-members",
     "presets": ["teams", "work"],
-    "workScopes": ["TeamMember.Read.All"]
+    "workScopes": ["TeamMember.Read.All"],
+    "llmTip": "Lists members of a team. Each member has displayName, email, roles and userId. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/filesFolder",
