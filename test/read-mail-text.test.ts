@@ -380,6 +380,30 @@ describe('read-mail-text tool', () => {
     expect(cut.truncated).toBe(true);
   });
 
+  it('never cuts a character in half at the default cut or the input cap', async () => {
+    const lone = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+    const atDefault = 'x'.repeat(MAIL_TEXT_DEFAULT_MAX_CHARS - 1) + '\u{1F600}tail';
+    const atCap = 'x'.repeat(MAIL_TEXT_MAX_INPUT_CHARS - 1) + '\u{1F600}tail';
+    const { ctx: c } = ctx(() => ({ value: [msg('A', 'a', atDefault)] }));
+    const [a] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
+    expect(a.text).toBe('x'.repeat(MAIL_TEXT_DEFAULT_MAX_CHARS - 1));
+    expect(a.truncated).toBe(true);
+    process.env.MS365_MCP_READ_MAIL_TEXT_MAX_CHARS = '1000000';
+    const { ctx: c2 } = ctx(() => ({ value: [msg('B', 'b', atCap)] }));
+    const [b] = parse(
+      (await tool.execute({ folderId: 'inbox', maxChars: MAIL_TEXT_MAX_INPUT_CHARS }, c2)) as never
+    );
+    expect(lone.test(b.text)).toBe(false);
+    expect(b.truncated).toBe(true);
+  });
+
+  it('refuses maxChars above 300,000 before calling Graph', async () => {
+    const { graphRequest, ctx: c } = ctx(() => ({ value: [] }));
+    const r = await tool.execute({ folderId: 'inbox', maxChars: MAIL_TEXT_MAX_INPUT_CHARS + 1 }, c);
+    expect(r.isError).toBe(true);
+    expect(graphRequest).not.toHaveBeenCalled();
+  });
+
   it('refuses an oversize result whole, naming the largest messages', async () => {
     const { ctx: c } = ctx(() => ({
       value: [

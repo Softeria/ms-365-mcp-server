@@ -56,6 +56,7 @@ import { parseTeamsUrl } from './lib/teams-url-parser.js';
 import {
   MAIL_TEXT_DEFAULT_MAX_RESPONSE_CHARS,
   MAIL_TEXT_DEFAULT_MAX_CHARS,
+  MAIL_TEXT_MAX_INPUT_CHARS,
   MAIL_TEXT_MAX_IDS,
   MAIL_TEXT_MAX_TOP,
   MAIL_TEXT_SELECT,
@@ -1550,6 +1551,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .number()
           .int()
           .min(1)
+          .max(MAIL_TEXT_MAX_INPUT_CHARS)
           .optional()
           .describe(
             'Cut each message text to this many characters (marked truncated). Default 3,000; pass up to 300,000 for the whole of a long message (a body over 300,000 characters is cleaned only that far, also marked truncated).'

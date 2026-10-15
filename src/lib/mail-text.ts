@@ -299,8 +299,8 @@ export function validateMailTextArgs(p: Record<string, unknown>): string | undef
   const hasIds = p.messageIds !== undefined;
   const hasFolder = p.folderId !== undefined;
   if (hasIds === hasFolder) return 'Give messageIds or folderId (exactly one).';
-  if (p.maxChars !== undefined && !isInt(p.maxChars, 1)) {
-    return 'maxChars must be a positive integer.';
+  if (p.maxChars !== undefined && !isInt(p.maxChars, 1, MAIL_TEXT_MAX_INPUT_CHARS)) {
+    return `maxChars must be an integer from 1 to ${MAIL_TEXT_MAX_INPUT_CHARS}.`;
   }
   if (hasIds) {
     const ids = p.messageIds;
@@ -371,6 +371,14 @@ function formatAddress(r?: GraphRecipient): string {
     : e.address || e.name || '';
 }
 
+// The first n characters (UTF-16 code units), never splitting a surrogate pair:
+// an emoji at the boundary is left out rather than cut in half.
+export function cutText(s: string, n: number): string {
+  if (s.length <= n) return s;
+  const c = s.charCodeAt(n - 1);
+  return s.slice(0, c >= 0xd800 && c <= 0xdbff ? n - 1 : n);
+}
+
 export function toMailTextEntry(m: GraphMessage, maxChars?: number): MailTextEntry {
   const subject = m.subject ?? '';
   // A forward's quoted part IS the content: keep it.
@@ -378,13 +386,13 @@ export function toMailTextEntry(m: GraphMessage, maxChars?: number): MailTextEnt
   let raw = m.body?.content ?? '';
   let truncated = false;
   if (raw.length > MAIL_TEXT_MAX_INPUT_CHARS) {
-    raw = raw.slice(0, MAIL_TEXT_MAX_INPUT_CHARS);
+    raw = cutText(raw, MAIL_TEXT_MAX_INPUT_CHARS);
     truncated = true;
   }
   let text = cleanMailText(raw, { keepQuoted });
   const chars = text.length;
   if (maxChars && chars > maxChars) {
-    text = text.slice(0, maxChars);
+    text = cutText(text, maxChars);
     truncated = true;
   }
   return {
