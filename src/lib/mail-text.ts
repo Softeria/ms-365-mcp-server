@@ -30,6 +30,12 @@
 export const MAIL_TEXT_MAX_IDS = 20;
 export const MAIL_TEXT_MAX_TOP = 20;
 export const MAIL_TEXT_DEFAULT_MAX_RESPONSE_CHARS = 80_000;
+// Each message's text is cut here unless the caller asks for more. On a real
+// mailbox (649 messages) the median cleaned message is about 1,000 characters
+// and the worst page of 20 at this cap about 68,000, inside the response limit
+// with room for long recipient lists. Ticket systems that repeat their history
+// in every update put the newest entry first, so the cut keeps it.
+export const MAIL_TEXT_DEFAULT_MAX_CHARS = 3_000;
 export const MAIL_TEXT_MAX_INPUT_CHARS = 300_000;
 export const MAIL_TEXT_SELECT =
   'id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,body';
@@ -414,6 +420,6 @@ export function oversizeError(
   return (
     `Response would be ${fmt(size)} characters (limit ${fmt(limit)}). Largest: ${largest}. ` +
     'Narrow the query (fewer messages via top, a filter such as a date range or sender, ' +
-    'specific messageIds) or set maxChars to shorten each message.'
+    'specific messageIds) or set a smaller maxChars.'
   );
 }

@@ -55,6 +55,7 @@ import {
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
 import {
   MAIL_TEXT_DEFAULT_MAX_RESPONSE_CHARS,
+  MAIL_TEXT_DEFAULT_MAX_CHARS,
   MAIL_TEXT_MAX_IDS,
   MAIL_TEXT_MAX_TOP,
   MAIL_TEXT_SELECT,
@@ -1506,7 +1507,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'triage inbox skim many emails at once without quoted history signature footer tracking links',
     description:
-      'Triage view of up to 20 mail messages at once, as text with the bulk junk removed: invisible padding, image placeholders and quoted reply history (forwards keep theirs). Links are kept: Safe Links, Proofpoint and Google redirects are unwrapped to the real address and tracking parameters (utm_* and similar) dropped; only an address still over 300 characters (a tracking redirect) is shortened to \u27e6link: domain\u27e7. Everything else (signatures, footers, whitespace) is left as the message has it; line endings become \\n and \u27e6 \u27e7 in the body itself appear as [ ]. Use get-mail-message for the raw body or the quoted thread. Give messageIds (up to 20), or folderId with optional top and filter or search for the newest messages in a folder. Text is cut only when maxChars is set or a message exceeds 300,000 characters (truncated: true). If the whole result would exceed the server limit (MS365_MCP_READ_MAIL_TEXT_MAX_CHARS, default 80000) the call fails, listing the largest messages, instead of returning part of it. Returns [{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }].',
+      'Triage view of up to 20 mail messages at once, as text with the bulk junk removed: invisible padding, image placeholders and quoted reply history (forwards keep theirs). Links are kept: Safe Links, Proofpoint and Google redirects are unwrapped to the real address and tracking parameters (utm_* and similar) dropped; only an address still over 300 characters (a tracking redirect) is shortened to \u27e6link: domain\u27e7. Everything else (signatures, footers, whitespace) is left as the message has it; line endings become \\n and \u27e6 \u27e7 in the body itself appear as [ ]. Use get-mail-message for the raw body or the quoted thread. Give messageIds (up to 20), or folderId with optional top and filter or search for the newest messages in a folder. Each message is cut to maxChars characters (default 3,000; marked truncated: true): pass a larger maxChars, up to 300,000, for the whole of a long message; a body over 300,000 characters is cleaned only that far. If the whole result would exceed the server limit (MS365_MCP_READ_MAIL_TEXT_MAX_CHARS, default 80000) the call fails, listing the largest messages, instead of returning part of it. Returns [{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }].',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1551,7 +1552,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .min(1)
           .optional()
           .describe(
-            'Cut each message text to this many characters (marked truncated). Unset = the full cleaned text, except that a body over 300,000 characters is cleaned only that far (also marked truncated).'
+            'Cut each message text to this many characters (marked truncated). Default 3,000; pass up to 300,000 for the whole of a long message (a body over 300,000 characters is cleaned only that far, also marked truncated).'
           ),
       };
       if (ctx.multiAccount) {
@@ -1577,7 +1578,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       const top = params.top as number | undefined;
       const filter = params.filter as string | undefined;
       const search = params.search as string | undefined;
-      const maxChars = params.maxChars as number | undefined;
+      const maxChars = (params.maxChars as number | undefined) ?? MAIL_TEXT_DEFAULT_MAX_CHARS;
       const accountParam = params.account as string | undefined;
       const envLimit = Number(process.env.MS365_MCP_READ_MAIL_TEXT_MAX_CHARS);
       const limit =

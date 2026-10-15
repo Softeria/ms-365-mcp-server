@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { UTILITY_TOOLS } from '../src/graph-tools.js';
-import { cleanMailText, MAIL_TEXT_MAX_INPUT_CHARS } from '../src/lib/mail-text.js';
+import {
+  cleanMailText,
+  MAIL_TEXT_DEFAULT_MAX_CHARS,
+  MAIL_TEXT_MAX_INPUT_CHARS,
+} from '../src/lib/mail-text.js';
 
 const L = (d: string) => `⟦link: ${d}⟧`;
 
@@ -357,15 +361,22 @@ describe('read-mail-text tool', () => {
     expect(m.text).toContain('The terms are attached.');
   });
 
-  it('returns full text unless maxChars is set', async () => {
+  it('cuts each message to 3,000 characters by default; a larger maxChars returns more', async () => {
     const long = 'word '.repeat(5000).trim();
-    const { ctx: c } = ctx(() => ({ value: [msg('A', 'long', long)] }));
-    const [full] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
-    expect(full.text.length).toBe(long.length);
+    const { ctx: c } = ctx(() => ({ value: [msg('A', 'long', long), msg('B', 'short', 'Hi')] }));
+    const [byDefault, short] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
+    expect(byDefault.text).toBe(long.slice(0, MAIL_TEXT_DEFAULT_MAX_CHARS));
+    expect(byDefault.chars).toBe(long.length);
+    expect(byDefault.truncated).toBe(true);
+    expect(short.text).toBe('Hi');
+    expect(short.truncated).toBe(false);
+    const [full] = parse(
+      (await tool.execute({ folderId: 'inbox', maxChars: 300_000 }, c)) as never
+    );
+    expect(full.text).toBe(long);
     expect(full.truncated).toBe(false);
     const [cut] = parse((await tool.execute({ folderId: 'inbox', maxChars: 100 }, c)) as never);
     expect(cut.text.length).toBe(100);
-    expect(cut.chars).toBe(long.length);
     expect(cut.truncated).toBe(true);
   });
 
@@ -377,7 +388,7 @@ describe('read-mail-text tool', () => {
         msg('C', 'short', 'z'),
       ],
     }));
-    const r = await tool.execute({ folderId: 'inbox' }, c);
+    const r = await tool.execute({ folderId: 'inbox', maxChars: 100_000 }, c);
     expect(r.isError).toBe(true);
     const { error } = parse(r as never);
     expect(error).toMatch(
@@ -387,8 +398,10 @@ describe('read-mail-text tool', () => {
     expect(
       parse((await tool.execute({ folderId: 'inbox', maxChars: 1000 }, c)) as never)
     ).toHaveLength(3);
+    // The default cut keeps the same page inside the limit.
+    expect(parse((await tool.execute({ folderId: 'inbox' }, c)) as never)).toHaveLength(3);
     process.env.MS365_MCP_READ_MAIL_TEXT_MAX_CHARS = '200000';
-    expect((await tool.execute({ folderId: 'inbox' }, c)).isError).toBeFalsy();
+    expect((await tool.execute({ folderId: 'inbox', maxChars: 100_000 }, c)).isError).toBeFalsy();
   });
 
   it('validates raw arguments in execute (discovery mode skips zod) before calling Graph', async () => {

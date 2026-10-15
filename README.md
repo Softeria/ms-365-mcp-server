@@ -787,9 +787,12 @@ the message has it. `get-mail-message` returns the raw body.
 
 - `messageIds` (up to 20, one `$batch`), or `folderId` with optional `top`
   (max 20), `filter` or `search`.
-- Text is complete unless `maxChars` is set or the raw body exceeds 300,000
-  characters (only that much is cleaned); either way the message is cut and
-  marked `truncated`, and `get-mail-message` has the whole body.
+- Each message is cut to `maxChars` characters, default 3,000 (marked
+  `truncated`): a page of 20 then fits the result limit, and a typical message
+  is whole. Ticket systems that repeat their history in every update put the
+  newest entry first, so the cut keeps it. Pass a larger `maxChars` (up to
+  300,000; a raw body beyond that is cleaned only that far) for the whole of a
+  long message; `get-mail-message` has the raw body.
 - Returns `[{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }]`;
   an unknown id comes back as `{ id, error }`.
 - A result over `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS` (default 80,000) is refused
