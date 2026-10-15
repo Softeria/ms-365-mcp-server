@@ -245,22 +245,10 @@ function cleanLinks(t: string): string {
 }
 
 // "[<image url>]": Graph's text for an image is its address in brackets. Only an
-// address that names an image file is removed (with one space before it); a line
-// left empty by the removal goes too. Other bracketed links stay.
+// address that names an image file is removed, nothing around it; other
+// bracketed links stay.
 const IMAGE_PLACEHOLDER =
-  /[ \t]?\[[ \t]{0,20}(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})[ \t]{0,20}\]/gi;
-function removeImagePlaceholders(lines: string[]): string[] {
-  const out: string[] = [];
-  for (const l of lines) {
-    if (!l.includes('[')) {
-      out.push(l);
-      continue;
-    }
-    const r = l.replace(IMAGE_PLACEHOLDER, (m, u: string) => (isImageUrl(u) ? '' : m));
-    if (r === l || r.trim() || !l.trim()) out.push(r);
-  }
-  return out;
-}
+  /\[[ \t]{0,20}(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})[ \t]{0,20}\]/gi;
 
 export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}): string {
   const t = String(raw ?? '')
@@ -274,13 +262,15 @@ export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}):
   if (!opts.keepQuoted) {
     const q = quoteStart(lines);
     if (q >= 0 && lines.slice(0, q).join('').trim()) {
-      lines = lines.slice(0, q);
-      // The blank lines that separated the reply from its history go with it.
-      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+      // The text up to the header, exactly: its last line break included.
+      lines = lines.slice(0, q).concat('');
     }
   }
   // Everything else, whitespace included, is left as the message has it.
-  return cleanLinks(removeImagePlaceholders(lines).join('\n'));
+  const body = lines
+    .join('\n')
+    .replace(IMAGE_PLACEHOLDER, (m, u: string) => (isImageUrl(u) ? '' : m));
+  return cleanLinks(body);
 }
 
 export interface MailTextArgs {

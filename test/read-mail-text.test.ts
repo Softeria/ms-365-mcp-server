@@ -10,7 +10,7 @@ describe('cleanMailText', () => {
       cleanMailText(
         'Sounds good, Tuesday works.\n\nOn Tue, 7 Oct 2026 at 10:00, Paul <paul@example.com> wrote:\n> Can we meet?\n> Paul'
       )
-    ).toBe('Sounds good, Tuesday works.');
+    ).toBe('Sounds good, Tuesday works.\n\n');
   });
 
   it('removes a two-line On/wrote header', () => {
@@ -18,7 +18,7 @@ describe('cleanMailText', () => {
       cleanMailText(
         'Yes.\n\nOn Tue, 7 Oct 2026 at 10:00, Paul Smith\n<paul@example.com> wrote:\nold'
       )
-    ).toBe('Yes.');
+    ).toBe('Yes.\n\n');
   });
 
   it('removes Outlook From/Sent header blocks and Original Message separators', () => {
@@ -26,8 +26,8 @@ describe('cleanMailText', () => {
       cleanMailText(
         'Attached is the quote.\n\n________________________________\nFrom: Paul\nSent: Tuesday\nTo: J\nSubject: quote\n\nold'
       )
-    ).toBe('Attached is the quote.');
-    expect(cleanMailText('Fine.\n-----Original Message-----\nFrom: a\nold')).toBe('Fine.');
+    ).toBe('Attached is the quote.\n\n');
+    expect(cleanMailText('Fine.\n-----Original Message-----\nFrom: a\nold')).toBe('Fine.\n');
   });
 
   it('keeps a separator line that is not above a quoted header block', () => {
@@ -39,7 +39,7 @@ describe('cleanMailText', () => {
     expect(cleanMailText(receipt)).toBe(receipt);
     expect(
       cleanMailText('Reply.\n________________________________\n\nFrom: P\nSent: Tue\nTo: J\nold')
-    ).toBe('Reply.');
+    ).toBe('Reply.\n');
   });
 
   it('keeps text that only looks like quoting: ">" lines and undated "On ... wrote:"', () => {
@@ -51,7 +51,7 @@ describe('cleanMailText', () => {
     // Apple Mail quotes the whole history with ">", its header included.
     expect(
       cleanMailText('Top reply\n\n> On Sep 21, 2026, at 12:10 AM, J <j@x.example> wrote:\n>\n> old')
-    ).toBe('Top reply');
+    ).toBe('Top reply\n\n');
   });
 
   it('keeps the history when nothing precedes it', () => {
@@ -173,11 +173,13 @@ describe('cleanMailText', () => {
     expect(cleanMailText('Runbook: [https://portal.example.test/runbook] before deploying.')).toBe(
       'Runbook: [https://portal.example.test/runbook] before deploying.'
     );
-    expect(cleanMailText('Pixel [https://img.example.com/a/logo.PNG?w=2] here')).toBe('Pixel here');
+    expect(cleanMailText('Pixel [https://img.example.com/a/logo.PNG?w=2] here')).toBe(
+      'Pixel  here'
+    );
     expect(cleanMailText('see [JIRA-123] and arr[i] [1] [Logo]')).toBe(
       'see [JIRA-123] and arr[i] [1] [Logo]'
     );
-    expect(cleanMailText('Logo [https://img.example.com/logo.png] here')).toBe('Logo here');
+    expect(cleanMailText('Logo [https://img.example.com/logo.png] here')).toBe('Logo  here');
   });
 
   it('leaves everything else as the message has it: link-only lines, whitespace, repeats', () => {
@@ -186,9 +188,15 @@ describe('cleanMailText', () => {
     expect(cleanMailText(links)).toBe(links);
     const spacing = 'Keep A\u00a0B exactly\nKeep A\t\tB exactly\nFirst\n\n\nThird   \n  indented';
     expect(cleanMailText(spacing)).toBe(spacing);
-    // Removing an image placeholder takes one space before it, and its line when
-    // nothing else was on it.
-    expect(cleanMailText('Hi\n[https://img.example/a.png]\n\nBye')).toBe('Hi\n\nBye');
+    // Removing an image placeholder removes only the placeholder.
+    expect(cleanMailText('alpha [https://img.example/a.png]omega')).toBe('alpha omega');
+    expect(cleanMailText('Hi\n  [https://img.example/a.png]\nBye')).toBe('Hi\n  \nBye');
+    // Quoted history starts at its header; the blank lines above it are the reply's.
+    expect(
+      cleanMailText('Reply.\n\n\nOn Tue, 7 Oct 2026 at 10:00, Paul <p@example.com> wrote:\nold')
+    ).toBe('Reply.\n\n\n');
+    // Line endings become \n.
+    expect(cleanMailText('A\r\nB\rC')).toBe('A\nB\nC');
   });
 
   it('keeps a single invisible character that is part of the text', () => {
@@ -311,8 +319,8 @@ describe('read-mail-text tool', () => {
         subject: 'Hello',
         received: '2026-10-07T10:00:00Z',
         hasAttachments: false,
-        text: 'Hi J',
-        chars: 4,
+        text: 'Hi J\n\n',
+        chars: 6,
         truncated: false,
       },
       { id: 'B/=', error: 'not found' },
