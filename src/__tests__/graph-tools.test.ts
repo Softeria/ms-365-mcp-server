@@ -1397,7 +1397,7 @@ describe('graph-tools', () => {
     });
 
     it.each(['list-calendar-events-delta', 'list-calendar-view-delta'])(
-      'ignores stale mixed-case top values for %s',
+      'rejects mixed-case top values before Graph dispatch for %s',
       async (alias) => {
         mockEndpoints.push(makeEndpoint({ alias }));
         mockEndpointsJson = [makeConfig({ toolName: alias })];
@@ -1406,12 +1406,10 @@ describe('graph-tools', () => {
         const { registerGraphTools } = await loadModule();
         registerGraphTools(server as any, graphClient as any);
         for (const key of ['top', '$top', 'TOP', '$TOP', '$Top']) {
-          await server.tools.get(alias)!.handler({ [key]: 10 });
+          const result = await server.tools.get(alias)!.handler({ [key]: 10 });
+          expect(result.isError).toBe(true);
         }
-        expect(graphClient.graphRequest).toHaveBeenCalledTimes(5);
-        for (const call of graphClient.graphRequest.mock.calls) {
-          expect(JSON.stringify(call)).not.toContain('$top');
-        }
+        expect(graphClient.graphRequest).not.toHaveBeenCalled();
       }
     );
 
@@ -1448,7 +1446,7 @@ describe('graph-tools', () => {
     });
 
     it('sends a calendar field array as comma-separated text in one Graph request', async () => {
-      const alias = 'list-calendar-events-delta';
+      const alias = 'list-calendar-events';
       mockEndpoints.push(makeEndpoint({ alias }));
       mockEndpointsJson = [makeConfig({ toolName: alias })];
       const graphClient = createMockGraphClient();
@@ -1515,8 +1513,8 @@ describe('graph-tools', () => {
     });
 
     it('keeps skiptoken on delta tools that have $top stripped', async () => {
-      // list-calendar-events-delta pages via cursor but is in TOP_UNSUPPORTED_DELTA_TOOLS,
-      // so a $top-only test would strip the cursor from an endpoint that needs it.
+      // list-calendar-events-delta pages via cursor but supports none of the collection
+      // options, so guessing from the schema alone would strip the cursor it needs.
       const endpoint = makeEndpoint({
         alias: 'list-calendar-events-delta',
         path: '/me/calendarView/delta',

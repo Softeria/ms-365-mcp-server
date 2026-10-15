@@ -132,7 +132,7 @@ export function describeToolSchema(
   // Mirrors registerGraphTools: GET list endpoints have a skiptoken cursor param.
   if (
     isSkiptokenApplicable(
-      { method: tool.method },
+      { method: tool.method, alias: tool.alias },
       params.map((p) => p.name)
     )
   ) {
