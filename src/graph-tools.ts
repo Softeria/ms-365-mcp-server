@@ -330,6 +330,28 @@ function rewriteMailSearchQuotes(expr: string): string {
   return balanceTrailingSlashes(out.trim());
 }
 
+const MEMBER_NAME_FILTER_TOOLS = new Set(['list-team-members', 'list-chat-members']);
+
+const MEMBER_NAME_PARAM_DESCRIPTION =
+  "Case-insensitive text to match against each member's displayName and email. Applied after $select projection, so only fields you can see are matched. Without fetchAllPages only the fetched page is filtered, and @odata.count still reports the unfiltered total.";
+
+/**
+ * Keeps only the members whose displayName or email contains `name`. Runs on the final
+ * response body, after $select projection, so a field the caller cannot see is never
+ * matched on. Blank `name` and non-collection bodies pass through unchanged.
+ */
+export function filterMembersByName(parsed: unknown, name: string): unknown {
+  const needle = name.trim().toLowerCase();
+  if (needle === '' || !isPlainObject(parsed) || !Array.isArray(parsed.value)) return parsed;
+  const matches = (member: unknown): boolean =>
+    isPlainObject(member) &&
+    ['displayName', 'email'].some((field) => {
+      const value = member[field];
+      return typeof value === 'string' && value.toLowerCase().includes(needle);
+    });
+  return { ...parsed, value: parsed.value.filter(matches) };
+}
+
 /**
  * Outlook mail wants the whole KQL expression inside one pair of double quotes
  * ($search="from:x AND subject:y"). Models quote each clause instead
@@ -2370,9 +2392,14 @@ async function executeGraphTool(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
     const strayBodyFields: Record<string, unknown> = {};
+    const memberNameFilter =
+      MEMBER_NAME_FILTER_TOOLS.has(tool.alias) && typeof params.name === 'string'
+        ? params.name
+        : undefined;
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       if (paramName === 'fileName' && config?.blobOutput) continue;
+      if (paramName === 'name' && MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -2838,7 +2865,11 @@ async function executeGraphTool(
     const willProject =
       (requestedSelect.length > 0 || isUserFieldBoundary) && params.excludeResponse !== true;
     const willProjectBatch = batchRestricted.size > 0 && params.excludeResponse !== true;
-    if (mergePages || willProject || willProjectBatch) {
+    const willFilterMembers =
+      memberNameFilter !== undefined &&
+      memberNameFilter.trim() !== '' &&
+      params.excludeResponse !== true;
+    if (mergePages || willProject || willProjectBatch || willFilterMembers) {
       options.forceJsonOutput = true;
     }
 
@@ -2846,6 +2877,18 @@ async function executeGraphTool(
 
     const shouldProject = willProject && !response?.isError;
     let projectionHandled = false;
+    // Filter before serialize(), like projection: under --toon serialize() emits TOON and
+    // JSON.parse on it would throw, silently skipping the filter (#560).
+    let memberFilterHandled = false;
+    const applyMemberFilter = (body: unknown): unknown => {
+      if (!willFilterMembers) return body;
+      memberFilterHandled = true;
+      const filtered = filterMembersByName(body, memberNameFilter as string);
+      if (isPlainObject(filtered) && Array.isArray(filtered.value) && response._meta) {
+        response._meta = { ...response._meta, result_count: filtered.value.length };
+      }
+      return filtered;
+    };
     const applyProjection = (body: unknown): unknown => {
       // Binary, raw-text and ack payloads are wrapped in an envelope of this server's
       // own making. Projecting one strips every key and hands back {}, losing the
@@ -3004,7 +3047,9 @@ async function executeGraphTool(
       if (combinedResponse !== undefined) {
         // Project before serialize(), not after: under --toon serialize() emits TOON and
         // parsing that back as JSON would throw, silently skipping the projection.
-        const merged = shouldProject ? applyProjection(combinedResponse) : combinedResponse;
+        const merged = applyMemberFilter(
+          shouldProject ? applyProjection(combinedResponse) : combinedResponse
+        );
         projectionHandled = shouldProject;
         response.content[0].text = graphClient.serialize(merged);
       }
@@ -3015,7 +3060,9 @@ async function executeGraphTool(
     if (shouldProject && !projectionHandled && !response?.isError && response?.content?.[0]?.text) {
       try {
         const parsed = JSON.parse(response.content[0].text);
-        response.content[0].text = graphClient.serialize(applyProjection(parsed));
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(applyProjection(parsed))
+        );
       } catch {
         // Body was not JSON after all; nothing to project.
       }
@@ -3029,6 +3076,21 @@ async function executeGraphTool(
         );
       } catch {
         // Body was not JSON after all; nothing to project.
+      }
+    }
+
+    if (
+      willFilterMembers &&
+      !memberFilterHandled &&
+      !response?.isError &&
+      response?.content?.[0]?.text
+    ) {
+      try {
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(JSON.parse(response.content[0].text))
+        );
+      } catch {
+        // Body was not JSON after all; nothing to filter.
       }
     }
 
@@ -3252,6 +3314,10 @@ export function registerGraphTools(
         .boolean()
         .describe(getFetchAllPagesParamDescription(maxPages, tool.alias))
         .optional();
+    }
+
+    if (MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) {
+      paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
     }
 
     if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {

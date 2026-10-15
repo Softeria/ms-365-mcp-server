@@ -5099,4 +5099,179 @@ describe('graph-tools', () => {
       expect(isDestructiveOperation('DELETE', { readOnly: true } as any)).toBe(true);
     });
   });
+
+  describe('filterMembersByName', () => {
+    const body = {
+      value: [
+        { id: '1', displayName: 'Jane Doe', email: 'jane@contoso.com' },
+        { id: '2', displayName: 'John Smith', email: 'jsmith@contoso.com' },
+        { id: '3', displayName: null, email: null },
+      ],
+      '@odata.count': 3,
+    };
+    const ids = (r: any) => r.value.map((m: any) => m.id);
+
+    it('matches displayName case-insensitively', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'JANE'))).toEqual(['1']);
+    });
+
+    it('matches email', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'jsmith@'))).toEqual(['2']);
+    });
+
+    it('returns an empty value array when nothing matches', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'zzz'))).toEqual([]);
+    });
+
+    it('returns everything for an empty or whitespace-only name', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, '   '))).toEqual(['1', '2', '3']);
+    });
+
+    it('does not match or throw on null fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'null'))).toEqual([]);
+    });
+
+    it('keeps other top-level fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect((filterMembersByName(body, 'jane') as any)['@odata.count']).toBe(3);
+    });
+
+    it('returns non-collection input unchanged', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(filterMembersByName('plain', 'x')).toBe('plain');
+      expect(filterMembersByName({ id: '1' }, 'x')).toEqual({ id: '1' });
+    });
+  });
+
+  describe('member name filter (tool wiring)', () => {
+    const membersBody = {
+      value: [
+        { id: '1', displayName: 'Jane Doe', email: 'jane@contoso.com' },
+        { id: '2', displayName: 'John Smith', email: 'jsmith@contoso.com' },
+        { id: '3', displayName: null, email: null },
+      ],
+      '@odata.count': 3,
+    };
+    const page = (b: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(b) }] });
+    const ids = (result: any) => JSON.parse(result.content[0].text).value.map((m: any) => m.id);
+
+    async function run(
+      args: Record<string, unknown>,
+      responses: any[] = [page(membersBody)],
+      alias = 'list-team-members',
+      path = '/teams/{team-id}/members',
+      outputFormat: 'json' | 'toon' = 'json'
+    ) {
+      mockEndpoints.push(makeEndpoint({ alias, path }));
+      mockEndpointsJson = [makeConfig({ toolName: alias, pathPattern: path })];
+      const graphClient = createMockGraphClient(responses, outputFormat);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools.get(alias)!.handler({ 'team-id': 't1', ...args });
+      return { result, graphClient };
+    }
+
+    it('filters list-team-members by name', async () => {
+      const { result } = await run({ name: 'jane' });
+      expect(ids(result)).toEqual(['1']);
+    });
+
+    it('filters list-chat-members by email', async () => {
+      const { result } = await run(
+        { 'chat-id': 'c1', name: 'jsmith' },
+        [page(membersBody)],
+        'list-chat-members',
+        '/chats/{chat-id}/members'
+      );
+      expect(ids(result)).toEqual(['2']);
+    });
+
+    it('does not send name to Graph', async () => {
+      const { graphClient } = await run({ name: 'jane' });
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('name');
+    });
+
+    it('returns the full list for a whitespace-only name', async () => {
+      const { result } = await run({ name: '  ' });
+      expect(ids(result)).toEqual(['1', '2', '3']);
+    });
+
+    it('leaves an error response untouched', async () => {
+      const err = { content: [{ type: 'text', text: '{"error":"nope"}' }], isError: true };
+      const { result } = await run({ name: 'jane' }, [err]);
+      expect(result.content[0].text).toBe('{"error":"nope"}');
+    });
+
+    it('keeps @odata.count as the unfiltered total', async () => {
+      const { result } = await run({ name: 'jane' });
+      expect(JSON.parse(result.content[0].text)['@odata.count']).toBe(3);
+    });
+
+    it('filters after fetchAllPages merges the pages', async () => {
+      const { result } = await run({ name: 'ann', fetchAllPages: true }, [
+        page({
+          value: [{ id: '1', displayName: 'Ann', email: 'a@x.com' }],
+          '@odata.nextLink': 'https://graph.microsoft.com/v1.0/teams/t1/members?$skiptoken=x',
+        }),
+        page({
+          value: [
+            { id: '2', displayName: 'Bob', email: 'b@x.com' },
+            { id: '3', displayName: 'Annette', email: 'n@x.com' },
+          ],
+        }),
+      ]);
+      expect(ids(result)).toEqual(['1', '3']);
+    });
+
+    it('matches only fields that survive $select projection', async () => {
+      const { result } = await run({ select: 'id,displayName', name: 'contoso' });
+      expect(ids(result)).toEqual([]);
+    });
+
+    describe('under --toon', () => {
+      // The mock serialize() prefixes TOON: so a filter that parses serialized output throws
+      const parseToon = (result: any) => JSON.parse(result.content[0].text.replace(/^TOON:/, ''));
+      const toon = (args: Record<string, unknown>, responses = [page(membersBody)]) =>
+        run(args, responses, 'list-team-members', '/teams/{team-id}/members', 'toon');
+
+      it('filters when no projection or merge applies', async () => {
+        const { result } = await toon({ name: 'jane' });
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1']);
+      });
+
+      it('filters when $select projects the body', async () => {
+        const { result } = await toon({ select: 'id,displayName', name: 'jane' });
+        expect(parseToon(result).value).toEqual([{ id: '1', displayName: 'Jane Doe' }]);
+      });
+
+      it('filters after fetchAllPages merges the pages', async () => {
+        const { result } = await toon({ name: 'ann', fetchAllPages: true }, [
+          page({
+            value: [{ id: '1', displayName: 'Ann', email: 'a@x.com' }],
+            '@odata.nextLink': 'https://graph.microsoft.com/v1.0/teams/t1/members?$skiptoken=x',
+          }),
+          page({
+            value: [
+              { id: '2', displayName: 'Bob', email: 'b@x.com' },
+              { id: '3', displayName: 'Annette', email: 'n@x.com' },
+            ],
+          }),
+        ]);
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1', '3']);
+      });
+    });
+
+    it('still matches a projected field', async () => {
+      const { result } = await run({ select: 'id,displayName', name: 'jane' });
+      expect(JSON.parse(result.content[0].text).value).toEqual([
+        { id: '1', displayName: 'Jane Doe' },
+      ]);
+    });
+  });
 });
