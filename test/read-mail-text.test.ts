@@ -62,7 +62,7 @@ describe('cleanMailText', () => {
 
   it('never cuts the message: signatures, a bare "--" separator and footer lines are kept', () => {
     expect(cleanMailText('Thanks,\nJ\n-- \nJ Smith | CEO\n+1 555')).toBe(
-      'Thanks,\nJ\n--\nJ Smith | CEO\n+1 555'
+      'Thanks,\nJ\n-- \nJ Smith | CEO\n+1 555'
     );
     expect(cleanMailText('On my way.\n\nSent from my iPhone')).toBe(
       'On my way.\n\nSent from my iPhone'
@@ -92,10 +92,10 @@ describe('cleanMailText', () => {
         `See the report<https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it<${safe}>`
       )
     ).toBe(
-      'See the report <https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it <https://www.fedex.com/track?id=1>'
+      'See the report<https://www.example.com/r?x=2> and https://docs.example.org/a/b.\nTrack it<https://www.fedex.com/track?id=1>'
     );
     const long = 'https://click.mailer.example.com/ls/click?upn=' + 'A'.repeat(350);
-    expect(cleanMailText(`Read more<${long}>`)).toBe(`Read more ${L('click.mailer.example.com')}`);
+    expect(cleanMailText(`Read more<${long}>`)).toBe(`Read more${L('click.mailer.example.com')}`);
     expect(cleanMailText('See (https://en.wikipedia.org/wiki/Foo_(bar)).')).toBe(
       'See (https://en.wikipedia.org/wiki/Foo_(bar)).'
     );
@@ -111,7 +111,7 @@ describe('cleanMailText', () => {
       cleanMailText(
         `Map<https://urldefense.com/v3/__https:/maps.example.com/q/1*Main*St**A0D__;${enc}!!x!y$>`
       )
-    ).toBe('Map <https://maps.example.com/q/1+Main+St+%0D>');
+    ).toBe('Map<https://maps.example.com/q/1+Main+St+%0D>');
     expect(
       cleanMailText(
         'Site https://urldefense.proofpoint.com/v2/url?u=https-3A__www.example.com_a_b&d=x&e= now'
@@ -126,7 +126,7 @@ describe('cleanMailText', () => {
       encodeURIComponent(google) +
       '&data=' +
       'd'.repeat(200);
-    expect(cleanMailText(`Join<${safe}>`)).toBe('Join <https://us02web.zoom.us/j/123?pwd=abc>');
+    expect(cleanMailText(`Join<${safe}>`)).toBe('Join<https://us02web.zoom.us/j/123?pwd=abc>');
   });
 
   it('drops tracking parameters and keeps the others', () => {
@@ -134,7 +134,7 @@ describe('cleanMailText', () => {
       cleanMailText(
         'Job<https://www.linkedin.com/comm/jobs/view/42/?trackingId=abc&refId=x&lipi=y&eid=e1>'
       )
-    ).toBe('Job <https://www.linkedin.com/comm/jobs/view/42/?eid=e1>');
+    ).toBe('Job<https://www.linkedin.com/comm/jobs/view/42/?eid=e1>');
     // LinkedIn's parameter names are tracking only on LinkedIn links.
     expect(cleanMailText('Redeem: https://portal.example/redeem?midsig=signature&case=42')).toBe(
       'Redeem: https://portal.example/redeem?midsig=signature&case=42'
@@ -148,7 +148,7 @@ describe('cleanMailText', () => {
     );
     const invite =
       'https://calendar.example.com/event?action=RESPOND&eid=' + 'e'.repeat(150) + '&rst=1';
-    expect(cleanMailText(`Yes<${invite}>`)).toBe(`Yes <${invite}>`);
+    expect(cleanMailText(`Yes<${invite}>`)).toBe(`Yes<${invite}>`);
   });
 
   it('names the host a shortened link really goes to', () => {
@@ -180,22 +180,23 @@ describe('cleanMailText', () => {
     expect(cleanMailText('Logo [https://img.example.com/logo.png] here')).toBe('Logo here');
   });
 
-  it('keeps link-only lines, collapsed to one line of their distinct links', () => {
-    expect(
-      cleanMailText(
-        'Hello\n<https://t.example/x> | <https://x.example/y>\n<https://x.example/y>\nBye'
-      )
-    ).toBe('Hello\n<https://t.example/x> <https://x.example/y>\nBye');
+  it('leaves everything else as the message has it: link-only lines, whitespace, repeats', () => {
+    const links =
+      'Begin\nhttps://one.example/a\nhttps://one.example/a\n<https://t.example/x> | <https://x.example/y>\nEnd';
+    expect(cleanMailText(links)).toBe(links);
+    const spacing = 'Keep A\u00a0B exactly\nKeep A\t\tB exactly\nFirst\n\n\nThird   \n  indented';
+    expect(cleanMailText(spacing)).toBe(spacing);
+    // Removing an image placeholder takes one space before it, and its line when
+    // nothing else was on it.
+    expect(cleanMailText('Hi\n[https://img.example/a.png]\n\nBye')).toBe('Hi\n\nBye');
   });
 
   it('keeps a single invisible character that is part of the text', () => {
     expect(cleanMailText('co\u00adoperate and a\u200bb')).toBe('co\u00adoperate and a\u200bb');
   });
 
-  it('collapses whitespace and invisible preheader padding', () => {
-    expect(cleanMailText('a\u200b\u034f\u200c\u034f  \t b\n\n\n\n\nc\u00a0d   ')).toBe(
-      'a b\n\nc d'
-    );
+  it('removes invisible preheader padding runs', () => {
+    expect(cleanMailText('Sale\u200b\u034f\u200c\u034f \u200c\u034f today')).toBe('Sale today');
   });
 
   it('cleans hostile bodies in linear time', () => {

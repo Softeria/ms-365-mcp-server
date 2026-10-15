@@ -16,8 +16,9 @@
  * (Safe Links, Proofpoint URL Defense, Google's redirect) are unwrapped to the
  * real address and tracking parameters (utm_* and the like) are dropped; only
  * an address still longer than 300 characters, a tracking redirect, becomes a
- * ⟦link: domain⟧ marker naming the real host. Signatures, footers and
- * everything else in the message are left as they are.
+ * ⟦link: domain⟧ marker naming the real host. Line endings become \n.
+ * Signatures, footers, whitespace and everything else in the message are left
+ * as they are.
  *
  * Mail bodies are attacker-controlled, so every pattern is bounded and excludes
  * its own delimiters (cleaning is linear in the body size), at most
@@ -227,18 +228,12 @@ function isImageUrl(u: string): boolean {
 }
 
 function cleanLinks(t: string): string {
-  // "[<image url>]": Graph's text for an image is its address in brackets. Only an
-  // address that names an image file is removed; other bracketed links stay.
-  t = t.replace(
-    /\[[ \t]{0,20}(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})[ \t]{0,20}\]/gi,
-    (m, u: string) => (isImageUrl(u) ? '' : m)
-  );
   // Graph's text conversion writes anchors as "label<https://...>"; bare URLs also
   // occur. Bounded quantifiers with the delimiters excluded keep this linear.
   t = t.replace(/<((?:https?|mailto|tel):[^<>\s]{1,4096})>/gi, (m, u: string) => {
     if (/^(mailto|tel):/i.test(u)) return m;
     const shown = showLink(u);
-    return shown.startsWith(MARK_OPEN) ? ` ${shown}` : ` <${shown}>`;
+    return shown.startsWith(MARK_OPEN) ? shown : `<${shown}>`;
   });
   return t.replace(
     /(^|[^<])\b(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})/gi,
@@ -249,58 +244,43 @@ function cleanLinks(t: string): string {
   );
 }
 
-const LINK_TOKEN = /<?https?:\/\/[^\s<>]{1,4096}>?|\u27e6link: [^\u27e6\u27e7\n]{1,300}\u27e7/g;
+// "[<image url>]": Graph's text for an image is its address in brackets. Only an
+// address that names an image file is removed (with one space before it); a line
+// left empty by the removal goes too. Other bracketed links stay.
+const IMAGE_PLACEHOLDER =
+  /[ \t]?\[[ \t]{0,20}(https?:\/\/[^\s<>"'[\]\u27e6\u27e7]{1,4096})[ \t]{0,20}\]/gi;
+function removeImagePlaceholders(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const l of lines) {
+    if (!l.includes('[')) {
+      out.push(l);
+      continue;
+    }
+    const r = l.replace(IMAGE_PLACEHOLDER, (m, u: string) => (isImageUrl(u) ? '' : m));
+    if (r === l || r.trim() || !l.trim()) out.push(r);
+  }
+  return out;
+}
 
 export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}): string {
   const t = String(raw ?? '')
-    .replace(/\r\n?/g, '\n')
+    .replace(/\r\n?/g, '\n') // line endings
     // Preheader padding: runs of invisible characters (a single one, such as a
     // soft hyphen in a word, is part of the text and stays).
     .replace(/(?:(?:[\u200b-\u200d\u2060\ufeff\u00ad]|\u034f)[ \t\u00a0\u2007\u202f]*){3,}/g, ' ')
-    .replace(/[\u00a0\u2007\u202f]/g, ' ')
-    .replace(/\u27e6/g, '[') // the marker brackets cannot come from the body
+    .replace(/\u27e6/g, '[') // the marker brackets are reserved: body text cannot make a marker
     .replace(/\u27e7/g, ']');
   let lines = t.split('\n');
-
   if (!opts.keepQuoted) {
     const q = quoteStart(lines);
-    if (q >= 0 && lines.slice(0, q).join('').trim()) lines = lines.slice(0, q);
-  }
-
-  lines = cleanLinks(lines.join('\n'))
-    .split('\n')
-    .map((l) => l.replace(/[ \t]+/g, ' ').trim());
-
-  // Runs of lines that are nothing but links (nav bars, social icons) collapse
-  // to one line of their distinct links: every link stays, the clutter goes.
-  const collapsed: Array<string | string[]> = [];
-  let run: string[] | null = null;
-  const seen = new Set<string>();
-  for (const l of lines) {
-    const links = l.match(LINK_TOKEN);
-    const linkOnly = !!links && l.replace(LINK_TOKEN, '').replace(/[\s|•·\-–]/g, '') === '';
-    if (linkOnly) {
-      if (!run) {
-        run = [];
-        collapsed.push(run);
-        seen.clear();
-      }
-      for (const k of links) {
-        if (!seen.has(k)) {
-          seen.add(k);
-          run.push(k);
-        }
-      }
-    } else {
-      run = null;
-      collapsed.push(l);
+    if (q >= 0 && lines.slice(0, q).join('').trim()) {
+      lines = lines.slice(0, q);
+      // The blank lines that separated the reply from its history go with it.
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     }
   }
-  return collapsed
-    .map((x) => (Array.isArray(x) ? x.join(' ') : x))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  // Everything else, whitespace included, is left as the message has it.
+  return cleanLinks(removeImagePlaceholders(lines).join('\n'));
 }
 
 export interface MailTextArgs {

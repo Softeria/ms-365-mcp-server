@@ -780,13 +780,16 @@ keep the forwarded content. Links are kept:
 Safe Links, Proofpoint URL Defense and Google redirects are unwrapped to the real
 address, tracking parameters (`utm_*` and similar) are dropped, and only an
 address still longer than 300 characters (a tracking redirect) is shortened to
-`⟦link: domain⟧`. Signatures, footers and the rest of the message are left as
-they are. `get-mail-message` returns the raw body.
+`⟦link: domain⟧`. Line endings become `\n`, and the marker brackets are
+reserved: a body's own `⟦ ⟧` appear as `[ ]`, so text cannot pose as a marker.
+Everything else — signatures, footers, whitespace, repeated links — is left as
+the message has it. `get-mail-message` returns the raw body.
 
 - `messageIds` (up to 20, one `$batch`), or `folderId` with optional `top`
   (max 20), `filter` or `search`.
-- Text is complete unless `maxChars` is set (each message then cut and marked
-  `truncated`).
+- Text is complete unless `maxChars` is set or the raw body exceeds 300,000
+  characters (only that much is cleaned); either way the message is cut and
+  marked `truncated`, and `get-mail-message` has the whole body.
 - Returns `[{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }]`;
   an unknown id comes back as `{ id, error }`.
 - A result over `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS` (default 80,000) is refused
