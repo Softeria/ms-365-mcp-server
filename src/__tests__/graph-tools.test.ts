@@ -5097,4 +5097,372 @@ describe('graph-tools', () => {
       expect(isDestructiveOperation('DELETE', { readOnly: true } as any)).toBe(true);
     });
   });
+
+  describe('rewriteMentionShorthand', () => {
+    const U1 = '11111111-2222-3333-4444-555555555555';
+    const U2 = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const html = (content: string, extra: Record<string, unknown> = {}) => ({
+      body: { contentType: 'html', content },
+      ...extra,
+    });
+    const mention = (id: number, userId: string, name: string) => ({
+      id,
+      mentionText: name,
+      mentioned: { user: { id: userId, displayName: name, userIdentityType: 'aadUser' } },
+    });
+
+    it('rewrites one tag and builds the mentions array', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      expect(rewriteMentionShorthand(html(`Hi <at user-id="${U1}">Jane Doe</at>!`)).body).toEqual(
+        html('Hi <at id="0">Jane Doe</at>!', { mentions: [mention(0, U1, 'Jane Doe')] })
+      );
+    });
+
+    it('numbers several tags in order, including a repeated user', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const out = rewriteMentionShorthand(
+        html(
+          `<at user-id="${U1}">Jane</at> <at user-id="${U2}">Bob</at> <at user-id="${U1}">Jane</at>`
+        )
+      ).body as any;
+      expect(out.body.content).toBe(
+        '<at id="0">Jane</at> <at id="1">Bob</at> <at id="2">Jane</at>'
+      );
+      expect(out.mentions.map((m: any) => m.id)).toEqual([0, 1, 2]);
+    });
+
+    it('starts above ids already in the content and mentions', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html(`<at id="0">Old</at> <at user-id="${U1}">Jane</at>`, {
+        mentions: [mention(0, U2, 'Old')],
+      });
+      const out = rewriteMentionShorthand(input).body as any;
+      expect(out.body.content).toBe('<at id="0">Old</at> <at id="1">Jane</at>');
+      expect(out.mentions).toEqual([mention(0, U2, 'Old'), mention(1, U1, 'Jane')]);
+    });
+
+    it('passes a correct hand-built body through unchanged', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html('<at id="0">Jane</at>', { mentions: [mention(0, U1, 'Jane')] });
+      expect(rewriteMentionShorthand(input).body).toBe(input);
+    });
+
+    it('returns an error for a user-id that is not a GUID', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html('<at user-id="jane@contoso.com">Jane</at>');
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('jane@contoso.com');
+      expect(out.body).toBe(input);
+    });
+
+    it('leaves non-html content without the shorthand alone', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const text = { body: { contentType: 'text', content: 'plain words' } };
+      const bare = { body: { content: 'plain words' } };
+      expect(rewriteMentionShorthand(text).body).toBe(text);
+      expect(rewriteMentionShorthand(bare).body).toBe(bare);
+    });
+
+    it.each([
+      ['text', { contentType: 'text' }],
+      ['missing', {}],
+    ])('returns an error for the shorthand when contentType is %s', async (_label, type) => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = { body: { ...type, content: `<at user-id="${U1}">Jane</at>` } };
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('contentType');
+      expect(out.body).toBe(input);
+    });
+
+    it.each([
+      ['single-quoted user-id', `<at user-id='${U1}'>Jane</at>`],
+      ['spaces around =', `<at user-id = "${U1}">Jane</at>`],
+      ['an extra attribute', `<at user-id="${U1}" class="x">Jane</at>`],
+      ['nested markup in the name', `<at user-id="${U1}"><b>Jane</b></at>`],
+    ])('returns an error for an unsupported tag form: %s', async (_label, tag) => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const input = html(`Hi ${tag}`);
+      const out = rewriteMentionShorthand(input);
+      expect(out.error).toContain('Unsupported mention tag form');
+      expect(out.body).toBe(input);
+    });
+
+    it('leaves a raw string body alone', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      expect(rewriteMentionShorthand('{"body":{}}').body).toBe('{"body":{}}');
+      expect(rewriteMentionShorthand(null).body).toBeNull();
+    });
+
+    it('keeps the display name verbatim', async () => {
+      const { rewriteMentionShorthand } = await loadModule();
+      const out = rewriteMentionShorthand(html(`<at user-id="${U1}">Smith &amp; Co</at>`))
+        .body as any;
+      expect(out.body.content).toBe('<at id="0">Smith &amp; Co</at>');
+      expect(out.mentions[0].mentionText).toBe('Smith &amp; Co');
+    });
+  });
+
+  describe('mention shorthand (tool wiring)', () => {
+    const U1 = '11111111-2222-3333-4444-555555555555';
+    const aliases = [
+      ['send-channel-message', 'post'],
+      ['reply-to-channel-message', 'post'],
+      ['update-channel-message', 'patch'],
+      ['update-channel-message-reply', 'patch'],
+      ['send-chat-message', 'post'],
+      ['reply-to-chat-message', 'post'],
+      ['update-chat-message', 'patch'],
+    ] as const;
+
+    async function call(alias: string, method: string, body: unknown) {
+      mockEndpoints.push(
+        makeEndpoint({
+          alias,
+          method,
+          path: '/chats/{chat-id}/messages',
+          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        })
+      );
+      mockEndpointsJson = [
+        makeConfig({ toolName: alias, method, pathPattern: '/chats/{chat-id}/messages' }),
+      ];
+      const graphClient = createMockGraphClient([
+        { content: [{ type: 'text', text: JSON.stringify({ id: 'm1' }) }] },
+      ]);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools
+        .get(alias)!
+        .handler({ 'chat-id': 'c1', body, confirm: true });
+      return { result, graphClient };
+    }
+    const sent = (graphClient: any) => JSON.parse(graphClient.graphRequest.mock.calls[0][1].body);
+
+    it.each(aliases)('rewrites the shorthand on %s', async (alias, method) => {
+      const { graphClient } = await call(alias, method, {
+        body: { contentType: 'html', content: `Hi <at user-id="${U1}">Jane</at>` },
+      });
+      const out = sent(graphClient);
+      expect(out.body.content).toBe('Hi <at id="0">Jane</at>');
+      expect(out.mentions).toEqual([
+        {
+          id: 0,
+          mentionText: 'Jane',
+          mentioned: { user: { id: U1, displayName: 'Jane', userIdentityType: 'aadUser' } },
+        },
+      ]);
+    });
+
+    it('returns a tool error and sends nothing for a bad user-id', async () => {
+      const { result, graphClient } = await call('send-chat-message', 'post', {
+        body: { contentType: 'html', content: '<at user-id="jane">Jane</at>' },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('not an Entra object id');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('does not rewrite on a tool outside the seven', async () => {
+      const { graphClient } = await call('create-draft-email', 'post', {
+        body: { contentType: 'html', content: `<at user-id="${U1}">Jane</at>` },
+      });
+      expect(sent(graphClient).body.content).toBe(`<at user-id="${U1}">Jane</at>`);
+    });
+
+    it('lists only tools that exist in endpoints.json and documents the shorthand', async () => {
+      // fs is mocked above to serve mockEndpointsJson for this path; read the real file
+      const actualFs = await vi.importActual<typeof import('fs')>('fs');
+      const endpoints = JSON.parse(
+        actualFs.readFileSync(join(__dirname, '..', 'endpoints.json'), 'utf8')
+      ) as Array<{ toolName: string; llmTip?: string }>;
+      for (const [alias] of aliases) {
+        const entry = endpoints.find((e) => e.toolName === alias);
+        expect(entry, alias).toBeDefined();
+        const tip = entry!.llmTip!;
+        expect(tip, alias).toContain('user-id=');
+        // the name param ships in a separate PR; this one must stand alone
+        expect(tip, alias).not.toContain('name param');
+        // conversationMember has both id (membership id) and userId (the GUID)
+        expect(tip, alias).toContain('userId');
+        // the raw form is the fallback, not a second copy of the same instruction
+        expect(tip.split('To @mention someone').length - 1, alias).toBe(1);
+      }
+    });
+  });
+
+  describe('filterMembersByName', () => {
+    const body = {
+      value: [
+        { id: '1', displayName: 'Jane Doe', email: 'jane@contoso.com' },
+        { id: '2', displayName: 'John Smith', email: 'jsmith@contoso.com' },
+        { id: '3', displayName: null, email: null },
+      ],
+      '@odata.count': 3,
+    };
+    const ids = (r: any) => r.value.map((m: any) => m.id);
+
+    it('matches displayName case-insensitively', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'JANE'))).toEqual(['1']);
+    });
+
+    it('matches email', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'jsmith@'))).toEqual(['2']);
+    });
+
+    it('returns an empty value array when nothing matches', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'zzz'))).toEqual([]);
+    });
+
+    it('returns everything for an empty or whitespace-only name', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, '   '))).toEqual(['1', '2', '3']);
+    });
+
+    it('does not match or throw on null fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(ids(filterMembersByName(body, 'null'))).toEqual([]);
+    });
+
+    it('keeps other top-level fields', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect((filterMembersByName(body, 'jane') as any)['@odata.count']).toBe(3);
+    });
+
+    it('returns non-collection input unchanged', async () => {
+      const { filterMembersByName } = await loadModule();
+      expect(filterMembersByName('plain', 'x')).toBe('plain');
+      expect(filterMembersByName({ id: '1' }, 'x')).toEqual({ id: '1' });
+    });
+  });
+
+  describe('member name filter (tool wiring)', () => {
+    const membersBody = {
+      value: [
+        { id: '1', displayName: 'Jane Doe', email: 'jane@contoso.com' },
+        { id: '2', displayName: 'John Smith', email: 'jsmith@contoso.com' },
+        { id: '3', displayName: null, email: null },
+      ],
+      '@odata.count': 3,
+    };
+    const page = (b: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(b) }] });
+    const ids = (result: any) => JSON.parse(result.content[0].text).value.map((m: any) => m.id);
+
+    async function run(
+      args: Record<string, unknown>,
+      responses: any[] = [page(membersBody)],
+      alias = 'list-team-members',
+      path = '/teams/{team-id}/members',
+      outputFormat: 'json' | 'toon' = 'json'
+    ) {
+      mockEndpoints.push(makeEndpoint({ alias, path }));
+      mockEndpointsJson = [makeConfig({ toolName: alias, pathPattern: path })];
+      const graphClient = createMockGraphClient(responses, outputFormat);
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      const result = await server.tools.get(alias)!.handler({ 'team-id': 't1', ...args });
+      return { result, graphClient };
+    }
+
+    it('filters list-team-members by name', async () => {
+      const { result } = await run({ name: 'jane' });
+      expect(ids(result)).toEqual(['1']);
+    });
+
+    it('filters list-chat-members by email', async () => {
+      const { result } = await run(
+        { 'chat-id': 'c1', name: 'jsmith' },
+        [page(membersBody)],
+        'list-chat-members',
+        '/chats/{chat-id}/members'
+      );
+      expect(ids(result)).toEqual(['2']);
+    });
+
+    it('does not send name to Graph', async () => {
+      const { graphClient } = await run({ name: 'jane' });
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('name');
+    });
+
+    it('returns the full list for a whitespace-only name', async () => {
+      const { result } = await run({ name: '  ' });
+      expect(ids(result)).toEqual(['1', '2', '3']);
+    });
+
+    it('leaves an error response untouched', async () => {
+      const err = { content: [{ type: 'text', text: '{"error":"nope"}' }], isError: true };
+      const { result } = await run({ name: 'jane' }, [err]);
+      expect(result.content[0].text).toBe('{"error":"nope"}');
+    });
+
+    it('keeps @odata.count as the unfiltered total', async () => {
+      const { result } = await run({ name: 'jane' });
+      expect(JSON.parse(result.content[0].text)['@odata.count']).toBe(3);
+    });
+
+    it('filters after fetchAllPages merges the pages', async () => {
+      const { result } = await run({ name: 'ann', fetchAllPages: true }, [
+        page({
+          value: [{ id: '1', displayName: 'Ann', email: 'a@x.com' }],
+          '@odata.nextLink': 'https://graph.microsoft.com/v1.0/teams/t1/members?$skiptoken=x',
+        }),
+        page({
+          value: [
+            { id: '2', displayName: 'Bob', email: 'b@x.com' },
+            { id: '3', displayName: 'Annette', email: 'n@x.com' },
+          ],
+        }),
+      ]);
+      expect(ids(result)).toEqual(['1', '3']);
+    });
+
+    it('matches only fields that survive $select projection', async () => {
+      const { result } = await run({ select: 'id,displayName', name: 'contoso' });
+      expect(ids(result)).toEqual([]);
+    });
+
+    describe('under --toon', () => {
+      // The mock serialize() prefixes TOON: so a filter that parses serialized output throws
+      const parseToon = (result: any) => JSON.parse(result.content[0].text.replace(/^TOON:/, ''));
+      const toon = (args: Record<string, unknown>, responses = [page(membersBody)]) =>
+        run(args, responses, 'list-team-members', '/teams/{team-id}/members', 'toon');
+
+      it('filters when no projection or merge applies', async () => {
+        const { result } = await toon({ name: 'jane' });
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1']);
+      });
+
+      it('filters when $select projects the body', async () => {
+        const { result } = await toon({ select: 'id,displayName', name: 'jane' });
+        expect(parseToon(result).value).toEqual([{ id: '1', displayName: 'Jane Doe' }]);
+      });
+
+      it('filters after fetchAllPages merges the pages', async () => {
+        const { result } = await toon({ name: 'ann', fetchAllPages: true }, [
+          page({
+            value: [{ id: '1', displayName: 'Ann', email: 'a@x.com' }],
+            '@odata.nextLink': 'https://graph.microsoft.com/v1.0/teams/t1/members?$skiptoken=x',
+          }),
+          page({
+            value: [
+              { id: '2', displayName: 'Bob', email: 'b@x.com' },
+              { id: '3', displayName: 'Annette', email: 'n@x.com' },
+            ],
+          }),
+        ]);
+        expect(parseToon(result).value.map((m: any) => m.id)).toEqual(['1', '3']);
+      });
+    });
+
+    it('still matches a projected field', async () => {
+      const { result } = await run({ select: 'id,displayName', name: 'jane' });
+      expect(JSON.parse(result.content[0].text).value).toEqual([
+        { id: '1', displayName: 'Jane Doe' },
+      ]);
+    });
+  });
 });

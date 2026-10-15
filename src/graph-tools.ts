@@ -328,6 +328,28 @@ function rewriteMailSearchQuotes(expr: string): string {
   return balanceTrailingSlashes(out.trim());
 }
 
+const MEMBER_NAME_FILTER_TOOLS = new Set(['list-team-members', 'list-chat-members']);
+
+const MEMBER_NAME_PARAM_DESCRIPTION =
+  "Case-insensitive text to match against each member's displayName and email. Applied after $select projection, so only fields you can see are matched. Without fetchAllPages only the fetched page is filtered, and @odata.count still reports the unfiltered total.";
+
+/**
+ * Keeps only the members whose displayName or email contains `name`. Runs on the final
+ * response body, after $select projection, so a field the caller cannot see is never
+ * matched on. Blank `name` and non-collection bodies pass through unchanged.
+ */
+export function filterMembersByName(parsed: unknown, name: string): unknown {
+  const needle = name.trim().toLowerCase();
+  if (needle === '' || !isPlainObject(parsed) || !Array.isArray(parsed.value)) return parsed;
+  const matches = (member: unknown): boolean =>
+    isPlainObject(member) &&
+    ['displayName', 'email'].some((field) => {
+      const value = member[field];
+      return typeof value === 'string' && value.toLowerCase().includes(needle);
+    });
+  return { ...parsed, value: parsed.value.filter(matches) };
+}
+
 /**
  * Outlook mail wants the whole KQL expression inside one pair of double quotes
  * ($search="from:x AND subject:y"). Models quote each clause instead
@@ -725,6 +747,80 @@ function collectRecipients(
     // nested somewhere we didn't think of still sends real mail
     collectRecipients(value, domains, counter, depth + 1);
   }
+}
+
+const MENTION_SHORTHAND_TOOLS = new Set([
+  'send-channel-message',
+  'reply-to-channel-message',
+  'update-channel-message',
+  'update-channel-message-reply',
+  'send-chat-message',
+  'reply-to-chat-message',
+  'update-chat-message',
+]);
+
+const AAD_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHORTHAND_AT = /<at\s+user-id="([^"]*)">([^<]*)<\/at>/gi;
+// Any tag that tries the shorthand, well-formed or not. A malformed one must be refused:
+// left alone it is posted to colleagues as literal text and nobody is notified.
+const HAS_SHORTHAND = /<at\b[^>]*\buser-id\b/i;
+
+/**
+ * Teams mentions need numbered <at id="N"> tags plus a matching `mentions` array, and a
+ * mismatch is a 400. Models write <at user-id="<aad-guid>">Name</at> instead; this
+ * numbers each tag above any id already present and builds the mentions entries.
+ * Bodies without the shorthand and non-object bodies pass through. The shorthand with
+ * non-html content, or in a form it cannot rewrite, is an error rather than a literal tag.
+ */
+export function rewriteMentionShorthand(body: unknown): { body: unknown; error?: string } {
+  if (!isPlainObject(body) || !isPlainObject(body.body)) return { body };
+  const itemBody = body.body;
+  const content = itemBody.content;
+  if (typeof content !== 'string' || !HAS_SHORTHAND.test(content)) return { body };
+  if (String(itemBody.contentType).toLowerCase() !== 'html') {
+    return {
+      body,
+      error:
+        'The <at user-id> mention shorthand needs contentType "html" on the message body. Set body.contentType to "html".',
+    };
+  }
+
+  const existing = Array.isArray(body.mentions) ? body.mentions : [];
+  let nextId = 0;
+  for (const m of existing) {
+    if (isPlainObject(m) && typeof m.id === 'number') nextId = Math.max(nextId, m.id + 1);
+  }
+  for (const m of content.matchAll(/<at\s+id="(\d+)"/gi)) {
+    nextId = Math.max(nextId, Number(m[1]) + 1);
+  }
+
+  const added: unknown[] = [];
+  let error: string | undefined;
+  const rewritten = content.replace(SHORTHAND_AT, (tag, userId: string, name: string) => {
+    if (!AAD_GUID.test(userId)) {
+      error ??= `Mention user-id "${userId}" is not an Entra object id (GUID). Use the userId from list-team-members or list-chat-members.`;
+      return tag;
+    }
+    const id = nextId++;
+    added.push({
+      id,
+      mentionText: name,
+      mentioned: { user: { id: userId, displayName: name, userIdentityType: 'aadUser' } },
+    });
+    return `<at id="${id}">${name}</at>`;
+  });
+
+  if (error) return { body, error };
+  if (HAS_SHORTHAND.test(rewritten)) {
+    return {
+      body,
+      error:
+        'Unsupported mention tag form. Write <at user-id="<guid>">Name</at> with double quotes, no other attributes and plain text inside.',
+    };
+  }
+  return {
+    body: { ...body, body: { ...itemBody, content: rewritten }, mentions: [...existing, ...added] },
+  };
 }
 
 // A body that failed schema parsing goes to Graph as a raw string, and mail sent that way
@@ -2368,9 +2464,14 @@ async function executeGraphTool(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
     const strayBodyFields: Record<string, unknown> = {};
+    const memberNameFilter =
+      MEMBER_NAME_FILTER_TOOLS.has(tool.alias) && typeof params.name === 'string'
+        ? params.name
+        : undefined;
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       if (paramName === 'fileName' && config?.blobOutput) continue;
+      if (paramName === 'name' && MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -2634,6 +2735,17 @@ async function executeGraphTool(
       }
     }
 
+    if (MENTION_SHORTHAND_TOOLS.has(tool.alias)) {
+      const rewritten = rewriteMentionShorthand(body);
+      if (rewritten.error) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: rewritten.error }) }],
+          isError: true,
+        };
+      }
+      body = rewritten.body;
+    }
+
     const skiptokenError = normalizeSkiptokenQueryParam(queryParams, tool.alias);
     if (skiptokenError) return skiptokenError;
 
@@ -2827,7 +2939,11 @@ async function executeGraphTool(
     const willProject =
       (requestedSelect.length > 0 || isUserFieldBoundary) && params.excludeResponse !== true;
     const willProjectBatch = batchRestricted.size > 0 && params.excludeResponse !== true;
-    if (mergePages || willProject || willProjectBatch) {
+    const willFilterMembers =
+      memberNameFilter !== undefined &&
+      memberNameFilter.trim() !== '' &&
+      params.excludeResponse !== true;
+    if (mergePages || willProject || willProjectBatch || willFilterMembers) {
       options.forceJsonOutput = true;
     }
 
@@ -2835,6 +2951,18 @@ async function executeGraphTool(
 
     const shouldProject = willProject && !response?.isError;
     let projectionHandled = false;
+    // Filter before serialize(), like projection: under --toon serialize() emits TOON and
+    // JSON.parse on it would throw, silently skipping the filter (#560).
+    let memberFilterHandled = false;
+    const applyMemberFilter = (body: unknown): unknown => {
+      if (!willFilterMembers) return body;
+      memberFilterHandled = true;
+      const filtered = filterMembersByName(body, memberNameFilter as string);
+      if (isPlainObject(filtered) && Array.isArray(filtered.value) && response._meta) {
+        response._meta = { ...response._meta, result_count: filtered.value.length };
+      }
+      return filtered;
+    };
     const applyProjection = (body: unknown): unknown => {
       // Binary, raw-text and ack payloads are wrapped in an envelope of this server's
       // own making. Projecting one strips every key and hands back {}, losing the
@@ -2993,7 +3121,9 @@ async function executeGraphTool(
       if (combinedResponse !== undefined) {
         // Project before serialize(), not after: under --toon serialize() emits TOON and
         // parsing that back as JSON would throw, silently skipping the projection.
-        const merged = shouldProject ? applyProjection(combinedResponse) : combinedResponse;
+        const merged = applyMemberFilter(
+          shouldProject ? applyProjection(combinedResponse) : combinedResponse
+        );
         projectionHandled = shouldProject;
         response.content[0].text = graphClient.serialize(merged);
       }
@@ -3004,7 +3134,9 @@ async function executeGraphTool(
     if (shouldProject && !projectionHandled && !response?.isError && response?.content?.[0]?.text) {
       try {
         const parsed = JSON.parse(response.content[0].text);
-        response.content[0].text = graphClient.serialize(applyProjection(parsed));
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(applyProjection(parsed))
+        );
       } catch {
         // Body was not JSON after all; nothing to project.
       }
@@ -3018,6 +3150,21 @@ async function executeGraphTool(
         );
       } catch {
         // Body was not JSON after all; nothing to project.
+      }
+    }
+
+    if (
+      willFilterMembers &&
+      !memberFilterHandled &&
+      !response?.isError &&
+      response?.content?.[0]?.text
+    ) {
+      try {
+        response.content[0].text = graphClient.serialize(
+          applyMemberFilter(JSON.parse(response.content[0].text))
+        );
+      } catch {
+        // Body was not JSON after all; nothing to filter.
       }
     }
 
@@ -3241,6 +3388,10 @@ export function registerGraphTools(
         .boolean()
         .describe(getFetchAllPagesParamDescription(maxPages, tool.alias))
         .optional();
+    }
+
+    if (MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) {
+      paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
     }
 
     if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {
