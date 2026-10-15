@@ -81,12 +81,15 @@ export const SELECT_PARAM_DESCRIPTION =
 // The spec describes every $expand as "Expand related entities", which says nothing about
 // what is expandable. Models pass non-navigation properties — message body is the one I
 // hit repeatedly — and Graph answers 400 "Parsing OData Select and Expand failed".
+// The one-relationship limit is in Microsoft's docs but not the spec, and the array
+// schema invites passing several.
 export const EXPAND_PARAM_DESCRIPTION =
   'Navigation properties to inline, e.g. attachments on a message or event. Only ' +
   'navigation properties can be expanded: expanding a non-navigation property such ' +
-  'as a message body fails with "Parsing OData Select and Expand failed", and an ' +
-  'unsupported value may be ignored rather than reported. Request ordinary fields ' +
-  'with $select instead.';
+  'as a message body fails with "Parsing OData Select and Expand failed". Request ' +
+  'ordinary fields with $select instead. Some APIs accept only one relationship per ' +
+  'request, so prefer a single value. Some relationships support nested selection, ' +
+  'e.g. children($select=id,name).';
 
 export const ORDERBY_PARAM_DESCRIPTION = 'Sort expression, e.g. receivedDateTime desc';
 
@@ -120,7 +123,7 @@ export function isSkiptokenApplicable(
 }
 
 export const COUNT_PARAM_DESCRIPTION =
-  'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains().';
+  'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains(). The response then includes @odata.count, the total for the filtered collection, which can exceed the items returned when fetchAllPages hits its page/item cap.';
 
 export const CONFIRM_PARAM_DESCRIPTION =
   'For destructive operations when the confirm gate is enabled (MS365_MCP_REQUIRE_CONFIRM=true; off by default). ' +
@@ -156,11 +159,12 @@ export function getAccountParamDescription(accountNames: string[]): string {
   );
 }
 
-export function getFetchAllPagesParamDescription(maxPages: number): string {
+export function getFetchAllPagesParamDescription(maxPages: number, toolAlias?: string): string {
+  const narrowingOptions = toolAlias === 'list-custom-emojis' ? '$filter' : '$filter/$search';
   return (
     `Follow @odata.nextLink and merge up to ${maxPages} pages into one response. ` +
     'Can return enormous payloads—only when the user explicitly needs a full export. ' +
-    'Prefer a small $top first, then paginate or narrow with $filter/$search.'
+    `Prefer a small $top first, then paginate or narrow with ${narrowingOptions}.`
   );
 }
 

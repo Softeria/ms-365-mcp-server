@@ -2,8 +2,9 @@ import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
+import { assertUploadDirsAbsolute } from './lib/upload-dirs.js';
+import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -51,7 +52,7 @@ program
   )
   .option(
     '--enable-attachment-urls',
-    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Requires MS365_MCP_ATTACHMENT_URL_BASE and MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE)'
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
   )
   .option(
     '--attachment-port <port>',
@@ -68,6 +69,10 @@ program
   .option(
     '--allowed-scopes <scopes>',
     'Limit exposed tools to Graph scopes covered by this whitespace-separated allowlist'
+  )
+  .option(
+    '--user-fields <fields>',
+    'Allow only these comma-separated Microsoft Graph fields in user profile responses (/users and /users/{id})'
   )
   .option(
     '--extra-scopes <scopes>',
@@ -113,6 +118,14 @@ program
     'In HTTP mode, skip the built-in Bearer-token check on /mcp and ignore any forwarded Authorization header. All callers share the locally cached MSAL identity (same path stdio mode uses). Use only when an upstream reverse proxy has already authenticated the caller.'
   )
   .option(
+    '--http-local-file-tools',
+    "In HTTP mode, also register the local file tools: download-bytes-to-file, which writes files on the server as the server's user, and upload-attachment-from-file, which reads files from the MS365_MCP_UPLOAD_DIRS directories when that is set. Anyone who can reach the port can use them, so enable only on a single-user machine. Refused unless --http binds a loopback host with no --public-url and no --trust-proxy-auth."
+  )
+  .option(
+    '--blob-output',
+    'File download tools (get-mail-message-mime, get-shared-mailbox-message-mime, get-mail-attachment-content, get-shared-mailbox-attachment-content) answer an MCP EmbeddedResource with the file instead of base64 JSON in a text block. Off by default.'
+  )
+  .option(
     '--allow-unauthenticated-discovery',
     'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
   )
@@ -155,6 +168,7 @@ export interface CommandOptions {
   attachmentHost?: string;
   enabledTools?: string;
   allowedScopes?: string;
+  userFields?: string;
   extraScopes?: string;
   preset?: string;
   listPresets?: boolean;
@@ -170,6 +184,8 @@ export interface CommandOptions {
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
+  httpLocalFileTools?: boolean;
+  blobOutput?: boolean;
   allowUnauthenticatedDiscovery?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
@@ -193,9 +209,14 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_MESSAGE_SIGNOFF_SUFFIX = '';
     process.env.MS365_MCP_MESSAGE_SIGNOFF_PREFIX = '';
   }
+  // Same for blob output, which graph-client.ts reads per download
+  if (options.blobOutput) {
+    process.env.MS365_MCP_BLOB_OUTPUT = 'true';
+  }
   // Markup in a marker is allowed (e.g. a coloured <span>), but refuse to start
   // with one that renders as empty text - html sends would look unsigned.
   assertSignoffMarkersVisible();
+  assertUploadDirsAbsolute();
 
   if (options.listPresets) {
     const presets = listPresets();
@@ -206,7 +227,10 @@ export function parseArgs(): CommandOptions {
   if (options.preset) {
     const presetNames = options.preset.split(',').map((p: string) => p.trim());
     try {
-      options.enabledTools = getCombinedPresetPattern(presetNames);
+      // The flag only acts in HTTP mode (server.ts ignores it under stdio).
+      options.enabledTools = getCombinedPresetPattern(presetNames, {
+        attachmentUrls: Boolean(options.http && options.enableAttachmentUrls),
+      });
 
       const requiresOrgMode = presetNames.some((preset: string) => presetRequiresOrgMode(preset));
       if (requiresOrgMode && !options.orgMode) {
@@ -236,6 +260,23 @@ export function parseArgs(): CommandOptions {
     console.error(
       'Error: --allowed-scopes / MS365_MCP_ALLOWED_SCOPES was provided but is empty. ' +
         'Provide one or more whitespace-separated scopes, or omit it to use tool-derived scopes.'
+    );
+    process.exit(1);
+  }
+
+  if (options.userFields === undefined && process.env.MS365_MCP_USER_FIELDS !== undefined) {
+    options.userFields = process.env.MS365_MCP_USER_FIELDS;
+  }
+
+  if (
+    options.userFields !== undefined &&
+    String(options.userFields)
+      .split(',')
+      .every((field: string) => field.trim() === '')
+  ) {
+    console.error(
+      'Error: --user-fields / MS365_MCP_USER_FIELDS was provided but names no fields. ' +
+        'Provide one or more comma-separated Graph fields, or omit it to disable the user profile field boundary.'
     );
     process.exit(1);
   }
@@ -364,6 +405,13 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_TRUST_PROXY_AUTH === '1'
   ) {
     options.trustProxyAuth = true;
+  }
+
+  if (
+    process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS === 'true' ||
+    process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS === '1'
+  ) {
+    options.httpLocalFileTools = true;
   }
 
   if (

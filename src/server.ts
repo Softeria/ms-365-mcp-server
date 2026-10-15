@@ -1,44 +1,78 @@
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import express, { Handler, Request, Response } from 'express';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import logger, { enableConsoleLogging } from './logger.js';
+import helmet from 'helmet';
+import crypto from 'node:crypto';
+import type { Server as HttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { isIP, isIPv6 } from 'node:net';
+import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
-import { registerGraphTools, registerDiscoveryTools } from './graph-tools.js';
-import { buildMcpServerInstructions } from './mcp-instructions.js';
-import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
-import GraphClient from './graph-client.js';
 import AuthManager, {
   buildScopesFromEndpoints,
   parseAllowedScopes,
   resolveAuthScopes,
 } from './auth.js';
-import { MicrosoftOAuthProvider } from './oauth-provider.js';
+import type { CommandOptions } from './cli.ts';
+import { getCloudEndpoints } from './cloud-config.js';
+import { dumpError } from './crash-logging.js';
+import GraphClient from './graph-client.js';
+import { registerDiscoveryTools, registerGraphTools } from './graph-tools.js';
+import { configureAttachmentMinting } from './lib/attachment-minting.js';
+import { AttachmentTicketStore } from './lib/attachment-tickets.js';
+import { ATTACHMENT_ROUTE, loadAttachmentUrlConfig } from './lib/attachment-url-config.js';
 import {
   exchangeCodeForToken,
   microsoftBearerTokenAuthMiddleware,
+  buildWwwAuthenticate,
   OAuthUpstreamError,
   refreshAccessToken,
   toOAuthErrorResponse,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
-import { loadAttachmentUrlConfig, ATTACHMENT_ROUTE } from './lib/attachment-url-config.js';
-import { AttachmentTicketStore } from './lib/attachment-tickets.js';
-import { configureAttachmentMinting } from './lib/attachment-minting.js';
-import { createAttachmentHandler } from './attachment-route.js';
-import type { CommandOptions } from './cli.ts';
-import { getSecrets, type AppSecrets } from './secrets.js';
-import { getCloudEndpoints } from './cloud-config.js';
-import { requestContext } from './request-context.js';
-import { dumpError } from './crash-logging.js';
-import crypto from 'node:crypto';
-import type { Server as HttpServer } from 'node:http';
-import { isIP, isIPv6 } from 'node:net';
-import type { AddressInfo } from 'node:net';
+import logger, { enableConsoleLogging } from './logger.js';
+import { buildMcpServerInstructions } from './mcp-instructions.js';
+import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
+import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import OboClient from './obo-client.js';
+import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './lib/obo-access.js';
+import { requestContext } from './request-context.js';
+import { getSecrets, type AppSecrets } from './secrets.js';
+
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
+
+export function isLoopbackHost(host: string | undefined): boolean {
+  if (!host) return false;
+  const bare = host.toLowerCase().replace(/^\[(.*)\]$/, '$1');
+  return bare === 'localhost' || bare === '127.0.0.1' || bare === '::1';
+}
+
+export function loopbackOriginValidation(): (
+  req: Request,
+  res: Response,
+  next: () => void
+) => void {
+  return (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin === undefined) return next();
+    let hostname: string | undefined;
+    try {
+      hostname = new URL(origin).hostname;
+    } catch {
+      hostname = undefined;
+    }
+    if (hostname && LOOPBACK_HOSTNAMES.includes(hostname)) return next();
+    res.status(403).json({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: `Invalid Origin: ${origin}` },
+      id: null,
+    });
+  };
+}
 
 /**
  * Parse HTTP option into host and port components.
@@ -46,12 +80,20 @@ import OboClient from './obo-client.js';
  * @param httpOption - The HTTP option value (string or boolean)
  * @returns Object with host (undefined if not specified) and port number
  */
-function parseHttpOption(httpOption: string | boolean): { host: string | undefined; port: number } {
+export function parseHttpOption(httpOption: string | boolean): {
+  host: string | undefined;
+  port: number;
+} {
   if (typeof httpOption === 'boolean') {
     return { host: undefined, port: 3000 };
   }
 
   const httpString = httpOption.trim();
+
+  const bracketed = /^\[([^\]]+)\](?::(.*))?$/.exec(httpString);
+  if (bracketed) {
+    return { host: bracketed[1], port: parseInt(bracketed[2] ?? '') || 3000 };
+  }
 
   // Check if it contains a colon (host:port format)
   if (httpString.includes(':')) {
@@ -137,7 +179,7 @@ function isHostname(value: string): boolean {
  * IPv6 is accepted, bracketed (`[::1]`) or bare (`::1`), and normalised to the
  * bare form `net.Server.listen` wants. This does *not* contradict
  * `attachment-url-config.ts` refusing an IPv6 literal in
- * `MS365_MCP_ATTACHMENT_URL_BASE`: that refusal is about the URL *signature*,
+ * `MS365_MCP_ATTACHMENT_URL_BASE` when a signing key is set: that refusal is about the URL *signature*,
  * whose canonical string covers the host and which this runtime and the
  * verifying sidecar's Python normalise differently. A bind address is never
  * signed -- it is handed to the kernel. What follows from the pair is a
@@ -251,6 +293,20 @@ class MicrosoftGraphServer {
     this.oboClient = null;
   }
 
+  private isLoopbackOnlyHttp(): boolean {
+    if (!this.options.http) return false;
+    const publicUrl =
+      this.options.publicUrl ||
+      process.env.MS365_MCP_PUBLIC_URL ||
+      this.options.baseUrl ||
+      process.env.MS365_MCP_BASE_URL;
+    return !publicUrl && isLoopbackHost(parseHttpOption(this.options.http).host);
+  }
+
+  private hidesStdioOnlyTools(): boolean {
+    return Boolean(this.options.http) && !this.options.httpLocalFileTools;
+  }
+
   private createMcpServer(): McpServer {
     const server = new McpServer(
       {
@@ -272,32 +328,22 @@ class MicrosoftGraphServer {
       registerAuthTools(server, this.authManager);
     }
 
+    const registrationOptions = {
+      readOnly: this.options.readOnly,
+      enabledTools: this.options.enabledTools,
+      orgMode: this.options.orgMode,
+      authManager: this.authManager,
+      multiAccount: this.multiAccount,
+      accountNames: this.accountNames,
+      allowedScopes: this.options.allowedScopes,
+      httpMode: this.hidesStdioOnlyTools(),
+      userFields: this.options.userFields,
+    };
+
     if (this.options.discovery) {
-      registerDiscoveryTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.enabledTools,
-        this.options.allowedScopes,
-        Boolean(this.options.http)
-      );
+      registerDiscoveryTools(server, this.graphClient!, registrationOptions);
     } else {
-      registerGraphTools(
-        server,
-        this.graphClient!,
-        this.options.readOnly,
-        this.options.enabledTools,
-        this.options.orgMode,
-        this.authManager,
-        this.multiAccount,
-        this.accountNames,
-        this.options.allowedScopes,
-        Boolean(this.options.http)
-      );
+      registerGraphTools(server, this.graphClient!, registrationOptions);
     }
 
     // Strict JSON-Schema backends (e.g. Kimi/Moonshot) reject a tools/list whose
@@ -307,6 +353,18 @@ class MicrosoftGraphServer {
     installToolSchemaRefNormalization(server);
 
     return server;
+  }
+
+  /**
+   * Under --obo the token Entra issues to the MCP client is for this app
+   * itself (`<clientId>/access_as_user`). Personal Microsoft accounts refuse
+   * to redeem a code or refresh token for that audience unless the request
+   * names the scope (AADSTS70011), so both /token grants send it in OBO mode.
+   * Outside OBO the request is unchanged.
+   */
+  private oboRedemptionScope(): string | undefined {
+    if (!this.options.obo || !this.secrets?.clientId) return undefined;
+    return `${this.secrets.clientId}/access_as_user offline_access`;
   }
 
   async initialize(version: string): Promise<void> {
@@ -337,6 +395,29 @@ class MicrosoftGraphServer {
     } else {
       logger.info(
         'Account routing disabled: requests use the OAuth bearer identity, so the "account" parameter is not injected into tool schemas'
+      );
+    }
+
+    if (this.options.httpLocalFileTools && this.options.http) {
+      if (!this.isLoopbackOnlyHttp()) {
+        throw new Error(
+          '--http-local-file-tools requires --http bound to a loopback host (localhost, ' +
+            '127.0.0.1 or [::1]) and no --public-url: anyone who can reach the port can write ' +
+            "files as the server's user."
+        );
+      }
+      if (this.options.trustProxyAuth) {
+        throw new Error(
+          '--http-local-file-tools cannot be combined with --trust-proxy-auth: a proxy in ' +
+            "front of the loopback port would let remote callers write files as the server's user."
+        );
+      }
+      logger.warn(
+        "--http-local-file-tools: download-bytes-to-file is registered over HTTP, and upload-attachment-from-file too when MS365_MCP_UPLOAD_DIRS is set; anyone who can reach this port can write files, and read files from those directories, as the server's user."
+      );
+    } else if (this.options.httpLocalFileTools) {
+      logger.warn(
+        '--http-local-file-tools has no effect in stdio mode, where the local file tools need no flag.'
       );
     }
 
@@ -447,6 +528,11 @@ class MicrosoftGraphServer {
       const { host, port } = parseHttpOption(this.options.http);
 
       const app = express();
+
+      if (this.isLoopbackOnlyHttp()) {
+        app.use(hostHeaderValidation(LOOPBACK_HOSTNAMES));
+        app.use(loopbackOriginValidation());
+      }
 
       // Trust-proxy configuration. `true` (trust every hop) is too permissive
       // once per-IP rate limiting is in play: a client can spoof the leftmost
@@ -770,17 +856,35 @@ class MicrosoftGraphServer {
         //     admin has pre-consented every scope).
         const explicitAllowedScopes = parseAllowedScopes(this.options.allowedScopes);
         const clientScope = microsoftAuthUrl.searchParams.get('scope');
-        const baseScopes =
-          explicitAllowedScopes !== undefined
+        const clientScopes = (clientScope ?? '').split(/\s+/).filter(Boolean);
+        // Under --obo the token must be for this app, not Graph, or the OBO
+        // exchange cannot use it. So Graph scopes are never derived here, and
+        // the relay scope is added if the client left it out. --allowed-scopes
+        // still narrows the tool surface, nothing more (#697).
+        const baseScopes = this.options.obo
+          ? clientScopes.some((scope) => scope.endsWith('/access_as_user'))
+            ? clientScopes
+            : [`${clientId}/access_as_user`, ...clientScopes]
+          : explicitAllowedScopes !== undefined
             ? resolveAuthScopes(this.options)
             : clientScope
-              ? clientScope.split(/\s+/).filter(Boolean)
+              ? clientScopes
               : buildScopesFromEndpoints(
                   this.options.orgMode,
                   this.options.enabledTools,
                   this.options.readOnly
                 );
-        const scopeSet = new Set([...baseScopes, 'User.Read', 'offline_access']);
+        // Under --obo the client asks only for this app's own scope
+        // (<clientId>/access_as_user), so the tool-derived Graph scopes never
+        // reach the consent screen and the later OBO exchange for
+        // graph.microsoft.com/.default yields only what the tenant has already
+        // consented to. --extra-scopes / MS365_MCP_EXTRA_SCOPES is the documented
+        // way to add Graph scopes to the token request, so honour it here too:
+        // the user then consents to them at sign-in.
+        const oboExtraScopes = this.options.obo
+          ? (parseAllowedScopes(this.options.extraScopes) ?? [])
+          : [];
+        const scopeSet = new Set([...baseScopes, ...oboExtraScopes, 'User.Read', 'offline_access']);
         microsoftAuthUrl.searchParams.set('scope', Array.from(scopeSet).join(' '));
 
         // Redirect to Microsoft's authorization page
@@ -873,7 +977,8 @@ class MicrosoftGraphServer {
               clientSecret,
               tenantId,
               matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
 
             // Hold the mapping until the exchange succeeds. Dropping it on a
@@ -905,7 +1010,8 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              this.secrets!.cloudType
+              this.secrets!.cloudType,
+              this.oboRedemptionScope()
             );
             res.json(result);
           } else {
@@ -940,6 +1046,13 @@ class MicrosoftGraphServer {
       // Microsoft Graph MCP endpoints with bearer token auth (or pass-through
       // when --trust-proxy-auth is set; see microsoftBearerTokenAuthMiddleware
       // for the AuthManager fallback that makes that mode work).
+      // Optional caller allowlist for --obo (MS365_MCP_OBO_ALLOWED_TENANTS / _USERS).
+      const oboAllowlist = this.oboClient ? readOboAllowlist() : null;
+      if (oboAllowlist && (oboAllowlist.tenants.size > 0 || oboAllowlist.users.size > 0)) {
+        logger.info(
+          `OBO allowlist: ${oboAllowlist.tenants.size} tenant(s), ${oboAllowlist.users.size} user(s)`
+        );
+      }
       const mcpAuth = microsoftBearerTokenAuthMiddleware({
         trustProxyAuth: this.options.trustProxyAuth,
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
@@ -980,7 +1093,28 @@ class MicrosoftGraphServer {
             if (req.microsoftAuth) {
               let accessToken = req.microsoftAuth.accessToken;
               if (this.oboClient) {
-                accessToken = await this.oboClient.exchangeToken(accessToken);
+                const refusal = oboAllowlist && oboAllowlistRefusal(accessToken, oboAllowlist);
+                if (refusal) {
+                  logger.warn(`OBO caller refused by the allowlist: ${refusal}`);
+                  res.status(403).json({ error: 'access_denied', error_description: refusal });
+                  return;
+                }
+                try {
+                  accessToken = await this.oboClient.exchangeToken(accessToken);
+                } catch (error) {
+                  // Entra refused the assertion itself: ask the client to sign in again
+                  // instead of reporting a server fault (#696).
+                  if (!isRejectedAssertion(error)) throw error;
+                  const description = 'The access token was rejected; sign in again';
+                  res
+                    .status(401)
+                    .set(
+                      'WWW-Authenticate',
+                      buildWwwAuthenticate(req, 'invalid_token', description, publicBase)
+                    )
+                    .json({ error: 'invalid_token', error_description: description });
+                  return;
+                }
               }
               await requestContext.run({ accessToken }, handler);
             } else {
@@ -1005,30 +1139,9 @@ class MicrosoftGraphServer {
       // Server-minted attachment URLs (--enable-attachment-urls).
       //
       // loadAttachmentUrlConfig throws on a half-configured feature, and that
-      // exception is deliberately not caught: a signing feature that comes up
-      // without a key would mint URLs nothing can verify, and would do it
-      // silently. Failing to start names the missing variable once, to the
-      // person who can set it.
+      // exception is deliberately not caught: failing to start names the bad
+      // variable once, to the person who can fix it.
       const attachmentConfig = loadAttachmentUrlConfig(Boolean(this.options.enableAttachmentUrls));
-      // Minting is refused whenever Graph identity comes from the request, and in plain
-      // --http every tools/call carries a bearer token, so the feature never mints there.
-      // stdio already gets told this; without the same line here the likelier
-      // misconfiguration is a clean startup and a feature that does nothing at all.
-      // Mirrors the guard in mintDownloadUrl rather than restating it from flags: it
-      // refuses on `isOAuthModeEnabled() || getRequestTokens()`, and outside
-      // --trust-proxy-auth every request carries a token, --obo included. Inferring this
-      // from CLI options got --obo backwards and missed MS365_MCP_OAUTH_TOKEN entirely.
-      const mintingAlwaysRefused =
-        this.authManager?.isOAuthModeEnabled() === true || !this.options.trustProxyAuth;
-      if (attachmentConfig && mintingAlwaysRefused) {
-        logger.warn(
-          '--enable-attachment-urls is on, but this server takes its Graph identity from the ' +
-            'request in plain --http mode, and minting is refused whenever it does (the URL is ' +
-            'redeemed later with no Authorization header, so the bytes would be fetched as a ' +
-            'different identity). get-download-url will keep answering with download-bytes. ' +
-            'Server-minted URLs need --trust-proxy-auth, where the server uses its own token.'
-        );
-      }
       let attachmentApp: express.Express | null = null;
       if (attachmentConfig) {
         const ticketStore = new AttachmentTicketStore(attachmentConfig.ttlSeconds);
@@ -1097,17 +1210,19 @@ class MicrosoftGraphServer {
             })
           );
         }
-        attachmentApp.get(
-          ATTACHMENT_ROUTE,
-          createAttachmentHandler({
-            store: ticketStore,
-            getGraphClient: () => this.graphClient,
-            authManager: this.authManager,
-          })
-        );
+        const attachmentDeps = {
+          store: ticketStore,
+          getGraphClient: () => this.graphClient,
+          authManager: this.authManager,
+        };
+        attachmentApp.get(ATTACHMENT_ROUTE, createAttachmentHandler(attachmentDeps));
+        // Same route, same ticket store: a PUT redeems an upload ticket minted by
+        // get-upload-url and attaches the body to the ticket's message or event.
+        attachmentApp.put(ATTACHMENT_ROUTE, createAttachmentUploadHandler(attachmentDeps));
         logger.info(
           `  - Attachment URLs: ${attachmentConfig.base}${ATTACHMENT_ROUTE} ` +
-            `(ttl ${attachmentConfig.ttlSeconds}s, key id ${attachmentConfig.keyId})`
+            `(ttl ${attachmentConfig.ttlSeconds}s, ` +
+            `${attachmentConfig.key ? `signed, key id ${attachmentConfig.keyId}` : 'unsigned'})`
         );
         if (dedicated) {
           // The minted URL is built from MS365_MCP_ATTACHMENT_URL_BASE, which

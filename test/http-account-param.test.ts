@@ -11,11 +11,11 @@
  *  - stdio / --trust-proxy-auth account routing is unchanged
  */
 import type { AccountInfo, Configuration } from '@azure/msal-node';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
-import GraphClient from '../src/graph-client.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AuthManager from '../src/auth.js';
+import GraphClient from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 import { requestContext } from '../src/request-context.js';
 
 vi.mock('../src/logger.js', () => ({
@@ -96,10 +96,11 @@ describe('Discussion #467: account parameter in HTTP/OAuth mode', () => {
     };
 
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
-    registerGraphTools(server, graphClient, false, undefined, false, mockAuthManager as any, true, [
-      'user1@domain.com',
-      'user2@domain.com',
-    ]);
+    registerGraphTools(server, graphClient, {
+      authManager: mockAuthManager as any,
+      multiAccount: true,
+      accountNames: ['user1@domain.com', 'user2@domain.com'],
+    });
     expect(capturedHandler).toBeDefined();
     return { fetchSpy, mockAuthManager };
   }

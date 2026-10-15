@@ -198,6 +198,64 @@
     "llmTip": "Send an existing draft from a shared mailbox. No request body needed — just call with the message ID and the shared mailbox user-id. Draft must exist in the shared mailbox's Drafts folder. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
+    "pathPattern": "/users/{user-id}/mailFolders",
+    "method": "get",
+    "toolName": "list-shared-mailbox-folders",
+    "descriptionOverride": "List the top-level mail folders in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
+    "method": "get",
+    "toolName": "list-shared-mailbox-child-folders",
+    "descriptionOverride": "List the child folders of a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders",
+    "method": "post",
+    "toolName": "create-shared-mailbox-folder",
+    "descriptionOverride": "Create a top-level mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
+    "method": "post",
+    "toolName": "create-shared-mailbox-child-folder",
+    "descriptionOverride": "Create a subfolder inside a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
+    "method": "get",
+    "toolName": "list-shared-mailbox-attachments",
+    "descriptionOverride": "List the attachments on a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "llmTip": "To download the bytes, call download-bytes or get-download-url with target=/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
+    "method": "post",
+    "toolName": "add-shared-mailbox-attachment",
+    "descriptionOverride": "Add an attachment under 3MB to a draft message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "llmTip": "Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}. Graph has no working path for 3MB and above here: upload sessions return 403 in a shared or delegated mailbox."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}",
+    "method": "delete",
+    "toolName": "delete-shared-mailbox-attachment",
+    "descriptionOverride": "Delete an attachment from a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/users",
     "method": "get",
     "toolName": "list-users",
@@ -533,7 +591,8 @@
     "toolName": "get-schedule",
     "presets": ["calendar", "outlook", "personal"],
     "readOnly": true,
-    "workScopes": ["Calendars.Read"]
+    "workScopes": ["Calendars.Read"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/users/{user-id}/calendar/events",
@@ -541,7 +600,8 @@
     "toolName": "list-shared-calendar-events",
     "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated access to that calendar is required. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
     "presets": ["work"],
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/users/{user-id}/calendarView",
@@ -599,7 +659,8 @@
     "toolName": "find-meeting-times",
     "presets": ["calendar", "outlook", "personal"],
     "readOnly": true,
-    "workScopes": ["Calendars.Read.Shared"]
+    "workScopes": ["Calendars.Read.Shared"],
+    "supportsTimezone": true
   },
   {
     "pathPattern": "/me/drives",
@@ -888,7 +949,39 @@
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
     "acceptType": "text/plain",
+    "blobOutput": true,
     "llmTip": "Download an email message as raw RFC 5322 MIME content (.eml format). Use this when archiving an email to disk preserving all original headers, body, and inline-encoded attachments. Returns the MIME stream as text. Find the message id with list-mail-messages first."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/$value",
+    "method": "get",
+    "toolName": "get-shared-mailbox-message-mime",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "acceptType": "text/plain",
+    "blobOutput": true,
+    "llmTip": "Download a message of a shared mailbox as an .eml. Find the message id with list-shared-mailbox-messages first. With the server's blob output on, the bytes come back as a file resource; pass fileName to name it."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}/$value",
+    "method": "get",
+    "toolName": "get-mail-attachment-content",
+    "descriptionOverride": "Download the raw bytes of a file attachment of an Outlook message in the signed-in user's mailbox, by message ID and attachment ID.",
+    "presets": ["mail", "outlook", "personal"],
+    "scopes": ["Mail.Read"],
+    "blobOutput": true,
+    "llmTip": "Find the attachment id with list-mail-attachments first. With the server's blob output on, the bytes come back as a file resource; pass fileName (the attachment's name) to name it. Files over the server's download limit are refused with an error naming the limit."
+  },
+  {
+    "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value",
+    "method": "get",
+    "toolName": "get-shared-mailbox-attachment-content",
+    "descriptionOverride": "Download the raw bytes of a file attachment of a message in another user's mailbox or a shared mailbox, by message ID and attachment ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "presets": ["work"],
+    "workScopes": ["Mail.Read.Shared"],
+    "blobOutput": true,
+    "llmTip": "Find the attachment id with list-shared-mailbox-attachments first. With the server's blob output on, the bytes come back as a file resource; pass fileName (the attachment's name) to name it. Files over the server's download limit are refused with an error naming the limit."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/workbook/worksheets/{workbookWorksheet-id}/range(address='{address}')",
@@ -1261,7 +1354,7 @@
     "toolName": "create-todo-task",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Creates a new task in a Microsoft To Do list. Body: { title: \"...\" }; optional dueDateTime, reminderDateTime, importance, body (notes), recurrence, categories. Requires todoTaskListId from list-todo-task-lists."
+    "llmTip": "Creates a new task in a Microsoft To Do list. Body: { title: \"...\" }; optional dueDateTime, reminderDateTime, importance, body (notes), recurrence, categories, and checklistItems: [{ displayName: \"...\", isChecked: false }] to create the task's steps inline (isChecked is optional). Requires todoTaskListId from list-todo-task-lists. To change steps after the task exists, use the *-todo-checklist-item tools."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
@@ -1269,7 +1362,7 @@
     "toolName": "update-todo-task",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "llmTip": "Updates a Microsoft To Do task. Use this to mark a to-do item complete or done (body: { status: \"completed\" }), reopen it (status: \"notStarted\"), rename it (title), or change its due date (dueDateTime), reminder (reminderDateTime), importance, or notes (body). Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
+    "llmTip": "Updates a Microsoft To Do task. Use this to mark a to-do item complete or done (body: { status: \"completed\" }), reopen it (status: \"notStarted\"), rename it (title), or change its due date (dueDateTime), reminder (reminderDateTime), importance, or notes (body). Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks. Steps (checklistItems) can't be changed here: Graph rejects checklistItems in a PATCH on the task with 400. Use create-todo-checklist-item, update-todo-checklist-item, or delete-todo-checklist-item instead."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
@@ -1301,6 +1394,38 @@
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
     "llmTip": "Removes a linked resource from a To Do task."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "get",
+    "toolName": "list-todo-checklist-items",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists the steps (checklist items) of a To Do task. Each item has id, displayName, isChecked, checkedDateTime, and createdDateTime. Graph supports no OData query parameters on this endpoint, so do not pass select, filter, orderby, or top. Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
+    "method": "post",
+    "toolName": "create-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Adds a step (checklist item) to an existing To Do task. Body: { displayName: \"...\" }; optional isChecked (defaults to false). Returns the new item with its id. To add steps while creating a task, pass checklistItems in the create-todo-task body instead."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "patch",
+    "toolName": "update-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Updates a step (checklist item) of a To Do task. Use this to check a step off (body: { isChecked: true }), uncheck it (isChecked: false), or rename it (displayName). Requires checklistItemId from list-todo-checklist-items."
+  },
+  {
+    "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems/{checklistItem-id}",
+    "method": "delete",
+    "toolName": "delete-todo-checklist-item",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Deletes a step (checklist item) from a To Do task. This cannot be undone. Requires checklistItemId from list-todo-checklist-items."
   },
   {
     "pathPattern": "/me/planner/tasks",
@@ -1658,6 +1783,39 @@
     "toolName": "list-joined-teams",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Team.ReadBasic.All"]
+  },
+  {
+    "pathPattern": "/teamwork/messaging/customEmojis",
+    "method": "get",
+    "toolName": "list-custom-emojis",
+    "apiVersion": "beta",
+    "presets": ["teams", "work"],
+    "workScopes": ["TeamworkCustomEmoji.Read"],
+    "llmTip": "Lists the organization's custom Teams emojis, including displayName, createdBy and createdDateTime. Graph can return contentBytes: null by default; request select='displayName,contentBytes' (or a string array) to retrieve base64 PNG/GIF images. Supports $top, $filter and $select. Image bytes can make responses large: use a small $top when selecting contentBytes; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
+  },
+  {
+    "pathPattern": "/teamwork/messaging/customEmojis",
+    "method": "post",
+    "toolName": "create-custom-emoji",
+    "apiVersion": "beta",
+    "presets": ["teams", "work"],
+    "workScopes": ["TeamworkCustomEmoji.Create"],
+    "requestBodySchema": {
+      "type": "object",
+      "required": ["displayName", "contentBytes"],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Exact unique custom emoji name, without surrounding colons. Must not conflict with an existing emoji name."
+        },
+        "contentBytes": {
+          "type": "string",
+          "description": "Base64-encoded PNG or GIF file content; do not include a data-URL prefix."
+        }
+      },
+      "additionalProperties": false
+    },
+    "llmTip": "Uploads a custom Teams emoji for the organization using body: { displayName, contentBytes }. Only PNG and GIF are supported; pass the complete image file as base64. Confirm the exact name and image with the user before creating it. Returns the created emoji, including its image bytes; use excludeResponse=true when only success/failure is needed. Work/school accounts only. Microsoft Graph beta API: subject to change."
   },
   {
     "pathPattern": "/teams/{team-id}",
@@ -2230,6 +2388,7 @@
     "pathPattern": "/groups/{group-id}/threads/{conversationThread-id}/reply",
     "method": "post",
     "toolName": "reply-to-group-thread",
+    "descriptionOverride": "Reply to a conversation thread in a Microsoft 365 group, adding a new post to the thread. Use list-group-threads to obtain the thread ID.",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
@@ -2359,6 +2518,22 @@
     "llmTip": "Dismisses a triggered event reminder so it won't re-fire. No request body required. Pair with list-calendar-events or get-schedule to find active reminders."
   },
   {
+    "pathPattern": "/me/events/{event-id}/attachments",
+    "method": "post",
+    "toolName": "add-calendar-event-attachment",
+    "presets": ["calendar", "outlook", "personal"],
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "Under 3MB only. Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}. At 3MB and above use create-calendar-event-attachment-upload-session."
+  },
+  {
+    "pathPattern": "/me/events/{event-id}/attachments/createUploadSession",
+    "method": "post",
+    "toolName": "create-calendar-event-attachment-upload-session",
+    "presets": ["calendar", "outlook", "personal"],
+    "scopes": ["Calendars.ReadWrite"],
+    "llmTip": "For attachments 3MB to 150MB; under 3MB use add-calendar-event-attachment. Body: { AttachmentItem: { attachmentType: 'file', name: 'report.pdf', size: 5000000 } }. Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself in ranges up to 4MB."
+  },
+  {
     "pathPattern": "/me/events/delta()",
     "method": "get",
     "toolName": "list-calendar-events-delta",
@@ -2372,6 +2547,7 @@
     "toolName": "list-calendar-view-delta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
+    "supportsTimezone": true,
     "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
   },
   {

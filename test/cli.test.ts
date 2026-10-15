@@ -51,18 +51,23 @@ describe('CLI Module', () => {
     vi.clearAllMocks();
     commanderMocks.mockCommand.opts.mockReturnValue({ file: 'test.xlsx' });
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_USER_FIELDS;
     delete process.env.MS365_MCP_EXTRA_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
+    delete process.env.MS365_MCP_BLOB_OUTPUT;
   });
 
   afterEach(() => {
     delete process.env.MS365_MCP_ALLOWED_SCOPES;
+    delete process.env.MS365_MCP_USER_FIELDS;
     delete process.env.MS365_MCP_EXTRA_SCOPES;
     delete process.env.MS365_MCP_EXPECTED_USERNAME;
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
+    delete process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS;
+    delete process.env.MS365_MCP_BLOB_OUTPUT;
   });
 
   describe('parseArgs', () => {
@@ -77,6 +82,69 @@ describe('CLI Module', () => {
       const result = parseArgs();
 
       expect(result.allowedScopes).toBe('Mail.Read Files.Read');
+    });
+
+    it('should parse --user-fields from CLI options', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: 'id,displayName,mail' });
+
+      expect(parseArgs().userFields).toBe('id,displayName,mail');
+    });
+
+    it('should use MS365_MCP_USER_FIELDS as a fallback', () => {
+      process.env.MS365_MCP_USER_FIELDS = 'id,displayName';
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      expect(parseArgs().userFields).toBe('id,displayName');
+    });
+
+    it('should fail closed when user fields are supplied empty', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: '   ' });
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--user-fields'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should fail closed when user fields name no fields', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ userFields: ' , ,' });
+
+      parseArgs();
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--user-fields'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it.each(['true', '1'])(
+      'should enable --http-local-file-tools from MS365_MCP_HTTP_LOCAL_FILE_TOOLS=%s',
+      (value) => {
+        process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS = value;
+        commanderMocks.mockCommand.opts.mockReturnValue({});
+
+        expect(parseArgs().httpLocalFileTools).toBe(true);
+      }
+    );
+
+    it('should leave --http-local-file-tools off by default', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      expect(parseArgs().httpLocalFileTools).toBeUndefined();
+    });
+
+    it('should fold --blob-output into MS365_MCP_BLOB_OUTPUT', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ blobOutput: true });
+
+      parseArgs();
+
+      expect(process.env.MS365_MCP_BLOB_OUTPUT).toBe('true');
+    });
+
+    it('should leave MS365_MCP_BLOB_OUTPUT unset without --blob-output', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      parseArgs();
+
+      expect(process.env.MS365_MCP_BLOB_OUTPUT).toBeUndefined();
     });
 
     it('should use MS365_MCP_ALLOWED_SCOPES as a fallback', () => {
@@ -370,6 +438,80 @@ describe('CLI Module', () => {
       commanderMocks.mockCommand.opts.mockReturnValue({});
       const result = parseArgs();
       expect(result.enableDynamicRegistration).toBeUndefined();
+    });
+  });
+
+  describe('--preset with --enable-attachment-urls', () => {
+    const allows = (tools: string | undefined, name: string) => new RegExp(tools!, 'i').test(name);
+
+    it.each(['mail', 'calendar', 'teams', 'mail,calendar'])(
+      'keeps get-download-url in --preset %s over HTTP so attachments can be minted',
+      (preset) => {
+        commanderMocks.mockCommand.opts.mockReturnValue({
+          preset,
+          http: '3000',
+          enableAttachmentUrls: true,
+        });
+        const { enabledTools } = parseArgs();
+        expect(allows(enabledTools, 'get-download-url')).toBe(true);
+        expect(allows(enabledTools, 'download-bytes')).toBe(true);
+        expect(allows(enabledTools, 'get-drive-item')).toBe(false);
+      }
+    );
+
+    it('leaves get-download-url out of a non-drive preset without the flag', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ preset: 'mail', http: '3000' });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+
+    it('ignores the flag in stdio mode, where it has no effect', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'mail',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+
+    it('adds get-download-url to teams-write,mail because mail lacks it', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'teams-write,mail',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(true);
+    });
+
+    it.each(['files', 'all'])('adds no duplicate entry for --preset %s', (preset) => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset,
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      const { enabledTools } = parseArgs();
+      expect(enabledTools!.match(/get-download-url/g)?.length ?? 0).toBeLessThanOrEqual(1);
+    });
+
+    it('lets ENABLED_TOOLS override the preset and the flag', () => {
+      process.env.ENABLED_TOOLS = '^list-mail-messages$';
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'mail',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      try {
+        expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+      } finally {
+        delete process.env.ENABLED_TOOLS;
+      }
+    });
+
+    it('does not add a byte reader to the send-only teams-write preset', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        preset: 'teams-write',
+        http: '3000',
+        enableAttachmentUrls: true,
+      });
+      expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
     });
   });
 });

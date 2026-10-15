@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
-import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import { getCloudEndpoints, getDefaultClientId, getGraphBaseUrl } from './cloud-config.js';
 import {
   dedupeRefreshTokens,
   type CanonicalKeyFor,
@@ -1418,8 +1418,7 @@ class AuthManager {
 
       try {
         const secrets = await getSecrets();
-        const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
-        const response = await fetch(`${cloudEndpoints.graphApi}/v1.0/me`, {
+        const response = await fetch(`${getGraphBaseUrl(secrets.cloudType)}/v1.0/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

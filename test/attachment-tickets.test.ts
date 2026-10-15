@@ -13,6 +13,8 @@ import {
 } from '../src/lib/attachment-url-config.js';
 import { canonicalString, digest } from '../src/lib/url-signing.js';
 import { createAttachmentHandler, forceAttachment } from '../src/attachment-route.js';
+import GraphClient from '../src/graph-client.js';
+import logger from '../src/logger.js';
 
 describe('AttachmentTicketStore', () => {
   const NOW = 1_780_000_000_000;
@@ -36,7 +38,30 @@ describe('AttachmentTicketStore', () => {
   it('carries the account through to redemption', () => {
     const store = new AttachmentTicketStore(120);
     const { id } = store.mint('/target', 'olga@example.com', NOW);
-    expect(store.redeem(id, NOW)?.accountName).toBe('olga@example.com');
+    expect(store.redeem(id, NOW)).toMatchObject({
+      kind: 'server-account',
+      accountName: 'olga@example.com',
+    });
+  });
+
+  it('carries the token through to redemption', () => {
+    const store = new AttachmentTicketStore(120);
+    const { id } = store.mintWithToken('/target', 'CALLER_TOKEN', NOW);
+    const ticket = store.redeem(id, NOW);
+    expect(ticket).toMatchObject({ kind: 'request-token', accessToken: 'CALLER_TOKEN' });
+    expect(ticket).not.toHaveProperty('accountName');
+  });
+
+  it('refuses to mint a token ticket without a token', () => {
+    const store = new AttachmentTicketStore(120);
+    expect(() => store.mintWithToken('/target', '', NOW)).toThrow();
+    expect(store.size(NOW)).toBe(0);
+  });
+
+  it('counts both kinds against the same cap', () => {
+    const store = new AttachmentTicketStore(120);
+    for (let i = 0; i < 256; i += 1) store.mintWithToken(`/t${i}`, 'CALLER_TOKEN', NOW);
+    expect(() => store.mint('/one-too-many', undefined, NOW)).toThrow(TicketStoreFullError);
   });
 
   it('refuses a ticket that has expired', () => {
@@ -189,6 +214,15 @@ describe('buildAttachmentUrl', () => {
     );
   });
 
+  it('mints a bare ticket URL, with no signature parameters, when no key is configured', () => {
+    const url = new URL(
+      buildAttachmentUrl({ base: config.base, keyId: '1', ttlSeconds: 120 }, 'TICKET')
+    );
+    expect(url.pathname).toBe('/attachment');
+    expect([...url.searchParams.keys()]).toEqual([TICKET_PARAM]);
+    expect(url.searchParams.get(TICKET_PARAM)).toBe('TICKET');
+  });
+
   it('honours the configured key id', () => {
     const url = new URL(
       buildAttachmentUrl({ ...config, keyId: 'rotated' }, 'T', 1_780_000_000_000)
@@ -220,10 +254,89 @@ describe('loadAttachmentUrlConfig', () => {
     );
   });
 
-  it('refuses to start without a key', () => {
+  it('starts without a key, leaving key undefined', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    const config = loadAttachmentUrlConfig(true, keyless)!;
+    expect(config.key).toBeUndefined();
+    expect(config.ttlSeconds).toBe(120);
+  });
+
+  it('treats an empty key variable as unset', () => {
+    const config = loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: '' })!;
+    expect(config.key).toBeUndefined();
+  });
+
+  it('refuses a key id with no key, which can only be a lost key', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
     expect(() =>
-      loadAttachmentUrlConfig(true, { MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000' })
-    ).toThrow(AttachmentUrlConfigError);
+      loadAttachmentUrlConfig(true, { ...keyless, MS365_MCP_ATTACHMENT_URL_KEY_ID: '2' })
+    ).toThrow(/KEY_ID.*KEY/);
+  });
+
+  it('refuses a key file that is set but empty, rather than falling back to keyless', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'dgkey-'));
+    try {
+      const empty = join(dir, 'empty');
+      writeFileSync(empty, '\n');
+      expect(() =>
+        loadAttachmentUrlConfig(true, {
+          MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+          MS365_MCP_ATTACHMENT_URL_KEY_FILE: empty,
+        })
+      ).toThrow(/is empty/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a whitespace-only key but keeps the spaces of a real one', () => {
+    expect(() =>
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: '   ' })
+    ).toThrow(/whitespace only/);
+    expect(
+      loadAttachmentUrlConfig(true, { ...good, MS365_MCP_ATTACHMENT_URL_KEY: ' pad ' })!.key
+    ).toBe(' pad ');
+  });
+
+  it('accepts a key id together with a key file', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'dgkey-'));
+    try {
+      const file = join(dir, 'key');
+      writeFileSync(file, 'secret\n');
+      const config = loadAttachmentUrlConfig(true, {
+        MS365_MCP_ATTACHMENT_URL_BASE: 'http://h:3000',
+        MS365_MCP_ATTACHMENT_URL_KEY_FILE: file,
+        MS365_MCP_ATTACHMENT_URL_KEY_ID: '7',
+      })!;
+      expect([config.key, config.keyId]).toEqual(['secret', '7']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('still validates the base when no key is configured', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    for (const base of ['ftp://h:3000', 'http://h:3000/?a=1', 'http://h:3000/#f', 'nope']) {
+      expect(
+        () => loadAttachmentUrlConfig(true, { ...keyless, MS365_MCP_ATTACHMENT_URL_BASE: base }),
+        base
+      ).toThrow(AttachmentUrlConfigError);
+    }
+  });
+
+  it('accepts an IPv6-literal base when no key is configured, since nothing is signed', () => {
+    const { MS365_MCP_ATTACHMENT_URL_KEY: _key, ...keyless } = good;
+    const config = loadAttachmentUrlConfig(true, {
+      ...keyless,
+      MS365_MCP_ATTACHMENT_URL_BASE: 'http://[fd00::1]:3000',
+    })!;
+    expect(config.base).toBe('http://[fd00::1]:3000');
   });
 
   it('refuses an IPv6-literal base, which could never sign compatibly', () => {
@@ -482,6 +595,146 @@ describe('attachment redemption route', () => {
     expect(sent.headers['cache-control']).toBe('no-store');
     expect(Buffer.concat(written)).toEqual(Buffer.from([1, 2, 3]));
     expect(store.redeem(id)).toBeUndefined();
+  });
+
+  it('redeems a keyless minted URL, and still 404s a tampered or unknown ticket', async () => {
+    const downloadStream = vi.fn(async () => ({
+      body: new ReadableStream({
+        start(c) {
+          c.enqueue(new Uint8Array([7]));
+          c.close();
+        },
+      }),
+      contentType: 'application/pdf',
+      contentLength: 1,
+      contentDisposition: null,
+    }));
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: authManager as never,
+    });
+    const { id } = store.mint('/me/messages/1/attachments/2/$value', undefined);
+    const url = new URL(
+      buildAttachmentUrl({ base: 'http://m365:3000', keyId: '1', ttlSeconds: 120 }, id)
+    );
+    const query = Object.fromEntries(url.searchParams);
+
+    await handler(
+      { method: 'GET', query: { t: `${id}x` } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+    expect(sent.status).toBe(404);
+    expect(downloadStream).not.toHaveBeenCalled();
+
+    sent = { headers: {} };
+    await handler({ method: 'GET', query } as never, mockRes() as never, (() => {}) as never);
+    expect(sent.status).toBe(200);
+    expect(Buffer.concat(written)).toEqual(Buffer.from([7]));
+    expect(store.redeem(id)).toBeUndefined();
+  });
+
+  it('redeems a request-token ticket with its own token, not the cache', async () => {
+    const downloadStream = vi.fn(async () => ({
+      body: new ReadableStream({
+        start(c) {
+          c.close();
+        },
+      }),
+      contentType: 'application/pdf',
+      contentLength: null,
+      contentDisposition: null,
+    }));
+    const getTokenForAccount = vi.fn(async () => 'tok');
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: { isOAuthModeEnabled: () => false, getTokenForAccount } as never,
+    });
+    const { id } = store.mintWithToken('/me/messages/1/attachments/2/$value', 'CALLER_TOKEN');
+
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+
+    expect(downloadStream).toHaveBeenCalledWith('/me/messages/1/attachments/2/$value', {
+      accessToken: 'CALLER_TOKEN',
+    });
+    expect(getTokenForAccount).not.toHaveBeenCalled();
+    expect(sent.status).toBe(200);
+  });
+
+  // The token a ticket holds cannot be refreshed, so an upstream refusal has to end
+  // there: no second attempt with whatever this server has cached, and no token in
+  // the log line that reports it.
+  it('502s a refused request-token ticket without asking the cache or logging the token', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('{"error":{"code":"InvalidAuthenticationToken"}}', { status: 401 })
+      );
+    const errorLog = vi.spyOn(logger, 'error').mockImplementation(() => logger);
+    const getToken = vi.fn(async () => 'SERVER_OWN_TOKEN');
+    const getTokenForAccount = vi.fn(async () => 'SERVER_OWN_TOKEN');
+    const authManager = { isOAuthModeEnabled: () => false, getToken, getTokenForAccount };
+    const graphClient = new GraphClient(authManager as never, {
+      clientId: 'id',
+      tenantId: 'common',
+      cloudType: 'global',
+    });
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => graphClient,
+      authManager: authManager as never,
+    });
+    const { id } = store.mintWithToken('/me/messages/1/attachments/2/$value', 'CALLER_TOKEN');
+
+    try {
+      await handler(
+        { method: 'GET', query: { t: id } } as never,
+        mockRes() as never,
+        (() => {}) as never
+      );
+
+      expect(sent.status).toBe(502);
+      expect(sent.body).toBe('Upstream fetch failed');
+      expect(store.redeem(id)).toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer CALLER_TOKEN');
+      expect(getToken).not.toHaveBeenCalled();
+      expect(getTokenForAccount).not.toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalled();
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain('CALLER_TOKEN');
+    } finally {
+      fetchMock.mockRestore();
+      errorLog.mockRestore();
+    }
+  });
+
+  it('502s rather than fetching when the cache yields no token', async () => {
+    const downloadStream = vi.fn();
+    const handler = createAttachmentHandler({
+      store,
+      getGraphClient: () => ({ downloadStream }) as never,
+      authManager: {
+        isOAuthModeEnabled: () => false,
+        getTokenForAccount: async () => '',
+      } as never,
+    });
+    const { id } = store.mint('/t', undefined);
+
+    await handler(
+      { method: 'GET', query: { t: id } } as never,
+      mockRes() as never,
+      (() => {}) as never
+    );
+
+    expect(sent.status).toBe(502);
+    expect(downloadStream).not.toHaveBeenCalled();
   });
 
   it('forces a download disposition when Graph supplies none', async () => {

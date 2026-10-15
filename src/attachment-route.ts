@@ -5,6 +5,8 @@
  *
  *     GET /attachment?t=<ticket>&dgk=<key-id>&dgx=<expiry>&dgs=<signature>
  *
+ * (or just `GET /attachment?t=<ticket>` when no signing key is configured).
+ *
  * **This route ignores `dgk`/`dgx`/`dgs` entirely, and that is correct.** Those
  * three exist for the sidecar, which verifies them before it will dial a
  * private address at all; they are the sidecar's authorisation to *dial*, not
@@ -19,7 +21,8 @@
  * No Authorization header is required or read. The fetcher holds no Microsoft
  * credential -- that is the entire point of handing it a URL instead of bytes --
  * so the ticket is the only credential in play, and the response is streamed
- * with this server's own Graph token.
+ * with the identity the ticket was minted under: this server's own Graph token,
+ * or the token of the request that minted it.
  */
 
 import type { Handler, Request, Response } from 'express';
@@ -33,6 +36,7 @@ import {
   isPlainGraphPath,
   TICKET_PARAM,
 } from './lib/attachment-tickets.js';
+import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
 
 export interface AttachmentRouteDeps {
   store: AttachmentTicketStore;
@@ -134,13 +138,15 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
     }
 
     const ticket = deps.store.redeem(raw);
-    if (!ticket) {
+    // An upload ticket presented to the download route is burnt and refused:
+    // one ticket, one purpose, and the refusal is indistinguishable from any other.
+    if (!ticket || ticket.purpose !== 'download') {
       refuse(res);
       return;
     }
 
     // Re-checked here, not because the store is untrusted, but because this is the last
-    // point before a fetch runs under the server's own token: a target that reaches it
+    // point before a fetch runs under the ticket's token: a target that reaches it
     // malformed should fail closed rather than resolve to whatever the path concatenation
     // makes of it.
     if (!isPlainGraphPath(ticket.target)) {
@@ -160,15 +166,18 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
 
     let stream: Awaited<ReturnType<GraphClient['downloadStream']>>;
     try {
-      let accessToken: string | undefined;
-      if (!deps.authManager.isOAuthModeEnabled()) {
-        accessToken = await deps.authManager.getTokenForAccount(ticket.accountName);
-      }
+      const accessToken =
+        ticket.kind === 'request-token'
+          ? ticket.accessToken
+          : await deps.authManager.getTokenForAccount(ticket.accountName);
+      // downloadStream falls back to AuthManager when handed no token, which for a
+      // request-token ticket would fetch as whatever account this server has cached.
+      if (!accessToken) throw new Error('No access token for this ticket');
       stream = await graphClient.downloadStream(ticket.target, { accessToken });
     } catch (error) {
-      // The target path is logged; the ticket id never is. The path is what an
-      // operator needs to diagnose a failure and is not itself a capability --
-      // reaching it still requires this server's Graph token.
+      // The target path is logged; the ticket id and token never are. The path is
+      // what an operator needs to diagnose a failure and is not itself a capability --
+      // reaching it still requires a Graph token.
       logger.error(
         `Attachment redemption failed for ${ticket.target}: ${(error as Error).message}`
       );
@@ -197,6 +206,101 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
       // short body that looks complete.
       logger.error(`Attachment stream aborted for ${ticket.target}: ${(error as Error).message}`);
       res.destroy();
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Upload: PUT /attachment?t=<ticket>  (raw file bytes, Content-Length required)
+// ---------------------------------------------------------------------------
+
+/**
+ * Redeem an upload ticket: the request body is the file, and it becomes an
+ * attachment in the ticket's target collection as the identity that minted
+ * the ticket. Small files are POSTed inline; larger ones stream through a
+ * Graph upload session in fixed chunks, so the server never holds more than
+ * one chunk of a large file.
+ */
+export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handler {
+  return async (req: Request, res: Response): Promise<void> => {
+    if (req.method !== 'PUT') {
+      res.setHeader('allow', 'GET, PUT');
+      res.status(405).type('text/plain').send('Method not allowed');
+      return;
+    }
+
+    const raw = req.query[TICKET_PARAM];
+    if (typeof raw !== 'string' || raw.length === 0) {
+      refuse(res);
+      return;
+    }
+
+    const ticket = deps.store.redeem(raw);
+    if (!ticket || ticket.purpose !== 'upload') {
+      refuse(res);
+      return;
+    }
+    if (!isPlainGraphPath(ticket.target)) {
+      logger.error('Attachment upload refused: ticket target is not a plain Graph path');
+      refuse(res);
+      return;
+    }
+
+    // The ticket is burnt above whatever happens next: a rejected body cannot
+    // be retried against the same capability.
+    const declared = Number(req.headers['content-length']);
+    if (!Number.isInteger(declared) || declared < 0) {
+      res.status(411).type('text/plain').send('Content-Length required');
+      return;
+    }
+    if (declared === 0) {
+      res.status(400).type('text/plain').send('Empty upload');
+      return;
+    }
+    if (declared > MAX_UPLOAD_BYTES) {
+      res.status(413).type('text/plain').send(`Upload exceeds ${MAX_UPLOAD_BYTES} bytes`);
+      return;
+    }
+
+    const graphClient = deps.getGraphClient();
+    if (!graphClient) {
+      logger.error('Attachment upload failed: Graph client is not initialised');
+      res.status(503).type('text/plain').send('Service unavailable');
+      return;
+    }
+
+    let accessToken: string | undefined;
+    try {
+      accessToken =
+        ticket.kind === 'request-token'
+          ? ticket.accessToken
+          : await deps.authManager.getTokenForAccount(ticket.accountName);
+      if (!accessToken) throw new Error('No access token for this ticket');
+    } catch (error) {
+      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      res.status(502).type('text/plain').send('Upstream upload failed');
+      return;
+    }
+
+    res.setHeader('cache-control', 'no-store');
+    res.setHeader('x-content-type-options', 'nosniff');
+
+    try {
+      const created = await uploadAttachment(
+        graphClient,
+        {
+          target: ticket.target,
+          name: ticket.name,
+          contentType: ticket.contentType,
+          size: declared,
+          accessToken,
+        },
+        req
+      );
+      res.status(201).json({ ok: true, name: ticket.name, size: declared, id: created.id });
+    } catch (error) {
+      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      if (!res.headersSent) res.status(502).type('text/plain').send('Upstream upload failed');
     }
   };
 }

@@ -3,9 +3,10 @@
  * pre-authenticated download URL of their own.
  *
  * A ticket is a capability and nothing else: it names one Graph path and one
- * account, it is redeemable once, and it expires. It carries no credential --
- * the redemption route authenticates to Graph with the server's own token, the
- * same way every tool does. Holding a ticket therefore authorises exactly one
+ * identity, it is redeemable once, and it expires. The identity is an account
+ * in this server's own token cache, or, when Graph identity came from the
+ * request, the token that request read with. That token stays in the record
+ * and never reaches the URL. Holding a ticket therefore authorises exactly one
  * authenticated GET of exactly one resource, which is the smallest grant that
  * makes an out-of-band fetch possible at all.
  *
@@ -23,7 +24,8 @@ import { signUrl } from './url-signing.js';
 export const TICKET_PARAM = 't';
 
 /**
- * Build the signed, redeemable URL for a minted ticket.
+ * Build the redeemable URL for a minted ticket, signed when a key is configured
+ * and bare (just the ticket) when it is not.
  *
  * **The ticket travels in the query, never the path**, and that is a hard
  * requirement of the verifying sidecar rather than a style choice: docglean's
@@ -38,6 +40,7 @@ export function buildAttachmentUrl(
 ): string {
   const url = new URL(ATTACHMENT_ROUTE, config.base);
   url.searchParams.set(TICKET_PARAM, ticketId);
+  if (!config.key) return url.toString();
   return signUrl(
     url.toString(),
     { key: config.key, keyId: config.keyId, ttlSeconds: config.ttlSeconds },
@@ -85,20 +88,72 @@ export function isPlainGraphPath(target: string): boolean {
   );
 }
 
-export interface AttachmentTicket {
-  /** Relative Graph path, exactly as the minting tool validated it. */
-  readonly target: string;
-  /** Account this ticket was minted for; undefined in single-account mode. */
-  readonly accountName: string | undefined;
-  /** Epoch milliseconds after which this ticket is dead. */
-  readonly expiresAtMs: number;
+/**
+ * The same round trip for a path filled in from a tool's own template. Compared decoded,
+ * because skipEncoding parameters reach the path raw and the parser percent-encodes a
+ * space or a non-ASCII letter in one without sending the request anywhere else.
+ */
+export function isUnalteredGraphPath(path: string): boolean {
+  // A "%" that starts no escape is literal text ("100%"), which the parser leaves alone
+  const decode = (s: string) => decodeURIComponent(s.replace(/%(?![0-9a-f]{2})/gi, '%25'));
+  try {
+    const resolved = new URL(PROBE_ORIGIN + PROBE_PREFIX + path);
+    return (
+      resolved.origin === PROBE_ORIGIN &&
+      resolved.search === '' &&
+      resolved.hash === '' &&
+      decode(resolved.pathname) === decode(PROBE_PREFIX + path)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Cap on live tickets. A ticket is ~200 bytes, so this bounds the store at a
- * few hundred KB -- but the reason for a cap is not memory, it is that an agent
- * in a retry loop should hit a refusal it can report rather than grow the
- * process without limit. Minting refuses when full, after sweeping; it never
+ * Who the bytes are fetched as. Two kinds rather than two optional fields, so
+ * redemption has to pick a branch and a request-token ticket cannot reach the
+ * token cache by way of a missing value.
+ */
+export type TicketIdentity =
+  /** Account in this server's token cache; undefined in single-account mode. */
+  | { readonly kind: 'server-account'; readonly accountName: string | undefined }
+  /** Graph token of the request that minted the ticket. */
+  | { readonly kind: 'request-token'; readonly accessToken: string };
+
+/**
+ * What redeeming the ticket does. A download ticket authorises one GET of
+ * `target`; an upload ticket authorises one PUT of a file that becomes an
+ * attachment in the `target` collection (a draft message's or an event's
+ * `/attachments`). Two kinds rather than a flag so a redemption handler has to
+ * pick the branch it was written for and cannot serve the other by accident.
+ */
+export type TicketPurpose =
+  | { readonly purpose: 'download' }
+  | {
+      readonly purpose: 'upload';
+      /** Attachment name as Graph will store it. */
+      readonly name: string;
+      /** MIME type recorded on the attachment. */
+      readonly contentType: string;
+    };
+
+export type AttachmentTicket = TicketIdentity &
+  TicketPurpose & {
+    /** Relative Graph path, exactly as the minting tool validated it. */
+    readonly target: string;
+    /** Epoch milliseconds after which this ticket is dead. */
+    readonly expiresAtMs: number;
+  };
+
+/** Upload metadata a minting tool supplies; the store adds nothing to it. */
+export type UploadSpec = { readonly name: string; readonly contentType: string };
+
+/**
+ * Cap on live tickets. A ticket is a few KB at most, the token being nearly all
+ * of it, so this bounds the store at about a MB -- but the reason for a cap is
+ * not memory, it is that an agent in a retry loop should hit a refusal it can
+ * report rather than grow the process without limit. Minting refuses when full,
+ * after sweeping; it never
  * evicts a live ticket, because evicting the oldest would let a caller minting
  * in a loop invalidate tickets someone else is about to redeem.
  */
@@ -126,10 +181,11 @@ export class AttachmentTicketStore {
     }
   }
 
-  mint(
+  private add(
     target: string,
-    accountName: string | undefined,
-    nowMs: number = Date.now()
+    identity: TicketIdentity,
+    nowMs: number,
+    purpose: TicketPurpose = { purpose: 'download' }
   ): { id: string; expiresAtMs: number } {
     this.sweep(nowMs);
     if (this.tickets.size >= MAX_LIVE_TICKETS) {
@@ -137,8 +193,54 @@ export class AttachmentTicketStore {
     }
     const id = randomBytes(TICKET_BYTES).toString('base64url');
     const expiresAtMs = nowMs + this.ttlSeconds * 1000;
-    this.tickets.set(id, { target, accountName, expiresAtMs });
+    this.tickets.set(id, { ...identity, ...purpose, target, expiresAtMs });
     return { id, expiresAtMs };
+  }
+
+  /** Mint a ticket redeemed with this server's own token for `accountName`. */
+  mint(
+    target: string,
+    accountName: string | undefined,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    return this.add(target, { kind: 'server-account', accountName }, nowMs);
+  }
+
+  /** Mint a ticket redeemed with `accessToken` and nothing else. */
+  mintWithToken(
+    target: string,
+    accessToken: string,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    if (!accessToken) throw new Error('A request-token ticket needs a token');
+    return this.add(target, { kind: 'request-token', accessToken }, nowMs);
+  }
+
+  /** Mint an upload ticket attached as this server's own token for `accountName`. */
+  mintUpload(
+    target: string,
+    accountName: string | undefined,
+    upload: UploadSpec,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    return this.add(target, { kind: 'server-account', accountName }, nowMs, {
+      purpose: 'upload',
+      ...upload,
+    });
+  }
+
+  /** Mint an upload ticket attached with `accessToken` and nothing else. */
+  mintUploadWithToken(
+    target: string,
+    accessToken: string,
+    upload: UploadSpec,
+    nowMs: number = Date.now()
+  ): { id: string; expiresAtMs: number } {
+    if (!accessToken) throw new Error('A request-token ticket needs a token');
+    return this.add(target, { kind: 'request-token', accessToken }, nowMs, {
+      purpose: 'upload',
+      ...upload,
+    });
   }
 
   /**

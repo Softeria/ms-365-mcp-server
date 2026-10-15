@@ -144,6 +144,30 @@ describe('endpoints.json validation', () => {
     expect(endpoint?.llmTip).toContain('call download-bytes');
   });
 
+  it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
+    const checklistTools = [
+      'list-todo-checklist-items',
+      'create-todo-checklist-item',
+      'update-todo-checklist-item',
+      'delete-todo-checklist-item',
+    ];
+
+    for (const toolName of checklistTools) {
+      const endpoint = endpoints.find((e) => e.toolName === toolName);
+      expect(endpoint, `${toolName} should exist`).toBeDefined();
+      expect(endpoint?.scopes).toEqual(
+        endpoint?.method === 'get' ? ['Tasks.Read'] : ['Tasks.ReadWrite']
+      );
+    }
+
+    // Graph 400s a PATCH on the task that carries checklistItems, so the model has to be
+    // pointed at the /checklistItems tools instead.
+    const updateTask = endpoints.find((e) => e.toolName === 'update-todo-task');
+    expect(updateTask?.llmTip).toContain('update-todo-checklist-item');
+    expect(updateTask?.llmTip).toContain('create-todo-checklist-item');
+    expect(updateTask?.llmTip).toContain('delete-todo-checklist-item');
+  });
+
   it('should document the @mention shape on the Teams send/reply tools', () => {
     const mentionTools = [
       'send-chat-message',
