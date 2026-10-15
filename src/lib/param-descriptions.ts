@@ -16,20 +16,32 @@
 import logger from '../logger.js';
 
 /**
- * Delta tools where Graph does NOT support `$top`. The calendarView delta function
- * lists `$top` neither as supported nor among its rejected params; page size is
- * controlled via `Prefer: odata.maxpagesize` instead. By contrast message/driveItem/site
- * delta explicitly document `$top` support, so it must be preserved for those.
- * See https://learn.microsoft.com/en-us/graph/api/event-delta
+ * Query parameters (bare, lowercase) a tool accepts, for tools whose REST contract
+ * supports fewer than the generic OData options Microsoft's OpenAPI collection schema
+ * advertises. Tools not listed keep every generated parameter. Keep `skiptoken` where
+ * the tool pages, so a returned @odata.nextLink can still be followed.
  */
-export const TOP_UNSUPPORTED_DELTA_TOOLS = new Set([
-  'list-calendar-events-delta',
-  'list-calendar-view-delta',
-]);
+const SUPPORTED_QUERY_PARAMS: Record<string, readonly string[]> = {
+  // https://learn.microsoft.com/en-us/graph/api/user-list-joinedteams
+  'list-joined-teams': [],
+  // https://learn.microsoft.com/en-us/graph/api/associatedteaminfo-list
+  'list-my-associated-teams': [],
+  // Documents only $top/$filter; $select is needed to opt in to image bytes.
+  // https://learn.microsoft.com/graph/api/teamworkmessaging-list-customemojis?view=graph-rest-beta
+  'list-custom-emojis': ['top', 'filter', 'select', 'skiptoken'],
+  // https://learn.microsoft.com/en-us/graph/api/channel-list-messages
+  'list-channel-messages': ['top', 'expand', 'skiptoken'],
+  // https://learn.microsoft.com/en-us/graph/api/chatmessage-list-replies
+  'list-channel-message-replies': ['top', 'skiptoken'],
+  // Delta rejects $select/$expand/$filter/$orderby/$search and documents no $top/$skip/$count;
+  // events delta takes no endDateTime. https://learn.microsoft.com/graph/api/event-delta?view=graph-rest-beta
+  'list-calendar-events-delta': ['startdatetime', 'skiptoken'],
+  'list-calendar-view-delta': ['startdatetime', 'enddatetime', 'skiptoken'],
+};
 
-/** True when `$top`/`top` must be omitted entirely from a tool's schema. */
-export function shouldOmitTopParam(toolAlias: string): boolean {
-  return TOP_UNSUPPORTED_DELTA_TOOLS.has(toolAlias);
+/** False when Graph does not support query parameter `bareName` on this tool. */
+export function isQueryParamSupported(toolAlias: string, bareName: string): boolean {
+  return SUPPORTED_QUERY_PARAMS[toolAlias]?.includes(bareName) ?? true;
 }
 
 /**
@@ -109,13 +121,15 @@ export const SKIPTOKEN_PARAM_DESCRIPTION =
 // skiptoken pagination is allowed
 const COLLECTION_QUERY_PARAMS = new Set(['top', 'filter', 'orderby', 'count']);
 
-// Guess whether a tool returns a collection and can take a `skiptoken`, given the
-// parameter names in its schema.
+// Whether a tool returns a collection and can take a `skiptoken`: as listed in
+// SUPPORTED_QUERY_PARAMS, otherwise guessed from the parameter names in its schema.
 export function isSkiptokenApplicable(
-  tool: { method: string },
+  tool: { method: string; alias?: string },
   paramNames: Iterable<string>
 ): boolean {
   if (tool.method.toUpperCase() !== 'GET') return false;
+  const supported = tool.alias ? SUPPORTED_QUERY_PARAMS[tool.alias] : undefined;
+  if (supported) return supported.includes('skiptoken');
   for (const name of paramNames) {
     if (COLLECTION_QUERY_PARAMS.has(name.replace(/^\$/, '').toLowerCase())) return true;
   }

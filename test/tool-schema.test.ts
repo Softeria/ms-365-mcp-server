@@ -183,7 +183,7 @@ describe('describeToolSchema parity with registerGraphTools (discovery-mode drif
   });
 
   it('accepts both calendar field-list formats in the registered schema', () => {
-    const select = registered.get('list-calendar-events-delta')!.select;
+    const select = registered.get('list-calendar-events')!.select;
     expect(select.safeParse('id,subject').success).toBe(true);
     expect(select.safeParse(['id', 'subject']).success).toBe(true);
     expect(select.safeParse(['id', 1]).success).toBe(false);
@@ -232,10 +232,9 @@ describe('describeToolSchema parity with registerGraphTools (discovery-mode drif
     expect(discovery?.description).toBe(expected);
   });
 
-  it('omits $top/top entirely for TOP_UNSUPPORTED_DELTA_TOOLS, matching registration', () => {
-    // registerGraphTools does `delete paramSchema['top']` for these tools (Graph's
-    // event-delta doesn't support $top); discovery mode must omit it too, not just
-    // re-describe it, or an agent would try a parameter that silently does nothing.
+  it('omits $top/top entirely for the calendar delta tools, matching registration', () => {
+    // Graph's event-delta doesn't support $top; discovery mode must omit it too, not
+    // just re-describe it, or an agent would try a parameter that Graph rejects.
     for (const toolName of ['list-calendar-events-delta', 'list-calendar-view-delta']) {
       const entry = registry.get(toolName);
       if (!entry) continue;
@@ -246,6 +245,30 @@ describe('describeToolSchema parity with registerGraphTools (discovery-mode drif
       expect(registeredShape).toBeDefined();
       expect(registeredShape).not.toHaveProperty('top');
       expect(registeredShape).not.toHaveProperty('$top');
+    }
+  });
+
+  it('offers only the documented query options where Graph supports fewer', () => {
+    const odata = ['top', 'skip', 'search', 'filter', 'count', 'orderby', 'select', 'expand'];
+    const documented: Record<string, string[]> = {
+      'list-channel-messages': ['top', 'expand', 'skiptoken'],
+      'list-channel-message-replies': ['top', 'skiptoken'],
+      'list-calendar-events-delta': ['startDateTime', 'skiptoken'],
+      'list-calendar-view-delta': ['startDateTime', 'endDateTime', 'skiptoken'],
+    };
+    for (const [toolName, kept] of Object.entries(documented)) {
+      const entry = registry.get(toolName);
+      if (!entry) throw new Error(`registry missing ${toolName}`);
+      const discovered = describeToolSchema(entry.tool, entry.config).parameters.map((p) =>
+        p.name.replace(/^\$/, '')
+      );
+      const registeredShape = registered.get(toolName)!;
+      for (const name of [...odata, 'endDateTime']) {
+        const expected = kept.includes(name);
+        expect(name in registeredShape, `${toolName} registered ${name}`).toBe(expected);
+        expect(discovered.includes(name), `${toolName} discovered ${name}`).toBe(expected);
+      }
+      expect(registeredShape).toHaveProperty('skiptoken');
     }
   });
 

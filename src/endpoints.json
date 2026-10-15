@@ -2543,7 +2543,7 @@
     "toolName": "list-calendar-events-delta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
-    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Use $select to limit fields. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
   },
   {
     "pathPattern": "/me/calendarView/delta()",

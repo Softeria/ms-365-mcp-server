@@ -39,10 +39,8 @@ import {
   isSkiptokenApplicable,
   paginationAllowed,
   positiveIntFromEnv,
-  shouldOmitTopParam,
   SKIPTOKEN_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
-  TOP_UNSUPPORTED_DELTA_TOOLS,
 } from './lib/param-descriptions.js';
 import { describePathParam } from './lib/path-params.js';
 import { queryParameterSchema } from './lib/query-parameter-schema.js';
@@ -493,7 +491,7 @@ function normalizeSkiptokenQueryParam(
 
 const DEFAULT_MAX_ITEMS = 10_000;
 
-// Canonical definitions of TOP_UNSUPPORTED_DELTA_TOOLS, paginationAllowed, and
+// Canonical definitions of paginationAllowed and
 // positiveIntFromEnv live in lib/param-descriptions.ts so tool-schema.ts can use
 // them without circling back through graph-tools.ts, and so the description text
 // they parameterize can't drift between the two registration paths (see that
@@ -2523,10 +2521,9 @@ async function executeGraphTool(
       );
 
       // execute-tool and passthrough inputs must follow the same contract as
-      // discovery and normal registration. Preserve the existing delta $top handling.
+      // discovery and normal registration.
       const isQuery = paramDef?.type === 'Query' || isOdataParam;
-      const ignoredDeltaTop = shouldOmitTopParam(tool.alias) && normalizedParamName === 'top';
-      if (isQuery && !ignoredDeltaTop && paramValue != null && paramValue !== '') {
+      if (isQuery && paramValue != null && paramValue !== '') {
         const schema = queryParameterSchema(
           tool.alias,
           normalizedParamName,
@@ -2747,14 +2744,6 @@ async function executeGraphTool(
         };
       }
       body = rewritten.body;
-    }
-
-    // Defense-in-depth: the calendar delta tools don't support $top (see
-    // TOP_UNSUPPORTED_DELTA_TOOLS). Their user-facing schema strips top/$top, so
-    // freshly-connected clients can't send it. Cached/stale clients (and ad-hoc
-    // callers) might still try — drop it server-side before clamping or sending.
-    if (TOP_UNSUPPORTED_DELTA_TOOLS.has(tool.alias)) {
-      delete queryParams['$top'];
     }
 
     const skiptokenError = normalizeSkiptokenQueryParam(queryParams, tool.alias);
