@@ -62,22 +62,40 @@ describe('cleanMailText', () => {
   it('recognises forwards in other languages and behind tags', () => {
     for (const subject of [
       'FW: x',
+      'Fw: x',
       'Fwd: x',
-      'VS: Møte',
-      'WG: Termin',
-      'TR: rdv',
-      'RV: hola',
-      'I: ciao',
-      'ENC: oi',
+      'FWD : x',
+      'VS: x',
+      'VB: x',
+      'WG: x',
+      'TR: x',
+      'TRS: x',
+      'RV: x',
+      'I: x',
+      'ENC: x',
       'Doorst: x',
       'VL: x',
-      'VB: x',
+      'ED: x',
+      'FS: x',
       'PD: x',
+      'YML: x',
       '\u0130LT: x',
       'Tov\u00e1bb\u00edt\u00e1s: x',
+      'P\u0101rs.: x',
       '\u03a0\u03a1\u0398: x',
+      '\u8f6c\u53d1: x',
       '\u8f6c\u53d1\uff1ax',
+      '\u8f49\u5bc4: x',
+      '\u05d4\u05d5\u05e2\u05d1\u05e8: x',
+      '\u05d4\u05e2\u05d1\u05e8\u05d4: x',
+      '\u0625\u0639\u0627\u062f\u0629 \u062a\u0648\u062c\u064a\u0647: x',
+      '\u0bae\u0bc1\u0ba9\u0bcd\u0ba9\u0ba9\u0bc1\u0baa\u0bcd\u0baa\u0bc1: x',
       '[EXTERNAL] FW: x',
+      '[EXT] [x] Fwd: x',
+      // decomposed (NFD) spellings
+      'Tova\u0301bbi\u0301ta\u0301s: x',
+      'Pa\u0304rs.: x',
+      'I\u0307LT: x',
     ]) {
       expect(isForwardSubject(subject), subject).toBe(true);
     }
@@ -405,11 +423,17 @@ describe('read-mail-text tool', () => {
           'VS: kontrakt',
           'FYI\n\nFra: Paul\nFrom: Paul\nSent: Mon\nTo: J\nSubject: kontrakt\n\nVilkårene er vedlagt.'
         ),
+        msg(
+          'C',
+          'Tova\u0301bbi\u0301ta\u0301s: contract',
+          'FYI\n\nFrom: A\nSent: now\nTo: B\nSubject: old\n\nforward content'
+        ),
       ],
     }));
-    const [m, vs] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
+    const [m, vs, nfd] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
     expect(m.text).toContain('The terms are attached.');
     expect(vs.text).toContain('Vilkårene er vedlagt.');
+    expect(nfd.text).toContain('forward content');
   });
 
   it('cuts each message to 3,000 characters by default; a larger maxChars returns more', async () => {

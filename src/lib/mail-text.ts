@@ -398,7 +398,8 @@ const FORWARD_SUBJECT = new RegExp(
   'iu'
 );
 export function isForwardSubject(subject: string): boolean {
-  return FORWARD_SUBJECT.test(subject.slice(0, 500));
+  // NFC, so that a decomposed accent (a + U+0301) matches the composed literal.
+  return FORWARD_SUBJECT.test(subject.slice(0, 500).normalize('NFC'));
 }
 
 // The first n characters (UTF-16 code units), never splitting a surrogate pair:
