@@ -4,6 +4,7 @@
  * Supports multiple Microsoft cloud environments:
  * - global: Microsoft public cloud (default)
  * - china: Microsoft Azure operated by 21Vianet
+ * - gcc-high: Microsoft 365 US Government GCC High (Azure Government authority)
  *
  * @see https://learn.microsoft.com/en-us/graph/deployments
  */
@@ -11,7 +12,7 @@
 /**
  * Supported Microsoft cloud environments.
  */
-export type CloudType = 'global' | 'china';
+export type CloudType = 'global' | 'china' | 'gcc-high';
 
 /**
  * Cloud-specific endpoint configuration.
@@ -40,13 +41,20 @@ export const CLOUD_ENDPOINTS: Record<CloudType, CloudEndpoints> = {
     graphApi: 'https://microsoftgraph.chinacloudapi.cn',
     portal: 'https://portal.azure.cn',
   },
+  'gcc-high': {
+    authority: 'https://login.microsoftonline.us',
+    graphApi: 'https://graph.microsoft.us',
+    portal: 'https://portal.azure.us',
+  },
 };
 
 /**
  * Default client IDs for each cloud environment.
- * These are pre-registered public client applications.
+ * These are pre-registered public client applications. GCC High has none:
+ * an app registration must exist in the government tenant, so
+ * MS365_MCP_CLIENT_ID is required there.
  */
-export const DEFAULT_CLIENT_IDS: Record<CloudType, string> = {
+export const DEFAULT_CLIENT_IDS: Partial<Record<CloudType, string>> = {
   global: '084a3e9f-a9f4-43f7-89f9-d229cf97853e',
   china: 'f3e61a6e-bc26-4281-8588-2c7359a02141',
 };
@@ -57,7 +65,13 @@ export const DEFAULT_CLIENT_IDS: Record<CloudType, string> = {
  * @returns The default client ID for the specified cloud
  */
 export function getDefaultClientId(cloudType: CloudType = 'global'): string {
-  return DEFAULT_CLIENT_IDS[cloudType];
+  const clientId = DEFAULT_CLIENT_IDS[cloudType];
+  if (!clientId) {
+    throw new Error(
+      `No default client ID exists for the ${cloudType} cloud. Register an app in the ${cloudType} tenant and set MS365_MCP_CLIENT_ID.`
+    );
+  }
+  return clientId;
 }
 
 /**
