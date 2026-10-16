@@ -68,6 +68,20 @@ function isHeaderBlock(lines: string[], i: number): boolean {
   }
   return headers >= 2;
 }
+// Gmail, Thunderbird and Apple Mail mark a forwarded message in the body; history
+// under such a marker is a forward even when the subject was edited.
+const FORWARD_MARKER = /^(?:-{2,}\s*Forwarded message\s*-{2,}|Begin forwarded message:)$/i;
+function forwardMarkerAbove(lines: string[], q: number): boolean {
+  let seen = 0;
+  for (let j = q - 1; j >= 0 && seen < 3; j--) {
+    const l = lines[j].trim();
+    if (!l) continue;
+    if (l.length < 100 && FORWARD_MARKER.test(l)) return true;
+    seen++;
+  }
+  return false;
+}
+
 function quoteStart(lines: string[]): number {
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i].trim();
@@ -267,7 +281,7 @@ export function cleanMailText(raw: string, opts: { keepQuoted?: boolean } = {}):
   let lines = t.split('\n');
   if (!opts.keepQuoted) {
     const q = quoteStart(lines);
-    if (q >= 0 && lines.slice(0, q).join('').trim()) {
+    if (q >= 0 && lines.slice(0, q).join('').trim() && !forwardMarkerAbove(lines, q)) {
       // The text up to the header, exactly: its last line break included.
       lines = lines.slice(0, q).concat('');
     }
@@ -371,6 +385,22 @@ function formatAddress(r?: GraphRecipient): string {
     : e.address || e.name || '';
 }
 
+// Forward prefixes in English and as mail clients localise them (the
+// equivalents listed at en.wikipedia.org/wiki/List_of_email_subject_abbreviations),
+// after any bracketed tags such as "[EXTERNAL]". Matching one wrongly only keeps
+// a quoted history, so the list errs on the side of including.
+const FORWARD_SUBJECT = new RegExp(
+  '^\\s*(?:\\[[^\\]\\n]{0,60}\\]\\s*){0,5}' +
+    '(?:fwd?|vs|vb|wg|tr|trs|rv|i|enc|doorst|vl|ed|fs|pd|yml|ilt|\u0130lt|tov\u00e1bb\u00edt\u00e1s|p\u0101rs\\.|' +
+    '\u03c0\u03c1\u03b8|\u8f6c\u53d1|\u8f49\u5bc4|\u05d4\u05d5\u05e2\u05d1\u05e8|\u05d4\u05e2\u05d1\u05e8\u05d4|' +
+    '\u0625\u0639\u0627\u062f\u0629 \u062a\u0648\u062c\u064a\u0647|\u0bae\u0bc1\u0ba9\u0bcd\u0ba9\u0ba9\u0bc1\u0baa\u0bcd\u0baa\u0bc1)' +
+    '\\s*[:\uff1a]',
+  'iu'
+);
+export function isForwardSubject(subject: string): boolean {
+  return FORWARD_SUBJECT.test(subject.slice(0, 500));
+}
+
 // The first n characters (UTF-16 code units), never splitting a surrogate pair:
 // an emoji at the boundary is left out rather than cut in half.
 export function cutText(s: string, n: number): string {
@@ -382,7 +412,7 @@ export function cutText(s: string, n: number): string {
 export function toMailTextEntry(m: GraphMessage, maxChars?: number): MailTextEntry {
   const subject = m.subject ?? '';
   // A forward's quoted part IS the content: keep it.
-  const keepQuoted = /^\s*(fw|fwd)\s*:/i.test(subject);
+  const keepQuoted = isForwardSubject(subject);
   let raw = m.body?.content ?? '';
   let truncated = false;
   if (raw.length > MAIL_TEXT_MAX_INPUT_CHARS) {

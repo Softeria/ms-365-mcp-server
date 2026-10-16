@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { UTILITY_TOOLS } from '../src/graph-tools.js';
 import {
   cleanMailText,
+  isForwardSubject,
   MAIL_TEXT_DEFAULT_MAX_CHARS,
   MAIL_TEXT_MAX_INPUT_CHARS,
 } from '../src/lib/mail-text.js';
@@ -56,6 +57,50 @@ describe('cleanMailText', () => {
     expect(
       cleanMailText('Top reply\n\n> On Sep 21, 2026, at 12:10 AM, J <j@x.example> wrote:\n>\n> old')
     ).toBe('Top reply\n\n');
+  });
+
+  it('recognises forwards in other languages and behind tags', () => {
+    for (const subject of [
+      'FW: x',
+      'Fwd: x',
+      'VS: Møte',
+      'WG: Termin',
+      'TR: rdv',
+      'RV: hola',
+      'I: ciao',
+      'ENC: oi',
+      'Doorst: x',
+      'VL: x',
+      'VB: x',
+      'PD: x',
+      '\u0130LT: x',
+      'Tov\u00e1bb\u00edt\u00e1s: x',
+      '\u03a0\u03a1\u0398: x',
+      '\u8f6c\u53d1\uff1ax',
+      '[EXTERNAL] FW: x',
+    ]) {
+      expect(isForwardSubject(subject), subject).toBe(true);
+    }
+    for (const subject of [
+      'Re: x',
+      'RE: FW: x',
+      'AW: x',
+      'SV: x',
+      'Forward: x',
+      'Info: x',
+      'x FW: y',
+    ]) {
+      expect(isForwardSubject(subject), subject).toBe(false);
+    }
+  });
+
+  it('keeps history under an explicit forward marker, whatever the subject', () => {
+    const gmail =
+      'See below.\n\n---------- Forwarded message ---------\nFrom: A <a@x.example>\nDate: Mon, Oct 5, 2026\nSubject: Plan\nTo: B\n\nThe plan.';
+    expect(cleanMailText(gmail)).toBe(gmail);
+    const apple =
+      'Ok.\n\nBegin forwarded message:\n\nFrom: A\nSubject: x\nDate: 5 Oct 2026\nTo: B\n\nBody';
+    expect(cleanMailText(apple)).toBe(apple);
   });
 
   it('keeps the history when nothing precedes it', () => {
@@ -355,10 +400,16 @@ describe('read-mail-text tool', () => {
           'FW: contract',
           'FYI\n\nFrom: Paul\nSent: Mon\nTo: J\nSubject: contract\n\nThe terms are attached.'
         ),
+        msg(
+          'B',
+          'VS: kontrakt',
+          'FYI\n\nFra: Paul\nFrom: Paul\nSent: Mon\nTo: J\nSubject: kontrakt\n\nVilkårene er vedlagt.'
+        ),
       ],
     }));
-    const [m] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
+    const [m, vs] = parse((await tool.execute({ folderId: 'inbox' }, c)) as never);
     expect(m.text).toContain('The terms are attached.');
+    expect(vs.text).toContain('Vilkårene er vedlagt.');
   });
 
   it('cuts each message to 3,000 characters by default; a larger maxChars returns more', async () => {
