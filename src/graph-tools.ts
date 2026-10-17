@@ -21,6 +21,7 @@ import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
 import { getUploadDirs, openUploadFile, type UploadFile } from './lib/upload-dirs.js';
 import {
   buildAttachmentUrl,
+  type DownloadProbe,
   isPlainGraphPath,
   isUnalteredGraphPath,
   TicketStoreFullError,
@@ -1275,10 +1276,41 @@ async function mintUploadUrl(
   };
 }
 
+// A single mail or event attachment's bytes: the only /$value targets $select accepts.
+const MAIL_EVENT_ATTACHMENT_VALUE =
+  /^(?:\/me|\/users\/[^/]+|\/groups\/[^/]+)\/(?:messages|events)\/[^/]+\/attachments\/[^/]+\/\$value$/;
+
+/**
+ * Graph answers an attachment's /$value with application/octet-stream, so read the real name
+ * and type from the attachment resource for the redemption route to serve. Any failure is
+ * swallowed: the mint carries on exactly as it did without a probe.
+ */
+async function probeAttachment(
+  target: string,
+  graphClient: Pick<GraphClient, 'makeRequest'>,
+  accessToken: string | undefined
+): Promise<DownloadProbe> {
+  if (!MAIL_EVENT_ATTACHMENT_VALUE.test(target)) return {};
+  try {
+    const meta = (await graphClient.makeRequest(
+      `${target.slice(0, -'/$value'.length)}?$select=name,contentType`,
+      { accessToken }
+    )) as { name?: unknown; contentType?: unknown } | null;
+    return {
+      ...(typeof meta?.contentType === 'string' && { probedContentType: meta.contentType }),
+      ...(typeof meta?.name === 'string' && { probedName: meta.name }),
+    };
+  } catch {
+    return {};
+  }
+}
+
 async function mintDownloadUrl(
   target: string,
   accountParam: string | undefined,
-  authManager: AuthManager | undefined
+  authManager: AuthManager | undefined,
+  // Given only for mail and event attachments: the client the content type is probed with.
+  probeWith?: Pick<GraphClient, 'makeRequest'>
 ): Promise<CallToolResult | null> {
   const minting = getAttachmentMinting();
   if (!minting) return null;
@@ -1349,11 +1381,20 @@ async function mintDownloadUrl(
     };
   }
 
+  // After the plain-path check, so a target whose checked and fetched paths diverge is
+  // refused before Graph is asked about it.
+  const probe = probeWith
+    ? await probeAttachment(
+        target,
+        probeWith,
+        requestToken ?? (await authManager?.getTokenForAccount(accountParam).catch(() => undefined))
+      )
+    : {};
   let ticket: { id: string; expiresAtMs: number };
   try {
     ticket = requestToken
-      ? minting.store.mintWithToken(target, requestToken)
-      : minting.store.mint(target, accountParam);
+      ? minting.store.mintWithToken(target, requestToken, undefined, probe)
+      : minting.store.mint(target, accountParam, undefined, probe);
   } catch (error) {
     if (error instanceof TicketStoreFullError) {
       return {
@@ -2167,7 +2208,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             isError: true,
           };
         }
-        const minted = await mintDownloadUrl(pathPart, accountParam, authManager);
+        const minted = await mintDownloadUrl(pathPart, accountParam, authManager, graphClient);
         if (minted) return minted;
         return {
           content: [

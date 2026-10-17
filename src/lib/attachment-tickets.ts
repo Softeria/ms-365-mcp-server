@@ -121,6 +121,15 @@ export type TicketIdentity =
   | { readonly kind: 'request-token'; readonly accessToken: string };
 
 /**
+ * What Graph's metadata said about a mail or event attachment when the ticket was minted.
+ * Plain data; the redemption route decides whether to use it.
+ */
+export type DownloadProbe = {
+  readonly probedContentType?: string;
+  readonly probedName?: string;
+};
+
+/**
  * What redeeming the ticket does. A download ticket authorises one GET of
  * `target`; an upload ticket authorises one PUT of a file that becomes an
  * attachment in the `target` collection (a draft message's or an event's
@@ -128,7 +137,7 @@ export type TicketIdentity =
  * pick the branch it was written for and cannot serve the other by accident.
  */
 export type TicketPurpose =
-  | { readonly purpose: 'download' }
+  | ({ readonly purpose: 'download' } & DownloadProbe)
   | {
       readonly purpose: 'upload';
       /** Attachment name as Graph will store it. */
@@ -201,19 +210,27 @@ export class AttachmentTicketStore {
   mint(
     target: string,
     accountName: string | undefined,
-    nowMs: number = Date.now()
+    nowMs: number = Date.now(),
+    probe: DownloadProbe = {}
   ): { id: string; expiresAtMs: number } {
-    return this.add(target, { kind: 'server-account', accountName }, nowMs);
+    return this.add(target, { kind: 'server-account', accountName }, nowMs, {
+      purpose: 'download',
+      ...probe,
+    });
   }
 
   /** Mint a ticket redeemed with `accessToken` and nothing else. */
   mintWithToken(
     target: string,
     accessToken: string,
-    nowMs: number = Date.now()
+    nowMs: number = Date.now(),
+    probe: DownloadProbe = {}
   ): { id: string; expiresAtMs: number } {
     if (!accessToken) throw new Error('A request-token ticket needs a token');
-    return this.add(target, { kind: 'request-token', accessToken }, nowMs);
+    return this.add(target, { kind: 'request-token', accessToken }, nowMs, {
+      purpose: 'download',
+      ...probe,
+    });
   }
 
   /** Mint an upload ticket attached as this server's own token for `accountName`. */
