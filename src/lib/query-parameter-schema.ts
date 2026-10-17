@@ -1,25 +1,21 @@
 import { z } from 'zod';
-import { getODataParamDescription, isQueryParamSupported } from './param-descriptions.js';
-
-const CUSTOM_EMOJI_QUERY_DESCRIPTIONS: Record<string, string> = {
-  top: 'Number of custom emojis to return in one page. Base64 image content is opt-in with select; use a small page size when selecting contentBytes.',
-  filter:
-    'OData filter expression for custom emojis, forwarded to Microsoft Graph. Filter support is determined by the beta API.',
-  select:
-    'Properties to return as a comma-separated string or string array. Explicitly select contentBytes to retrieve base64 PNG/GIF images, for example displayName,contentBytes. Graph can return contentBytes: null when it is not explicitly selected.',
-};
+import {
+  getODataParamDescription,
+  isQueryParamSupported,
+  type QueryParamConfig,
+} from './param-descriptions.js';
 
 /**
  * Defines the query contract shared by registration, discovery, and execution.
  * Undefined means the endpoint does not support this query parameter.
  */
 export function queryParameterSchema(
-  toolName: string,
   name: string,
-  providerSchema: z.ZodTypeAny
+  providerSchema: z.ZodTypeAny,
+  config?: QueryParamConfig
 ): z.ZodTypeAny | undefined {
   const bareName = name.replace(/^\$/, '').toLowerCase();
-  if (!isQueryParamSupported(toolName, bareName)) return undefined;
+  if (!isQueryParamSupported(config, bareName)) return undefined;
 
   const source = providerSchema instanceof z.ZodOptional ? providerSchema.unwrap() : providerSchema;
   let schema = source;
@@ -40,14 +36,11 @@ export function queryParameterSchema(
       schema = z.string();
       break;
     case 'top':
-      // https://learn.microsoft.com/en-us/graph/api/chat-list
       // Intersect so a stricter bound from the provider is never relaxed.
-      if (toolName === 'list-chats') schema = source.and(z.number().max(50));
+      if (config?.maxTop !== undefined) schema = source.and(z.number().max(config.maxTop));
       break;
   }
   if (providerSchema.isOptional()) schema = schema.optional();
-  const description =
-    (toolName === 'list-custom-emojis' && CUSTOM_EMOJI_QUERY_DESCRIPTIONS[bareName]) ||
-    getODataParamDescription(bareName);
+  const description = getODataParamDescription(bareName, config);
   return description ? schema.describe(description) : schema;
 }

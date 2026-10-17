@@ -1330,7 +1330,8 @@
     "toolName": "list-todo-task-lists",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'. NOTE: $select is NOT supported by this endpoint — do not pass select parameter, Graph returns 400."
+    "queryParams": ["top", "skip", "filter", "skiptoken"],
+    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -1338,7 +1339,8 @@
     "toolName": "list-todo-tasks",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. NOTE: $select is NOT supported — do not pass select, Graph returns 400. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'."
+    "queryParams": ["top", "skip", "filter", "orderby", "expand", "skiptoken"],
+    "llmTip": "Lists tasks in a To Do list. Requires todoTaskList-id — use list-todo-task-lists to find it. Use $filter=status eq 'notStarted' or $filter=status eq 'completed' to filter by status. Use $top to limit results. Status values: 'notStarted', 'inProgress', 'completed', 'waitingOnOthers', 'deferred'. $orderby works on createdDateTime, lastModifiedDateTime, importance, status and reminderDateTime/dateTime, not on title or isReminderOn. A $filter on isReminderOn can also return 400; filter it client-side."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}",
@@ -1346,7 +1348,8 @@
     "toolName": "get-todo-task",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
-    "llmTip": "Returns a single To Do task. NOTE: $select is NOT supported — do not pass select parameter, Graph returns RequestBroker--ParseUri (400). Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
+    "queryParams": ["expand"],
+    "llmTip": "Returns a single To Do task. Use $expand=linkedResources to include linked email/resource. Returns body content (HTML format), checklist items, and linked resources."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -1377,6 +1380,7 @@
     "toolName": "list-todo-linked-resources",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
+    "queryParams": ["top", "skip", "filter", "orderby", "skiptoken"],
     "llmTip": "Lists resources linked to a To Do task (emails, URLs, etc.). Each linked resource has displayName, webUrl, applicationName, and externalId."
   },
   {
@@ -1401,7 +1405,8 @@
     "toolName": "list-todo-checklist-items",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
-    "llmTip": "Lists the steps (checklist items) of a To Do task. Each item has id, displayName, isChecked, checkedDateTime, and createdDateTime. Graph supports no OData query parameters on this endpoint, so do not pass select, filter, orderby, or top. Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
+    "queryParams": [],
+    "llmTip": "Lists the steps (checklist items) of a To Do task. Each item has id, displayName, isChecked, checkedDateTime, and createdDateTime. Requires todoTaskListId from list-todo-task-lists and todoTaskId from list-todo-tasks."
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks/{todoTask-id}/checklistItems",
@@ -1722,6 +1727,7 @@
     "toolName": "list-chats",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["Chat.ReadBasic"],
+    "maxTop": 50,
     "llmTip": "Lists the signed-in user's chats. Only $filter, $top (max 50), $expand (members, lastMessagePreview) and $orderby are supported; $orderby accepts just lastMessagePreview/createdDateTime in descending order. Other options are rejected: $search returns 400 'Query option Search is not allowed', and ordering by lastUpdatedDateTime returns 400 BadRequest. Meeting chats have chatType=meeting and carry the meeting subject in topic."
   },
   {
@@ -1737,6 +1743,7 @@
     "toolName": "list-chat-members",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMember.Read"],
+    "nameFilter": true,
     "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
   {
@@ -1760,6 +1767,7 @@
     "toolName": "update-chat-message",
     "presets": ["teams", "work"],
     "workScopes": ["Chat.ReadWrite"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
@@ -1776,6 +1784,7 @@
     "toolName": "send-chat-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChatMessage.Send"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
@@ -1783,7 +1792,8 @@
     "method": "get",
     "toolName": "list-joined-teams",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "queryParams": []
   },
   {
     "pathPattern": "/teamwork/messaging/customEmojis",
@@ -1792,6 +1802,7 @@
     "apiVersion": "beta",
     "presets": ["teams", "work"],
     "workScopes": ["TeamworkCustomEmoji.Read"],
+    "queryParams": ["top", "filter", "select", "skiptoken"],
     "llmTip": "Lists the organization's custom Teams emojis, including displayName, createdBy and createdDateTime. Graph can return contentBytes: null by default; request select='displayName,contentBytes' (or a string array) to retrieve base64 PNG/GIF images. Supports $top, $filter and $select. Image bytes can make responses large: use a small $top when selecting contentBytes; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
   },
   {
@@ -1865,7 +1876,8 @@
     "method": "get",
     "toolName": "list-channel-messages",
     "presets": ["teams", "work"],
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "queryParams": ["top", "expand", "skiptoken"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
@@ -1880,6 +1892,7 @@
     "toolName": "update-channel-message",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.ReadWrite"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
@@ -1896,6 +1909,7 @@
     "toolName": "send-channel-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
@@ -1904,6 +1918,7 @@
     "toolName": "reply-to-channel-message",
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["ChannelMessage.Send"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
@@ -1911,7 +1926,8 @@
     "method": "get",
     "toolName": "list-channel-message-replies",
     "presets": ["teams", "work"],
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "queryParams": ["top", "skiptoken"]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies/{chatMessage-id1}",
@@ -1919,6 +1935,7 @@
     "toolName": "update-channel-message-reply",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.ReadWrite"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
@@ -1962,6 +1979,7 @@
     "toolName": "list-team-members",
     "presets": ["teams", "work"],
     "workScopes": ["TeamMember.Read.All"],
+    "nameFilter": true,
     "llmTip": "Lists members of a team. Each member has displayName, email, roles and userId. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
   {
@@ -1985,6 +2003,7 @@
     "toolName": "reply-to-chat-message",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMessage.Send"],
+    "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
   },
   {
@@ -2543,6 +2562,7 @@
     "toolName": "list-calendar-events-delta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
+    "queryParams": ["startDateTime", "skiptoken"],
     "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
   },
   {
@@ -2552,6 +2572,7 @@
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "supportsTimezone": true,
+    "queryParams": ["startDateTime", "endDateTime", "skiptoken"],
     "llmTip": "Incremental sync of events within a time window. Required query params on first call: startDateTime, endDateTime (ISO 8601). Returns events in the window plus @odata.deltaLink; subsequent calls with that link return only changes. Expands recurring events to individual occurrences (unlike list-calendar-events-delta which returns the series master). Use this for calendar UIs showing a week/month view."
   },
   {
@@ -2948,6 +2969,7 @@
     "toolName": "list-my-associated-teams",
     "presets": ["teams", "work"],
     "workScopes": ["Team.ReadBasic.All"],
+    "queryParams": [],
     "llmTip": "Lists Teams the current user is associated with — both joined teams and host teams of shared channels the user is a direct member of. Returns associatedTeamInfo objects with id, displayName, and tenantId. Broader than list-joined-teams because it includes shared-channel host teams."
   },
   {

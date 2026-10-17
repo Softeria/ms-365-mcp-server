@@ -14,6 +14,8 @@ import {
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
   getAcceptParamDescription,
+  MEMBER_NAME_PARAM_DESCRIPTION,
+  type QueryParamConfig,
 } from './param-descriptions.js';
 
 type ToolEndpoint = (typeof api.endpoints)[number];
@@ -23,12 +25,13 @@ type ToolEndpoint = (typeof api.endpoints)[number];
  * mode. Kept as a structural type so we don't import the full EndpointConfig
  * from graph-tools.ts (which would create a circular dependency).
  */
-export interface ToolSchemaConfig extends DestructiveCheckConfig {
+export interface ToolSchemaConfig extends DestructiveCheckConfig, QueryParamConfig {
   llmTip?: string;
   descriptionOverride?: string;
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
   acceptType?: string;
+  nameFilter?: boolean;
 }
 
 /**
@@ -87,7 +90,7 @@ export function describeToolSchema(
   const params = (tool.parameters ?? []).flatMap((p) => {
     const effectiveSchema =
       p.type === 'Query'
-        ? queryParameterSchema(tool.alias, p.name, p.schema as z.ZodTypeAny)
+        ? queryParameterSchema(p.name, p.schema as z.ZodTypeAny, config)
         : (p.schema as z.ZodTypeAny);
     if (!effectiveSchema) return [];
     const { inner, optional } = unwrapOptional(effectiveSchema);
@@ -124,16 +127,28 @@ export function describeToolSchema(
       name: 'fetchAllPages',
       in: 'Query',
       required: false,
-      description: getFetchAllPagesParamDescription(getMaxPages(), tool.alias),
+      description: getFetchAllPagesParamDescription(getMaxPages(), config),
       schema: { type: 'boolean' },
+    });
+  }
+
+  // Mirrors registerGraphTools: member list tools with nameFilter get `name`.
+  if (config?.nameFilter) {
+    params.push({
+      name: 'name',
+      in: 'Query',
+      required: false,
+      description: MEMBER_NAME_PARAM_DESCRIPTION,
+      schema: { type: 'string' },
     });
   }
 
   // Mirrors registerGraphTools: GET list endpoints have a skiptoken cursor param.
   if (
     isSkiptokenApplicable(
-      { method: tool.method, alias: tool.alias },
-      params.map((p) => p.name)
+      tool,
+      params.map((p) => p.name),
+      config
     )
   ) {
     params.push({

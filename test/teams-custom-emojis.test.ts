@@ -191,6 +191,8 @@ describe('Teams custom emojis (real generated clients)', () => {
     }
   });
 
+  // Documents only $top/$filter; $select is needed to opt in to image bytes.
+  // https://learn.microsoft.com/graph/api/teamworkmessaging-list-customemojis?view=graph-rest-beta
   it('exposes supported list options and a continuation cursor in both schemas', async () => {
     register();
     registerDiscovery();
@@ -218,12 +220,14 @@ describe('Teams custom emojis (real generated clients)', () => {
     vi.stubEnv('MS365_MCP_ALLOW_PAGINATION', 'true');
     register();
     registerDiscovery();
-    const normal = mockServer.registerTool.mock.calls.find(
+    const registered = mockServer.registerTool.mock.calls.find(
       (call: unknown[]) => call[0] === 'list-custom-emojis'
-    )?.[1].inputSchema.shape;
-    const discovery = resultJson<{ parameters: Array<{ name: string; description?: string }> }>(
-      await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' })
-    );
+    )?.[1];
+    const normal = registered.inputSchema.shape;
+    const discovery = resultJson<{
+      llmTip?: string;
+      parameters: Array<{ name: string; description?: string }>;
+    }>(await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' }));
     for (const name of ['top', 'filter', 'select', 'fetchAllPages']) {
       const descriptions = [
         normal[name].description,
@@ -232,9 +236,11 @@ describe('Teams custom emojis (real generated clients)', () => {
       for (const description of descriptions) {
         expect(description).toEqual(expect.any(String));
         expect(description).not.toMatch(/\$(search|orderby|expand|skip|count)\b/i);
-        if (name === 'top') expect(description).toMatch(/base64/i);
       }
     }
+    // The image-bytes guidance is in the llmTip, which both modes show with the tool
+    expect(registered.description).toMatch(/base64/i);
+    expect(discovery.llmTip).toMatch(/base64/i);
   });
 
   it.each(['search', 'orderby', 'expand'])(

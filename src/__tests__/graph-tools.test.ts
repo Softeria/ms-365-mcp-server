@@ -1400,7 +1400,9 @@ describe('graph-tools', () => {
       'rejects mixed-case top values before Graph dispatch for %s',
       async (alias) => {
         mockEndpoints.push(makeEndpoint({ alias }));
-        mockEndpointsJson = [makeConfig({ toolName: alias })];
+        mockEndpointsJson = [
+          makeConfig({ toolName: alias, queryParams: ['startDateTime', 'skiptoken'] }),
+        ];
         const graphClient = createMockGraphClient();
         const server = createMockServer();
         const { registerGraphTools } = await loadModule();
@@ -1417,7 +1419,7 @@ describe('graph-tools', () => {
       'rejects unsupported query options before Graph dispatch for %s',
       async (alias) => {
         mockEndpoints.push(makeEndpoint({ alias }));
-        mockEndpointsJson = [makeConfig({ toolName: alias })];
+        mockEndpointsJson = [makeConfig({ toolName: alias, queryParams: [] })];
         const graphClient = createMockGraphClient();
         const server = createMockServer();
         const { registerGraphTools } = await loadModule();
@@ -1433,7 +1435,7 @@ describe('graph-tools', () => {
 
     it('rejects oversized chat pages before Graph dispatch, including dollar-prefixed input', async () => {
       mockEndpoints.push(makeEndpoint({ alias: 'list-chats' }));
-      mockEndpointsJson = [makeConfig({ toolName: 'list-chats' })];
+      mockEndpointsJson = [makeConfig({ toolName: 'list-chats', maxTop: 50 })];
       const graphClient = createMockGraphClient();
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
@@ -1524,6 +1526,7 @@ describe('graph-tools', () => {
         makeConfig({
           toolName: 'list-calendar-events-delta',
           pathPattern: '/me/calendarView/delta',
+          queryParams: ['startDateTime', 'skiptoken'],
         })
       );
 
@@ -5214,7 +5217,7 @@ describe('graph-tools', () => {
       ['update-chat-message', 'patch'],
     ] as const;
 
-    async function call(alias: string, method: string, body: unknown) {
+    async function call(alias: string, method: string, body: unknown, flagged = true) {
       mockEndpoints.push(
         makeEndpoint({
           alias,
@@ -5224,7 +5227,12 @@ describe('graph-tools', () => {
         })
       );
       mockEndpointsJson = [
-        makeConfig({ toolName: alias, method, pathPattern: '/chats/{chat-id}/messages' }),
+        makeConfig({
+          toolName: alias,
+          method,
+          pathPattern: '/chats/{chat-id}/messages',
+          mentionShorthand: flagged,
+        }),
       ];
       const graphClient = createMockGraphClient([
         { content: [{ type: 'text', text: JSON.stringify({ id: 'm1' }) }] },
@@ -5263,10 +5271,13 @@ describe('graph-tools', () => {
       expect(graphClient.graphRequest).not.toHaveBeenCalled();
     });
 
-    it('does not rewrite on a tool outside the seven', async () => {
-      const { graphClient } = await call('create-draft-email', 'post', {
-        body: { contentType: 'html', content: `<at user-id="${U1}">Jane</at>` },
-      });
+    it('does not rewrite on a tool without mentionShorthand', async () => {
+      const { graphClient } = await call(
+        'create-draft-email',
+        'post',
+        { body: { contentType: 'html', content: `<at user-id="${U1}">Jane</at>` } },
+        false
+      );
       expect(sent(graphClient).body.content).toBe(`<at user-id="${U1}">Jane</at>`);
     });
 
@@ -5359,7 +5370,7 @@ describe('graph-tools', () => {
       outputFormat: 'json' | 'toon' = 'json'
     ) {
       mockEndpoints.push(makeEndpoint({ alias, path }));
-      mockEndpointsJson = [makeConfig({ toolName: alias, pathPattern: path })];
+      mockEndpointsJson = [makeConfig({ toolName: alias, pathPattern: path, nameFilter: true })];
       const graphClient = createMockGraphClient(responses, outputFormat);
       const server = createMockServer();
       const { registerGraphTools } = await loadModule();
