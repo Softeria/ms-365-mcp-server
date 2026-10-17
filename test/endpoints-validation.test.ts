@@ -22,6 +22,10 @@ interface Endpoint {
   workScopes?: string[] | string[][];
   returnDownloadUrl?: boolean;
   llmTip?: string;
+  queryParams?: string[];
+  maxTop?: number;
+  nameFilter?: boolean;
+  mentionShorthand?: boolean;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -183,6 +187,55 @@ describe('endpoints.json validation', () => {
       expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('<at id');
       expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('userIdentityType');
     }
+  });
+
+  describe('per-tool behavior fields', () => {
+    const generated = new Map([...api.endpoints, ...betaApi.endpoints].map((e) => [e.alias, e]));
+    const queryNames = (toolName: string) =>
+      (generated.get(toolName)?.parameters ?? [])
+        .filter((p) => p.type === 'Query')
+        .map((p) => p.name.replace(/^\$/, '').toLowerCase());
+
+    it('lists only query params the generated tool has, plus the skiptoken cursor', () => {
+      for (const e of endpoints.filter((x) => x.queryParams)) {
+        const known = new Set([...queryNames(e.toolName), 'skiptoken']);
+        const listed = e.queryParams!.map((p) => p.toLowerCase());
+        for (const name of listed) {
+          expect(known.has(name), `${e.toolName} queryParams has unknown "${name}"`).toBe(true);
+        }
+        expect(new Set(listed).size, `${e.toolName} queryParams has duplicates`).toBe(
+          listed.length
+        );
+      }
+    });
+
+    it('caps $top only where the tool takes $top', () => {
+      for (const e of endpoints.filter((x) => x.maxTop !== undefined)) {
+        expect(Number.isInteger(e.maxTop) && e.maxTop! > 0, `${e.toolName} maxTop`).toBe(true);
+        expect(queryNames(e.toolName), `${e.toolName} has no $top`).toContain('top');
+        if (e.queryParams) expect(e.queryParams.map((p) => p.toLowerCase())).toContain('top');
+      }
+    });
+
+    it('puts nameFilter only on GET tools', () => {
+      for (const e of endpoints.filter((x) => x.nameFilter)) {
+        expect(e.method, `${e.toolName} nameFilter`).toBe('get');
+      }
+    });
+
+    // Nothing in the body schema explains the shorthand, so a flag the llmTip doesn't
+    // mention is invisible to the model, and a tip without the flag promises a rewrite
+    // the server doesn't do
+    it('puts mentionShorthand exactly on the tools whose llmTip explains <at user-id>', () => {
+      for (const e of endpoints) {
+        expect(!!e.mentionShorthand, `${e.toolName} mentionShorthand`).toBe(
+          !!e.llmTip?.includes('user-id=')
+        );
+        if (e.mentionShorthand) {
+          expect(['post', 'patch'], `${e.toolName} mentionShorthand`).toContain(e.method);
+        }
+      }
+    });
   });
 
   it('should accept and preserve userIdentityType on a mentions payload (passthrough schema)', () => {

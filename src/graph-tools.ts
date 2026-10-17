@@ -38,6 +38,7 @@ import {
   getMaxPages,
   isFetchAllPagesApplicable,
   isSkiptokenApplicable,
+  MEMBER_NAME_PARAM_DESCRIPTION,
   paginationAllowed,
   positiveIntFromEnv,
   SKIPTOKEN_PARAM_DESCRIPTION,
@@ -119,6 +120,12 @@ interface EndpointConfig {
   // to synthesize a typed requestBody (instead of a generic object), so the generated client
   // exposes a validated `body` param. Ignored for endpoints already present in the spec.
   requestBodySchema?: Record<string, unknown>;
+  // The query parameters Graph really accepts here, when that is fewer than the generic OData
+  // options the spec lists. Unset keeps every generated one. Keep skiptoken where the tool pages.
+  queryParams?: string[];
+  maxTop?: number; // Upper bound for $top, enforced in the schema
+  nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
+  mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
 }
 
 const endpointsData = JSON.parse(
@@ -342,11 +349,6 @@ function rewriteMailSearchQuotes(expr: string): string {
   }
   return balanceTrailingSlashes(out.trim());
 }
-
-const MEMBER_NAME_FILTER_TOOLS = new Set(['list-team-members', 'list-chat-members']);
-
-const MEMBER_NAME_PARAM_DESCRIPTION =
-  "Case-insensitive text to match against each member's displayName and email. Applied after $select projection, so only fields you can see are matched. Without fetchAllPages only the fetched page is filtered, and @odata.count still reports the unfiltered total.";
 
 /**
  * Keeps only the members whose displayName or email contains `name`. Runs on the final
@@ -763,16 +765,6 @@ function collectRecipients(
     collectRecipients(value, domains, counter, depth + 1);
   }
 }
-
-const MENTION_SHORTHAND_TOOLS = new Set([
-  'send-channel-message',
-  'reply-to-channel-message',
-  'update-channel-message',
-  'update-channel-message-reply',
-  'send-chat-message',
-  'reply-to-chat-message',
-  'update-chat-message',
-]);
 
 const AAD_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHORTHAND_AT = /<at\s+user-id="([^"]*)">([^<]*)<\/at>/gi;
@@ -2701,13 +2693,11 @@ async function executeGraphTool(
     );
     const strayBodyFields: Record<string, unknown> = {};
     const memberNameFilter =
-      MEMBER_NAME_FILTER_TOOLS.has(tool.alias) && typeof params.name === 'string'
-        ? params.name
-        : undefined;
+      config?.nameFilter && typeof params.name === 'string' ? params.name : undefined;
 
     for (const [paramName, paramValue] of Object.entries(params)) {
       if (paramName === 'fileName' && config?.blobOutput) continue;
-      if (paramName === 'name' && MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) continue;
+      if (paramName === 'name' && config?.nameFilter) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -2761,9 +2751,9 @@ async function executeGraphTool(
       const isQuery = paramDef?.type === 'Query' || isOdataParam;
       if (isQuery && paramValue != null && paramValue !== '') {
         const schema = queryParameterSchema(
-          tool.alias,
           normalizedParamName,
-          paramDef?.schema ?? z.any()
+          paramDef?.schema ?? z.any(),
+          config
         );
         if (!schema || !schema.safeParse(paramValue).success) {
           return {
@@ -2971,7 +2961,7 @@ async function executeGraphTool(
       }
     }
 
-    if (MENTION_SHORTHAND_TOOLS.has(tool.alias)) {
+    if (config?.mentionShorthand) {
       const rewritten = rewriteMentionShorthand(body);
       if (rewritten.error) {
         return {
@@ -3576,7 +3566,7 @@ export function registerGraphTools(
     if (tool.parameters && tool.parameters.length > 0) {
       for (const param of tool.parameters) {
         if (param.type === 'Query') {
-          const schema = queryParameterSchema(tool.alias, param.name, param.schema || z.any());
+          const schema = queryParameterSchema(param.name, param.schema || z.any(), endpointConfig);
           if (schema) paramSchema[param.name] = schema;
           continue;
         }
@@ -3622,15 +3612,15 @@ export function registerGraphTools(
       const maxPages = getMaxPages();
       paramSchema['fetchAllPages'] = z
         .boolean()
-        .describe(getFetchAllPagesParamDescription(maxPages, tool.alias))
+        .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig))
         .optional();
     }
 
-    if (MEMBER_NAME_FILTER_TOOLS.has(tool.alias)) {
+    if (endpointConfig?.nameFilter) {
       paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
     }
 
-    if (isSkiptokenApplicable(tool, Object.keys(paramSchema))) {
+    if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
       paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
     }
 
