@@ -4,7 +4,39 @@ import AuthManager from './auth.js';
 import logger from './logger.js';
 import { getRequestTokens } from './request-context.js';
 
-export function registerAuthTools(server: McpServer, authManager: AuthManager): void {
+/** Account tools that log in, log out or change the cached accounts; --read-only drops them. */
+const STATE_CHANGING_AUTH_TOOLS = new Set(['login', 'logout', 'select-account', 'remove-account']);
+
+export interface AuthToolsOptions {
+  /** --enabled-tools regex; applied to the account tools like to every other tool. */
+  enabledTools?: string;
+  /** --read-only: skip the account tools that change state. */
+  readOnly?: boolean;
+}
+
+export function registerAuthTools(
+  mcpServer: McpServer,
+  authManager: AuthManager,
+  options: AuthToolsOptions = {}
+): void {
+  let enabledToolsRegex: RegExp | undefined;
+  if (options.enabledTools) {
+    try {
+      enabledToolsRegex = new RegExp(options.enabledTools, 'i');
+    } catch {
+      // Same as the Graph tools: an invalid pattern is ignored (and logged there).
+    }
+  }
+  const isEnabled = (name: string): boolean =>
+    !(options.readOnly && STATE_CHANGING_AUTH_TOOLS.has(name)) &&
+    !(enabledToolsRegex && !enabledToolsRegex.test(name));
+  // Registers only the tools the active filters allow; the calls below stay as they were.
+  const server = {
+    tool: ((name: string, ...args: unknown[]) => {
+      if (!isEnabled(name)) return undefined;
+      return (mcpServer.tool as (...a: unknown[]) => unknown).call(mcpServer, name, ...args);
+    }) as McpServer['tool'],
+  };
   server.tool(
     'login',
     'Authenticate with Microsoft account',
