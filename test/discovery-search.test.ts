@@ -42,6 +42,8 @@ const cases: Case[] = [
   // so these rely on the descriptionOverride entries in endpoints.json.
   { query: 'search my inbox for an email', expect: 'list-mail-messages', inTop: 5 },
   { query: 'read the full body of an email', expect: 'get-mail-message', inTop: 5 },
+  { query: 'triage inbox', expect: 'read-mail-text', inTop: 3 },
+  { query: 'skim many emails at once', expect: 'read-mail-text', inTop: 3 },
   { query: 'save a draft email', expect: 'create-draft-email', inTop: 5 },
   { query: 'mark email as read', expect: 'update-mail-message', inTop: 5 },
   { query: 'move email to deleted items', expect: 'delete-mail-message', inTop: 5 },

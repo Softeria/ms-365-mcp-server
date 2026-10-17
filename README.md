@@ -736,6 +736,7 @@ Environment variables:
 - `MS365_MCP_BLOB_MAX_BYTES=<n>`: With blob output on, the largest file a download tool reads (positive integer, default `5242880`). The server stops reading past it and answers an error naming the limit.
 - `MS365_MCP_BODY_FORMAT=html`: Return email bodies as HTML instead of plain text (default: text)
 - `MS365_MCP_OBO_ALLOWED_TENANTS=<ids>` / `MS365_MCP_OBO_ALLOWED_USERS=<ids>`: With `--obo`, only callers whose token `tid` (tenant id) / `oid` (user object id) is listed may use the server; others get 403 before any On-Behalf-Of exchange. Comma or space separated; unset = everyone. The claims are read without verifying the signature, which Entra verifies during the exchange, so a token that lies about them still gets no Graph token. A token Entra rejects at the exchange (bad signature, expired, wrong audience, consent needed) gets 401 with a `WWW-Authenticate` challenge so the client signs in again
+- `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS=<n>`: Largest result `read-mail-text` returns, in characters (default `80000`). A larger result is refused whole, naming the largest messages, rather than cut (see Reading Mail as Clean Text below)
 - `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
 - `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
@@ -759,6 +760,46 @@ Environment variables:
 - `MS365_MCP_AUTH_CACHE_COMMAND_TIMEOUT_MS`: Per-invocation timeout for `MS365_MCP_AUTH_CACHE_COMMAND` (default: `10000`)
 - `MS365_MCP_EXPECTED_USERNAME`: Require local MSAL auth to use this Microsoft account username (case-insensitive; CLI flag takes precedence)
 - `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID`: Require local MSAL auth to use this exact MSAL homeAccountId (CLI flag takes precedence)
+
+## Reading Mail as Clean Text
+
+`read-mail-text` returns messages as text with the bulk junk removed. Graph's
+plain-text body is still mostly not the message: links are wrapped in Safe Links
+or tracking redirects several hundred characters long, marketing mail pads its
+preheader with invisible characters, images become `[https://…png]` lines, and
+replies carry the whole quoted thread. On a real mailbox, 20 inbox messages came
+to about 280,000 characters through `list-mail-messages` and 70,000 through
+`read-mail-text`.
+
+The rule is: remove obvious junk, never cut or rewrite the message; anything
+ambiguous is kept. It removes runs of invisible padding characters, image
+placeholders (a bracketed address of an image file), and quoted reply history
+from its header down (a dated `On … wrote:`, also `>`-quoted, an Outlook
+`From:/Sent:` block, `-----Original Message-----`). Forwards keep the forwarded
+content: a subject starting `FW:` / `Fwd:` or a localised prefix (`VS:`, `WG:`,
+`TR:`, `RV:`, `I:`, `ENC:`, …, also after tags such as `[EXTERNAL]`), or history
+directly under a `Forwarded message` / `Begin forwarded message:` marker. Links are kept:
+Safe Links, Proofpoint URL Defense and Google redirects are unwrapped to the real
+address, tracking parameters (`utm_*` and similar) are dropped, and only an
+address still longer than 300 characters (a tracking redirect) is shortened to
+`⟦link: domain⟧`. Line endings become `\n`, and the marker brackets are
+reserved: a body's own `⟦ ⟧` appear as `[ ]`, so text cannot pose as a marker.
+Everything else — signatures, footers, whitespace, repeated links — is left as
+the message has it. `get-mail-message` returns the raw body.
+
+- `messageIds` (up to 20, one `$batch`), or `folderId` with optional `top`
+  (max 20), `filter` or `search`.
+- Each message is cut to `maxChars` characters, default 3,000 (marked
+  `truncated`): a page of 20 then fits the result limit, and a typical message
+  is whole. Ticket systems that repeat their history in every update put the
+  newest entry first, so the cut keeps it. Pass a larger `maxChars` (up to
+  300,000; a raw body beyond that is cleaned only that far) for the whole of a
+  long message; `get-mail-message` has the raw body.
+- Returns `[{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }]`;
+  an unknown id comes back as `{ id, error }`.
+- A result over `MS365_MCP_READ_MAIL_TEXT_MAX_CHARS` (default 80,000) is refused
+  whole with the largest messages listed, so the agent narrows the query instead
+  of silently getting part of it.
 
 ## Server-Minted Attachment URLs
 

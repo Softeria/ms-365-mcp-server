@@ -51,6 +51,20 @@ import {
   projectSelectedFields,
 } from './lib/select-projection.js';
 import { parseTeamsUrl } from './lib/teams-url-parser.js';
+import {
+  MAIL_TEXT_DEFAULT_MAX_RESPONSE_CHARS,
+  MAIL_TEXT_DEFAULT_MAX_CHARS,
+  MAIL_TEXT_MAX_INPUT_CHARS,
+  MAIL_TEXT_MAX_IDS,
+  MAIL_TEXT_MAX_TOP,
+  MAIL_TEXT_SELECT,
+  PREFER_TEXT_BODY,
+  oversizeError,
+  toMailTextEntry,
+  validateMailTextArgs,
+  type GraphMessage,
+  type MailTextEntry,
+} from './lib/mail-text.js';
 import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 import {
   restrictUserFieldQuery,
@@ -1578,6 +1592,187 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           content: [{ type: 'text', text: JSON.stringify({ error: (error as Error).message }) }],
           isError: true,
         };
+      }
+    },
+  },
+  {
+    name: 'read-mail-text',
+    method: 'GET',
+    path: 'tool:read-mail-text',
+    searchKeywords:
+      'triage inbox skim many emails at once without quoted history signature footer tracking links',
+    description:
+      'Triage view of up to 20 mail messages at once, as text with the bulk junk removed: invisible padding, image placeholders and quoted reply history (forwards keep theirs). Links are kept: Safe Links, Proofpoint and Google redirects are unwrapped to the real address and tracking parameters (utm_* and similar) dropped; only an address still over 300 characters (a tracking redirect) is shortened to \u27e6link: domain\u27e7. Everything else (signatures, footers, whitespace) is left as the message has it; line endings become \\n and \u27e6 \u27e7 in the body itself appear as [ ]. Use get-mail-message for the raw body or the quoted thread. Give messageIds (up to 20), or folderId with optional top and filter or search for the newest messages in a folder. Each message is cut to maxChars characters (default 3,000; marked truncated: true): pass a larger maxChars, up to 300,000, for the whole of a long message; a body over 300,000 characters is cleaned only that far. If the whole result would exceed the server limit (MS365_MCP_READ_MAIL_TEXT_MAX_CHARS, default 80000) the call fails, listing the largest messages, instead of returning part of it. Returns [{ id, from, to, cc, subject, received, hasAttachments, text, chars, truncated }].',
+    readOnlyHint: true,
+    openWorldHint: true,
+    buildSchema: (ctx) => {
+      const schema: Record<string, z.ZodTypeAny> = {
+        messageIds: z
+          .array(z.string())
+          .max(MAIL_TEXT_MAX_IDS)
+          .optional()
+          .describe(
+            `Ids of the messages to read (max ${MAIL_TEXT_MAX_IDS}). Give messageIds or folderId, not both.`
+          ),
+        folderId: z
+          .string()
+          .optional()
+          .describe(
+            'Folder to read from: a well-known name (inbox, sentitems, drafts, archive, deleteditems, junkemail) or a folder id.'
+          ),
+        top: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAIL_TEXT_MAX_TOP)
+          .optional()
+          .describe(
+            `With folderId: how many messages, newest first (default and max ${MAIL_TEXT_MAX_TOP}).`
+          ),
+        filter: z
+          .string()
+          .optional()
+          .describe(
+            "With folderId: OData $filter, e.g. receivedDateTime ge 2026-10-01T00:00:00Z or from/emailAddress/address eq 'a@example.com'."
+          ),
+        search: z
+          .string()
+          .optional()
+          .describe(
+            'With folderId: KQL search, e.g. from:paul subject:"quarterly report" (quoting is normalised as for list-mail-messages). Graph cannot combine it with filter.'
+          ),
+        maxChars: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAIL_TEXT_MAX_INPUT_CHARS)
+          .optional()
+          .describe(
+            'Cut each message text to this many characters (marked truncated). Default 3,000; pass up to 300,000 for the whole of a long message (a body over 300,000 characters is cleaned only that far, also marked truncated).'
+          ),
+      };
+      if (ctx.multiAccount) {
+        schema['account'] = z
+          .string()
+          .optional()
+          .describe(
+            'Account to use when multiple Microsoft accounts are configured. Required when multiple accounts exist (see list-accounts).'
+          );
+      }
+      return schema;
+    },
+    execute: async (params, { graphClient, authManager }) => {
+      const fail = (error: string): CallToolResult => ({
+        content: [{ type: 'text', text: JSON.stringify({ error }) }],
+        isError: true,
+      });
+      // Discovery mode's execute-tool passes raw parameters (no zod), so validate here.
+      const invalid = validateMailTextArgs(params);
+      if (invalid) return fail(invalid);
+      const ids = params.messageIds as string[] | undefined;
+      const folderId = params.folderId as string | undefined;
+      const top = params.top as number | undefined;
+      const filter = params.filter as string | undefined;
+      const search = params.search as string | undefined;
+      const maxChars = (params.maxChars as number | undefined) ?? MAIL_TEXT_DEFAULT_MAX_CHARS;
+      const accountParam = params.account as string | undefined;
+      const envLimit = Number(process.env.MS365_MCP_READ_MAIL_TEXT_MAX_CHARS);
+      const limit =
+        Number.isInteger(envLimit) && envLimit > 0
+          ? envLimit
+          : MAIL_TEXT_DEFAULT_MAX_RESPONSE_CHARS;
+      try {
+        const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
+        if (accountModeError) return fail(accountModeError);
+        let accessToken: string | undefined;
+        if (authManager && !authManager.isOAuthModeEnabled() && !getRequestTokens()) {
+          accessToken = await authManager.getTokenForAccount(accountParam);
+        }
+        const requestJson = async (
+          endpoint: string,
+          options: { method?: string; body?: string; headers?: Record<string, string> }
+        ): Promise<{ error?: CallToolResult; data?: Record<string, unknown> }> => {
+          const response = await graphClient.graphRequest(endpoint, {
+            ...options,
+            accessToken,
+            forceJsonOutput: true,
+          });
+          // graphRequest returns Graph HTTP errors as { isError: true }: pass them on.
+          if (response?.isError) return { error: response as CallToolResult };
+          const text = response?.content?.[0]?.text;
+          try {
+            return { data: JSON.parse(typeof text === 'string' ? text : '') };
+          } catch {
+            return { error: fail('Unexpected non-JSON response from Microsoft Graph.') };
+          }
+        };
+
+        let entries: Array<MailTextEntry | { id: string; error: string }>;
+        if (ids !== undefined) {
+          // One $batch for all ids; each sub-request asks Graph for a text body.
+          const requests = ids.map((id, i) => ({
+            id: String(i),
+            method: 'GET',
+            url: `/me/messages/${encodeURIComponent(id)}?$select=${MAIL_TEXT_SELECT}`,
+            headers: { Prefer: PREFER_TEXT_BODY },
+          }));
+          const r = await requestJson('/$batch', {
+            method: 'POST',
+            body: JSON.stringify({ requests }),
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (r.error) return r.error;
+          const responses = (r.data?.responses ?? []) as Array<{
+            id: string;
+            status: number;
+            body?: GraphMessage & { error?: { code?: string; message?: string } };
+          }>;
+          const byId = new Map(responses.map((x) => [x.id, x]));
+          entries = ids.map((id, i) => {
+            const x = byId.get(String(i));
+            if (!x) return { id, error: 'no response' };
+            if (x.status !== 200) {
+              const e = x.body?.error;
+              return {
+                id,
+                error:
+                  x.status === 404
+                    ? 'not found'
+                    : `${e?.code ?? x.status}: ${e?.message ?? ''}`.trim(),
+              };
+            }
+            return toMailTextEntry(x.body ?? {}, maxChars);
+          });
+        } else {
+          const queryParams: Record<string, string> = {
+            $select: MAIL_TEXT_SELECT,
+            $top: String(top ?? MAIL_TEXT_MAX_TOP),
+          };
+          if (filter !== undefined) queryParams['$filter'] = filter;
+          if (search !== undefined) {
+            // The same KQL quoting repair list-mail-messages gets.
+            queryParams['$search'] = search;
+            const searchError = normalizeSearchQueryParam(
+              queryParams,
+              '/me/mailFolders/{mailFolder-id}/messages',
+              'read-mail-text'
+            );
+            if (searchError) return searchError;
+          }
+          const r = await requestJson(
+            `/me/mailFolders/${encodeURIComponent(folderId as string)}/messages?${new URLSearchParams(queryParams)}`,
+            { headers: { Prefer: PREFER_TEXT_BODY } }
+          );
+          if (r.error) return r.error;
+          entries = ((r.data?.value ?? []) as GraphMessage[]).map((m) =>
+            toMailTextEntry(m, maxChars)
+          );
+        }
+        const text = JSON.stringify(entries);
+        if (text.length > limit) return fail(oversizeError(entries, text.length, limit));
+        return { content: [{ type: 'text', text }] };
+      } catch (error) {
+        return fail((error as Error).message);
       }
     },
   },
