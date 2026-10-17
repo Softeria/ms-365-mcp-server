@@ -11,10 +11,13 @@ API.
 
 This server supports multiple Microsoft cloud environments:
 
-| Cloud                | Description                        | Auth Endpoint             | Graph API Endpoint              |
-| -------------------- | ---------------------------------- | ------------------------- | ------------------------------- |
-| **Global** (default) | International Microsoft 365        | login.microsoftonline.com | graph.microsoft.com             |
-| **China** (21Vianet) | Microsoft 365 operated by 21Vianet | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
+| Cloud                | Description                          | Auth Endpoint             | Graph API Endpoint              |
+| -------------------- | ------------------------------------ | ------------------------- | ------------------------------- |
+| **Global** (default) | International Microsoft 365          | login.microsoftonline.com | graph.microsoft.com             |
+| **China** (21Vianet) | Microsoft 365 operated by 21Vianet   | login.chinacloudapi.cn    | microsoftgraph.chinacloudapi.cn |
+| **GCC High**         | Microsoft 365 US Government GCC High | login.microsoftonline.us  | graph.microsoft.us              |
+
+GCC High has no pre-registered client: register an app in your government tenant and set `MS365_MCP_CLIENT_ID` (and `MS365_MCP_TENANT_ID`), then use `--cloud gcc-high`.
 
 To route Graph traffic through a proxy of your own (one that terminates the client's plain HTTP and originates TLS to Microsoft), set `MS365_MCP_GRAPH_BASE_URL` to its base URL; see the environment variable list under CLI Options, including what still bypasses it.
 
@@ -673,7 +676,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
---cloud <type>    Microsoft cloud environment: global (default) or china (21Vianet)
+--cloud <type>    Microsoft cloud environment: global (default), china (21Vianet) or gcc-high
 --allowed-scopes <scopes> Limit exposed tools to Graph scopes covered by this allowlist
 --extra-scopes <scopes> Append additional Graph scopes to the token request (for use with your own app registration + graph-batch)
 --expected-username <username> Require local MSAL auth to use this account username
@@ -745,7 +748,7 @@ Environment variables:
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
 - `MS365_MCP_HTTP_LOCAL_FILE_TOOLS=true|1`: Register download-bytes-to-file, and upload-attachment-from-file when `MS365_MCP_UPLOAD_DIRS` is set, over HTTP (alternative to --http-local-file-tools; same restrictions)
 - `MS365_MCP_UPLOAD_DIRS=<dirs>`: Directories `upload-attachment-from-file` may read from, as absolute paths separated like `PATH`. Unset (the default) leaves the tool unregistered. See "Attaching a local file in stdio mode"
-- `MS365_MCP_CLOUD_TYPE=global|china`: Microsoft cloud environment (alternative to --cloud flag)
+- `MS365_MCP_CLOUD_TYPE=global|china|gcc-high`: Microsoft cloud environment (alternative to --cloud flag)
 - `MS365_MCP_GRAPH_BASE_URL=<url>`: Send Graph API requests to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL without query or fragment; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority and the On-Behalf-Of token resource are unchanged. Two things bypass it: `get-download-url` returns Graph's pre-authenticated SharePoint URL, and the `302` from `/content` points straight at SharePoint, so whoever follows either connects to SharePoint directly; if you control egress, allow those SharePoint hosts or disable those tools. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output

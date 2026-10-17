@@ -92,7 +92,10 @@ program
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
-  .option('--cloud <type>', 'Microsoft cloud environment: global (default) or china (21Vianet)')
+  .option(
+    '--cloud <type>',
+    'Microsoft cloud environment: global (default), china (21Vianet) or gcc-high (US Government GCC High)'
+  )
   .option(
     '--enable-dynamic-registration',
     'Enable OAuth Dynamic Client Registration endpoint (kept for backwards compatibility, now enabled by default in HTTP mode)'
