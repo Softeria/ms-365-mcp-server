@@ -155,7 +155,7 @@ The `--list-permissions` JSON includes:
 
 ### Allowed Scopes
 
-By default, MSAL requests the scopes implied by the enabled tools, and the tool surface is controlled by `--enabled-tools`, `--preset`, `--org-mode`, and `--read-only`.
+By default, MSAL requests the scopes implied by the enabled tools, and the tool surface is controlled by `--enabled-tools`, `--enabled-tools-file`, `--preset`, `--org-mode`, and `--read-only`.
 
 Enterprise and headless deployments can add a scope boundary with `--allowed-scopes` or `MS365_MCP_ALLOWED_SCOPES`. When configured, the server first computes the normal tool surface, then hides Graph tools whose required scopes are not covered by the allowlist. OAuth metadata and login flows request only the effective permissions for the tools that remain enabled.
 
@@ -164,6 +164,19 @@ npx @softeria/ms-365-mcp-server \
   --org-mode \
   --enabled-tools '^(list-mail-messages|get-mail-message|list-drives|get-drive-item|download-bytes)$' \
   --allowed-scopes 'User.Read Mail.Read Files.Read'
+```
+
+For longer filters, put one regex per line in a file and pass `--enabled-tools-file` / `ENABLED_TOOLS_FILE`. Blank lines and whole-line `#` comments are dropped; the rest are joined with `|`, so the file is equivalent to `--enabled-tools=line1|line2|…`:
+
+```text
+# tools.txt
+^list-mail-messages$
+^get-mail-message$
+drive|download-bytes
+```
+
+```bash
+npx @softeria/ms-365-mcp-server --org-mode --enabled-tools-file ./tools.txt
 ```
 
 CLI value takes precedence over `MS365_MCP_ALLOWED_SCOPES`; if neither is set, the default tool-derived scope behavior is unchanged. Supplying an empty value fails at startup so deployments do not accidentally fall back to a wider tool surface.
@@ -672,7 +685,7 @@ The following options can be used when running ms-365-mcp-server directly from t
 --login           Login using device code flow
 --logout          Log out and clear saved credentials
 --verify-login    Verify login without starting the server
---list-permissions List required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools, --allowed-scopes)
+--list-permissions List required Graph API permissions and exit (respects --org-mode, --preset, --enabled-tools, --enabled-tools-file, --allowed-scopes)
 --org-mode        Enable organization/work mode from start (includes Teams, SharePoint, etc.)
 --work-mode       Alias for --org-mode
 --force-work-scopes Backwards compatibility alias for --org-mode (deprecated)
@@ -715,6 +728,9 @@ When running as an MCP server, the following options can be used:
                   (requires --attachment-port; see "Splitting the attachment listener")
 --no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
+--enabled-tools-file <path> Filter tools using a file with one regex per line (same as --enabled-tools;
+                  blank lines and whole-line # comments ignored). Overrides --enabled-tools;
+                  overridden by --preset. Equivalent env var: ENABLED_TOOLS_FILE
 --preset <names>  Use preset tool categories (comma-separated). See "Tool Presets" section above
 --list-presets    List all available presets and exit
 --toon            (experimental) Enable TOON output format for 30-60% token reduction
@@ -728,6 +744,7 @@ Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
 - `ENABLED_TOOLS`: Filter tools using a regex pattern (alternative to --enabled-tools flag)
+- `ENABLED_TOOLS_FILE`: Path to a file with one regex per line (alternative to --enabled-tools-file). Blank lines and whole-line `#` comments are dropped, then lines are joined with `|` (same as `ENABLED_TOOLS=line1|line2|…`). Layering (later wins): `--enabled-tools` → `--enabled-tools-file` → `--preset` → `ENABLED_TOOLS` → `ENABLED_TOOLS_FILE`
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
