@@ -1448,6 +1448,30 @@
     "scopes": ["Tasks.Read"]
   },
   {
+    "pathPattern": "/planner/plans",
+    "method": "post",
+    "toolName": "create-planner-plan",
+    "presets": ["tasks", "work"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "Body: {\"container\": {\"url\": \"https://graph.microsoft.com/v1.0/groups/{group-id}\"}, \"title\": \"...\"}. For a team, the group id is the team id. The signed-in user must be a member of the group. The container cannot be changed later. Returns the new plan id; to show the plan in a channel, add a Planner tab with create-channel-tab."
+  },
+  {
+    "pathPattern": "/planner/plans/{plannerPlan-id}",
+    "method": "patch",
+    "toolName": "update-planner-plan",
+    "presets": ["tasks", "work"],
+    "scopes": ["Tasks.ReadWrite"],
+    "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-plan (use includeHeaders=true)."
+  },
+  {
+    "pathPattern": "/groups/{group-id}/planner/plans",
+    "method": "get",
+    "toolName": "list-group-planner-plans",
+    "presets": ["tasks", "work"],
+    "scopes": ["Tasks.Read"],
+    "llmTip": "Lists the plans owned by a Microsoft 365 group. For a team, the group id is the team id."
+  },
+  {
     "pathPattern": "/planner/plans/{plannerPlan-id}/tasks",
     "method": "get",
     "toolName": "list-plan-tasks",
@@ -1958,6 +1982,14 @@
     "toolName": "list-channel-tabs",
     "presets": ["teams", "work"],
     "workScopes": ["TeamsTab.Read.All"]
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
+    "method": "post",
+    "toolName": "create-channel-tab",
+    "presets": ["teams", "work"],
+    "workScopes": ["TeamsTab.Create"],
+    "llmTip": "Body: {\"displayName\": \"...\", \"teamsApp@odata.bind\": \"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/{teamsAppId}\", \"configuration\": {\"entityId\": ..., \"contentUrl\": ..., \"websiteUrl\": ..., \"removeUrl\": ...}}. Built-in app ids: website com.microsoft.teamspace.tab.web, document library com.microsoft.teamspace.tab.files.sharepoint, Planner com.microsoft.teamspace.tab.planner (see https://learn.microsoft.com/graph/teams-configuring-builtin-tabs). Planner tab for a basic plan (create it first with create-planner-plan): entityId \"planner.v1.{new-guid}_p_{planId}\"; contentUrl \"https://tasks.teams.microsoft.com/teamsui/{tid}/Home/PlannerFrame?page=7&auth_pvr=OrgId&auth_upn={userPrincipalName}&groupId={groupId}&planRoute=/v1/plan/{planId}&subEntityId={subEntityId}&channelId={channelId}&entityId={entityId}&tid={tid}&userObjectId={userObjectId}&sessionId={sessionId}&theme={theme}&mkt={locale}&ringId={ringId}&PlannerRouteHint={tid}&tabVersion=20200228.1_s\"; removeUrl the same with page=13; websiteUrl \"https://planner.cloud.microsoft/webui/v1/plan/{planId}?tid={tenantId}\". Replace only {planId}, {new-guid} and {tenantId} with real values; every other {placeholder} must stay literal, Teams fills it in. A tasks.office.com URL or a missing placeholder renders an error inside the tab."
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/setReaction",
