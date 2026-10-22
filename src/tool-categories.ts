@@ -117,7 +117,18 @@ for (const [tool, presets] of Object.entries(SCOPED_UTILITY_TOOLS)) {
   }
 }
 
-function presetPattern(preset: string): RegExp {
+/**
+ * Exact tool names unlocked by a named preset (endpoints.json membership plus
+ * utility-tool rules). Sorted for stable docs and tests. The `all` preset lists
+ * every endpoint tool plus every utility that belongs to at least one named preset.
+ */
+export function getToolsForPreset(preset: string): string[] {
+  if (preset === 'all') {
+    const endpointNames = [...new Set(endpointEntries.map((e) => e.toolName))];
+    const utilityNames = [...UNIVERSAL_UTILITY_TOOLS, ...Object.keys(SCOPED_UTILITY_TOOLS)];
+    return [...new Set([...endpointNames, ...utilityNames])].sort();
+  }
+
   const endpointNames = [
     ...new Set(endpointEntries.filter((e) => e.presets?.includes(preset)).map((e) => e.toolName)),
   ];
@@ -126,14 +137,19 @@ function presetPattern(preset: string): RegExp {
   if (endpointNames.length === 0) {
     throw new Error(`Preset "${preset}" matches no endpoints in endpoints.json`);
   }
-  const names = [
-    ...endpointNames,
-    ...(PRESET_META[preset]?.omitUniversalUtilities ? [] : UNIVERSAL_UTILITY_TOOLS),
-    ...Object.entries(SCOPED_UTILITY_TOOLS)
-      .filter(([, presets]) => presets.includes(preset))
-      .map(([name]) => name),
-  ];
-  return new RegExp(`^(?:${names.join('|')})$`);
+  return [
+    ...new Set([
+      ...endpointNames,
+      ...(PRESET_META[preset]?.omitUniversalUtilities ? [] : UNIVERSAL_UTILITY_TOOLS),
+      ...Object.entries(SCOPED_UTILITY_TOOLS)
+        .filter(([, presets]) => presets.includes(preset))
+        .map(([name]) => name),
+    ]),
+  ].sort();
+}
+
+function presetPattern(preset: string): RegExp {
+  return new RegExp(`^(?:${getToolsForPreset(preset).join('|')})$`);
 }
 
 export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
@@ -181,11 +197,13 @@ export function listPresets(): Array<{
   description: string;
   requiresOrgMode?: boolean;
 }> {
-  return Object.values(TOOL_CATEGORIES).map((category) => ({
-    name: category.name,
-    description: category.description,
-    requiresOrgMode: category.requiresOrgMode,
-  }));
+  return Object.values(TOOL_CATEGORIES)
+    .map((category) => ({
+      name: category.name,
+      description: category.description,
+      requiresOrgMode: category.requiresOrgMode,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function presetRequiresOrgMode(preset: string): boolean {
