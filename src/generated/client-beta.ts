@@ -1412,6 +1412,7 @@ const microsoft_graph_customEmojiFromIdentitySet = z
   .passthrough();
 const microsoft_graph_teamworkCustomEmoji = z
   .object({
+    id: z.string().describe('The unique identifier for an entity. Read-only.').optional(),
     contentBytes: z
       .string()
       .describe(
