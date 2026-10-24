@@ -47,7 +47,7 @@
     "open": "^11.0.0",
     "parse5": "^8.0.1",
     "winston": "^3.17.0",
-    "zod": "^3.24.2",
+    "zod": "^4.6.7",
     "zod-to-json-schema": "^3.25.1"
   },
   "optionalDependencies": {
