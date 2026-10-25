@@ -18,6 +18,11 @@ export interface AttachmentUpload {
   contentType: string;
   /** Exact byte length of the source; a source that is longer or shorter fails the upload. */
   size: number;
+  /**
+   * Makes the attachment inline under this Content-ID, so the HTML body can show
+   * it with <img src="cid:...">, e.g. a picture in an email signature.
+   */
+  contentId?: string;
   accessToken?: string;
 }
 
@@ -55,7 +60,8 @@ export async function uploadAttachment(
   upload: AttachmentUpload,
   source: AsyncIterable<Buffer>
 ): Promise<{ id?: string }> {
-  const { target, name, contentType, size, accessToken } = upload;
+  const { target, name, contentType, size, accessToken, contentId } = upload;
+  const inline = contentId ? { isInline: true, contentId } : {};
 
   if (size < INLINE_UPLOAD_LIMIT) {
     const chunks: Buffer[] = [];
@@ -74,6 +80,7 @@ export async function uploadAttachment(
         name,
         contentType,
         contentBytes: Buffer.concat(chunks).toString('base64'),
+        ...inline,
       }),
     })) as { id?: string };
     return { id: created?.id };
@@ -83,7 +90,7 @@ export async function uploadAttachment(
     method: 'POST',
     accessToken,
     body: JSON.stringify({
-      AttachmentItem: { attachmentType: 'file', name, size, contentType },
+      AttachmentItem: { attachmentType: 'file', name, size, contentType, ...inline },
     }),
   })) as UploadSessionResponse;
   if (!session?.uploadUrl) throw new Error('Upload session returned no uploadUrl');
