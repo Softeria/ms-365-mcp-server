@@ -1176,6 +1176,16 @@ async function checkAccountParamInBearerMode(
  */
 const UPLOAD_TARGET = /^(\/me|\/users\/[^/]+)\/(messages|events)\/[^/]+\/attachments$/;
 const UPLOAD_CONTENT_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
+/** Content-ID of an inline attachment: what the body references as cid:<contentId>. */
+const UPLOAD_CONTENT_ID = /^[A-Za-z0-9][A-Za-z0-9._@-]{0,99}$/;
+const UPLOAD_CONTENT_ID_ERROR =
+  'contentId may hold letters, digits, ".", "_", "@" and "-" (at most 100), e.g. signature-photo.';
+const contentIdSchema = z
+  .string()
+  .optional()
+  .describe(
+    'Attach inline under this Content-ID instead of as a regular attachment, so the HTML body can show the file with <img src="cid:<contentId>">, e.g. a picture in an email signature. Letters, digits, ".", "_", "@", "-".'
+  );
 
 const UPLOAD_TARGET_ERROR =
   'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.';
@@ -1194,6 +1204,11 @@ function cleanAttachmentName(name: string): string {
     .slice(0, 255);
 }
 
+/** An empty or non-string contentId means a regular attachment. */
+function optionalContentId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 /**
  * Mint an upload ticket for `target`, the `/attachments` collection of a draft
  * message or an event, redeemed by one PUT of the file bytes. Same identity
@@ -1205,7 +1220,8 @@ async function mintUploadUrl(
   name: string,
   contentType: string,
   accountParam: string | undefined,
-  authManager: AuthManager | undefined
+  authManager: AuthManager | undefined,
+  contentId?: string
 ): Promise<CallToolResult> {
   const minting = getAttachmentMinting();
   if (!minting) {
@@ -1226,6 +1242,9 @@ async function mintUploadUrl(
   if (!UPLOAD_CONTENT_TYPE.test(contentType)) {
     return uploadError('contentType must be a MIME type such as application/pdf.');
   }
+  if (contentId !== undefined && !UPLOAD_CONTENT_ID.test(contentId)) {
+    return uploadError(UPLOAD_CONTENT_ID_ERROR);
+  }
 
   const identityFromRequest = Boolean(authManager?.isOAuthModeEnabled() || getRequestTokens());
   const requestToken = identityFromRequest
@@ -1243,7 +1262,7 @@ async function mintUploadUrl(
 
   let ticket: { id: string; expiresAtMs: number };
   try {
-    const upload = { name: cleanName, contentType };
+    const upload = { name: cleanName, contentType, ...(contentId ? { contentId } : {}) };
     ticket = requestToken
       ? minting.store.mintUploadWithToken(target, requestToken, upload)
       : minting.store.mintUpload(target, accountParam, upload);
@@ -1420,7 +1439,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url',
     description:
-      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the attachment. Files under 3 MB are attached directly, larger ones (up to 150 MB) through a Graph upload session. Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes }.',
+      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the attachment. Files under 3 MB are attached directly, larger ones (up to 150 MB) through a Graph upload session. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes }.',
     readOnlyHint: false,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1439,6 +1458,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .describe(
             'MIME type of the file, e.g. application/pdf. Defaults to application/octet-stream.'
           ),
+        contentId: contentIdSchema,
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -1468,7 +1488,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         name,
         contentType,
         params.account as string | undefined,
-        authManager
+        authManager,
+        optionalContentId(params.contentId)
       );
     },
   },
@@ -1508,6 +1529,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .describe(
             'MIME type of the file, e.g. application/pdf. Defaults to application/octet-stream.'
           ),
+        contentId: contentIdSchema,
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -1539,6 +1561,10 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       if (!UPLOAD_CONTENT_TYPE.test(contentType)) {
         return uploadError('contentType must be a MIME type such as application/pdf.');
       }
+      const contentId = optionalContentId(params.contentId);
+      if (contentId !== undefined && !UPLOAD_CONTENT_ID.test(contentId)) {
+        return uploadError(UPLOAD_CONTENT_ID_ERROR);
+      }
       const name = cleanAttachmentName(
         typeof params.name === 'string' && params.name.trim().length > 0
           ? params.name
@@ -1567,7 +1593,14 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         }
         const created = await uploadAttachment(
           graphClient,
-          { target, name, contentType, size: file.size, accessToken: accountAccessToken },
+          {
+            target,
+            name,
+            contentType,
+            size: file.size,
+            accessToken: accountAccessToken,
+            contentId,
+          },
           // end pins the read to the size that was declared, should the file grow meanwhile
           file.handle.createReadStream({
             autoClose: false,
