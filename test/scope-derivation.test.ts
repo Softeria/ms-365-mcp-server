@@ -161,6 +161,15 @@ describe('allowed scope helpers', () => {
       );
     });
 
+    it('treats Chat.Read and Chat.ReadWrite as covering ChatMessage.Read', () => {
+      expect(collapseScopeHierarchy(['Chat.Read'])).toEqual(
+        expect.arrayContaining(['Chat.Read', 'Chat.ReadBasic', 'ChatMessage.Read'])
+      );
+      expect(collapseScopeHierarchy(['Chat.ReadWrite'])).toEqual(
+        expect.arrayContaining(['Chat.ReadWrite', 'Chat.Read', 'ChatMessage.Read'])
+      );
+    });
+
     it('treats broad .All Graph scopes as covering narrower read scopes', () => {
       expect(collapseScopeHierarchy(['Files.ReadWrite.All', 'Sites.ReadWrite.All'])).toEqual(
         expect.arrayContaining([
