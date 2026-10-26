@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { readEnabledToolsFromFile } from './lib/enabled-tools-file.js';
 import { assertSignoffMarkersVisible } from './lib/message-signoff.js';
 import { assertUploadDirsAbsolute } from './lib/upload-dirs.js';
 import { getCombinedPresetPattern, listPresets, presetRequiresOrgMode } from './tool-categories.js';
@@ -65,6 +66,10 @@ program
   .option(
     '--enabled-tools <pattern>',
     'Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)'
+  )
+  .option(
+    '--enabled-tools-file <path>',
+    'Filter tools using a file with one regex per line (same semantics as --enabled-tools; blank lines and whole-line # comments ignored). Overrides --enabled-tools; overridden by --preset. Equivalent env var: ENABLED_TOOLS_FILE.'
   )
   .option(
     '--allowed-scopes <scopes>',
@@ -170,6 +175,7 @@ export interface CommandOptions {
    */
   attachmentHost?: string;
   enabledTools?: string;
+  enabledToolsFile?: string;
   allowedScopes?: string;
   userFields?: string;
   extraScopes?: string;
@@ -227,6 +233,18 @@ export function parseArgs(): CommandOptions {
     process.exit(0);
   }
 
+  // Tool filter layering (later wins): --enabled-tools → --enabled-tools-file →
+  // --preset → ENABLED_TOOLS → ENABLED_TOOLS_FILE.
+  if (typeof options.enabledToolsFile === 'string') {
+    try {
+      options.enabledTools = readEnabledToolsFromFile(options.enabledToolsFile);
+    } catch (error) {
+      console.error(`Error: ${(error as Error).message}`);
+      process.exit(1);
+    }
+  }
+  delete options.enabledToolsFile;
+
   if (options.preset) {
     const presetNames = options.preset.split(',').map((p: string) => p.trim());
     try {
@@ -253,6 +271,15 @@ export function parseArgs(): CommandOptions {
 
   if (process.env.ENABLED_TOOLS) {
     options.enabledTools = process.env.ENABLED_TOOLS;
+  }
+
+  if (process.env.ENABLED_TOOLS_FILE) {
+    try {
+      options.enabledTools = readEnabledToolsFromFile(process.env.ENABLED_TOOLS_FILE);
+    } catch (error) {
+      console.error(`Error: ${(error as Error).message}`);
+      process.exit(1);
+    }
   }
 
   if (options.allowedScopes === undefined && process.env.MS365_MCP_ALLOWED_SCOPES !== undefined) {
