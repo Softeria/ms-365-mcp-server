@@ -70,6 +70,37 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_BLOB_OUTPUT;
   });
 
+  describe('eager tool configuration', () => {
+    afterEach(() => {
+      delete process.env.MS365_MCP_EAGER_TOOLS;
+    });
+    it('normalizes exact names and removes duplicates', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        eagerTools: ' list-mail-messages,send-mail,list-mail-messages ',
+      });
+      expect(parseArgs().eagerTools).toEqual(['list-mail-messages', 'send-mail']);
+    });
+    it('uses environment fallback and CLI precedence', () => {
+      process.env.MS365_MCP_EAGER_TOOLS = 'send-mail';
+      commanderMocks.mockCommand.opts.mockReturnValue({ discovery: true });
+      expect(parseArgs().eagerTools).toEqual(['send-mail']);
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        eagerTools: 'list-mail-messages',
+      });
+      expect(parseArgs().eagerTools).toEqual(['list-mail-messages']);
+    });
+    it('requires discovery and rejects empty selections', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ eagerTools: 'send-mail' });
+      expect(() => parseArgs()).toThrow('requires --discovery');
+      for (const eagerTools of ['', 'send-mail,', ' , ']) {
+        commanderMocks.mockCommand.opts.mockReturnValue({ discovery: true, eagerTools });
+        expect(() => parseArgs()).toThrow('non-empty exact tool names');
+      }
+    });
+  });
+
   describe('parseArgs', () => {
     it('should return command options', () => {
       const result = parseArgs();

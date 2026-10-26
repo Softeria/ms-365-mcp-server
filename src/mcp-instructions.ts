@@ -35,9 +35,12 @@ const DISCOVERY_MODE_INSTRUCTIONS_ADDON =
  * Full MCP `initialize.instructions` string: general guidance for every mode, plus a discovery-only suffix when applicable.
  */
 export function buildMcpServerInstructions(
-  opts: McpInstructionsContext & { discovery: boolean }
+  opts: McpInstructionsContext & { discovery: boolean; eagerTools?: string[] }
 ): string {
   const general = buildGeneralMcpInstructions(opts);
   if (!opts.discovery) return general;
-  return `${general} ${DISCOVERY_MODE_INSTRUCTIONS_ADDON}`;
+  const eager = opts.eagerTools?.length
+    ? ' HYBRID MODE: Tools published directly may be called immediately using their schemas. Use discovery for other operations; directly published tools also remain available through discovery.'
+    : '';
+  return `${general} ${DISCOVERY_MODE_INSTRUCTIONS_ADDON}${eager}`;
 }
