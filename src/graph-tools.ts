@@ -4012,23 +4012,27 @@ export function registerDiscoveryTools(
   // Eager selection changes presentation only. The discovery catalogue remains complete,
   // and the existing availability filters run before either execution path is exposed.
   for (const name of eagerNames) {
-    const entry = toolsRegistry.get(name);
-    if (entry) {
-      registerGraphToolWithMcp(server, entry.tool, entry.config, graphClient, options);
-      continue;
+    try {
+      const entry = toolsRegistry.get(name);
+      if (entry) {
+        registerGraphToolWithMcp(server, entry.tool, entry.config, graphClient, options);
+        continue;
+      }
+      const utility = utilityTools.find((tool) => tool.name === name);
+      if (utility) {
+        registerUtilityToolWithMcp(server, utility, {
+          graphClient,
+          authManager,
+          multiAccount,
+          accountNames,
+          userFields,
+        });
+        continue;
+      }
+      logger.info(`Eager tool ${name} is unavailable under the current filters or transport`);
+    } catch (error) {
+      logger.error(`Failed to register eager tool ${name}: ${(error as Error).message}`);
     }
-    const utility = utilityTools.find((tool) => tool.name === name);
-    if (utility) {
-      registerUtilityToolWithMcp(server, utility, {
-        graphClient,
-        authManager,
-        multiAccount,
-        accountNames,
-        userFields,
-      });
-      continue;
-    }
-    logger.info(`Eager tool ${name} is unavailable under the current filters or transport`);
   }
   const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
   const totalCount = toolsRegistry.size + utilityTools.length;

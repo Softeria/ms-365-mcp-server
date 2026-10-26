@@ -130,6 +130,35 @@ describe('hybrid discovery', () => {
     });
     expect(graphRequest).toHaveBeenCalledTimes(2);
   });
+  it('isolates a failed direct registration while preserving discovery', async () => {
+    const server = new McpServer({ name: 'failure-test', version: '1' });
+    const register = vi.spyOn(server, 'registerTool').mockImplementationOnce(() => {
+      throw new Error('Synthetic registration failure');
+    });
+    registerDiscoveryTools(server, {} as GraphClient, {
+      orgMode: true,
+      httpMode: true,
+      enabledTools: filter,
+      eagerTools: ['list-mail-messages'],
+    });
+    register.mockRestore();
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    const client = new Client({ name: 'failure-client', version: '1' });
+    await client.connect(b);
+    clients.push(client);
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual([
+      'search-tools',
+      'get-tool-schema',
+      'execute-tool',
+    ]);
+    const schema = await client.callTool({
+      name: 'get-tool-schema',
+      arguments: { tool_name: 'list-mail-messages' },
+    });
+    expect(schema.isError).not.toBe(true);
+  });
+
   it('rejects unknown eager names before exposing a server', () => {
     expect(() =>
       registerDiscoveryTools(new McpServer({ name: 'test', version: '1' }), {} as GraphClient, {
