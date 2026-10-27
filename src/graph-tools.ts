@@ -1064,9 +1064,9 @@ function collectDeniedToolPolicies(options: {
   }
 
   for (const utility of UTILITY_TOOLS) {
-    if (options.readOnly && !utility.readOnlyHint) continue;
-    if (options.httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
+    if (!shouldExposeUtilityTool(utility, options.readOnly, options.httpMode)) {
+      continue;
+    }
     if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
       deniedTools.set(utility.name, {
         toolName: utility.name,
@@ -2419,6 +2419,30 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     },
   },
 ];
+
+/** Whether this process should put the utility on its tool surface. */
+export function shouldExposeUtilityTool(
+  utility: UtilityTool,
+  readOnly: boolean,
+  httpMode: boolean = false,
+  enabledToolsRegex?: RegExp
+): boolean {
+  if (readOnly && !utility.readOnlyHint) return false;
+  if (httpMode && utility.stdioOnly) return false;
+  if (utility.enabled && !utility.enabled()) return false;
+  if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) return false;
+  return true;
+}
+
+function filterUtilityTools(
+  readOnly: boolean,
+  httpMode: boolean = false,
+  enabledToolsRegex?: RegExp
+): readonly UtilityTool[] {
+  return UTILITY_TOOLS.filter((utility) =>
+    shouldExposeUtilityTool(utility, readOnly, httpMode, enabledToolsRegex)
+  );
+}
 
 function registerUtilityToolWithMcp(
   server: McpServer,
@@ -3777,11 +3801,7 @@ export function registerGraphTools(
     accountNames,
     userFields,
   };
-  for (const utility of UTILITY_TOOLS) {
-    if (readOnly && !utility.readOnlyHint) continue;
-    if (httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
-    if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
+  for (const utility of filterUtilityTools(readOnly, httpMode, enabledToolsRegex)) {
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
       registeredCount++;
@@ -4009,13 +4029,7 @@ export function registerDiscoveryTools(
       `Discovery mode: allowed scopes disabled ${disabledByAllowedScopes.length} Graph tools: ${formatDisabledToolsForLog(disabledByAllowedScopes)}`
     );
   }
-  const utilityTools = UTILITY_TOOLS.filter((u) => {
-    if (readOnly && !u.readOnlyHint) return false;
-    if (httpMode && u.stdioOnly) return false;
-    if (u.enabled && !u.enabled()) return false;
-    if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
-    return true;
-  });
+  const utilityTools = filterUtilityTools(readOnly, httpMode, enabledToolsRegex);
   // Eager selection changes presentation only. The discovery catalogue remains complete,
   // and the existing availability filters run before either execution path is exposed.
   for (const name of eagerNames) {

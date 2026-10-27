@@ -122,7 +122,7 @@ for (const [tool, presets] of Object.entries(SCOPED_UTILITY_TOOLS)) {
  * utility-tool rules). Sorted for stable docs and tests. The `all` preset lists
  * every endpoint tool plus every utility that belongs to at least one named preset.
  */
-export function getToolsForPreset(preset: string): string[] {
+function getToolsForPreset(preset: string): string[] {
   if (preset === 'all') {
     const endpointNames = [...new Set(endpointEntries.map((e) => e.toolName))];
     const utilityNames = [...UNIVERSAL_UTILITY_TOOLS, ...Object.keys(SCOPED_UTILITY_TOOLS)];
