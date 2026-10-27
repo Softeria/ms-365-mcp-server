@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import MicrosoftGraphServer, { isLoopbackHost, parseHttpOption } from '../src/server.js';
 import type AuthManager from '../src/auth.js';
 import type { CommandOptions } from '../src/cli.js';
+import logger from '../src/logger.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -117,6 +118,35 @@ describe('loopback HTTP bind', () => {
     started.push(server);
     await server.start();
   }
+
+  it('deduplicates unavailable eager diagnostics across real HTTP POSTs', async () => {
+    const port = await freePort();
+    vi.mocked(logger.info).mockClear();
+    await start({
+      http: `127.0.0.1:${port}`,
+      discovery: true,
+      readOnly: true,
+      enabledTools: '^list-mail-messages$',
+      eagerTools: ['list-mail-messages', 'send-mail'],
+      allowUnauthenticatedDiscovery: true,
+    });
+    for (const id of [1, 2]) {
+      const response = await send(port, {
+        method: 'POST',
+        path: '/mcp',
+        body: { jsonrpc: '2.0', id, method: 'tools/list' },
+      });
+      expect(response.status).toBe(200);
+      const tools = JSON.parse(response.body).result.tools as Array<{ name: string }>;
+      expect(tools.map((tool) => tool.name)).toContain('list-mail-messages');
+      expect(tools.map((tool) => tool.name)).toContain('search-tools');
+      expect(tools.map((tool) => tool.name)).not.toContain('send-mail');
+    }
+    const diagnostic = 'Eager tool send-mail is unavailable under the current filters or transport';
+    expect(
+      vi.mocked(logger.info).mock.calls.filter(([message]) => message === diagnostic)
+    ).toHaveLength(1);
+  });
 
   describe('parsing', () => {
     it('classifies loopback hosts case-insensitively and nothing else', () => {
