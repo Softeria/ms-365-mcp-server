@@ -1205,6 +1205,41 @@
     "scopes": ["Notes.Read"]
   },
   {
+    "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
+    "method": "patch",
+    "toolName": "update-onenote-page-content",
+    "presets": ["onenote", "personal"],
+    "scopes": ["Notes.ReadWrite"],
+    "requestBodySchema": {
+      "type": "array",
+      "description": "Array of patchContentCommand objects applied in order to the page's HTML.",
+      "items": {
+        "type": "object",
+        "required": ["target", "action"],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+          },
+          "action": {
+            "type": "string",
+            "enum": ["append", "insert", "prepend", "replace", "delete"],
+            "description": "What to do at the target. 'delete' takes no content."
+          },
+          "position": {
+            "type": "string",
+            "enum": ["after", "before"],
+            "description": "For 'insert'/'append', whether content goes after (default) or before the target's content."
+          },
+          "content": {
+            "type": "string",
+            "description": "HTML to add. Required for all actions except 'delete'."
+          }
+        }
+      }
+    }
+  },
+  {
     "pathPattern": "/sites/{site-id}/onenote/notebooks",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-notebooks",
@@ -1358,7 +1393,15 @@
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
     "queryParams": ["top", "skip", "filter", "skiptoken"],
-    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
+    "llmTip": "If it returns only 'Flagged Emails', use list-todo-task-lists-delta instead."
+  },
+  {
+    "pathPattern": "/me/todo/lists/delta()",
+    "method": "get",
+    "toolName": "list-todo-task-lists-delta",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "queryParams": ["select", "skiptoken"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -2171,6 +2214,28 @@
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/delta()",
+    "method": "get",
+    "toolName": "list-sharepoint-site-list-items-delta",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "queryParams": ["select", "expand", "top"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}/versions",
+    "method": "get",
+    "toolName": "list-sharepoint-site-list-item-versions",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}/versions/{listItemVersion-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-list-item-version",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
