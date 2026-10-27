@@ -3506,6 +3506,8 @@ async function executeGraphTool(
  */
 export interface GraphToolRegistrationOptions {
   eagerTools?: string[];
+  /** Receives unavailable eager selections; hosts can deduplicate diagnostics across requests. */
+  onUnavailableEagerTool?: (name: string) => void;
   readOnly?: boolean;
   enabledTools?: string;
   orgMode?: boolean;
@@ -3946,6 +3948,16 @@ export function scoreDiscoveryQuery(
   return ranked;
 }
 
+/** Validate configured names before HTTP listeners start; retained at registration for direct callers. */
+export function validateEagerToolNames(names: readonly string[]): void {
+  const knownNames = new Set([
+    ...allEndpoints.map((t) => t.alias),
+    ...UTILITY_TOOLS.map((t) => t.name),
+  ]);
+  const unknown = names.filter((name) => !knownNames.has(name));
+  if (unknown.length > 0) throw new Error(`Unknown eager tool names: ${unknown.join(', ')}`);
+}
+
 export function registerDiscoveryTools(
   server: McpServer,
   graphClient: GraphClient,
@@ -3963,12 +3975,7 @@ export function registerDiscoveryTools(
     userFields: userFieldsValue,
   } = options;
   const eagerNames = new Set(options.eagerTools ?? []);
-  const knownNames = new Set([
-    ...allEndpoints.map((t) => t.alias),
-    ...UTILITY_TOOLS.map((t) => t.name),
-  ]);
-  const unknown = [...eagerNames].filter((name) => !knownNames.has(name));
-  if (unknown.length > 0) throw new Error(`Unknown eager tool names: ${unknown.join(', ')}`);
+  validateEagerToolNames([...eagerNames]);
   const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
@@ -4029,7 +4036,8 @@ export function registerDiscoveryTools(
         });
         continue;
       }
-      logger.info(`Eager tool ${name} is unavailable under the current filters or transport`);
+      if (options.onUnavailableEagerTool) options.onUnavailableEagerTool(name);
+      else logger.info(`Eager tool ${name} is unavailable under the current filters or transport`);
     } catch (error) {
       logger.error(`Failed to register eager tool ${name}: ${(error as Error).message}`);
     }
