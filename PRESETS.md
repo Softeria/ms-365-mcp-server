@@ -4,30 +4,30 @@
 
 ## Summary
 
-| Preset        | Tools | Org mode | Description                                                                                                                       |
-| ------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         |   357 |          | All available tools                                                                                                               |
-| `calendar`    |    47 |          | Calendar and event management                                                                                                     |
-| `contacts`    |    15 |          | Outlook contacts management                                                                                                       |
-| `excel`       |    25 |          | Excel spreadsheet operations                                                                                                      |
-| `files`       |    25 |          | OneDrive file and folder operations                                                                                               |
-| `mail`        |    49 |          | Email operations (read, send, manage folders, attachments)                                                                        |
-| `onedrive`    |    23 |          | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| `onenote`     |    28 |          | OneNote notebook operations                                                                                                       |
-| `outlook`     |    96 |          | Outlook app only: mail, calendar and contacts                                                                                     |
-| `personal`    |   175 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
-| `search`      |     7 |          | Microsoft Search capabilities                                                                                                     |
-| `tasks`       |    31 |          | Task and planning tools (To Do, Planner)                                                                                          |
-| `teams`       |    72 | required | Teams app only: chats, channels, meetings and presence                                                                            |
-| `teams-write` |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
-| `users`       |    11 | required | User directory access                                                                                                             |
-| `work`        |   180 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| Preset                        | Tools | Org mode | Description                                                                                                                       |
+| ----------------------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [`all`](#all)                 |   361 |          | All available tools                                                                                                               |
+| [`calendar`](#calendar)       |    47 |          | Calendar and event management                                                                                                     |
+| [`contacts`](#contacts)       |    15 |          | Outlook contacts management                                                                                                       |
+| [`excel`](#excel)             |    25 |          | Excel spreadsheet operations                                                                                                      |
+| [`files`](#files)             |    25 |          | OneDrive file and folder operations                                                                                               |
+| [`mail`](#mail)               |    49 |          | Email operations (read, send, manage folders, attachments)                                                                        |
+| [`onedrive`](#onedrive)       |    23 |          | OneDrive app only: drive and file operations, excluding Excel                                                                     |
+| [`onenote`](#onenote)         |    28 |          | OneNote notebook operations                                                                                                       |
+| [`outlook`](#outlook)         |    96 |          | Outlook app only: mail, calendar and contacts                                                                                     |
+| [`personal`](#personal)       |   175 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
+| [`search`](#search)           |     7 |          | Microsoft Search capabilities                                                                                                     |
+| [`tasks`](#tasks)             |    34 |          | Task and planning tools (To Do, Planner)                                                                                          |
+| [`teams`](#teams)             |    73 | required | Teams app only: chats, channels, meetings and presence                                                                            |
+| [`teams-write`](#teams-write) |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
+| [`users`](#users)             |    11 | required | User directory access                                                                                                             |
+| [`work`](#work)               |   184 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all`
 
 All available tools
 
-Tools (357):
+Tools (361):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -47,6 +47,7 @@ Tools (357):
 - `create-calendar`
 - `create-calendar-event`
 - `create-calendar-event-attachment-upload-session`
+- `create-channel-tab`
 - `create-chat`
 - `create-contact-child-folder`
 - `create-contact-folder`
@@ -74,6 +75,7 @@ Tools (357):
 - `create-outlook-category`
 - `create-outlook-contact`
 - `create-planner-bucket`
+- `create-planner-plan`
 - `create-planner-task`
 - `create-planner-task-message`
 - `create-reply-all-draft`
@@ -245,6 +247,7 @@ Tools (357):
 - `list-group-events`
 - `list-group-members`
 - `list-group-owners`
+- `list-group-planner-plans`
 - `list-group-threads`
 - `list-groups`
 - `list-joined-teams`
@@ -371,6 +374,7 @@ Tools (357):
 - `update-outlook-contact`
 - `update-place`
 - `update-planner-bucket`
+- `update-planner-plan`
 - `update-planner-task`
 - `update-planner-task-details`
 - `update-shared-mailbox-message`
@@ -951,9 +955,10 @@ Tools (7):
 
 Task and planning tools (To Do, Planner)
 
-Tools (31):
+Tools (34):
 
 - `create-planner-bucket`
+- `create-planner-plan`
 - `create-planner-task`
 - `create-todo-checklist-item`
 - `create-todo-linked-resource`
@@ -971,6 +976,7 @@ Tools (31):
 - `get-planner-task`
 - `get-planner-task-details`
 - `get-todo-task`
+- `list-group-planner-plans`
 - `list-plan-buckets`
 - `list-plan-tasks`
 - `list-planner-tasks`
@@ -979,6 +985,7 @@ Tools (31):
 - `list-todo-task-lists`
 - `list-todo-tasks`
 - `update-planner-bucket`
+- `update-planner-plan`
 - `update-planner-task`
 - `update-planner-task-details`
 - `update-todo-checklist-item`
@@ -991,11 +998,12 @@ Teams app only: chats, channels, meetings and presence
 
 Requires `--org-mode`.
 
-Tools (72):
+Tools (73):
 
 - `add-team-member`
 - `clear-my-presence`
 - `clear-my-user-preferred-presence`
+- `create-channel-tab`
 - `create-chat`
 - `create-custom-emoji`
 - `create-online-meeting`
@@ -1112,7 +1120,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (180):
+Tools (184):
 
 - `add-group-member`
 - `add-group-owner`
@@ -1121,11 +1129,13 @@ Tools (180):
 - `clear-my-presence`
 - `clear-my-user-preferred-presence`
 - `copilot-retrieve`
+- `create-channel-tab`
 - `create-chat`
 - `create-custom-emoji`
 - `create-group`
 - `create-online-meeting`
 - `create-planner-bucket`
+- `create-planner-plan`
 - `create-planner-task`
 - `create-shared-mailbox-child-folder`
 - `create-shared-mailbox-draft`
@@ -1212,6 +1222,7 @@ Tools (180):
 - `list-group-events`
 - `list-group-members`
 - `list-group-owners`
+- `list-group-planner-plans`
 - `list-group-threads`
 - `list-groups`
 - `list-joined-teams`
@@ -1286,6 +1297,7 @@ Tools (180):
 - `update-online-meeting`
 - `update-place`
 - `update-planner-bucket`
+- `update-planner-plan`
 - `update-planner-task`
 - `update-planner-task-details`
 - `update-shared-mailbox-message`

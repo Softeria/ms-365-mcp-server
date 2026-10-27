@@ -33,7 +33,9 @@ export async function renderPresetsMarkdown(): Promise<string> {
   for (const entry of catalog) {
     const org = entry.requiresOrgMode ? 'required' : '';
     const desc = entry.description.replace(/\|/g, '\\|');
-    lines.push(`| \`${entry.name}\` | ${entry.tools.length} | ${org} | ${desc} |`);
+    lines.push(
+      `| [\`${entry.name}\`](#${entry.name}) | ${entry.tools.length} | ${org} | ${desc} |`
+    );
   }
 
   lines.push('');
