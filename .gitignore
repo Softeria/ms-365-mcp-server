@@ -149,6 +149,7 @@ logs/
 openapi
 
 src/generated/client.ts
+src/generated/client-beta.ts
 **/.claude/settings.local.json
 
 # Claude Code instructions file
