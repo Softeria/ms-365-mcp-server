@@ -817,6 +817,12 @@ const microsoft_graph_relatedPerson = z
   .object({
     displayName: z.string().describe('Name of the person.').nullish(),
     relationship: microsoft_graph_personRelationship.optional(),
+    relationshipLabel: z
+      .string()
+      .describe(
+        'Information (free-text) describing the relationship between the user and the related person. This property provides additional context beyond the predefined relationship values and can be used by clients, including AI-powered experiences, to better understand and reason about the relationship.'
+      )
+      .nullish(),
     userId: z
       .string()
       .describe("The user's directory object ID (Microsoft Entra ID or CID).")
