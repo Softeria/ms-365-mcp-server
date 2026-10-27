@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
+import { describeError } from './log-safe.js';
 import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
 /**
@@ -308,6 +309,58 @@ function unwrapToken<T>(result: TokenResponse, failureMessage: string): T {
     `${failureMessage}: HTTP ${result.status}, unparsed body (${result.raw.length} chars)`
   );
   throw new Error(`${failureMessage}: ${result.raw}`);
+}
+
+export interface ClientCredentialCheck {
+  ok: boolean;
+  checkedAt: string;
+  status?: number;
+  error?: string;
+  error_codes?: number[];
+  correlation_id?: string;
+  detail?: string;
+}
+
+/**
+ * Startup self-test for a confidential client: ask Microsoft for an app token with
+ * the configured client id, secret and tenant. The token is discarded; what matters
+ * is whether Microsoft accepted the credentials (AADSTS7000215 = wrong secret value,
+ * 7000222 = expired secret, 700016 = unknown client id). Never throws; never logs
+ * the secret or a response body.
+ */
+export async function checkClientCredentials(
+  clientId: string,
+  clientSecret: string,
+  tenantId: string,
+  cloudType: CloudType = 'global'
+): Promise<ClientCredentialCheck> {
+  const checkedAt = new Date().toISOString();
+  const cloudEndpoints = getCloudEndpoints(cloudType);
+  const graphBase = cloudEndpoints.graphApi.replace(/\/$/, '');
+  const params = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: `${graphBase}/.default`,
+  });
+  try {
+    const result = await postTokenRequest(
+      `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`,
+      params
+    );
+    if (result.ok) return { ok: true, checkedAt, status: 200 };
+    return {
+      ok: false,
+      checkedAt,
+      status: result.status,
+      error: result.parsed?.error,
+      error_codes: result.parsed?.error_codes,
+      correlation_id: result.parsed?.correlation_id,
+      detail: result.parsed ? undefined : `unparsed response (${result.raw.length} chars)`,
+    };
+  } catch (error) {
+    return { ok: false, checkedAt, detail: `request failed: ${describeError(error)}` };
+  }
 }
 
 /**

@@ -36,9 +36,12 @@ import {
   OAuthUpstreamError,
   refreshAccessToken,
   toOAuthErrorResponse,
+  checkClientCredentials,
+  type ClientCredentialCheck,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import logger, { enableConsoleLogging } from './logger.js';
+import { version } from './version.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
 import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -271,6 +274,7 @@ class MicrosoftGraphServer {
   private server: McpServer | null;
   private secrets: AppSecrets | null;
   private oboClient: OboClient | null;
+  private credentialCheck: ClientCredentialCheck | null = null;
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
@@ -1259,6 +1263,14 @@ class MicrosoftGraphServer {
       app.get('/', (req, res) => {
         res.send('Microsoft 365 MCP Server is running');
       });
+      // Machine-readable health, including the startup credential self-test (OBO mode).
+      app.get('/health', (req, res) => {
+        res.json({
+          status: 'ok',
+          version,
+          credentialCheck: this.credentialCheck ?? { ok: null, detail: 'not run' },
+        });
+      });
 
       // Every line below is written from the address the kernel actually
       // handed back, not from the option that asked for it. On this pair of
@@ -1272,6 +1284,36 @@ class MicrosoftGraphServer {
       logger.info(
         `  - OAuth discovery: http://${mcp.authority}/.well-known/oauth-authorization-server`
       );
+
+      // Startup self-test: in OBO mode the server holds a client id, secret and tenant,
+      // so it can ask Microsoft once whether they are accepted, before any user tries.
+      // The result goes to the console whether or not -v is set: a deployment whose
+      // secret is wrong should say so in the first lines it prints.
+      if (this.oboClient && this.secrets?.clientSecret) {
+        if (!this.secrets.tenantId || this.secrets.tenantId === 'common') {
+          logger.warn('Startup self-test skipped: MS365_MCP_TENANT_ID is not a tenant id');
+        } else {
+          this.credentialCheck = await checkClientCredentials(
+            this.secrets.clientId,
+            this.secrets.clientSecret,
+            this.secrets.tenantId,
+            this.secrets.cloudType
+          );
+          const c = this.credentialCheck;
+          if (c.ok) {
+            const line = `Startup self-test: Microsoft accepted the client id and secret for tenant ${this.secrets.tenantId}`;
+            logger.info(line);
+            console.error(`[ms365-mcp] ${line}`);
+          } else {
+            const why = c.error
+              ? `${c.error}, error_codes [${(c.error_codes ?? []).join(', ')}], correlation_id ${c.correlation_id ?? 'none'}`
+              : (c.detail ?? 'unknown');
+            const line = `Startup self-test FAILED: Microsoft rejected the client credentials (${why}). Sign-ins will fail until the secret is corrected and the revision restarted.`;
+            logger.error(line);
+            console.error(`[ms365-mcp] ${line}`);
+          }
+        }
+      }
 
       if (attachmentApp && attachmentPort !== null) {
         // Inherits the MCP listener's host unless --attachment-host overrides it.

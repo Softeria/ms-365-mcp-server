@@ -49,6 +49,17 @@ function ensureFileMode(filePath: string): void {
   }
 }
 
+// Bounded files: each log rotates at MS365_MCP_LOG_MAX_BYTES (default 10 MiB) and
+// at most MS365_MCP_LOG_MAX_FILES (default 5) are kept per log, oldest dropped.
+function boundedInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+const LOG_MAX_BYTES = boundedInt('MS365_MCP_LOG_MAX_BYTES', 10 * 1024 * 1024);
+const LOG_MAX_FILES = boundedInt('MS365_MCP_LOG_MAX_FILES', 5);
+
 const errorLogPath = path.join(logsDir, 'error.log');
 const serverLogPath = path.join(logsDir, 'mcp-server.log');
 ensureFileMode(errorLogPath);
@@ -69,10 +80,16 @@ const logger = winston.createLogger({
     new winston.transports.File({
       filename: errorLogPath,
       level: 'error',
+      maxsize: LOG_MAX_BYTES,
+      maxFiles: LOG_MAX_FILES,
+      tailable: true,
       options: { flags: 'a', mode: FILE_MODE },
     }),
     new winston.transports.File({
       filename: serverLogPath,
+      maxsize: LOG_MAX_BYTES,
+      maxFiles: LOG_MAX_FILES,
+      tailable: true,
       options: { flags: 'a', mode: FILE_MODE },
     }),
   ],
