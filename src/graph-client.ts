@@ -1,4 +1,5 @@
 import logger from './logger.js';
+import { describeError, describeShape, describeUrl } from './lib/log-safe.js';
 import AuthManager from './auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
@@ -572,7 +573,7 @@ class GraphClient {
     const apiVersion = options.apiVersion || 'v1.0';
     const url = `${getGraphBaseUrl(this.secrets.cloudType)}/${apiVersion}${endpoint}`;
 
-    logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
+    logger.info(`[GRAPH CLIENT] Request ${options.method || 'GET'} ${describeUrl(url)}`);
 
     const method = options.method || 'GET';
     // Signoff gate sits at the outbound chokepoint, keyed on method + path, so
@@ -626,10 +627,11 @@ class GraphClient {
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
-      // Redact accessToken from log output to prevent credential leakage (#601)
+      // Endpoint without its query string; options by shape only (no body text). The
+      // per-request token is left out and marked, as before (#601).
       const { accessToken: _redacted, ...safeOptions } = options;
       logger.info(
-        `Calling ${endpoint} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+        `Calling ${describeUrl(endpoint)} [${options.method || 'GET'}] with options: ${describeShape(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
       );
 
       // Use new OAuth-aware request method
@@ -649,7 +651,7 @@ class GraphClient {
         metadata
       );
     } catch (error) {
-      logger.error(`Error in Graph API request: ${error}`);
+      logger.error(`Error in Graph API request: ${describeError(error)}`);
       const metadata =
         error instanceof GraphApiError
           ? definedMetadata({
