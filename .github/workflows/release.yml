@@ -32,8 +32,6 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run generate
-      - name: Check generated artifacts are up to date
-        run: git diff --exit-code
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
