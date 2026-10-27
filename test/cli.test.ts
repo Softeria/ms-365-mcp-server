@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../src/cli.js';
 
@@ -57,6 +60,8 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
     delete process.env.MS365_MCP_BLOB_OUTPUT;
+    delete process.env.ENABLED_TOOLS;
+    delete process.env.ENABLED_TOOLS_FILE;
   });
 
   afterEach(() => {
@@ -68,6 +73,8 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
     delete process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS;
     delete process.env.MS365_MCP_BLOB_OUTPUT;
+    delete process.env.ENABLED_TOOLS;
+    delete process.env.ENABLED_TOOLS_FILE;
   });
 
   describe('eager tool configuration', () => {
@@ -90,6 +97,19 @@ describe('CLI Module', () => {
         eagerTools: 'list-mail-messages',
       });
       expect(parseArgs().eagerTools).toEqual(['list-mail-messages']);
+    });
+    it('keeps file-based availability filtering independent of eager presentation', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'hybrid-filter-'));
+      const file = join(dir, 'tools.txt');
+      writeFileSync(file, '^list-mail-messages$\n');
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        enabledToolsFile: file,
+        eagerTools: 'list-mail-messages,send-mail',
+      });
+      const result = parseArgs();
+      expect(result.enabledTools).toBe('^list-mail-messages$');
+      expect(result.eagerTools).toEqual(['list-mail-messages', 'send-mail']);
     });
     it('requires discovery and rejects empty selections', () => {
       commanderMocks.mockCommand.opts.mockReturnValue({ eagerTools: 'send-mail' });
@@ -543,6 +563,103 @@ describe('CLI Module', () => {
         enableAttachmentUrls: true,
       });
       expect(allows(parseArgs().enabledTools, 'get-download-url')).toBe(false);
+    });
+  });
+
+  describe('--enabled-tools-file', () => {
+    const allows = (tools: string | undefined, name: string) => new RegExp(tools!, 'i').test(name);
+
+    function writeToolsFile(contents: string): string {
+      const dir = mkdtempSync(join(tmpdir(), 'cli-enabled-tools-'));
+      const path = join(dir, 'tools.txt');
+      writeFileSync(path, contents);
+      return path;
+    }
+
+    it('loads tool names from --enabled-tools-file', () => {
+      const path = writeToolsFile('list-mail-messages\nget-mail-message\n');
+      commanderMocks.mockCommand.opts.mockReturnValue({ enabledToolsFile: path });
+      const { enabledTools, enabledToolsFile } = parseArgs();
+      expect(enabledToolsFile).toBeUndefined();
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(true);
+      expect(allows(enabledTools, 'get-mail-message')).toBe(true);
+      expect(allows(enabledTools, 'list-drives')).toBe(false);
+    });
+
+    it('lets --enabled-tools-file override --enabled-tools', () => {
+      const path = writeToolsFile('list-drives\n');
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        enabledTools: '^list-mail-messages$',
+        enabledToolsFile: path,
+      });
+      const { enabledTools } = parseArgs();
+      expect(allows(enabledTools, 'list-drives')).toBe(true);
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(false);
+    });
+
+    it('lets --preset override --enabled-tools-file', () => {
+      const path = writeToolsFile('list-drives\n');
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        enabledToolsFile: path,
+        preset: 'mail',
+      });
+      const { enabledTools } = parseArgs();
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(true);
+      expect(allows(enabledTools, 'list-drives')).toBe(false);
+    });
+
+    it('lets ENABLED_TOOLS_FILE override a preset', () => {
+      const path = writeToolsFile('list-drives\n');
+      process.env.ENABLED_TOOLS_FILE = path;
+      commanderMocks.mockCommand.opts.mockReturnValue({ preset: 'mail' });
+      const { enabledTools } = parseArgs();
+      expect(allows(enabledTools, 'list-drives')).toBe(true);
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(false);
+    });
+
+    it('lets ENABLED_TOOLS_FILE override --enabled-tools', () => {
+      const path = writeToolsFile('list-drives\n');
+      process.env.ENABLED_TOOLS_FILE = path;
+      commanderMocks.mockCommand.opts.mockReturnValue({ enabledTools: '^list-mail-messages$' });
+      const { enabledTools } = parseArgs();
+      expect(allows(enabledTools, 'list-drives')).toBe(true);
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(false);
+    });
+
+    it('lets ENABLED_TOOLS_FILE beat ENABLED_TOOLS', () => {
+      const path = writeToolsFile('list-drives\n');
+      process.env.ENABLED_TOOLS = '^list-mail-messages$';
+      process.env.ENABLED_TOOLS_FILE = path;
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+      const { enabledTools } = parseArgs();
+      expect(allows(enabledTools, 'list-drives')).toBe(true);
+      expect(allows(enabledTools, 'list-mail-messages')).toBe(false);
+    });
+
+    it('fails when the file path is empty', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ enabledToolsFile: '   ' });
+      parseArgs();
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('could not read'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('fails when the file is missing', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        enabledToolsFile: '/no/such/enabled-tools-file.txt',
+      });
+      parseArgs();
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('could not read'));
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('rejects an invalid regex from the file via the shared enabled-tools check', () => {
+      const path = writeToolsFile('[invalid');
+      commanderMocks.mockCommand.opts.mockReturnValue({ enabledToolsFile: path });
+      parseArgs();
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('invalid --enabled-tools regex pattern')
+      );
+      expect(process.exit).toHaveBeenCalledWith(1);
     });
   });
 });
