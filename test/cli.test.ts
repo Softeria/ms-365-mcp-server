@@ -111,6 +111,20 @@ describe('CLI Module', () => {
       expect(result.enabledTools).toBe('^list-mail-messages$');
       expect(result.eagerTools).toEqual(['list-mail-messages', 'send-mail']);
     });
+    it('treats empty environment interpolation as unset with or without discovery', () => {
+      for (const eager of ['', '   ']) {
+        process.env.MS365_MCP_EAGER_TOOLS = eager;
+        for (const discovery of [false, true]) {
+          commanderMocks.mockCommand.opts.mockReturnValue({ discovery });
+          expect(parseArgs().eagerTools).toBeUndefined();
+        }
+      }
+    });
+    it('does not treat an explicitly empty CLI option as an unset environment value', () => {
+      process.env.MS365_MCP_EAGER_TOOLS = 'list-mail-messages';
+      commanderMocks.mockCommand.opts.mockReturnValue({ discovery: true, eagerTools: '' });
+      expect(() => parseArgs()).toThrow('non-empty exact tool names');
+    });
     it('requires discovery and rejects empty selections', () => {
       commanderMocks.mockCommand.opts.mockReturnValue({ eagerTools: 'send-mail' });
       expect(() => parseArgs()).toThrow('requires --discovery');

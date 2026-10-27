@@ -250,7 +250,7 @@ export function parseArgs(): CommandOptions {
   }
   delete options.enabledToolsFile;
 
-  const eagerValue = options.eagerTools ?? process.env.MS365_MCP_EAGER_TOOLS;
+  const eagerValue = options.eagerTools ?? (process.env.MS365_MCP_EAGER_TOOLS?.trim() || undefined);
   if (eagerValue !== undefined) {
     if (!options.discovery) throw new Error('--eager-tools requires --discovery');
     const names = String(eagerValue)

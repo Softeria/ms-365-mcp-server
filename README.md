@@ -690,15 +690,18 @@ npx @softeria/ms-365-mcp-server --org-mode --discovery \
 
 `--eager-tools` accepts comma-separated **exact** Graph or utility tool names,
 not a regular expression or preset. `MS365_MCP_EAGER_TOOLS` is the environment
-fallback; the CLI wins. The option requires `--discovery`. Empty entries and
-unknown names fail startup. Duplicate names are registered once.
+fallback; the CLI wins. An empty or whitespace-only environment value is treated
+as unset, including without discovery; an explicitly empty CLI option is still
+invalid. The option requires `--discovery`. Empty entries and
+unknown names fail startup, including in HTTP mode. Duplicate names are registered once.
 
 Direct tools use the same schemas, annotations and execution handlers as normal
 mode. They also remain searchable and executable through discovery. Existing
 `--preset`, `--enabled-tools`, `--allowed-scopes`, `--read-only`, organization-mode
 and transport restrictions apply first: an eager selection cannot enable a
 filtered-out tool or add permissions. Recognized but unavailable tools are
-omitted with a startup log message. HTTP still excludes server-local file tools.
+omitted with a diagnostic logged once per server instance. HTTP still excludes
+server-local file tools.
 
 Select a small set: exposing many generated Graph schemas can consume substantial
 model context. This option does not shrink individual schemas. Without
