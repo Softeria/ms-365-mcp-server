@@ -115,11 +115,13 @@ export class BoundedFileTransport extends Transport {
     const line = this.fit(`${String(info[Symbol.for('message')] ?? '')}\n`);
     const bytes = Buffer.byteLength(line);
     if (this.size + bytes > this.maxBytes && !this.rotate()) {
-      // Neither rotation nor truncation is possible: stop rather than grow.
+      // Neither rotation nor truncation is possible: stop rather than grow. Said
+      // once on stderr, not as a stream 'error' event: winston rethrows an
+      // unhandled transport error from the logging call itself, which would turn a
+      // full disk into a crash of whatever was logging.
       this.stopped = true;
-      this.emit(
-        'error',
-        new Error(`log file ${path.basename(this.filename)} cannot be bounded; writing stopped`)
+      console.error(
+        `[ms365-mcp] log file ${path.basename(this.filename)} cannot be bounded; writing stopped`
       );
       callback();
       return;

@@ -38,20 +38,25 @@ describe('BoundedFileTransport', () => {
     expect(fs.readFileSync(f, 'utf8')).toContain('39 ');
   });
 
-  it('stops writing, with one error event, when it can neither rename nor truncate', () => {
+  it('stops writing, saying so once on stderr and never throwing, when it can neither rename nor truncate', () => {
     const f = path.join(dir, 'stuck.log');
     const t = new BoundedFileTransport({ filename: f, maxBytes: 1024, maxFiles: 2 });
     const errors: string[] = [];
-    t.on('error', (e: Error) => errors.push(e.message));
+    const stderr = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errors.push(args.join(' '));
+    });
     vi.spyOn(fs, 'renameSync').mockImplementation(() => {
       throw Object.assign(new Error('denied'), { code: 'EACCES' });
     });
     vi.spyOn(fs, 'truncateSync').mockImplementation(() => {
       throw Object.assign(new Error('denied'), { code: 'EACCES' });
     });
-    for (let i = 0; i < 40; i++) put(t, `${i} ${'z'.repeat(490)}`);
+    expect(() => {
+      for (let i = 0; i < 40; i++) put(t, `${i} ${'z'.repeat(490)}`);
+    }).not.toThrow();
     expect(size(f)).toBeLessThanOrEqual(1024);
-    expect(errors).toEqual(['log file stuck.log cannot be bounded; writing stopped']);
+    expect(errors).toEqual(['[ms365-mcp] log file stuck.log cannot be bounded; writing stopped']);
+    stderr.mockRestore();
   });
 
   it('keeps maxFiles files of at most maxBytes each in normal operation', () => {
@@ -62,5 +67,26 @@ describe('BoundedFileTransport', () => {
     expect(files.sort()).toEqual(['normal.log', 'normal.log.1', 'normal.log.2']);
     for (const n of files) expect(size(path.join(dir, n))).toBeLessThanOrEqual(1024);
     expect(fs.readFileSync(f, 'utf8')).toContain('99 ');
+  });
+
+  it('never turns a log call into an exception, through the real logger', async () => {
+    const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bounded-logger-'));
+    process.env.MS365_MCP_LOG_DIR = logDir;
+    process.env.MS365_MCP_LOG_MAX_BYTES = '1024';
+    const { default: logger } = await import('../src/logger.js');
+    vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw Object.assign(new Error('denied'), { code: 'EACCES' });
+    });
+    vi.spyOn(fs, 'truncateSync').mockImplementation(() => {
+      throw Object.assign(new Error('denied'), { code: 'EACCES' });
+    });
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(() => {
+      for (let i = 0; i < 40; i++) logger.info(`${i} ${'q'.repeat(490)}`);
+    }).not.toThrow();
+    expect(size(path.join(logDir, 'mcp-server.log'))).toBeLessThanOrEqual(1024);
+    stderr.mockRestore();
+    fs.rmSync(logDir, { recursive: true, force: true });
+    delete process.env.MS365_MCP_LOG_MAX_BYTES;
   });
 });
