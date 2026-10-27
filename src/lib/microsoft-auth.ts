@@ -311,8 +311,11 @@ function unwrapToken<T>(result: TokenResponse, failureMessage: string): T {
   throw new Error(`${failureMessage}: ${result.raw}`);
 }
 
+export type CredentialVerdict = 'accepted' | 'rejected' | 'unavailable' | 'malformed';
+
 export interface ClientCredentialCheck {
   ok: boolean;
+  verdict: CredentialVerdict;
   checkedAt: string;
   status?: number;
   error?: string;
@@ -321,18 +324,28 @@ export interface ClientCredentialCheck {
   detail?: string;
 }
 
+const SELF_TEST_TIMEOUT_MS = 15_000;
+const SAFE_CODE = /^[A-Za-z0-9_.-]{1,64}$/;
+
 /**
  * Startup self-test for a confidential client: ask Microsoft for an app token with
- * the configured client id, secret and tenant. The token is discarded; what matters
- * is whether Microsoft accepted the credentials (AADSTS7000215 = wrong secret value,
- * 7000222 = expired secret, 700016 = unknown client id). Never throws; never logs
- * the secret or a response body.
+ * the configured client id, secret and tenant, and discard it. It establishes one
+ * thing only: whether Microsoft accepts these app credentials. It says nothing
+ * about user sign-in, On-Behalf-Of exchange, Graph permissions or Claude.
+ *
+ * Verdicts: `accepted` (a well-formed token came back), `rejected` (Microsoft
+ * answered with an OAuth error: AADSTS7000215 wrong secret value, 7000222 expired,
+ * 700016 unknown client id), `unavailable` (no answer within the deadline, or a
+ * network failure), `malformed` (an answer that is neither). Never throws; never
+ * records the secret, a token or a response body; bounded by a deadline that
+ * covers the body read.
  */
 export async function checkClientCredentials(
   clientId: string,
   clientSecret: string,
   tenantId: string,
-  cloudType: CloudType = 'global'
+  cloudType: CloudType = 'global',
+  timeoutMs: number = SELF_TEST_TIMEOUT_MS
 ): Promise<ClientCredentialCheck> {
   const checkedAt = new Date().toISOString();
   const cloudEndpoints = getCloudEndpoints(cloudType);
@@ -343,23 +356,72 @@ export async function checkClientCredentials(
     client_secret: clientSecret,
     scope: `${graphBase}/.default`,
   });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const result = await postTokenRequest(
-      `${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`,
-      params
-    );
-    if (result.ok) return { ok: true, checkedAt, status: 200 };
+    const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params,
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let json: unknown = null;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      json = null;
+    }
+    const obj = json && typeof json === 'object' ? (json as Record<string, unknown>) : null;
+    if (response.ok) {
+      if (obj && typeof obj.access_token === 'string' && obj.access_token.length > 0) {
+        return { ok: true, verdict: 'accepted', checkedAt, status: response.status };
+      }
+      return {
+        ok: false,
+        verdict: 'malformed',
+        checkedAt,
+        status: response.status,
+        detail: `HTTP ${response.status} without a token (${raw.length} chars)`,
+      };
+    }
+    if (obj && typeof obj.error === 'string' && SAFE_CODE.test(obj.error)) {
+      const codes = Array.isArray(obj.error_codes)
+        ? obj.error_codes.filter((c): c is number => Number.isInteger(c))
+        : [];
+      const corr =
+        typeof obj.correlation_id === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(obj.correlation_id)
+          ? obj.correlation_id
+          : undefined;
+      return {
+        ok: false,
+        verdict: 'rejected',
+        checkedAt,
+        status: response.status,
+        error: obj.error,
+        error_codes: codes,
+        correlation_id: corr,
+      };
+    }
     return {
       ok: false,
+      verdict: 'malformed',
       checkedAt,
-      status: result.status,
-      error: result.parsed?.error,
-      error_codes: result.parsed?.error_codes,
-      correlation_id: result.parsed?.correlation_id,
-      detail: result.parsed ? undefined : `unparsed response (${result.raw.length} chars)`,
+      status: response.status,
+      detail: `HTTP ${response.status}, unparsed response (${raw.length} chars)`,
     };
   } catch (error) {
-    return { ok: false, checkedAt, detail: `request failed: ${describeError(error)}` };
+    const timedOut = controller.signal.aborted;
+    return {
+      ok: false,
+      verdict: 'unavailable',
+      checkedAt,
+      detail: timedOut
+        ? `no answer within ${timeoutMs} ms`
+        : `request failed: ${describeError(error)}`,
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

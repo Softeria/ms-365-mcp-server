@@ -2918,7 +2918,9 @@ async function executeGraphTool(
           `Body field fallback: merging top-level param '${fieldName}' into request body`
         );
       } else {
-        logger.warn(`Dropping unrecognized parameter '${paramName}' for tool ${tool.alias}`);
+        logger.warn(
+          `Dropping unrecognized parameter (${paramName.length} chars) for tool ${tool.alias}`
+        );
       }
     }
 

@@ -7,8 +7,6 @@ import { describeError, describeStack } from './lib/log-safe.js';
  */
 
 type ErrorDump = {
-  name?: string;
-  constructor?: string;
   summary?: string;
   stack?: string[];
   cause?: unknown;
@@ -22,8 +20,6 @@ export function dumpError(reason: unknown, depth = 0): unknown {
     // Name, status/code and code locations only. The message and own properties
     // of an error can carry request or response text, so they are left out.
     const dump: ErrorDump = {
-      name: reason.name,
-      constructor: reason.constructor?.name,
       summary: describeError(reason),
       stack: describeStack(reason),
     };

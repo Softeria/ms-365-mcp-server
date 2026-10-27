@@ -1,4 +1,6 @@
 import winston from 'winston';
+import { LOG_MAX_BYTES, LOG_MAX_FILES } from './lib/log-limits.js';
+import { BoundedFileTransport } from './lib/bounded-file-transport.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -83,9 +85,12 @@ const auditLogger = winston.createLogger({
         process.env.SILENT === '1' ||
         process.env.VITEST === 'true',
     }),
-    new winston.transports.File({
+    // Bounded like the diagnostic logs: MS365_MCP_LOG_MAX_BYTES × MS365_MCP_LOG_MAX_FILES.
+    new BoundedFileTransport({
       filename: auditLogPath,
-      options: { flags: 'a', mode: FILE_MODE },
+      maxBytes: LOG_MAX_BYTES,
+      maxFiles: LOG_MAX_FILES,
+      mode: FILE_MODE,
     }),
   ],
 });

@@ -325,7 +325,7 @@ export function describeUrl(url: string): string {
     for (const part of queryPart.split('&')) {
       const name = part.split('=')[0];
       if (!name) continue;
-      if (/^\$[a-z]{1,20}$/.test(name)) {
+      if (KNOWN_QUERY_NAMES.has(name)) {
         if (!names.includes(name)) names.push(name);
       } else other += 1;
     }
@@ -334,6 +334,25 @@ export function describeUrl(url: string): string {
   }
   return out;
 }
+
+// OData query options Graph accepts. Any other query name is counted, not shown.
+const KNOWN_QUERY_NAMES = new Set([
+  '$select',
+  '$filter',
+  '$search',
+  '$top',
+  '$skip',
+  '$skiptoken',
+  '$orderby',
+  '$count',
+  '$expand',
+  '$format',
+  '$deltatoken',
+  '$ref',
+  '$value',
+  '$batch',
+  '$metadata',
+]);
 
 const KNOWN_ERROR_NAMES = new Set([
   'Error',
@@ -382,12 +401,18 @@ export function describeError(error: unknown): string {
   return parts.join(' ');
 }
 
-/** Stack frames only (`at …` lines): code locations, never the message line. */
+/**
+ * Stack frames only: lines of the form `at fn (file:line:col)` or `at file:line:col`.
+ * The message line and anything without a code location is left out, so text an
+ * error message carries (even one laid out like a frame) never passes.
+ */
+const FRAME =
+  /^at (?:[\w$.<>[\] ]+ \()?(?:node:[\w/]+|file:\/\/\S+|[A-Za-z]:\\\S+|\/\S+):\d+:\d+\)?$/;
 export function describeStack(error: unknown): string[] {
   if (!(error instanceof Error) || typeof error.stack !== 'string') return [];
   return error.stack
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l.startsWith('at '))
+    .filter((l) => FRAME.test(l))
     .slice(0, 20);
 }

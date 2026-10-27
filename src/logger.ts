@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
+import { LOG_MAX_BYTES, LOG_MAX_FILES } from './lib/log-limits.js';
+import { BoundedFileTransport } from './lib/bounded-file-transport.js';
 
 // PII/secret redaction (MS365_MCP_REDACT_PII), on by default. Runs before
 // the printf so both file and console transports emit scrubbed messages.
@@ -49,17 +51,6 @@ function ensureFileMode(filePath: string): void {
   }
 }
 
-// Bounded files: each log rotates at MS365_MCP_LOG_MAX_BYTES (default 10 MiB) and
-// at most MS365_MCP_LOG_MAX_FILES (default 5) are kept per log, oldest dropped.
-function boundedInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === '') return fallback;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
-}
-const LOG_MAX_BYTES = boundedInt('MS365_MCP_LOG_MAX_BYTES', 10 * 1024 * 1024);
-const LOG_MAX_FILES = boundedInt('MS365_MCP_LOG_MAX_FILES', 5);
-
 const errorLogPath = path.join(logsDir, 'error.log');
 const serverLogPath = path.join(logsDir, 'mcp-server.log');
 ensureFileMode(errorLogPath);
@@ -77,20 +68,19 @@ const logger = winston.createLogger({
     })
   ),
   transports: [
-    new winston.transports.File({
+    // Bounded files: each rotates at LOG_MAX_BYTES, LOG_MAX_FILES kept (see log-limits).
+    new BoundedFileTransport({
       filename: errorLogPath,
       level: 'error',
-      maxsize: LOG_MAX_BYTES,
+      maxBytes: LOG_MAX_BYTES,
       maxFiles: LOG_MAX_FILES,
-      tailable: true,
-      options: { flags: 'a', mode: FILE_MODE },
+      mode: FILE_MODE,
     }),
-    new winston.transports.File({
+    new BoundedFileTransport({
       filename: serverLogPath,
-      maxsize: LOG_MAX_BYTES,
+      maxBytes: LOG_MAX_BYTES,
       maxFiles: LOG_MAX_FILES,
-      tailable: true,
-      options: { flags: 'a', mode: FILE_MODE },
+      mode: FILE_MODE,
     }),
   ],
 });

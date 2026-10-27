@@ -1,5 +1,6 @@
-// The log files are bounded: each rotates at MS365_MCP_LOG_MAX_BYTES and at most
-// MS365_MCP_LOG_MAX_FILES are kept, so a long-running container cannot fill its disk.
+// Every log file this server writes is bounded: it rotates at MS365_MCP_LOG_MAX_BYTES
+// and at most MS365_MCP_LOG_MAX_FILES are kept, so a long-running container cannot fill
+// its disk. (Size-based rotation; not an age-based expiry.)
 import { afterAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,7 +11,11 @@ process.env.MS365_MCP_LOG_DIR = logDir;
 process.env.MS365_MCP_LOG_MAX_BYTES = '2048';
 process.env.MS365_MCP_LOG_MAX_FILES = '3';
 
-const serverFiles = () => fs.readdirSync(logDir).filter((f) => f.startsWith('mcp-server'));
+const family = (stem: string) => fs.readdirSync(logDir).filter((f) => f.startsWith(stem));
+const bytes = (files: string[]) =>
+  files.reduce((n, f) => n + fs.statSync(path.join(logDir, f)).size, 0);
+const lines = (files: string[]) =>
+  files.flatMap((f) => fs.readFileSync(path.join(logDir, f), 'utf8').split('\n').filter(Boolean));
 
 describe('log rotation', () => {
   afterAll(() => {
@@ -19,26 +24,31 @@ describe('log rotation', () => {
     delete process.env.MS365_MCP_LOG_MAX_FILES;
   });
 
-  it('rotates the server log at the configured size and keeps a bounded set', async () => {
+  it('bounds mcp-server.log, error.log and audit.log, keeping the newest lines', async () => {
     const { default: logger } = await import('../src/logger.js');
-    const line = 'x'.repeat(200);
-    // 100 lines of ~230 bytes = ~23 KB against a 2 KB cap: rotation must happen.
-    for (let i = 0; i < 100; i++) logger.info(`${i} ${line}`);
-
-    const deadline = Date.now() + 4000;
-    while (Date.now() < deadline) {
-      const files = serverFiles();
-      const total = files.reduce((n, f) => n + fs.statSync(path.join(logDir, f)).size, 0);
-      if (files.length > 1 && total > 4000) break;
-      await new Promise((r) => setTimeout(r, 100));
+    const { auditLog } = await import('../src/audit-log.js');
+    const pad = 'x'.repeat(200);
+    // ~23 KB per log against a 2 KB cap and 3 files.
+    for (let i = 0; i < 100; i++) {
+      logger.info(`line ${i} ${pad}`);
+      logger.error(`err ${i} ${pad}`);
+      auditLog({ event: 'tool.call', tool: `t${i}`, request_id: pad } as never);
     }
-    await new Promise((r) => setTimeout(r, 300));
-
-    const files = serverFiles();
-    expect(files.length).toBeGreaterThan(1);
-    expect(files.length).toBeLessThanOrEqual(3);
-    const total = files.reduce((n, f) => n + fs.statSync(path.join(logDir, f)).size, 0);
-    // Three files of at most ~2 KB plus one line of slack each: far below the 23 KB written.
-    expect(total).toBeLessThan(3 * (2048 + 300));
+    const marks: Record<string, [string, string]> = {
+      'mcp-server.log': [' 99 ', ' 0 '],
+      'error.log': [' 99 ', ' 0 '],
+      'audit.log': ['"t99"', '"t0"'],
+    };
+    for (const stem of ['mcp-server.log', 'error.log', 'audit.log']) {
+      const [newest, oldest] = marks[stem];
+      const files = family(stem);
+      expect(files.length, stem).toBe(3);
+      expect(bytes(files), stem).toBeLessThanOrEqual(3 * 2048);
+      const kept = lines(files);
+      expect(kept.length, stem).toBeGreaterThan(10);
+      // The newest line is in the live file, the oldest lines are gone.
+      expect(fs.readFileSync(path.join(logDir, stem), 'utf8')).toContain(newest);
+      expect(kept.some((l) => l.includes(oldest))).toBe(false);
+    }
   });
 });

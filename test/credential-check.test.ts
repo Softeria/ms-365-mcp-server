@@ -26,6 +26,7 @@ describe('checkClientCredentials (startup self-test)', () => {
     const calls = mockFetch(200, { access_token: 'x', token_type: 'Bearer', expires_in: 3599 });
     const r = await checkClientCredentials('client-id', SECRET, 'tenant-id');
     expect(r.ok).toBe(true);
+    expect(r.verdict).toBe('accepted');
     expect(r.status).toBe(200);
     expect(calls[0].url).toBe('https://login.microsoftonline.com/tenant-id/oauth2/v2.0/token');
     const p = new URLSearchParams(calls[0].body);
@@ -45,6 +46,7 @@ describe('checkClientCredentials (startup self-test)', () => {
     const r = await checkClientCredentials('client-id', SECRET, 'tenant-id');
     expect(r).toMatchObject({
       ok: false,
+      verdict: 'rejected',
       status: 401,
       error: 'invalid_client',
       error_codes: [7000215],
@@ -60,13 +62,52 @@ describe('checkClientCredentials (startup self-test)', () => {
     const r1 = await checkClientCredentials('client-id', SECRET, 'tenant-id');
     expect(r1.ok).toBe(false);
     expect(r1.status).toBe(502);
-    expect(r1.detail).toBe('unparsed response (20 chars)');
+    expect(r1.verdict).toBe('malformed');
+    expect(r1.detail).toBe('HTTP 502, unparsed response (20 chars)');
 
     globalThis.fetch = (async () => {
       throw Object.assign(new Error(`connect ${SECRET}`), { code: 'ECONNREFUSED' });
     }) as typeof fetch;
     const r2 = await checkClientCredentials('client-id', SECRET, 'tenant-id');
     expect(r2.ok).toBe(false);
+    expect(r2.verdict).toBe('unavailable');
     expect(r2.detail).toBe('request failed: Error code=ECONNREFUSED');
+  });
+
+  it('does not call an empty 200 a success, and reports bad error fields as malformed', async () => {
+    mockFetch(200, {});
+    const r1 = await checkClientCredentials('client-id', SECRET, 'tenant-id');
+    expect(r1.ok).toBe(false);
+    expect(r1.verdict).toBe('malformed');
+
+    mockFetch(401, { error: `bad ${SECRET} value`, error_codes: 'x', correlation_id: { a: 1 } });
+    const r2 = await checkClientCredentials('client-id', SECRET, 'tenant-id');
+    expect(r2.verdict).toBe('malformed');
+    expect(JSON.stringify(r2)).not.toContain(SECRET);
+
+    mockFetch(401, {
+      error: 'invalid_client',
+      error_codes: [7000215, 'x'],
+      correlation_id: 'not a guid!',
+    });
+    const r3 = await checkClientCredentials('client-id', SECRET, 'tenant-id');
+    expect(r3).toMatchObject({ verdict: 'rejected', error_codes: [7000215] });
+    expect(r3.correlation_id).toBeUndefined();
+  });
+
+  it('gives up on a held connection within the deadline', async () => {
+    let signal: AbortSignal | undefined;
+    globalThis.fetch = ((_url: unknown, init?: { signal?: AbortSignal }) => {
+      signal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }) as typeof fetch;
+    const started = Date.now();
+    const r = await checkClientCredentials('client-id', SECRET, 'tenant-id', 'global', 150);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(signal).toBeDefined();
+    expect(r.verdict).toBe('unavailable');
+    expect(r.detail).toBe('no answer within 150 ms');
   });
 });

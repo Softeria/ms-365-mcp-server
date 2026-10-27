@@ -16,7 +16,18 @@ const CURSOR = 'SENTINEL_CURSOR_salary_review_7363';
 const GRAPH_ERROR = 'SENTINEL_GRAPH_ERROR_private_note_7364';
 const FILE_NAME = 'SENTINEL_FILE_severance_plan_7365';
 const BODY_KEY = 'SENTINEL_KEY_board_minutes_7366';
-const SENTINELS = [SEARCH, FILTER, CURSOR, GRAPH_ERROR, FILE_NAME, BODY_KEY];
+const UNKNOWN_PARAM = 'SENTINEL_PARAM_pending_litigation_7367';
+const QUERY_NAME = '$SENTINELprivatelayoffnote';
+const SENTINELS = [
+  SEARCH,
+  FILTER,
+  CURSOR,
+  GRAPH_ERROR,
+  FILE_NAME,
+  BODY_KEY,
+  UNKNOWN_PARAM,
+  QUERY_NAME,
+];
 
 let consoleOut = '';
 const stdoutWrite = process.stdout.write.bind(process.stdout);
@@ -104,6 +115,24 @@ describe('no user content reaches any log sink', () => {
       { content: [{ type: 'text', text: '{"value":[{"id":"synthetic-2"}]}' }] },
     ];
     await calls.get('list-mail-messages')!({ fetchAllPages: true });
+    // An unrecognized parameter name: the schema allows extra keys, so the name itself is data.
+    await calls.get('list-mail-messages')!({ [UNKNOWN_PARAM]: 'unused' });
+    // An unknown query option name on a nextLink.
+    responses = [
+      {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              value: [{ id: 'synthetic-1' }],
+              '@odata.nextLink': `https://graph.microsoft.com/v1.0/me/messages?${QUERY_NAME}=1&$skip=1`,
+            }),
+          },
+        ],
+      },
+      { content: [{ type: 'text', text: '{"value":[]}' }] },
+    ];
+    await calls.get('list-mail-messages')!({ fetchAllPages: true });
 
     // A real Graph 400 whose message echoes request text, through the real client.
     const { default: GraphClient } = await import('../src/graph-client.js');
@@ -121,10 +150,11 @@ describe('no user content reaches any log sink', () => {
 
     // The crash dump path, with an error carrying content in message, property and cause.
     const { dumpError } = await import('../src/crash-logging.js');
-    const crash = Object.assign(new Error(`boom ${GRAPH_ERROR}`), {
+    const crash = Object.assign(new Error(`boom ${GRAPH_ERROR}\n    at ${FILTER}`), {
       response: { body: FILTER },
       cause: new Error(`inner ${SEARCH}`),
     });
+    crash.name = UNKNOWN_PARAM;
     const dump = JSON.stringify(dumpError(crash));
     for (const s of SENTINELS) expect(dump).not.toContain(s);
     logger.error('uncaughtException', dumpError(crash));
