@@ -613,6 +613,33 @@
     "supportsTimezone": true
   },
   {
+    "pathPattern": "/users/{user-id}/calendar/events",
+    "method": "post",
+    "toolName": "create-shared-calendar-event",
+    "descriptionOverride": "Create an event in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated write access to that calendar is required. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone. For recurring events use the calendar owner's own time zone name rather than UTC, since Graph resolves DST against the zone in start.timeZone.",
+    "presets": ["work"],
+    "workScopes": ["Calendars.ReadWrite.Shared"],
+    "supportsTimezone": true
+  },
+  {
+    "pathPattern": "/users/{user-id}/events/{event-id}",
+    "method": "patch",
+    "toolName": "update-shared-calendar-event",
+    "descriptionOverride": "Update an event in another user's default calendar. Requires the calendar owner's user-id and the event's eventId from list-shared-calendar-events or get-shared-calendar-view. Times use nested {dateTime, timeZone} objects.",
+    "presets": ["work"],
+    "workScopes": ["Calendars.ReadWrite.Shared"],
+    "supportsTimezone": true
+  },
+  {
+    "pathPattern": "/users/{user-id}/events/{event-id}",
+    "method": "delete",
+    "toolName": "delete-shared-calendar-event",
+    "descriptionOverride": "Delete an event from another user's default calendar. Requires the calendar owner's user-id and the event's eventId from list-shared-calendar-events or get-shared-calendar-view.",
+    "llmTip": "Deleting a seriesMaster deletes ALL occurrences of the recurring event. If the owner organizes the meeting, deleting it sends a cancellation to the attendees.",
+    "presets": ["work"],
+    "workScopes": ["Calendars.ReadWrite.Shared"]
+  },
+  {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}/instances",
     "method": "get",
     "toolName": "list-calendar-event-instances",

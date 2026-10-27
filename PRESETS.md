@@ -6,7 +6,7 @@
 
 | Preset                        | Tools | Org mode | Description                                                                                                                       |
 | ----------------------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [`all`](#all)                 |   361 |          | All available tools                                                                                                               |
+| [`all`](#all)                 |   364 |          | All available tools                                                                                                               |
 | [`calendar`](#calendar)       |    47 |          | Calendar and event management                                                                                                     |
 | [`contacts`](#contacts)       |    15 |          | Outlook contacts management                                                                                                       |
 | [`excel`](#excel)             |    25 |          | Excel spreadsheet operations                                                                                                      |
@@ -21,13 +21,13 @@
 | [`teams`](#teams)             |    73 | required | Teams app only: chats, channels, meetings and presence                                                                            |
 | [`teams-write`](#teams-write) |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | [`users`](#users)             |    11 | required | User directory access                                                                                                             |
-| [`work`](#work)               |   184 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| [`work`](#work)               |   187 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all`
 
 All available tools
 
-Tools (361):
+Tools (364):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -80,6 +80,7 @@ Tools (361):
 - `create-planner-task-message`
 - `create-reply-all-draft`
 - `create-reply-draft`
+- `create-shared-calendar-event`
 - `create-shared-mailbox-child-folder`
 - `create-shared-mailbox-draft`
 - `create-shared-mailbox-folder`
@@ -121,6 +122,7 @@ Tools (361):
 - `delete-outlook-contact`
 - `delete-planner-bucket`
 - `delete-planner-task-message`
+- `delete-shared-calendar-event`
 - `delete-shared-mailbox-attachment`
 - `delete-sharepoint-list-column`
 - `delete-sharepoint-list-item`
@@ -377,6 +379,7 @@ Tools (361):
 - `update-planner-plan`
 - `update-planner-task`
 - `update-planner-task-details`
+- `update-shared-calendar-event`
 - `update-shared-mailbox-message`
 - `update-sharepoint-list-column`
 - `update-sharepoint-list-item`
@@ -1120,7 +1123,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (184):
+Tools (187):
 
 - `add-group-member`
 - `add-group-owner`
@@ -1137,6 +1140,7 @@ Tools (184):
 - `create-planner-bucket`
 - `create-planner-plan`
 - `create-planner-task`
+- `create-shared-calendar-event`
 - `create-shared-mailbox-child-folder`
 - `create-shared-mailbox-draft`
 - `create-shared-mailbox-folder`
@@ -1154,6 +1158,7 @@ Tools (184):
 - `delete-group`
 - `delete-online-meeting`
 - `delete-planner-bucket`
+- `delete-shared-calendar-event`
 - `delete-shared-mailbox-attachment`
 - `delete-sharepoint-list-column`
 - `delete-sharepoint-list-item`
@@ -1300,6 +1305,7 @@ Tools (184):
 - `update-planner-plan`
 - `update-planner-task`
 - `update-planner-task-details`
+- `update-shared-calendar-event`
 - `update-shared-mailbox-message`
 - `update-sharepoint-list-column`
 - `update-sharepoint-list-item`
