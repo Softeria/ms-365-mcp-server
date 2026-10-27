@@ -37,6 +37,7 @@ import {
   refreshAccessToken,
   toOAuthErrorResponse,
   checkClientCredentials,
+  credentialCheckMessage,
   type ClientCredentialCheck,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
@@ -1302,15 +1303,7 @@ class MicrosoftGraphServer {
             this.secrets.cloudType
           );
           const c = this.credentialCheck;
-          const codes = `${c.error ?? 'none'}, error_codes [${(c.error_codes ?? []).join(', ')}], correlation_id ${c.correlation_id ?? 'none'}`;
-          const line =
-            c.verdict === 'accepted'
-              ? `Startup self-test: Microsoft accepted the client id and secret for tenant ${this.secrets.tenantId}. (App credentials only; not a test of user sign-in or Graph access.)`
-              : c.verdict === 'rejected'
-                ? `Startup self-test FAILED: Microsoft rejected the client credentials (${codes}). Sign-ins will fail until the secret is corrected and the revision restarted.`
-                : c.verdict === 'unavailable'
-                  ? `Startup self-test could not be completed (${c.detail ?? 'unknown'}); the credentials were not judged. Check network access to the Microsoft login endpoint.`
-                  : `Startup self-test inconclusive: ${c.detail ?? 'unexpected answer'}; the credentials were not judged.`;
+          const line = credentialCheckMessage(c, this.secrets.tenantId);
           if (c.verdict === 'accepted') logger.info(line);
           else if (c.verdict === 'rejected') logger.error(line);
           else logger.warn(line);

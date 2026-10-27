@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { checkClientCredentials } from '../src/lib/microsoft-auth.js';
+import { checkClientCredentials, credentialCheckMessage } from '../src/lib/microsoft-auth.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -109,5 +109,37 @@ describe('checkClientCredentials (startup self-test)', () => {
     expect(signal).toBeDefined();
     expect(r.verdict).toBe('unavailable');
     expect(r.detail).toBe('no answer within 150 ms');
+  });
+
+  it('prescribes the secret only for the two codes that are about the secret', () => {
+    const base = {
+      ok: false,
+      verdict: 'rejected' as const,
+      checkedAt: 'now',
+      status: 401,
+      error: 'invalid_client',
+      correlation_id: 'corr',
+    };
+    const wrong = credentialCheckMessage({ ...base, error_codes: [7000215] }, 't');
+    expect(wrong).toContain('not a current secret value');
+    expect(wrong).toContain('secret value is corrected');
+    const expired = credentialCheckMessage({ ...base, error_codes: [7000222] }, 't');
+    expect(expired).toContain('expired');
+    const notFound = credentialCheckMessage({ ...base, error_codes: [700016] }, 't');
+    expect(notFound).toContain('error_codes [700016]');
+    expect(notFound).not.toContain('secret is corrected');
+    expect(notFound).not.toContain('secret value is corrected');
+    expect(notFound).toContain('says nothing about the secret');
+    const down = credentialCheckMessage(
+      {
+        ok: false,
+        verdict: 'unavailable',
+        checkedAt: 'now',
+        detail: 'request failed: Error code=ECONNREFUSED',
+      },
+      't'
+    );
+    expect(down).toContain('were not judged');
+    expect(down).not.toContain('secret');
   });
 });

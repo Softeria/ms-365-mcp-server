@@ -426,6 +426,33 @@ export async function checkClientCredentials(
 }
 
 /**
+ * The one line the startup self-test prints. Only two codes justify a conclusion
+ * about the secret: 7000215 (the value sent is not a current secret of the app)
+ * and 7000222 (the secret has expired). Every other rejection is reported with
+ * its code and left for the troubleshooting table; it is not called a bad secret.
+ */
+export function credentialCheckMessage(c: ClientCredentialCheck, tenantId: string): string {
+  const codes = (c.error_codes ?? []).join(', ');
+  const ref = `${c.error ?? 'none'}, error_codes [${codes}], correlation_id ${c.correlation_id ?? 'none'}`;
+  switch (c.verdict) {
+    case 'accepted':
+      return `Startup self-test: Microsoft accepted the client id and secret for tenant ${tenantId}. (App credentials only; not a test of user sign-in or Graph access.)`;
+    case 'rejected':
+      if (c.error_codes?.includes(7000215)) {
+        return `Startup self-test FAILED: Microsoft rejected the client secret as not a current secret value of this app (${ref}). Sign-ins will fail until the secret value is corrected and the revision restarted.`;
+      }
+      if (c.error_codes?.includes(7000222)) {
+        return `Startup self-test FAILED: the client secret has expired (${ref}). Sign-ins will fail until a new secret is created, stored, and the revision restarted.`;
+      }
+      return `Startup self-test FAILED: Microsoft rejected the app credentials (${ref}). Look the code up in the troubleshooting table; this says nothing about the secret value.`;
+    case 'unavailable':
+      return `Startup self-test could not be completed (${c.detail ?? 'unknown'}); the credentials were not judged. Check network access to the Microsoft login endpoint.`;
+    default:
+      return `Startup self-test inconclusive: ${c.detail ?? 'unexpected answer'}; the credentials were not judged.`;
+  }
+}
+
+/**
  * Exchange authorization code for access token
  */
 export async function exchangeCodeForToken(

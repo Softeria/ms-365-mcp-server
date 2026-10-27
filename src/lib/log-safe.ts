@@ -402,15 +402,27 @@ export function describeError(error: unknown): string {
 }
 
 /**
- * Stack frames only: lines of the form `at fn (file:line:col)` or `at file:line:col`.
- * The message line and anything without a code location is left out, so text an
- * error message carries (even one laid out like a frame) never passes.
+ * Stack frames only, taken from the part of the stack that follows the message.
+ * V8 writes `Name: message` first, then one `at …` line per frame, so everything
+ * up to and including the message text is discarded before frames are read; a
+ * message laid out like a frame therefore never passes. Each kept line must
+ * still look like `at fn (file:line:col)` or `at file:line:col`.
  */
 const FRAME =
   /^at (?:[\w$.<>[\] ]+ \()?(?:node:[\w/]+|file:\/\/\S+|[A-Za-z]:\\\S+|\/\S+):\d+:\d+\)?$/;
 export function describeStack(error: unknown): string[] {
   if (!(error instanceof Error) || typeof error.stack !== 'string') return [];
-  return error.stack
+  let tail = error.stack;
+  const message = typeof error.message === 'string' ? error.message : '';
+  if (message.length > 0) {
+    const at = tail.indexOf(message);
+    if (at === -1) return []; // a stack that does not carry the message is not V8's; keep nothing
+    tail = tail.slice(at + message.length);
+  } else {
+    const nl = tail.indexOf('\n');
+    tail = nl === -1 ? '' : tail.slice(nl);
+  }
+  return tail
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => FRAME.test(l))

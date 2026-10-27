@@ -155,6 +155,12 @@ describe('no user content reaches any log sink', () => {
       cause: new Error(`inner ${SEARCH}`),
     });
     crash.name = UNKNOWN_PARAM;
+    // A message laid out exactly like a real frame, with a path that is mail text.
+    const spoofed = new Error(`Graph echoed mail text\n    at /${CURSOR}/salary-note.js:12:34`);
+    const spoofedDump = JSON.stringify(dumpError(spoofed));
+    expect(spoofedDump).not.toContain(CURSOR);
+    expect(spoofedDump).toContain('log-privacy.test.ts');
+    logger.error('uncaughtException', dumpError(spoofed));
     const dump = JSON.stringify(dumpError(crash));
     for (const s of SENTINELS) expect(dump).not.toContain(s);
     logger.error('uncaughtException', dumpError(crash));
