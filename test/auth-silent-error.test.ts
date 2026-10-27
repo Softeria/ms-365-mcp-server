@@ -16,8 +16,12 @@ const COMMON_AUTHORITY = 'https://login.microsoftonline.com/common';
 
 describe('describeAuthError', () => {
   it('summarises an MSAL AuthError with code, suberror and correlation id', () => {
-    const error = new AuthError('invalid_grant', 'AADSTS70000: the grant is expired', 'bad_token');
-    error.correlationId = 'abc-123';
+    const error = new AuthError(
+      'invalid_grant',
+      'abc-123',
+      'AADSTS70000: the grant is expired',
+      'bad_token'
+    );
 
     const summary = describeAuthError(error);
 
@@ -28,7 +32,7 @@ describe('describeAuthError', () => {
   });
 
   it('omits the suberror segment when the AuthError has none', () => {
-    const error = new AuthError('interaction_required', 'sign in again');
+    const error = new AuthError('interaction_required', undefined, 'sign in again');
 
     const summary = describeAuthError(error);
 
@@ -49,7 +53,7 @@ describe('consumersAuthorityHint', () => {
   // No subError on purpose: the guard must key on errorCode alone, because
   // real-world invalid_grant responses do not always carry one.
   function invalidGrant(): AuthError {
-    return new AuthError('invalid_grant', 'AADSTS70000: the grant is expired');
+    return new AuthError('invalid_grant', undefined, 'AADSTS70000: the grant is expired');
   }
 
   it('suggests the consumers authority for an MSA invalid_grant on common', () => {
@@ -94,7 +98,7 @@ describe('consumersAuthorityHint', () => {
   it('returns null for other error codes, non-AuthError values and missing accounts', () => {
     expect(
       consumersAuthorityHint(
-        new AuthError('no_tokens_found', 'no cached tokens'),
+        new AuthError('no_tokens_found', undefined, 'no cached tokens'),
         msaAccount(),
         COMMON_AUTHORITY
       )
@@ -131,7 +135,12 @@ describe('silent failure hints at the call sites', () => {
       acquireTokenSilent: vi
         .fn()
         .mockRejectedValue(
-          new AuthError('invalid_grant', 'AADSTS70000: the grant is expired', 'bad_token')
+          new AuthError(
+            'invalid_grant',
+            undefined,
+            'AADSTS70000: the grant is expired',
+            'bad_token'
+          )
         ),
     };
     const auth = new AuthManager(msalConfig, ['User.Read']);
