@@ -77,6 +77,50 @@ describe('CLI Module', () => {
     delete process.env.ENABLED_TOOLS_FILE;
   });
 
+  describe('eager tool configuration', () => {
+    afterEach(() => {
+      delete process.env.MS365_MCP_EAGER_TOOLS;
+    });
+    it('normalizes exact names and removes duplicates', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        eagerTools: ' list-mail-messages,send-mail,list-mail-messages ',
+      });
+      expect(parseArgs().eagerTools).toEqual(['list-mail-messages', 'send-mail']);
+    });
+    it('uses environment fallback and CLI precedence', () => {
+      process.env.MS365_MCP_EAGER_TOOLS = 'send-mail';
+      commanderMocks.mockCommand.opts.mockReturnValue({ discovery: true });
+      expect(parseArgs().eagerTools).toEqual(['send-mail']);
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        eagerTools: 'list-mail-messages',
+      });
+      expect(parseArgs().eagerTools).toEqual(['list-mail-messages']);
+    });
+    it('keeps file-based availability filtering independent of eager presentation', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'hybrid-filter-'));
+      const file = join(dir, 'tools.txt');
+      writeFileSync(file, '^list-mail-messages$\n');
+      commanderMocks.mockCommand.opts.mockReturnValue({
+        discovery: true,
+        enabledToolsFile: file,
+        eagerTools: 'list-mail-messages,send-mail',
+      });
+      const result = parseArgs();
+      expect(result.enabledTools).toBe('^list-mail-messages$');
+      expect(result.eagerTools).toEqual(['list-mail-messages', 'send-mail']);
+    });
+    it('requires discovery and rejects empty selections', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ eagerTools: 'send-mail' });
+      expect(() => parseArgs()).toThrow('requires --discovery');
+      for (const eagerTools of ['', 'send-mail,', ' , ']) {
+        commanderMocks.mockCommand.opts.mockReturnValue({ discovery: true, eagerTools });
+        expect(() => parseArgs()).toThrow('non-empty exact tool names');
+      }
+    });
+  });
+
   describe('parseArgs', () => {
     it('should return command options', () => {
       const result = parseArgs();

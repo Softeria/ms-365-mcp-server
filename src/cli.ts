@@ -96,6 +96,10 @@ program
   .option('--work-mode', 'Alias for --org-mode')
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
+  .option(
+    '--eager-tools <names>',
+    'With --discovery, also expose these comma-separated exact Graph or utility tool names directly. All enabled tools remain discoverable. Env: MS365_MCP_EAGER_TOOLS.'
+  )
   .option('--discovery', 'Enable runtime tool discovery and loading (experimental feature)')
   .option(
     '--cloud <type>',
@@ -187,6 +191,7 @@ export interface CommandOptions {
   forceWorkScopes?: boolean;
   toon?: boolean;
   discovery?: boolean;
+  eagerTools?: string[];
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
@@ -244,6 +249,17 @@ export function parseArgs(): CommandOptions {
     }
   }
   delete options.enabledToolsFile;
+
+  const eagerValue = options.eagerTools ?? process.env.MS365_MCP_EAGER_TOOLS;
+  if (eagerValue !== undefined) {
+    if (!options.discovery) throw new Error('--eager-tools requires --discovery');
+    const names = String(eagerValue)
+      .split(',')
+      .map((name) => name.trim());
+    if (names.some((name) => name === ''))
+      throw new Error('--eager-tools requires non-empty exact tool names');
+    options.eagerTools = [...new Set(names)];
+  }
 
   if (options.preset) {
     const presetNames = options.preset.split(',').map((p: string) => p.trim());

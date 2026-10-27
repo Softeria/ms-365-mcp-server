@@ -40,3 +40,17 @@ describe('buildMcpServerInstructions', () => {
     expect(s).toContain('relative Microsoft Graph paths, not absolute URLs');
   });
 });
+
+describe('hybrid instructions', () => {
+  it('directs clients to use published schemas without a discovery round-trip', () => {
+    expect(
+      buildMcpServerInstructions({
+        discovery: true,
+        orgMode: true,
+        readOnly: false,
+        multiAccount: false,
+        eagerTools: ['list-mail-messages'],
+      })
+    ).toContain('HYBRID MODE');
+  });
+});

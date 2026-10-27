@@ -3505,6 +3505,7 @@ async function executeGraphTool(
  * silently shifting `allowedScopes` or `userFields` into the wrong slot.
  */
 export interface GraphToolRegistrationOptions {
+  eagerTools?: string[];
   readOnly?: boolean;
   enabledTools?: string;
   orgMode?: boolean;
@@ -3514,6 +3515,159 @@ export interface GraphToolRegistrationOptions {
   allowedScopes?: string;
   httpMode?: boolean;
   userFields?: string;
+}
+
+function registerGraphToolWithMcp(
+  server: McpServer,
+  tool: (typeof allEndpoints)[number],
+  endpointConfig: EndpointConfig | undefined,
+  graphClient: GraphClient,
+  options: GraphToolRegistrationOptions
+): void {
+  const { authManager, multiAccount = false, accountNames = [] } = options;
+  const userFields = parseUserFields(options.userFields);
+  const paramSchema: Record<string, z.ZodTypeAny> = {};
+  if (tool.parameters && tool.parameters.length > 0) {
+    for (const param of tool.parameters) {
+      if (param.type === 'Query') {
+        const schema = queryParameterSchema(param.name, param.schema || z.any(), endpointConfig);
+        if (schema) paramSchema[param.name] = schema;
+        continue;
+      }
+      // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
+      paramSchema[param.name] =
+        param.type === 'Body' && param.schema
+          ? lenientBodySchema(param.schema as z.ZodTypeAny)
+          : param.schema || z.any();
+    }
+  }
+
+  // Extract path parameters from the path pattern (e.g., :todoTaskListId from /me/todo/lists/:todoTaskListId/tasks)
+  // The generated client omits these from tool.parameters, so we add them manually.
+  const pathParamMatches = tool.path.matchAll(/:([a-zA-Z]+)/g);
+  for (const match of pathParamMatches) {
+    const pathParamName = match[1];
+    if (!(pathParamName in paramSchema)) {
+      paramSchema[pathParamName] = z.string().describe(describePathParam(pathParamName));
+    }
+  }
+
+  // Endpoints with a configured acceptType get a synthetic, optional `Accept` param.
+  // The generated client declares no Accept header anywhere, so without this the
+  // caller has no way to reach the alternate representation of the resource — the
+  // configured default would be the only value the server can ever send.
+  if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
+    paramSchema['Accept'] = z
+      .string()
+      .describe(getAcceptParamDescription(endpointConfig.acceptType))
+      .optional();
+  }
+
+  if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
+    paramSchema['fileName'] = z
+      .string()
+      .describe(
+        'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
+      )
+      .optional();
+  }
+
+  if (isFetchAllPagesApplicable(tool)) {
+    const maxPages = getMaxPages();
+    paramSchema['fetchAllPages'] = z
+      .boolean()
+      .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig))
+      .optional();
+  }
+
+  if (endpointConfig?.nameFilter) {
+    paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
+  }
+
+  if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
+    paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
+  }
+
+  // Add account parameter for multi-account mode.
+  // Layer 2: Account names are surfaced in the description (not as a strict enum) so the LLM
+  // sees available accounts upfront without a round-trip, but accounts added mid-session via
+  // --login are still accepted — getTokenForAccount() handles validation at runtime.
+  if (multiAccount) {
+    paramSchema['account'] = z
+      .string()
+      .describe(getAccountParamDescription(accountNames))
+      .optional();
+  }
+
+  // Add includeHeaders parameter for all tools to capture ETags and other headers
+  paramSchema['includeHeaders'] = z
+    .boolean()
+    .describe('Include response headers (including ETag) in the response metadata')
+    .optional();
+
+  // Add excludeResponse parameter to only return success/failure indication
+  paramSchema['excludeResponse'] = z
+    .boolean()
+    .describe('Exclude the full response body and only return success or failure indication')
+    .optional();
+
+  // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
+  // explicit `confirm: true` server-side gate. See isDestructiveOperation +
+  // executeGraphTool for the enforcement; surface the param in the schema so
+  // the LLM/agent sees it upfront.
+  const destructive = isDestructiveOperation(tool.method, endpointConfig);
+  if (destructive) {
+    paramSchema['confirm'] = z.boolean().describe(CONFIRM_PARAM_DESCRIPTION).optional();
+  }
+
+  // Add timezone parameter for calendar endpoints that support it
+  if (endpointConfig?.supportsTimezone) {
+    paramSchema['timezone'] = z.string().describe(TIMEZONE_PARAM_DESCRIPTION).optional();
+  }
+
+  // Add expandExtendedProperties parameter for calendar endpoints that support it
+  if (endpointConfig?.supportsExpandExtendedProperties) {
+    paramSchema['expandExtendedProperties'] = z
+      .boolean()
+      .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION)
+      .optional();
+  }
+
+  // Build the tool description, optionally appending LLM tips
+  let toolDescription = withApiVersionPrefix(
+    (endpointConfig?.descriptionOverride ?? tool.description) ||
+      `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
+    endpointConfig
+  );
+  if (endpointConfig?.llmTip) {
+    toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
+  }
+
+  // An endpoint marked readOnly in endpoints.json (e.g. a POST query like
+  // copilot-retrieve) is a read-only operation despite its write verb, so derive
+  // the hints from that flag rather than the HTTP method alone — otherwise a
+  // read-only query lands as destructiveHint:true and clients mis-rank it.
+  const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
+
+  // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
+  // and strips unknown keys before the handler runs, which is exactly how #569's
+  // flattened subject/toRecipients got lost
+  server.registerTool(
+    tool.alias,
+    {
+      title: tool.alias,
+      description: toolDescription,
+      inputSchema: z.object(paramSchema).passthrough(),
+      annotations: {
+        title: tool.alias,
+        readOnlyHint: isReadOnlyTool,
+        destructiveHint: destructive,
+        openWorldHint: true, // All tools call Microsoft Graph API
+      },
+    },
+    async (params: Record<string, unknown>) =>
+      executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
+  );
 }
 
 export function registerGraphTools(
@@ -3595,149 +3749,8 @@ export function registerGraphTools(
       continue;
     }
 
-    const paramSchema: Record<string, z.ZodTypeAny> = {};
-    if (tool.parameters && tool.parameters.length > 0) {
-      for (const param of tool.parameters) {
-        if (param.type === 'Query') {
-          const schema = queryParameterSchema(param.name, param.schema || z.any(), endpointConfig);
-          if (schema) paramSchema[param.name] = schema;
-          continue;
-        }
-        // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
-        paramSchema[param.name] =
-          param.type === 'Body' && param.schema
-            ? lenientBodySchema(param.schema as z.ZodTypeAny)
-            : param.schema || z.any();
-      }
-    }
-
-    // Extract path parameters from the path pattern (e.g., :todoTaskListId from /me/todo/lists/:todoTaskListId/tasks)
-    // The generated client omits these from tool.parameters, so we add them manually.
-    const pathParamMatches = tool.path.matchAll(/:([a-zA-Z]+)/g);
-    for (const match of pathParamMatches) {
-      const pathParamName = match[1];
-      if (!(pathParamName in paramSchema)) {
-        paramSchema[pathParamName] = z.string().describe(describePathParam(pathParamName));
-      }
-    }
-
-    // Endpoints with a configured acceptType get a synthetic, optional `Accept` param.
-    // The generated client declares no Accept header anywhere, so without this the
-    // caller has no way to reach the alternate representation of the resource — the
-    // configured default would be the only value the server can ever send.
-    if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
-      paramSchema['Accept'] = z
-        .string()
-        .describe(getAcceptParamDescription(endpointConfig.acceptType))
-        .optional();
-    }
-
-    if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
-      paramSchema['fileName'] = z
-        .string()
-        .describe(
-          'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
-        )
-        .optional();
-    }
-
-    if (isFetchAllPagesApplicable(tool)) {
-      const maxPages = getMaxPages();
-      paramSchema['fetchAllPages'] = z
-        .boolean()
-        .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig))
-        .optional();
-    }
-
-    if (endpointConfig?.nameFilter) {
-      paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
-    }
-
-    if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
-      paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
-    }
-
-    // Add account parameter for multi-account mode.
-    // Layer 2: Account names are surfaced in the description (not as a strict enum) so the LLM
-    // sees available accounts upfront without a round-trip, but accounts added mid-session via
-    // --login are still accepted — getTokenForAccount() handles validation at runtime.
-    if (multiAccount) {
-      paramSchema['account'] = z
-        .string()
-        .describe(getAccountParamDescription(accountNames))
-        .optional();
-    }
-
-    // Add includeHeaders parameter for all tools to capture ETags and other headers
-    paramSchema['includeHeaders'] = z
-      .boolean()
-      .describe('Include response headers (including ETag) in the response metadata')
-      .optional();
-
-    // Add excludeResponse parameter to only return success/failure indication
-    paramSchema['excludeResponse'] = z
-      .boolean()
-      .describe('Exclude the full response body and only return success or failure indication')
-      .optional();
-
-    // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
-    // explicit `confirm: true` server-side gate. See isDestructiveOperation +
-    // executeGraphTool for the enforcement; surface the param in the schema so
-    // the LLM/agent sees it upfront.
-    const destructive = isDestructiveOperation(tool.method, endpointConfig);
-    if (destructive) {
-      paramSchema['confirm'] = z.boolean().describe(CONFIRM_PARAM_DESCRIPTION).optional();
-    }
-
-    // Add timezone parameter for calendar endpoints that support it
-    if (endpointConfig?.supportsTimezone) {
-      paramSchema['timezone'] = z.string().describe(TIMEZONE_PARAM_DESCRIPTION).optional();
-    }
-
-    // Add expandExtendedProperties parameter for calendar endpoints that support it
-    if (endpointConfig?.supportsExpandExtendedProperties) {
-      paramSchema['expandExtendedProperties'] = z
-        .boolean()
-        .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION)
-        .optional();
-    }
-
-    // Build the tool description, optionally appending LLM tips
-    let toolDescription = withApiVersionPrefix(
-      (endpointConfig?.descriptionOverride ?? tool.description) ||
-        `Execute ${tool.method.toUpperCase()} request to ${tool.path}`,
-      endpointConfig
-    );
-    if (endpointConfig?.llmTip) {
-      toolDescription += `\n\n💡 TIP: ${endpointConfig.llmTip}`;
-    }
-
-    // An endpoint marked readOnly in endpoints.json (e.g. a POST query like
-    // copilot-retrieve) is a read-only operation despite its write verb, so derive
-    // the hints from that flag rather than the HTTP method alone — otherwise a
-    // read-only query lands as destructiveHint:true and clients mis-rank it.
-    const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
-
     try {
-      // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
-      // and strips unknown keys before the handler runs, which is exactly how #569's
-      // flattened subject/toRecipients got lost
-      server.registerTool(
-        tool.alias,
-        {
-          title: tool.alias,
-          description: toolDescription,
-          inputSchema: z.object(paramSchema).passthrough(),
-          annotations: {
-            title: tool.alias,
-            readOnlyHint: isReadOnlyTool,
-            destructiveHint: destructive,
-            openWorldHint: true, // All tools call Microsoft Graph API
-          },
-        },
-        async (params: Record<string, unknown>) =>
-          executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
-      );
+      registerGraphToolWithMcp(server, tool, endpointConfig, graphClient, options);
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${tool.alias}: ${(error as Error).message}`);
@@ -3949,6 +3962,13 @@ export function registerDiscoveryTools(
     httpMode = false,
     userFields: userFieldsValue,
   } = options;
+  const eagerNames = new Set(options.eagerTools ?? []);
+  const knownNames = new Set([
+    ...allEndpoints.map((t) => t.alias),
+    ...UTILITY_TOOLS.map((t) => t.name),
+  ]);
+  const unknown = [...eagerNames].filter((name) => !knownNames.has(name));
+  if (unknown.length > 0) throw new Error(`Unknown eager tool names: ${unknown.join(', ')}`);
   const userFields = parseUserFields(userFieldsValue);
   let enabledToolsRegex: RegExp | undefined;
   if (enabledTools) {
@@ -3989,6 +4009,31 @@ export function registerDiscoveryTools(
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
     return true;
   });
+  // Eager selection changes presentation only. The discovery catalogue remains complete,
+  // and the existing availability filters run before either execution path is exposed.
+  for (const name of eagerNames) {
+    try {
+      const entry = toolsRegistry.get(name);
+      if (entry) {
+        registerGraphToolWithMcp(server, entry.tool, entry.config, graphClient, options);
+        continue;
+      }
+      const utility = utilityTools.find((tool) => tool.name === name);
+      if (utility) {
+        registerUtilityToolWithMcp(server, utility, {
+          graphClient,
+          authManager,
+          multiAccount,
+          accountNames,
+          userFields,
+        });
+        continue;
+      }
+      logger.info(`Eager tool ${name} is unavailable under the current filters or transport`);
+    } catch (error) {
+      logger.error(`Failed to register eager tool ${name}: ${(error as Error).message}`);
+    }
+  }
   const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
   const totalCount = toolsRegistry.size + utilityTools.length;
   logger.info(
