@@ -337,12 +337,19 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
           target: ticket.target,
           name: ticket.name,
           contentType: ticket.contentType,
+          contentId: ticket.contentId,
           size: declared,
           accessToken,
         },
         req
       );
-      res.status(201).json({ ok: true, name: ticket.name, size: declared, id: created.id });
+      res.status(201).json({
+        ok: true,
+        name: ticket.name,
+        size: declared,
+        id: created.id,
+        ...(ticket.contentId ? { contentId: ticket.contentId } : {}),
+      });
     } catch (error) {
       logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
       if (!res.headersSent) res.status(502).type('text/plain').send('Upstream upload failed');

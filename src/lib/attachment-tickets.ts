@@ -144,6 +144,8 @@ export type TicketPurpose =
       readonly name: string;
       /** MIME type recorded on the attachment. */
       readonly contentType: string;
+      /** Content-ID that makes the attachment inline; absent for a regular attachment. */
+      readonly contentId?: string;
     };
 
 export type AttachmentTicket = TicketIdentity &
@@ -155,7 +157,11 @@ export type AttachmentTicket = TicketIdentity &
   };
 
 /** Upload metadata a minting tool supplies; the store adds nothing to it. */
-export type UploadSpec = { readonly name: string; readonly contentType: string };
+export type UploadSpec = {
+  readonly name: string;
+  readonly contentType: string;
+  readonly contentId?: string;
+};
 
 /**
  * Cap on live tickets. A ticket is a few KB at most, the token being nearly all
