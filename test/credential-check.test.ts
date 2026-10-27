@@ -10,7 +10,7 @@ const realFetch = globalThis.fetch;
 
 function mockFetch(status: number, body: unknown) {
   const calls: { url: string; body: string }[] = [];
-  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+  globalThis.fetch = (async (url: string | URL, init?: { body?: unknown }) => {
     calls.push({ url: String(url), body: String(init?.body) });
     return new Response(JSON.stringify(body), { status });
   }) as typeof fetch;
