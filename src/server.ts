@@ -316,6 +316,7 @@ class MicrosoftGraphServer {
       {
         instructions: buildMcpServerInstructions({
           discovery: Boolean(this.options.discovery),
+          eagerTools: this.options.eagerTools,
           orgMode: Boolean(this.options.orgMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
@@ -330,6 +331,7 @@ class MicrosoftGraphServer {
 
     const registrationOptions = {
       readOnly: this.options.readOnly,
+      eagerTools: this.options.eagerTools,
       enabledTools: this.options.enabledTools,
       orgMode: this.options.orgMode,
       authManager: this.authManager,

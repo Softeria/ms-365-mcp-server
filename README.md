@@ -679,6 +679,31 @@ npx @softeria/ms-365-mcp-server --discovery
 
 Keeps the initial context small and cuts token usage, especially useful for long sessions or cost-sensitive setups (e.g. Open WebUI running against a paid API).
 
+### Hybrid discovery with direct tools
+
+Keep the full enabled catalogue discoverable while exposing frequent operations directly:
+
+```bash
+npx @softeria/ms-365-mcp-server --org-mode --discovery \
+  --eager-tools list-mail-messages,get-calendar-view,download-bytes
+```
+
+`--eager-tools` accepts comma-separated **exact** Graph or utility tool names,
+not a regular expression or preset. `MS365_MCP_EAGER_TOOLS` is the environment
+fallback; the CLI wins. The option requires `--discovery`. Empty entries and
+unknown names fail startup. Duplicate names are registered once.
+
+Direct tools use the same schemas, annotations and execution handlers as normal
+mode. They also remain searchable and executable through discovery. Existing
+`--preset`, `--enabled-tools`, `--allowed-scopes`, `--read-only`, organization-mode
+and transport restrictions apply first: an eager selection cannot enable a
+filtered-out tool or add permissions. Recognized but unavailable tools are
+omitted with a startup log message. HTTP still excludes server-local file tools.
+
+Select a small set: exposing many generated Graph schemas can consume substantial
+model context. This option does not shrink individual schemas. Without
+`--eager-tools`, discovery and normal registration behave as before.
+
 ## CLI Options
 
 The following options can be used when running ms-365-mcp-server directly from the command line:

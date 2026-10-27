@@ -265,8 +265,8 @@ interface ScopeHierarchy {
 }
 
 const SCOPE_HIERARCHY: ScopeHierarchy = {
-  'Chat.ReadWrite': ['Chat.Read', 'Chat.ReadBasic'],
-  'Chat.Read': ['Chat.ReadBasic'],
+  'Chat.ReadWrite': ['Chat.Read', 'Chat.ReadBasic', 'ChatMessage.Read'],
+  'Chat.Read': ['Chat.ReadBasic', 'ChatMessage.Read'],
   'Mail.ReadWrite': ['Mail.Read'],
   'Calendars.ReadWrite': ['Calendars.Read'],
   'Files.ReadWrite': ['Files.Read'],
