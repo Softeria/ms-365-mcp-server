@@ -4,24 +4,24 @@
 
 ## Summary
 
-| Preset        | Tools | Org mode | Description                                                                                                                       |
-| ------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         |   361 |          | All available tools                                                                                                               |
-| `calendar`    |    47 |          | Calendar and event management                                                                                                     |
-| `contacts`    |    15 |          | Outlook contacts management                                                                                                       |
-| `excel`       |    25 |          | Excel spreadsheet operations                                                                                                      |
-| `files`       |    25 |          | OneDrive file and folder operations                                                                                               |
-| `mail`        |    49 |          | Email operations (read, send, manage folders, attachments)                                                                        |
-| `onedrive`    |    23 |          | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| `onenote`     |    28 |          | OneNote notebook operations                                                                                                       |
-| `outlook`     |    96 |          | Outlook app only: mail, calendar and contacts                                                                                     |
-| `personal`    |   175 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
-| `search`      |     7 |          | Microsoft Search capabilities                                                                                                     |
-| `tasks`       |    34 |          | Task and planning tools (To Do, Planner)                                                                                          |
-| `teams`       |    73 | required | Teams app only: chats, channels, meetings and presence                                                                            |
-| `teams-write` |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
-| `users`       |    11 | required | User directory access                                                                                                             |
-| `work`        |   184 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| Preset                        | Tools | Org mode | Description                                                                                                                       |
+| ----------------------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [`all`](#all)                 |   361 |          | All available tools                                                                                                               |
+| [`calendar`](#calendar)       |    47 |          | Calendar and event management                                                                                                     |
+| [`contacts`](#contacts)       |    15 |          | Outlook contacts management                                                                                                       |
+| [`excel`](#excel)             |    25 |          | Excel spreadsheet operations                                                                                                      |
+| [`files`](#files)             |    25 |          | OneDrive file and folder operations                                                                                               |
+| [`mail`](#mail)               |    49 |          | Email operations (read, send, manage folders, attachments)                                                                        |
+| [`onedrive`](#onedrive)       |    23 |          | OneDrive app only: drive and file operations, excluding Excel                                                                     |
+| [`onenote`](#onenote)         |    28 |          | OneNote notebook operations                                                                                                       |
+| [`outlook`](#outlook)         |    96 |          | Outlook app only: mail, calendar and contacts                                                                                     |
+| [`personal`](#personal)       |   175 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
+| [`search`](#search)           |     7 |          | Microsoft Search capabilities                                                                                                     |
+| [`tasks`](#tasks)             |    34 |          | Task and planning tools (To Do, Planner)                                                                                          |
+| [`teams`](#teams)             |    73 | required | Teams app only: chats, channels, meetings and presence                                                                            |
+| [`teams-write`](#teams-write) |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
+| [`users`](#users)             |    11 | required | User directory access                                                                                                             |
+| [`work`](#work)               |   184 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all`
 
