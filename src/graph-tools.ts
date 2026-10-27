@@ -433,7 +433,9 @@ function normalizeSearchQueryParam(
   if (inner === '') return noSearchableText();
   const normalized = `"${inner}"`;
   if (normalized !== raw) {
-    logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
+    logger.info(
+      `Auto-corrected parameter '$search': normalized KQL quoting (${normalized.length} chars)`
+    );
     queryParams['$search'] = normalized;
   }
 }
@@ -2899,7 +2901,9 @@ async function executeGraphTool(
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
         queryParams[fixedParamName] = `${paramValue}`;
-        logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
+        logger.info(
+          `OData param fallback: forwarded ${fixedParamName} (${String(paramValue).length} chars)`
+        );
       } else if (
         bodyShape &&
         (hasOwn(bodyShape, paramName) || hasOwn(bodyShape, camelCaseParamName)) &&
@@ -3275,7 +3279,7 @@ async function executeGraphTool(
           let unmergeablePage = false;
 
           while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
-            logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
+            logger.info(`Fetching page ${pageCount + 1} from: ${describeUrl(nextLink)}`);
 
             // Extract path + query string from the nextLink URL.
             // Pass the full path (with query string) as the endpoint so that
@@ -3370,7 +3374,7 @@ async function executeGraphTool(
           }
         }
       } catch (e) {
-        logger.error(`Error during pagination: ${e}`);
+        logger.error(`Error during pagination: ${describeError(e)}`);
       }
 
       // Re-encode once in the configured format. Runs whenever page one parsed

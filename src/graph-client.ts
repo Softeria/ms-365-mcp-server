@@ -407,7 +407,7 @@ class GraphClient {
 
       return { data: result, metadata };
     } catch (error) {
-      logger.error('Microsoft Graph API request failed:', error);
+      logger.error(`Microsoft Graph API request failed: ${describeError(error)}`);
       throw error;
     }
   }
@@ -534,7 +534,7 @@ class GraphClient {
         httpStatus: response.status,
       };
     } catch (error) {
-      logger.error('Microsoft Graph file download failed:', error);
+      logger.error(`Microsoft Graph file download failed: ${describeError(error)}`);
       throw error;
     } finally {
       await fileHandle.close().catch(() => undefined);

@@ -1,3 +1,5 @@
+import { describeError, describeStack } from './lib/log-safe.js';
+
 /**
  * Helpers for diagnosing silent stdio crashes. The goal is one log dump per
  * crash that is actually useful: real cause chain, all own properties, and a
@@ -7,10 +9,9 @@
 type ErrorDump = {
   name?: string;
   constructor?: string;
-  message?: string;
-  stack?: string;
+  summary?: string;
+  stack?: string[];
   cause?: unknown;
-  properties?: Record<string, unknown>;
 };
 
 export function dumpError(reason: unknown, depth = 0): unknown {
@@ -18,26 +19,20 @@ export function dumpError(reason: unknown, depth = 0): unknown {
     return { truncated: true };
   }
   if (reason instanceof Error) {
+    // Name, status/code and code locations only. The message and own properties
+    // of an error can carry request or response text, so they are left out.
     const dump: ErrorDump = {
       name: reason.name,
       constructor: reason.constructor?.name,
-      message: reason.message,
-      stack: reason.stack,
+      summary: describeError(reason),
+      stack: describeStack(reason),
     };
-    const properties: Record<string, unknown> = {};
-    for (const key of Object.getOwnPropertyNames(reason)) {
-      if (key === 'name' || key === 'message' || key === 'stack' || key === 'cause') continue;
-      properties[key] = (reason as unknown as Record<string, unknown>)[key];
-    }
-    if (Object.keys(properties).length > 0) {
-      dump.properties = properties;
-    }
     if ('cause' in reason && reason.cause !== undefined) {
       dump.cause = dumpError(reason.cause, depth + 1);
     }
     return dump;
   }
-  return { type: typeof reason, value: reason };
+  return { type: typeof reason };
 }
 
 export function getActiveResources(): string[] | string {

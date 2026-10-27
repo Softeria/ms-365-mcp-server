@@ -304,7 +304,9 @@ function unwrapToken<T>(result: TokenResponse, failureMessage: string): T {
     throw new OAuthUpstreamError(result.status, result.raw, result.parsed);
   }
 
-  logger.error(`${failureMessage}: ${result.raw}`);
+  logger.error(
+    `${failureMessage}: HTTP ${result.status}, unparsed body (${result.raw.length} chars)`
+  );
   throw new Error(`${failureMessage}: ${result.raw}`);
 }
 
