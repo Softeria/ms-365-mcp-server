@@ -6,28 +6,28 @@
 
 | Preset                        | Tools | Org mode | Description                                                                                                                       |
 | ----------------------------- | ----: | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [`all`](#all)                 |   364 |          | All available tools                                                                                                               |
+| [`all`](#all)                 |   369 |          | All available tools                                                                                                               |
 | [`calendar`](#calendar)       |    47 |          | Calendar and event management                                                                                                     |
 | [`contacts`](#contacts)       |    15 |          | Outlook contacts management                                                                                                       |
 | [`excel`](#excel)             |    25 |          | Excel spreadsheet operations                                                                                                      |
 | [`files`](#files)             |    25 |          | OneDrive file and folder operations                                                                                               |
 | [`mail`](#mail)               |    49 |          | Email operations (read, send, manage folders, attachments)                                                                        |
 | [`onedrive`](#onedrive)       |    23 |          | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| [`onenote`](#onenote)         |    28 |          | OneNote notebook operations                                                                                                       |
+| [`onenote`](#onenote)         |    29 |          | OneNote notebook operations                                                                                                       |
 | [`outlook`](#outlook)         |    96 |          | Outlook app only: mail, calendar and contacts                                                                                     |
-| [`personal`](#personal)       |   175 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
+| [`personal`](#personal)       |   177 |          | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
 | [`search`](#search)           |     7 |          | Microsoft Search capabilities                                                                                                     |
-| [`tasks`](#tasks)             |    34 |          | Task and planning tools (To Do, Planner)                                                                                          |
+| [`tasks`](#tasks)             |    35 |          | Task and planning tools (To Do, Planner)                                                                                          |
 | [`teams`](#teams)             |    73 | required | Teams app only: chats, channels, meetings and presence                                                                            |
 | [`teams-write`](#teams-write) |    11 | required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | [`users`](#users)             |    11 | required | User directory access                                                                                                             |
-| [`work`](#work)               |   187 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| [`work`](#work)               |   190 | required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all`
 
 All available tools
 
-Tools (364):
+Tools (369):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -202,6 +202,7 @@ Tools (364):
 - `get-sharepoint-site-item`
 - `get-sharepoint-site-list`
 - `get-sharepoint-site-list-item`
+- `get-sharepoint-site-list-item-version`
 - `get-sharepoint-site-onenote-page-content`
 - `get-sharepoint-sites-delta`
 - `get-specific-calendar-event`
@@ -294,7 +295,9 @@ Tools (364):
 - `list-sharepoint-list-columns`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
+- `list-sharepoint-site-list-item-versions`
 - `list-sharepoint-site-list-items`
+- `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
@@ -311,6 +314,7 @@ Tools (364):
 - `list-todo-checklist-items`
 - `list-todo-linked-resources`
 - `list-todo-task-lists`
+- `list-todo-task-lists-delta`
 - `list-todo-tasks`
 - `list-trending-insights`
 - `list-user-direct-reports`
@@ -372,6 +376,7 @@ Tools (364):
 - `update-mail-rule`
 - `update-mailbox-settings`
 - `update-my-calendar-permission`
+- `update-onenote-page-content`
 - `update-online-meeting`
 - `update-outlook-contact`
 - `update-place`
@@ -624,7 +629,7 @@ Tools (23):
 
 OneNote notebook operations
 
-Tools (28):
+Tools (29):
 
 - `create-onenote-notebook`
 - `create-onenote-page`
@@ -653,6 +658,7 @@ Tools (28):
 - `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
+- `update-onenote-page-content`
 - `update-sharepoint-site-onenote-page-content`
 
 ## `outlook`
@@ -762,7 +768,7 @@ Tools (96):
 
 Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)
 
-Tools (175):
+Tools (177):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -903,6 +909,7 @@ Tools (175):
 - `list-todo-checklist-items`
 - `list-todo-linked-resources`
 - `list-todo-task-lists`
+- `list-todo-task-lists-delta`
 - `list-todo-tasks`
 - `list-trending-insights`
 - `merge-excel-range`
@@ -931,6 +938,7 @@ Tools (175):
 - `update-mail-rule`
 - `update-mailbox-settings`
 - `update-my-calendar-permission`
+- `update-onenote-page-content`
 - `update-outlook-contact`
 - `update-specific-calendar-event`
 - `update-todo-checklist-item`
@@ -958,7 +966,7 @@ Tools (7):
 
 Task and planning tools (To Do, Planner)
 
-Tools (34):
+Tools (35):
 
 - `create-planner-bucket`
 - `create-planner-plan`
@@ -986,6 +994,7 @@ Tools (34):
 - `list-todo-checklist-items`
 - `list-todo-linked-resources`
 - `list-todo-task-lists`
+- `list-todo-task-lists-delta`
 - `list-todo-tasks`
 - `update-planner-bucket`
 - `update-planner-plan`
@@ -1123,7 +1132,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (187):
+Tools (190):
 
 - `add-group-member`
 - `add-group-owner`
@@ -1204,6 +1213,7 @@ Tools (187):
 - `get-sharepoint-site-item`
 - `get-sharepoint-site-list`
 - `get-sharepoint-site-list-item`
+- `get-sharepoint-site-list-item-version`
 - `get-sharepoint-site-onenote-page-content`
 - `get-sharepoint-sites-delta`
 - `get-team`
@@ -1255,7 +1265,9 @@ Tools (187):
 - `list-sharepoint-list-columns`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
+- `list-sharepoint-site-list-item-versions`
 - `list-sharepoint-site-list-items`
+- `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
