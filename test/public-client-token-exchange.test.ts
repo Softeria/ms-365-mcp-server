@@ -536,3 +536,93 @@ describe('Issue #664: two-leg PKCE mapping survives a failed exchange', () => {
     expect(second.get('code_verifier')).toBe(clientVerifier);
   });
 });
+
+describe('--forward-pkce: no PKCE state between /authorize and /token', () => {
+  const clientVerifier = 'client-side-code-verifier-for-the-mcp-client';
+  const redirectUri = 'http://localhost:3118/callback';
+  type Handler = (req: Record<string, unknown>, res: Record<string, unknown>) => unknown;
+  let originalFetch: typeof global.fetch;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+    expressMocks.routes.clear();
+    process.env.MS365_MCP_CLIENT_ID = 'test-client-id';
+    process.env.MS365_MCP_TENANT_ID = 'test-tenant';
+    delete process.env.MS365_MCP_CLIENT_SECRET;
+    delete process.env.MS365_MCP_KEYVAULT_URL;
+    clearSecretsCache();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete process.env.MS365_MCP_CLIENT_ID;
+    delete process.env.MS365_MCP_TENANT_ID;
+    clearSecretsCache();
+    vi.restoreAllMocks();
+  });
+
+  /** Starts an instance and returns its own handlers; a later start replaces the shared routes. */
+  async function startInstance(forwardPkce: boolean) {
+    const server = new MicrosoftGraphServer(mockAuthManager(), { http: true, forwardPkce });
+    await server.initialize('test');
+    await server.start();
+    return {
+      authorize: expressMocks.routes.get('GET /authorize')! as Handler,
+      token: expressMocks.routes.get('POST /token')! as Handler,
+    };
+  }
+
+  async function authorize(handler: Handler, state: string): Promise<URL> {
+    const res = mockResponse();
+    await handler(
+      mockRequest(
+        `/authorize?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&state=${state}&code_challenge=${challengeFor(clientVerifier)}&code_challenge_method=S256`
+      ),
+      res
+    );
+    return new URL(res.redirect.mock.calls[0][0] as string);
+  }
+
+  async function postToken(handler: Handler) {
+    const res = mockResponse();
+    await handler(
+      mockRequest('/token', {
+        grant_type: 'authorization_code',
+        code: 'the-code',
+        redirect_uri: redirectUri,
+        code_verifier: clientVerifier,
+      }),
+      res
+    );
+    return res;
+  }
+
+  it("sends the client's own challenge upstream even when state is present", async () => {
+    const instance = await startInstance(true);
+    const upstream = await authorize(instance.authorize, 'state-forward');
+    expect(upstream.searchParams.get('code_challenge')).toBe(challengeFor(clientVerifier));
+    expect(upstream.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(upstream.searchParams.get('state')).toBe('state-forward');
+  });
+
+  it('completes the exchange on a different instance than /authorize', async () => {
+    const first = await startInstance(true);
+    await authorize(first.authorize, 'state-cross');
+    const second = await startInstance(true);
+
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, JSON.stringify(TOKEN_RESPONSE)));
+    global.fetch = fetchMock;
+    const res = await postToken(second.token);
+
+    const [sent] = sentParams(fetchMock);
+    expect(sent.get('code_verifier')).toBe(clientVerifier);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ access_token: 'at' }));
+  });
+
+  it('keeps two-leg PKCE when the flag is off', async () => {
+    const instance = await startInstance(false);
+    const upstream = await authorize(instance.authorize, 'state-two-leg');
+    expect(upstream.searchParams.get('code_challenge')).not.toBe(challengeFor(clientVerifier));
+  });
+});

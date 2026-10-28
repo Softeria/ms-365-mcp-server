@@ -802,6 +802,9 @@ When running as an MCP server, the following options can be used:
                   --trust-proxy-auth
 --app-mode        Use application permissions (client credentials) with no signed-in user. stdio only
                   (see "App Mode" under Authentication)
+--forward-pkce    Forward the client's PKCE code_challenge to Microsoft as is instead of using
+                  two-leg PKCE, so /authorize and /token share no in-memory state and can run
+                  on different instances (load balancer, scale to zero). Env: MS365_MCP_FORWARD_PKCE
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
                   exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs").

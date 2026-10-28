@@ -134,6 +134,10 @@ program
     'In HTTP mode, skip the built-in Bearer-token check on /mcp and ignore any forwarded Authorization header. All callers share the locally cached MSAL identity (same path stdio mode uses). Use only when an upstream reverse proxy has already authenticated the caller.'
   )
   .option(
+    '--forward-pkce',
+    "In HTTP mode, always forward the client's PKCE code_challenge to Microsoft instead of swapping in a server-generated one (two-leg PKCE). Nothing is kept in memory between /authorize and /token, so any instance can serve either; use it behind a load balancer or on a platform that scales to zero."
+  )
+  .option(
     '--http-local-file-tools',
     "In HTTP mode, also register the local file tools: download-bytes-to-file, which writes files on the server as the server's user, and upload-attachment-from-file, which reads files from the MS365_MCP_UPLOAD_DIRS directories when that is set. Anyone who can reach the port can use them, so enable only on a single-user machine. Refused unless --http binds a loopback host with no --public-url and no --trust-proxy-auth."
   )
@@ -203,6 +207,7 @@ export interface CommandOptions {
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
+  forwardPkce?: boolean;
   httpLocalFileTools?: boolean;
   blobOutput?: boolean;
   allowUnauthenticatedDiscovery?: boolean;
@@ -465,6 +470,10 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_TRUST_PROXY_AUTH === '1'
   ) {
     options.trustProxyAuth = true;
+  }
+
+  if (process.env.MS365_MCP_FORWARD_PKCE === 'true' || process.env.MS365_MCP_FORWARD_PKCE === '1') {
+    options.forwardPkce = true;
   }
 
   if (

@@ -815,8 +815,10 @@ class MicrosoftGraphServer {
         }
 
         // Two-leg PKCE: if the client sent a code_challenge, store it and generate
-        // a separate PKCE pair for the server↔Microsoft leg
-        if (clientCodeChallenge && state) {
+        // a separate PKCE pair for the server↔Microsoft leg. --forward-pkce skips
+        // this so /token can land on any instance: the client's challenge goes
+        // upstream as is and /token, finding no mapping, sends its verifier.
+        if (clientCodeChallenge && state && !this.options.forwardPkce) {
           const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
           const serverCodeChallenge = crypto
             .createHash('sha256')
@@ -851,7 +853,7 @@ class MicrosoftGraphServer {
             state: state.substring(0, 8) + '...',
           });
         } else if (clientCodeChallenge) {
-          // No state to key on — fall back to forwarding directly (Claude Code path)
+          // No state to key on, or --forward-pkce — forward directly (Claude Code path)
           microsoftAuthUrl.searchParams.set('code_challenge', clientCodeChallenge);
           if (clientCodeChallengeMethod) {
             microsoftAuthUrl.searchParams.set('code_challenge_method', clientCodeChallengeMethod);
