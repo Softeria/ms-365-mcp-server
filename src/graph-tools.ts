@@ -83,7 +83,6 @@ import { TOOL_CATEGORIES } from './tool-categories.js';
 // Tools from every Graph API version share one registry. Each tool's version is carried
 // by its endpoints.json config (apiVersion), so the generated clients stay version-agnostic
 // and the runtime picks the URL prefix per request. v1.0 endpoints are unchanged.
-const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -126,11 +125,61 @@ interface EndpointConfig {
   maxTop?: number; // Upper bound for $top, enforced in the schema
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
+  // A second tool on a Graph operation that already has one. The tool takes its input
+  // schema (path params, confirm, account, ...) from the generated operation for
+  // pathPattern + method, but the request it sends is this one instead: `path` in the
+  // endpoints.json {param} form, filled from the same path params; `body` merged over
+  // whatever body the caller gave. The generator skips these entries, so the spec keeps
+  // one operation per path and method. Used by delete-mail-message, which shares the
+  // DELETE /me/messages/{message-id} schema but moves the message to Deleted Items.
+  requestOverride?: { method: string; path: string; body?: Record<string, unknown> };
 }
 
 const endpointsData = JSON.parse(
   readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
 ) as EndpointConfig[];
+
+// endpoints.json writes path params as {message-id}; the generated client as :messageId.
+export function generatedPathFor(pathPattern: string): string {
+  return pathPattern.replace(
+    /\{([^}]+)\}/g,
+    (_, name: string) => `:${name.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase())}`
+  );
+}
+
+// An entry with requestOverride is not in the generated clients (the generator leaves it
+// out), so it is cloned here from the generated operation it shares its schema with. An
+// entry whose operation is missing is reported and left out; test/delete-mail-message.test.ts
+// checks that every entry in the shipped endpoints.json resolves.
+export function deriveOverrideEndpoints(
+  configs: EndpointConfig[],
+  generated: { v1: typeof api.endpoints; beta: typeof betaApi.endpoints },
+  report: (message: string) => void
+): typeof api.endpoints {
+  const derived: typeof api.endpoints = [];
+  for (const e of configs) {
+    if (!e.requestOverride) continue;
+    const source = e.apiVersion === 'beta' ? generated.beta : generated.v1;
+    const wantedPath = generatedPathFor(e.pathPattern);
+    const base = source.find((t) => t.method === e.method.toLowerCase() && t.path === wantedPath);
+    if (!base) {
+      report(
+        `endpoints.json: ${e.toolName} has requestOverride but no generated operation for ${e.method.toUpperCase()} ${e.pathPattern}; tool not registered`
+      );
+      continue;
+    }
+    derived.push({ ...base, alias: e.toolName });
+  }
+  return derived;
+}
+
+const allEndpoints = [
+  ...api.endpoints,
+  ...betaApi.endpoints,
+  ...deriveOverrideEndpoints(endpointsData, { v1: api.endpoints, beta: betaApi.endpoints }, (m) =>
+    logger.error(m)
+  ),
+];
 
 /**
  * Prefix beta-version tools with a [beta] marker so the instability is visible in the
@@ -2673,7 +2722,7 @@ async function executeGraphTool(
   const requestId = randomUUID();
   const startTime = Date.now();
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
-  const httpMethod = tool.method.toUpperCase();
+  const httpMethod = (config?.requestOverride?.method ?? tool.method).toUpperCase();
   let targetResource: AuditTargetResource | undefined;
   // Hoisted alongside targetResource so the catch-path audit can still report
   // recipients. A send that times out or trips the breaker is exactly the
@@ -2715,7 +2764,7 @@ async function executeGraphTool(
 
     const parameterDefinitions = tool.parameters || [];
 
-    let path = tool.path;
+    let path = config?.requestOverride ? generatedPathFor(config.requestOverride.path) : tool.path;
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
 
@@ -3107,9 +3156,15 @@ async function executeGraphTool(
       maxBytes?: number;
       blobOutput?: { fileName?: string };
     } = {
-      method: tool.method.toUpperCase(),
+      method: httpMethod,
       headers,
     };
+
+    if (config?.requestOverride?.body) {
+      const given =
+        body !== null && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+      body = { ...given, ...config.requestOverride.body };
+    }
 
     if (config?.blobOutput && isBlobOutputEnabled()) {
       options.forceBinary = true;

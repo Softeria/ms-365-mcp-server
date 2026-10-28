@@ -10,6 +10,7 @@ if (!globalThis.File) (globalThis as any).File = Blob;
 
 const { api, schemas } = await import('../src/generated/client.js');
 const { api: betaApi } = await import('../src/generated/client-beta.js');
+const { generatedPathFor } = await import('../src/graph-tools.js');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,7 @@ interface Endpoint {
   maxTop?: number;
   nameFilter?: boolean;
   mentionShorthand?: boolean;
+  requestOverride?: { method: string; path: string; body?: Record<string, unknown> };
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -103,8 +105,16 @@ describe('endpoints.json validation', () => {
   });
 
   it('should have a matching generated client endpoint for every entry', () => {
-    const generatedTools = new Set([...api.endpoints, ...betaApi.endpoints].map((e) => e.alias));
-    const orphans = endpoints.filter((e) => !generatedTools.has(e.toolName));
+    const generated = [...api.endpoints, ...betaApi.endpoints];
+    const generatedTools = new Set(generated.map((e) => e.alias));
+    // A requestOverride entry shares another tool's operation, so it is matched by that
+    // operation's path and method rather than by its own name.
+    const generatedOps = new Set(generated.map((e) => `${e.method} ${e.path}`));
+    const orphans = endpoints.filter((e) =>
+      e.requestOverride
+        ? !generatedOps.has(`${e.method.toLowerCase()} ${generatedPathFor(e.pathPattern)}`)
+        : !generatedTools.has(e.toolName)
+    );
 
     if (orphans.length > 0) {
       const details = orphans

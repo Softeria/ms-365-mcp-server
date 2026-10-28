@@ -275,10 +275,24 @@
     "pathPattern": "/me/messages/{message-id}",
     "method": "delete",
     "toolName": "delete-mail-message",
-    "descriptionOverride": "Delete an Outlook email message by its message ID. This is a soft delete that moves the message to Deleted Items.",
+    "requestOverride": {
+      "method": "post",
+      "path": "/me/messages/{message-id}/move",
+      "body": { "destinationId": "deleteditems" }
+    },
+    "descriptionOverride": "Delete an Outlook email message by its message ID, the way Delete in Outlook does: the message moves to the Deleted Items folder, where the user can see it and restore it. Returns the moved message with its new id.",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Soft delete — moves to Deleted Items. To permanently delete, delete again from Deleted Items."
+    "llmTip": "Moves to Deleted Items (a move, so the message gets a new id). Use permanently-delete-mail-message to skip Deleted Items."
+  },
+  {
+    "pathPattern": "/me/messages/{message-id}",
+    "method": "delete",
+    "toolName": "permanently-delete-mail-message",
+    "descriptionOverride": "Permanently delete an Outlook email message by its message ID, the way Shift+Delete in Outlook does: the message skips the Deleted Items folder and goes to Recoverable Items, where it is not shown in the mailbox and can only be recovered until the retention period ends. Use delete-mail-message for an ordinary delete.",
+    "presets": ["mail", "outlook", "personal"],
+    "scopes": ["Mail.ReadWrite"],
+    "llmTip": "Skips Deleted Items. For a delete the user can see and undo, use delete-mail-message."
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",

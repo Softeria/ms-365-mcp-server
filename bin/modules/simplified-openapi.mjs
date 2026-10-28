@@ -10,8 +10,13 @@ export function createAndSaveSimplifiedOpenAPI(
   const allEndpoints = JSON.parse(fs.readFileSync(endpointsFile, 'utf8'));
   // Each spec is trimmed against only the endpoints targeting its version. Entries
   // without an explicit apiVersion default to v1.0, so existing endpoints are unchanged.
+  // An entry with requestOverride shares another tool's operation (see EndpointConfig in
+  // src/graph-tools.ts), so it adds nothing to the spec.
   const endpoints = allEndpoints.filter(
-    (endpoint) => !endpoint.disabled && (endpoint.apiVersion ?? 'v1.0') === apiVersion
+    (endpoint) =>
+      !endpoint.disabled &&
+      !endpoint.requestOverride &&
+      (endpoint.apiVersion ?? 'v1.0') === apiVersion
   );
 
   const spec = fs.readFileSync(openapiFile, 'utf8');
