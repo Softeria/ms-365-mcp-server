@@ -1,11 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { GraphClient } from '../src/graph-client.js';
 import { buildToolsRegistry, registerGraphTools } from '../src/graph-tools.js';
 import { queryParameterSchema } from '../src/lib/query-parameter-schema.js';
-import { describeToolSchema } from '../src/lib/tool-schema.js';
+import { describeToolSchema, toParamJsonSchema } from '../src/lib/tool-schema.js';
 
 const registry = buildToolsRegistry(false, true);
 
@@ -49,6 +48,16 @@ function registeredParamSchemas(
 }
 
 describe('describeToolSchema', () => {
+  // get-tool-schema returns parameters inside a bigger response, so a ref (zod 4 keeps one
+  // for recursion, even a bare '#') would point at the wrong document
+  it('hands out every parameter schema without refs, recursive bodies included', () => {
+    for (const [name, entry] of registry) {
+      const text = JSON.stringify(describeToolSchema(entry.tool, entry.config).parameters);
+      expect(text, name).not.toContain('"$ref"');
+      expect(text, name).not.toContain('"definitions"');
+    }
+  });
+
   it('returns name, method, path, and parameters for a common tool', () => {
     const s = schemaFor('list-mail-messages');
     expect(s.name).toBe('list-mail-messages');
@@ -69,7 +78,6 @@ describe('describeToolSchema', () => {
     for (const p of s.parameters) {
       expect(p.schema).toBeDefined();
       expect(typeof p.schema).toBe('object');
-      // zod-to-json-schema always produces a typed node at the root for our schemas
       expect(p.schema).toHaveProperty('type');
     }
   });
@@ -135,11 +143,7 @@ describe('describeToolSchema parity with registerGraphTools (discovery-mode drif
           continue;
         }
         const inner = actual instanceof z.ZodOptional ? actual.unwrap() : actual;
-        const json = zodToJsonSchema(inner, {
-          target: 'jsonSchema7',
-          $refStrategy: 'none',
-        }) as Record<string, unknown>;
-        delete json.$schema;
+        const json = toParamJsonSchema(inner as z.ZodTypeAny);
         expect(described?.schema, `${name}.${parameter.name}`).toEqual(json);
         expect(described?.required).toBe(!actual.isOptional());
       }
