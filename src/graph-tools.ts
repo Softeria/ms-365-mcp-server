@@ -1865,10 +1865,10 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           ),
         fileName: z
           .string()
+          .optional()
           .describe(
             'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
-          )
-          .optional(),
+          ),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -2445,37 +2445,48 @@ function namesNestedBodyType(value: unknown): boolean {
 }
 
 // Dig out the object shape of a Body schema so flattened top-level params can be
-// matched against it (#569). z.lazy (chatMessage etc.) hides it behind _def.getter
+// matched against it (#569). z.lazy (chatMessage etc.) hides it behind def.getter
 function bodySchemaShape(schema: z.ZodTypeAny | undefined): Record<string, unknown> | null {
   let current: z.ZodTypeAny | undefined = schema;
   for (let i = 0; i < 10 && current; i++) {
     if (current instanceof z.ZodObject) {
       return current.shape as Record<string, unknown>;
     }
-    const def = (
-      current as {
-        _def?: { innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; getter?: () => z.ZodTypeAny };
-      }
-    )._def;
-    current = def?.innerType ?? def?.schema ?? def?.getter?.();
+    const def = current.def as {
+      innerType?: z.ZodTypeAny;
+      in?: z.ZodTypeAny;
+      getter?: () => z.ZodTypeAny;
+    };
+    current = def.innerType ?? def.in ?? def.getter?.();
   }
   return null;
 }
 
 // SDK validation hands the handler the PARSED value, and strip-mode objects silently
-// drop unknown keys - passthrough keeps whatever the client sent
+// drop unknown keys - loose keeps whatever the client sent. Memoized so every HTTP
+// request gets the same schema object, and its JSON Schema conversion stays cached.
+const lenientBodySchemas = new WeakMap<z.ZodTypeAny, z.ZodTypeAny>();
 function lenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  let lenient = lenientBodySchemas.get(schema);
+  if (!lenient) {
+    lenient = buildLenientBodySchema(schema);
+    lenientBodySchemas.set(schema, lenient);
+  }
+  return lenient;
+}
+
+function buildLenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   if (schema instanceof z.ZodObject) {
-    return schema.passthrough();
+    return schema.loose();
   }
   if (schema instanceof z.ZodOptional) {
-    return lenientBodySchema(schema.unwrap()).optional();
+    return lenientBodySchema(schema.unwrap() as z.ZodTypeAny).optional();
   }
   if (schema instanceof z.ZodNullable) {
-    return lenientBodySchema(schema.unwrap()).nullable();
+    return lenientBodySchema(schema.unwrap() as z.ZodTypeAny).nullable();
   }
   if (schema instanceof z.ZodLazy) {
-    return z.lazy(() => lenientBodySchema(schema.schema));
+    return z.lazy(() => lenientBodySchema(schema.unwrap() as z.ZodTypeAny));
   }
   return schema;
 }
@@ -3561,33 +3572,33 @@ function registerGraphToolWithMcp(
   if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
     paramSchema['Accept'] = z
       .string()
-      .describe(getAcceptParamDescription(endpointConfig.acceptType))
-      .optional();
+      .optional()
+      .describe(getAcceptParamDescription(endpointConfig.acceptType));
   }
 
   if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
     paramSchema['fileName'] = z
       .string()
+      .optional()
       .describe(
         'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
-      )
-      .optional();
+      );
   }
 
   if (isFetchAllPagesApplicable(tool)) {
     const maxPages = getMaxPages();
     paramSchema['fetchAllPages'] = z
       .boolean()
-      .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig))
-      .optional();
+      .optional()
+      .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig));
   }
 
   if (endpointConfig?.nameFilter) {
-    paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
+    paramSchema['name'] = z.string().optional().describe(MEMBER_NAME_PARAM_DESCRIPTION);
   }
 
   if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
-    paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
+    paramSchema['skiptoken'] = z.string().optional().describe(SKIPTOKEN_PARAM_DESCRIPTION);
   }
 
   // Add account parameter for multi-account mode.
@@ -3597,21 +3608,21 @@ function registerGraphToolWithMcp(
   if (multiAccount) {
     paramSchema['account'] = z
       .string()
-      .describe(getAccountParamDescription(accountNames))
-      .optional();
+      .optional()
+      .describe(getAccountParamDescription(accountNames));
   }
 
   // Add includeHeaders parameter for all tools to capture ETags and other headers
   paramSchema['includeHeaders'] = z
     .boolean()
-    .describe('Include response headers (including ETag) in the response metadata')
-    .optional();
+    .optional()
+    .describe('Include response headers (including ETag) in the response metadata');
 
   // Add excludeResponse parameter to only return success/failure indication
   paramSchema['excludeResponse'] = z
     .boolean()
-    .describe('Exclude the full response body and only return success or failure indication')
-    .optional();
+    .optional()
+    .describe('Exclude the full response body and only return success or failure indication');
 
   // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
   // explicit `confirm: true` server-side gate. See isDestructiveOperation +
@@ -3619,20 +3630,20 @@ function registerGraphToolWithMcp(
   // the LLM/agent sees it upfront.
   const destructive = isDestructiveOperation(tool.method, endpointConfig);
   if (destructive) {
-    paramSchema['confirm'] = z.boolean().describe(CONFIRM_PARAM_DESCRIPTION).optional();
+    paramSchema['confirm'] = z.boolean().optional().describe(CONFIRM_PARAM_DESCRIPTION);
   }
 
   // Add timezone parameter for calendar endpoints that support it
   if (endpointConfig?.supportsTimezone) {
-    paramSchema['timezone'] = z.string().describe(TIMEZONE_PARAM_DESCRIPTION).optional();
+    paramSchema['timezone'] = z.string().optional().describe(TIMEZONE_PARAM_DESCRIPTION);
   }
 
   // Add expandExtendedProperties parameter for calendar endpoints that support it
   if (endpointConfig?.supportsExpandExtendedProperties) {
     paramSchema['expandExtendedProperties'] = z
       .boolean()
-      .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION)
-      .optional();
+      .optional()
+      .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION);
   }
 
   // Build the tool description, optionally appending LLM tips
@@ -3651,7 +3662,7 @@ function registerGraphToolWithMcp(
   // read-only query lands as destructiveHint:true and clients mis-rank it.
   const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
-  // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
+  // .loose() object, not a raw shape - the SDK wraps raw shapes in z.object()
   // and strips unknown keys before the handler runs, which is exactly how #569's
   // flattened subject/toRecipients got lost
   server.registerTool(
@@ -3659,7 +3670,7 @@ function registerGraphToolWithMcp(
     {
       title: tool.alias,
       description: toolDescription,
-      inputSchema: z.object(paramSchema).passthrough(),
+      inputSchema: z.object(paramSchema).loose(),
       annotations: {
         title: tool.alias,
         readOnlyHint: isReadOnlyTool,
@@ -4093,12 +4104,12 @@ export function registerDiscoveryTools(
     {
       query: z
         .string()
+        .optional()
         .describe(
           'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
-        )
-        .optional(),
-      category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
-      limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
+        ),
+      category: z.string().optional().describe(`Optional pre-filter by category: ${categoryNames}`),
+      limit: z.number().optional().describe('Maximum results (default: 10, max: 50)'),
     },
     {
       title: 'search-tools',
@@ -4189,11 +4200,11 @@ export function registerDiscoveryTools(
     {
       tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
       parameters: z
-        .record(z.any())
+        .record(z.string(), z.any())
+        .optional()
         .describe(
           'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
-        )
-        .optional(),
+        ),
     },
     {
       title: 'execute-tool',

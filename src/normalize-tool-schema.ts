@@ -1,8 +1,14 @@
-// The MCP SDK converts each tool's Zod inputSchema to JSON Schema with
-// zod-to-json-schema's default `$refStrategy: 'root'`. That emits internal
-// `$ref`s as root-relative JSON pointers (e.g. `#/properties/body/properties/from`)
-// wherever a sub-schema recurses OR is reused by object identity. The SDK hard-codes
-// the conversion options, so we rewrite its output here.
+// The MCP SDK converts each tool's zod inputSchema to JSON Schema itself, with options we
+// can't reach. Under zod 4 that conversion inlines every shared sub-schema, which blows
+// the Graph bodies up (create-sharepoint-list ~12x). So tools/list re-converts each
+// schema here with shared sub-schemas as refs, then rewrites those refs.
+//
+// Why serve the zod 3 shape on zod 4 at all: MCP clients keep tripping over schema details
+// (Pydantic #28, Claude via Azure #181, Kimi #458/#571, Open Cowork #638, Gemini #757), and
+// the bytes count against client budgets (#655). Keeping what clients already handle was
+// the cheapest way through the migration. Size and refs are the part that matters;
+// tidyToolJsonSchema and the additionalProperties: false restore are cosmetic parity and
+// can go if zod 4's own dialect turns out fine with clients.
 //
 // Two clients want opposite things: Kimi/Moonshot rejects any `$ref` not starting with
 // `#/$defs/` (#571), while Open Cowork and the MCP Inspector form can't resolve
@@ -15,9 +21,215 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import logger from './logger.js';
 
 type JsonSchema = Record<string, unknown>;
+
+// zod 4 writes `.regex(graphPattern).datetime()` (and `.guid()`) as an allOf of both
+// patterns, and its own date-time pattern is a ~400 character leap-year regex. `format`
+// already names the check, so keep only Graph's pattern, as zod 3 did. Validation still
+// runs both. `.int()` also gains safe-integer bounds nobody needs to read.
+function dropZodOnlyChecks(node: unknown): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) dropZodOnlyChecks(item);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  const allOf = record.allOf;
+  if (
+    typeof record.format === 'string' &&
+    Array.isArray(allOf) &&
+    allOf.length > 0 &&
+    allOf.every(
+      (item) =>
+        isPlainObject(item) && Object.keys(item).every((key) => key === 'type' || key === 'pattern')
+    )
+  ) {
+    record.pattern = (allOf[0] as JsonSchema).pattern;
+    delete record.allOf;
+  }
+  if (record.type === 'integer') {
+    if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
+    if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
+  }
+  for (const value of Object.values(record)) dropZodOnlyChecks(value);
+}
+
+// zod 4 leaves additionalProperties out of input schemas for a plain z.object, which strips
+// unknown keys. zod 3 said false, as it still does for .strict(); keep saying it.
+function closesUnknownKeys(schema: unknown): boolean {
+  const def = (schema as { _zod?: { def?: { type?: string; catchall?: unknown } } })._zod?.def;
+  return def?.type === 'object' && def.catchall === undefined;
+}
+
+/**
+ * JSON Schema for a zod schema, converted the way the SDK does it (draft-07, input side)
+ * but with `reused` under our control. 'ref' lets normalizeToolSchemaRefs decide what to
+ * inline; 'inline' gives one self-contained schema with refs only where a schema recurses.
+ */
+export function zodToToolJsonSchema(
+  schema: z.core.$ZodType,
+  reused: 'ref' | 'inline' = 'ref'
+): JsonSchema {
+  const json = z.toJSONSchema(schema, {
+    target: 'draft-07',
+    io: 'input',
+    unrepresentable: 'any',
+    reused,
+    override: ({ zodSchema, jsonSchema }) => {
+      if (closesUnknownKeys(zodSchema)) jsonSchema.additionalProperties = false;
+    },
+  }) as JsonSchema;
+  dropZodOnlyChecks(json);
+  return json;
+}
+
+// zod 4 converts the big Graph bodies ~15x slower than zod 3 did, and HTTP mode builds the
+// tools again for every request. The parameter schemas underneath are the same objects
+// each time (generated client, memoized lenient bodies), so convert those once.
+const parameterJsonCache = new WeakMap<z.core.$ZodType, JsonSchema>();
+
+function parameterJson(schema: z.core.$ZodType): JsonSchema {
+  let json = parameterJsonCache.get(schema);
+  if (!json) {
+    json = zodToToolJsonSchema(schema);
+    delete json.$schema;
+    parameterJsonCache.set(schema, json);
+  }
+  return structuredClone(json);
+}
+
+// A parameter converted on its own refers to itself from `#`. Anchor that under the
+// parameter's place in the tool schema, where normalizeToolSchemaRefs can find it.
+function anchorRefs(node: unknown, base: string): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) anchorRefs(item, base);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    if (key === '$ref' && typeof value === 'string' && value.startsWith('#')) {
+      record.$ref = `#${base}${value.slice(1)}`;
+    } else {
+      anchorRefs(value, base);
+    }
+  }
+}
+
+/**
+ * The tool's JSON Schema, put together from per-parameter conversions instead of one
+ * zod pass over the whole object. Same result, but the parameters come from the cache.
+ */
+// Takes the core type: the SDK turns a raw-shape tool into a zod mini object
+export function toolInputJsonSchema(schema: z.core.$ZodObject): JsonSchema {
+  const { shape, catchall } = schema._zod.def;
+  const properties: Record<string, JsonSchema> = {};
+  const required: string[] = [];
+  for (const [name, parameter] of Object.entries(shape)) {
+    const json = parameterJson(parameter);
+    anchorRefs(json, `/properties/${escapePointer(name)}`);
+    properties[name] = json;
+    if (inputOptin(parameter) === undefined) required.push(name);
+  }
+  return {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+    // .loose() tools take flattened body fields at the top level (#569). A tool with no
+    // parameters says nothing, like the SDK's empty schema did.
+    ...(catchall === undefined && Object.keys(shape).length === 0
+      ? {}
+      : { additionalProperties: !(catchall === undefined || catchall._zod.def.type === 'never') }),
+  };
+}
+
+// zod's own rule for `required` in an input schema: a transform or catch in front makes a
+// key look optional at runtime, so look past it
+function inputOptin(schema: z.core.$ZodType): string | undefined {
+  const def = schema._zod.def as {
+    type: string;
+    in?: z.core.$ZodType;
+    out?: z.core.$ZodType;
+    innerType?: z.core.$ZodType;
+  };
+  if (def.type === 'pipe' && def.in?._zod.def.type === 'transform' && def.out) {
+    return inputOptin(def.out);
+  }
+  if (def.type === 'catch' && def.innerType) return inputOptin(def.innerType);
+  return schema._zod.optin;
+}
+
+// What zod 4 says differently from zod 3 once the refs are inlined, folded back to the
+// zod 3 shape. Smaller, and clients that skip allOf (Gemini) see the type again:
+// - a described shared schema is `{description, allOf: [schema]}`; the outer description
+//   wins, as it did before
+// - a nullable primitive is `anyOf: [{type, description}, {type: 'null'}]`, not
+//   `type: [type, 'null']`
+// - an open object is `additionalProperties: {}`, a record also gets
+//   `propertyNames: {type: 'string'}`, which every JSON key passes anyway
+export function tidyToolJsonSchema(node: unknown): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    for (const item of node) tidyToolJsonSchema(item);
+    return;
+  }
+  const record = node as Record<string, unknown>;
+  for (const value of Object.values(record)) tidyToolJsonSchema(value);
+
+  const allOf = record.allOf;
+  if (Array.isArray(allOf) && allOf.length === 1 && isPlainObject(allOf[0])) {
+    const only = allOf[0];
+    const clashes = Object.keys(only).filter((key) => key !== 'description' && key in record);
+    // Next to a $ref, draft-07 would ignore the description, so it has to stay wrapped
+    const keepsWrapper = '$ref' in only && Object.keys(record).length > 1;
+    if (clashes.length === 0 && !keepsWrapper) {
+      delete record.allOf;
+      for (const [key, value] of Object.entries(only)) {
+        if (!(key in record)) record[key] = value;
+      }
+    }
+  }
+
+  const anyOf = record.anyOf;
+  if (Array.isArray(anyOf) && anyOf.length === 2 && !('type' in record)) {
+    const [value, nullable] = anyOf;
+    if (
+      isPlainObject(value) &&
+      typeof value.type === 'string' &&
+      Object.keys(value).every((key) => key === 'type' || key === 'description') &&
+      isPlainObject(nullable) &&
+      Object.keys(nullable).length === 1 &&
+      nullable.type === 'null'
+    ) {
+      delete record.anyOf;
+      record.type = [value.type, 'null'];
+      if (value.description !== undefined && record.description === undefined) {
+        record.description = value.description;
+      }
+    }
+  }
+
+  const extra = record.additionalProperties;
+  if (isPlainObject(extra) && Object.keys(extra).length === 0) {
+    record.additionalProperties = true;
+  }
+  const names = record.propertyNames;
+  if (isPlainObject(names) && Object.keys(names).length === 1 && names.type === 'string') {
+    delete record.propertyNames;
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function escapePointer(token: string): string {
+  return token.replace(/~/g, '~0').replace(/\//g, '~1');
+}
 
 // Past this much growth, keep the $ref form instead.
 const MAX_INLINE_GROWTH = 2;
@@ -236,6 +448,25 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   repointRefs(clone, nameFor);
   for (const name of Object.keys(defs)) repointRefs(defs[name], nameFor);
 
+  // zod 4 (draft-07) parks shared schemas under `definitions`, per parameter. Once all of
+  // a block's entries are hoisted it holds nothing but stubs pointing at $defs.
+  const definitionOwners = new Set<string>();
+  for (const pointer of slots.keys()) {
+    const match = /^(.*)\/definitions\/[^/]+$/.exec(pointer);
+    if (match) definitionOwners.add(match[1]);
+  }
+  for (const owner of definitionOwners) {
+    const holder = owner === '' ? clone : resolvePointer(clone, owner)?.obj;
+    const block = isPlainObject(holder) ? holder.definitions : undefined;
+    if (
+      isPlainObject(holder) &&
+      isPlainObject(block) &&
+      Object.keys(block).every((name) => slots.has(`${owner}/definitions/${escapePointer(name)}`))
+    ) {
+      delete holder.definitions;
+    }
+  }
+
   // Split off the defs we didn't hoist. They stay refs either way, so the walk below
   // treats them as their own document instead of reaching them from the root.
   const existingDefs = (clone.$defs as Record<string, unknown> | undefined) ?? {};
@@ -287,12 +518,13 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   return (grewTooMuch ? clone : inlined) as T;
 }
 
-// Decorate the SDK's tools/list handler so every emitted inputSchema is passed
-// through normalizeToolSchemaRefs. The SDK hard-codes its Zod->JSON-Schema options,
-// so this is the only place to enforce #/$defs/-anchored refs. 'tools/list' is the
-// stable MCP protocol method the low-level Server keys its handler by; we grab the
-// existing handler and delegate to it so all of McpServer's listing behavior is
-// preserved. Falls back to a no-op (with a warning) if the SDK internals move.
+// Decorate the SDK's tools/list handler so every emitted inputSchema is passed through
+// normalizeToolSchemaRefs. The SDK hard-codes its Zod->JSON-Schema options, so we hand it
+// our own conversion through zod's per-schema `_zod.toJSONSchema` override, which the
+// converter checks before doing any work of its own. 'tools/list' is the stable MCP
+// protocol method the low-level Server keys its handler by; we grab the existing handler
+// and delegate to it so all of McpServer's listing behavior is preserved. Falls back to a
+// no-op (with a warning) if the SDK internals move.
 export function installToolSchemaRefNormalization(server: McpServer): void {
   const lowLevel = server.server;
   const handlers = (
@@ -308,13 +540,34 @@ export function installToolSchemaRefNormalization(server: McpServer): void {
     logger.warn('Skipping tool-schema $ref normalization: tools/list handler not found');
     return;
   }
+  const registered = (
+    server as unknown as { _registeredTools?: Record<string, { inputSchema?: unknown }> }
+  )._registeredTools;
   lowLevel.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+    for (const [name, tool] of Object.entries(registered ?? {})) {
+      if (tool.inputSchema instanceof z.core.$ZodObject) useOwnConversion(name, tool.inputSchema);
+    }
     const result = await original(request, extra);
     for (const tool of result.tools ?? []) {
       if (tool.inputSchema && typeof tool.inputSchema === 'object') {
         tool.inputSchema = normalizeToolSchemaRefs(tool.inputSchema as JsonSchema);
+        tidyToolJsonSchema(tool.inputSchema);
       }
     }
     return result;
   });
+}
+
+function useOwnConversion(name: string, schema: z.core.$ZodObject): void {
+  const internals = schema._zod as { toJSONSchema?: () => JsonSchema | undefined };
+  if (internals.toJSONSchema) return;
+  internals.toJSONSchema = () => {
+    try {
+      return toolInputJsonSchema(schema);
+    } catch (error) {
+      // Undefined lets zod convert it the slow way rather than lose the tool
+      logger.warn(`Could not convert the input schema of ${name}: ${error}`);
+      return undefined;
+    }
+  };
 }
