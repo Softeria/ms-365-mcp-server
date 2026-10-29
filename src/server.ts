@@ -336,9 +336,15 @@ class MicrosoftGraphServer {
       }
     );
 
-    const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
+    // With MS365_MCP_OAUTH_TOKEN the token is supplied from outside, so the MSAL account
+    // tools could never serve the requests and would only offer a login the host did not ask for.
+    const shouldRegisterAuthTools =
+      (!this.options.http || this.options.enableAuthTools) && !process.env.MS365_MCP_OAUTH_TOKEN;
     if (shouldRegisterAuthTools) {
-      registerAuthTools(server, this.authManager);
+      registerAuthTools(server, this.authManager, {
+        enabledTools: this.options.enabledTools,
+        readOnly: this.options.readOnly,
+      });
     }
 
     const registrationOptions = {
