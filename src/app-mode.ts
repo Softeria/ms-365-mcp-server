@@ -1,9 +1,14 @@
-import { ConfidentialClientApplication } from '@azure/msal-node';
+import {
+  ConfidentialClientApplication,
+  ManagedIdentityApplication,
+  type AuthenticationResult,
+  type ManagedIdentityIdParams,
+} from '@azure/msal-node';
 import { X509Certificate } from 'crypto';
 import { readFileSync } from 'fs';
 import logger from './logger.js';
 import type { AppSecrets } from './secrets.js';
-import { getCloudEndpoints, getDefaultClientId } from './cloud-config.js';
+import { getCloudEndpoints, getDefaultClientId, parseCloudType } from './cloud-config.js';
 import type { CommandOptions } from './cli.js';
 
 export const APP_MODE_WARNING =
@@ -117,15 +122,109 @@ export function describeAppToken(token: string): AppTokenInfo {
   };
 }
 
+/** Reads the federated token (a JWT from Kubernetes, GitHub Actions, ...) that Entra is set up to trust. */
+export function readFederatedToken(tokenPath: string): string {
+  let token: string;
+  try {
+    token = readFileSync(tokenPath, 'utf8').trim();
+  } catch (error) {
+    throw new Error(
+      `Cannot read MS365_MCP_FEDERATED_TOKEN_FILE (${tokenPath}): ${(error as Error).message}`
+    );
+  }
+  if (!token) {
+    throw new Error(`MS365_MCP_FEDERATED_TOKEN_FILE (${tokenPath}) is empty.`);
+  }
+  return token;
+}
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `system` (or true/1) for the host's system-assigned identity, a client id for a user-assigned one. */
+export function parseManagedIdentity(value: string): ManagedIdentityIdParams {
+  const trimmed = value.trim();
+  if (['system', 'true', '1'].includes(trimmed.toLowerCase())) return {};
+  if (GUID.test(trimmed)) return { userAssignedClientId: trimmed };
+  throw new Error(
+    `MS365_MCP_MANAGED_IDENTITY must be 'system' or the client id of a user-assigned identity, not '${trimmed}'.`
+  );
+}
+
+export interface AppCredentialEnv {
+  certPath?: string;
+  federatedTokenFile?: string;
+  managedIdentity?: string;
+}
+
+function managedIdentityFromEnv(): string | undefined {
+  const value = process.env.MS365_MCP_MANAGED_IDENTITY?.trim();
+  return value && !['false', '0'].includes(value.toLowerCase()) ? value : undefined;
+}
+
+function credentialEnvFromProcess(): AppCredentialEnv {
+  return {
+    certPath: process.env.MS365_MCP_CLIENT_CERTIFICATE_PATH || undefined,
+    federatedTokenFile: process.env.MS365_MCP_FEDERATED_TOKEN_FILE || undefined,
+    managedIdentity: managedIdentityFromEnv(),
+  };
+}
+
+export function usesManagedIdentity(): boolean {
+  return managedIdentityFromEnv() !== undefined;
+}
+
 /**
- * Client-credentials tokens for app mode. MSAL keeps the token in memory and
- * fetches a new one when it is about to expire, so nothing is cached on disk.
+ * A managed identity has no app registration, so skip Key Vault and the built-in client id
+ * fallback (which throws on GCC High). The secret is still read so a stray one is refused.
+ */
+export function managedIdentitySecrets(): AppSecrets {
+  return {
+    clientId: process.env.MS365_MCP_CLIENT_ID || '',
+    tenantId: process.env.MS365_MCP_TENANT_ID || 'common',
+    clientSecret: process.env.MS365_MCP_CLIENT_SECRET,
+    cloudType: parseCloudType(process.env.MS365_MCP_CLOUD_TYPE),
+  };
+}
+
+const CREDENTIAL_OPTIONS =
+  'MS365_MCP_CLIENT_SECRET, MS365_MCP_CLIENT_CERTIFICATE_PATH, MS365_MCP_FEDERATED_TOKEN_FILE or MS365_MCP_MANAGED_IDENTITY';
+
+/**
+ * App-only tokens for app mode: client credentials (secret, certificate or federated token)
+ * or a managed identity. MSAL keeps the token in memory and fetches a new one when it is
+ * about to expire, so nothing is cached on disk.
  */
 export class AppTokenClient {
-  private cca: ConfidentialClientApplication;
-  private scopes: string[];
+  private acquire: () => Promise<AuthenticationResult | null>;
 
-  constructor(secrets: AppSecrets, certPath = process.env.MS365_MCP_CLIENT_CERTIFICATE_PATH) {
+  constructor(secrets: AppSecrets, env: AppCredentialEnv = credentialEnvFromProcess()) {
+    const set = [
+      secrets.clientSecret && 'a client secret (MS365_MCP_CLIENT_SECRET, .env or Key Vault)',
+      env.certPath && 'MS365_MCP_CLIENT_CERTIFICATE_PATH',
+      env.federatedTokenFile && 'MS365_MCP_FEDERATED_TOKEN_FILE',
+      env.managedIdentity && 'MS365_MCP_MANAGED_IDENTITY',
+    ].filter((name): name is string => Boolean(name));
+    if (set.length === 0) {
+      throw new Error(`--app-mode needs one of ${CREDENTIAL_OPTIONS}.`);
+    }
+    if (set.length > 1) {
+      throw new Error(`Set only one credential for --app-mode, not ${set.join(' and ')}.`);
+    }
+
+    const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
+    const graphResource = cloudEndpoints.graphApi.replace(/\/$/, '');
+
+    if (env.managedIdentity) {
+      // The identity belongs to the Azure host, so there is no tenant or app registration to name
+      const managedIdentityIdParams = parseManagedIdentity(env.managedIdentity);
+      const mia = new ManagedIdentityApplication({ managedIdentityIdParams });
+      this.acquire = () => mia.acquireToken({ resource: graphResource });
+      logger.info(
+        `App mode: managed identity (${managedIdentityIdParams.userAssignedClientId ? `user-assigned ${managedIdentityIdParams.userAssignedClientId}` : 'system-assigned'})`
+      );
+      return;
+    }
+
     const tenantId = secrets.tenantId?.trim();
     if (!tenantId || NON_TENANT_AUTHORITIES.has(tenantId.toLowerCase())) {
       throw new Error(
@@ -137,37 +236,42 @@ export class AppTokenClient {
         '--app-mode needs MS365_MCP_CLIENT_ID set to your own app registration; the built-in app has no application permissions.'
       );
     }
-    if (certPath && secrets.clientSecret) {
-      throw new Error(
-        'Set MS365_MCP_CLIENT_SECRET or MS365_MCP_CLIENT_CERTIFICATE_PATH for --app-mode, not both.'
-      );
-    }
-    if (!certPath && !secrets.clientSecret) {
-      throw new Error(
-        '--app-mode needs MS365_MCP_CLIENT_SECRET or MS365_MCP_CLIENT_CERTIFICATE_PATH for your own app registration.'
-      );
+
+    let credential:
+      | { clientSecret: string }
+      | { clientCertificate: CertificateCredential }
+      | { clientAssertion: () => Promise<string> };
+    let label: string;
+    if (env.certPath) {
+      credential = { clientCertificate: loadCertificateCredential(env.certPath) };
+      label = 'a certificate';
+    } else if (env.federatedTokenFile) {
+      const tokenFile = env.federatedTokenFile;
+      readFederatedToken(tokenFile);
+      // Read on every request: these tokens rotate (about hourly on AKS)
+      credential = { clientAssertion: async () => readFederatedToken(tokenFile) };
+      label = 'a federated token';
+    } else {
+      credential = { clientSecret: secrets.clientSecret as string };
+      label = 'a client secret';
     }
 
-    const cloudEndpoints = getCloudEndpoints(secrets.cloudType);
-    this.cca = new ConfidentialClientApplication({
+    const cca = new ConfidentialClientApplication({
       auth: {
         clientId: secrets.clientId,
         authority: `${cloudEndpoints.authority}/${tenantId}`,
-        ...(certPath
-          ? { clientCertificate: loadCertificateCredential(certPath) }
-          : { clientSecret: secrets.clientSecret }),
+        ...credential,
       },
     });
-    this.scopes = [`${cloudEndpoints.graphApi.replace(/\/$/, '')}/.default`];
-    logger.info(
-      `App mode: client credentials with a ${certPath ? 'certificate' : 'client secret'} for tenant ${tenantId}`
-    );
+    const scopes = [`${graphResource}/.default`];
+    this.acquire = () => cca.acquireTokenByClientCredential({ scopes });
+    logger.info(`App mode: client credentials with ${label} for tenant ${tenantId}`);
   }
 
   async getToken(): Promise<string> {
-    const result = await this.cca.acquireTokenByClientCredential({ scopes: this.scopes });
+    const result = await this.acquire();
     if (!result?.accessToken) {
-      throw new Error('Client credentials token request returned no access token');
+      throw new Error('App token request returned no access token');
     }
     return result.accessToken;
   }

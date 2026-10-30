@@ -589,10 +589,28 @@ MS365_MCP_CLIENT_SECRET=<secret> \
 npx @softeria/ms-365-mcp-server --app-mode --read-only
 ```
 
-- Use your own app registration with **application** permissions and admin consent. Use either
-  `MS365_MCP_CLIENT_SECRET` or `MS365_MCP_CLIENT_CERTIFICATE_PATH` (a PEM file with the certificate and its
-  unencrypted private key), not both. `MS365_MCP_TENANT_ID` must be a real tenant, not `common`.
-- Tokens come from client credentials and are renewed automatically. Nothing is cached on disk.
+- Use your own app registration with **application** permissions and admin consent, and set exactly one
+  credential:
+  - `MS365_MCP_CLIENT_SECRET`
+  - `MS365_MCP_CLIENT_CERTIFICATE_PATH`: a PEM file with the certificate and its unencrypted private key
+  - `MS365_MCP_FEDERATED_TOKEN_FILE`: a token from an identity provider the app trusts through
+    [workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation),
+    read again on every token request. On AKS set it to `$AZURE_FEDERATED_TOKEN_FILE`, which Kubernetes
+    keeps fresh. A GitHub Actions OIDC token is valid for 5 minutes, so writing it to a file once only
+    covers the first Graph token (about an hour) unless something rewrites the file. If Entra answers
+    `AADSTS700213`, set the federated credential's subject to the one quoted in the error (GitHub's
+    subject can include the owner and repo ids).
+
+  `MS365_MCP_TENANT_ID` must be a real tenant, not `common`.
+
+- On an Azure host (App Service, Container Apps, VM, ...) set `MS365_MCP_MANAGED_IDENTITY=system`, or the
+  client id of a user-assigned identity, instead. No app registration, tenant id or secret is needed, and
+  Key Vault (`MS365_MCP_KEYVAULT_URL`) is not read. Graph
+  application permissions for a managed identity can't be granted in the portal;
+  [assign them with PowerShell or the Graph API](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-assign-app-role-managed-identity).
+  On Azure Container Instances, give the container one kind of identity: with both a system- and a
+  user-assigned identity, the system-assigned token request fails there.
+- Tokens are renewed automatically. Nothing is cached on disk.
 - Only tools that work with application permissions are offered: the `/users/{user-id}` mail and calendar
   tools (pass a UPN or object id as `user-id`), users and groups, OneDrive/SharePoint drives and lists, Planner,
   Teams reads, presence, places and subscriptions. `/me` tools, Excel, OneNote and sending Teams chat or channel
@@ -818,6 +836,8 @@ Environment variables:
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
 - `MS365_MCP_APP_MODE=true|1`: Enable app mode (alternative to --app-mode flag)
 - `MS365_MCP_CLIENT_CERTIFICATE_PATH=<path>`: PEM file with a certificate and its unencrypted private key, used instead of `MS365_MCP_CLIENT_SECRET` in app mode
+- `MS365_MCP_FEDERATED_TOKEN_FILE=<path>`: Federated token (workload identity federation), used instead of a secret or certificate in app mode
+- `MS365_MCP_MANAGED_IDENTITY=system|<client id>`: Use the host's managed identity in app mode, instead of an app registration
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.

@@ -96,7 +96,7 @@ program
   .option('--work-mode', 'Alias for --org-mode')
   .option(
     '--app-mode',
-    'Use application permissions (client credentials) with no signed-in user. stdio only. Needs your own app registration, MS365_MCP_TENANT_ID, and MS365_MCP_CLIENT_SECRET or MS365_MCP_CLIENT_CERTIFICATE_PATH. Only tools that work with application permissions are offered.'
+    'Use application permissions with no signed-in user. stdio only. Needs one credential: MS365_MCP_CLIENT_SECRET, MS365_MCP_CLIENT_CERTIFICATE_PATH or MS365_MCP_FEDERATED_TOKEN_FILE (with your own app registration and MS365_MCP_TENANT_ID), or MS365_MCP_MANAGED_IDENTITY on an Azure host. Only tools that work with application permissions are offered.'
   )
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
