@@ -988,7 +988,7 @@ interface UtilityTool {
   meOnly?: boolean;
 }
 
-function isUtilityToolAvailable(
+export function isUtilityToolAvailable(
   utility: UtilityTool,
   options: { readOnly: boolean; httpMode: boolean; scopeMode: ScopeMode }
 ): boolean {
