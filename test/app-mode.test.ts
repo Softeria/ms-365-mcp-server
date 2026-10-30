@@ -12,6 +12,8 @@ vi.mock('../src/logger.js', () => ({
 const msal = vi.hoisted(() => ({
   configs: [] as Array<{ auth: Record<string, unknown> }>,
   acquireTokenByClientCredential: vi.fn(),
+  miConfigs: [] as Array<{ managedIdentityIdParams?: Record<string, string> }>,
+  acquireTokenManagedIdentity: vi.fn(),
 }));
 vi.mock('@azure/msal-node', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@azure/msal-node')>();
@@ -23,13 +25,27 @@ vi.mock('@azure/msal-node', async (importOriginal) => {
         msal.configs.push(config);
       }
     },
+    ManagedIdentityApplication: class {
+      acquireToken = msal.acquireTokenManagedIdentity;
+      constructor(config: { managedIdentityIdParams?: Record<string, string> }) {
+        msal.miConfigs.push(config);
+      }
+    },
   };
 });
 
-const { AppTokenClient, assertAppModeOptions, describeAppToken, loadCertificateCredential } =
-  await import('../src/app-mode.js');
+const {
+  AppTokenClient,
+  assertAppModeOptions,
+  describeAppToken,
+  loadCertificateCredential,
+  parseManagedIdentity,
+} = await import('../src/app-mode.js');
 const { buildAllowedScopeDiagnostics, isEndpointInScopeMode } = await import('../src/auth.js');
 const AuthManager = (await import('../src/auth.js')).default;
+const MicrosoftGraphServer = (await import('../src/server.js')).default;
+const { clearSecretsCache } = await import('../src/secrets.js');
+const logger = (await import('../src/logger.js')).default;
 const { buildToolsRegistry, registerDiscoveryTools, registerGraphTools } =
   await import('../src/graph-tools.js');
 const { buildMcpServerInstructions } = await import('../src/mcp-instructions.js');
@@ -52,6 +68,8 @@ function fakeJwt(claims: Record<string, unknown>): string {
 beforeEach(() => {
   msal.configs.length = 0;
   msal.acquireTokenByClientCredential.mockReset();
+  msal.miConfigs.length = 0;
+  msal.acquireTokenManagedIdentity.mockReset();
 });
 
 describe('assertAppModeOptions', () => {
@@ -83,27 +101,34 @@ describe('assertAppModeOptions', () => {
 
 describe('AppTokenClient', () => {
   it.each(['common', 'organizations', 'consumers', ''])('refuses tenant %j', (tenantId) => {
-    expect(() => new AppTokenClient({ ...secrets, tenantId }, undefined)).toThrow(
-      /MS365_MCP_TENANT_ID/
-    );
+    expect(() => new AppTokenClient({ ...secrets, tenantId }, {})).toThrow(/MS365_MCP_TENANT_ID/);
   });
 
   it('refuses the built-in client id', () => {
     expect(
-      () => new AppTokenClient({ ...secrets, clientId: '084a3e9f-a9f4-43f7-89f9-d229cf97853e' }, '')
+      () => new AppTokenClient({ ...secrets, clientId: '084a3e9f-a9f4-43f7-89f9-d229cf97853e' }, {})
     ).toThrow(/MS365_MCP_CLIENT_ID/);
   });
 
   it('needs exactly one credential', () => {
-    expect(() => new AppTokenClient({ ...secrets, clientSecret: undefined }, undefined)).toThrow(
-      /needs MS365_MCP_CLIENT_SECRET or MS365_MCP_CLIENT_CERTIFICATE_PATH/
+    expect(() => new AppTokenClient({ ...secrets, clientSecret: undefined }, {})).toThrow(
+      /needs one of MS365_MCP_CLIENT_SECRET, .*MS365_MCP_MANAGED_IDENTITY/
     );
-    expect(() => new AppTokenClient(secrets, '/some/cert.pem')).toThrow(/not both/);
+    expect(() => new AppTokenClient(secrets, { certPath: '/some/cert.pem' })).toThrow(
+      /only one credential.*a client secret \(MS365_MCP_CLIENT_SECRET, \.env or Key Vault\) and MS365_MCP_CLIENT_CERTIFICATE_PATH/
+    );
+    expect(
+      () =>
+        new AppTokenClient(
+          { ...secrets, clientSecret: undefined },
+          { federatedTokenFile: '/t', managedIdentity: 'system' }
+        )
+    ).toThrow(/MS365_MCP_FEDERATED_TOKEN_FILE and MS365_MCP_MANAGED_IDENTITY/);
   });
 
   it('requests the Graph .default scope for the tenant', async () => {
     msal.acquireTokenByClientCredential.mockResolvedValue({ accessToken: 'app-token' });
-    const client = new AppTokenClient(secrets, undefined);
+    const client = new AppTokenClient(secrets, {});
 
     expect(await client.getToken()).toBe('app-token');
     expect(msal.configs[0].auth).toMatchObject({
@@ -114,6 +139,153 @@ describe('AppTokenClient', () => {
     expect(msal.acquireTokenByClientCredential).toHaveBeenCalledWith({
       scopes: ['https://graph.microsoft.com/.default'],
     });
+  });
+});
+
+describe('federated token', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ms365-app-federated-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const noSecret = { ...secrets, clientSecret: undefined };
+
+  it('re-reads the token file for every assertion, since these tokens rotate', async () => {
+    const tokenFile = path.join(dir, 'token');
+    writeFileSync(tokenFile, 'first-jwt\n');
+    new AppTokenClient(noSecret, { federatedTokenFile: tokenFile });
+
+    const auth = msal.configs[0].auth;
+    expect(auth.clientSecret).toBeUndefined();
+    expect(auth.authority).toBe('https://login.microsoftonline.com/contoso.onmicrosoft.com');
+    const assertion = auth.clientAssertion as () => Promise<string>;
+    expect(await assertion()).toBe('first-jwt');
+    writeFileSync(tokenFile, 'rotated-jwt');
+    expect(await assertion()).toBe('rotated-jwt');
+  });
+
+  it('reports a token file that disappears after startup', async () => {
+    const tokenFile = path.join(dir, 'vanishing');
+    writeFileSync(tokenFile, 'jwt');
+    new AppTokenClient(noSecret, { federatedTokenFile: tokenFile });
+    rmSync(tokenFile);
+    const assertion = msal.configs[0].auth.clientAssertion as () => Promise<string>;
+    await expect(assertion()).rejects.toThrow(/Cannot read MS365_MCP_FEDERATED_TOKEN_FILE/);
+  });
+
+  it('fails at startup on a missing or empty token file', () => {
+    expect(
+      () => new AppTokenClient(noSecret, { federatedTokenFile: path.join(dir, 'missing') })
+    ).toThrow(/Cannot read MS365_MCP_FEDERATED_TOKEN_FILE/);
+    const empty = path.join(dir, 'empty');
+    writeFileSync(empty, '  \n');
+    expect(() => new AppTokenClient(noSecret, { federatedTokenFile: empty })).toThrow(/is empty/);
+  });
+
+  it('still needs a real tenant and your own app registration', () => {
+    const tokenFile = path.join(dir, 'token2');
+    writeFileSync(tokenFile, 'jwt');
+    expect(
+      () =>
+        new AppTokenClient({ ...noSecret, tenantId: 'common' }, { federatedTokenFile: tokenFile })
+    ).toThrow(/MS365_MCP_TENANT_ID/);
+  });
+});
+
+describe('managed identity', () => {
+  // No tenant, client id or secret: the identity belongs to the Azure host
+  const hostOnly = { ...secrets, clientSecret: undefined, tenantId: 'common', clientId: '' };
+
+  it.each(['system', 'SYSTEM', 'true', '1'])('treats %j as system-assigned', (value) => {
+    expect(parseManagedIdentity(value)).toEqual({});
+  });
+
+  it('takes a client id for a user-assigned identity', () => {
+    expect(parseManagedIdentity(' 11111111-2222-3333-4444-555555555555 ')).toEqual({
+      userAssignedClientId: '11111111-2222-3333-4444-555555555555',
+    });
+  });
+
+  it('refuses anything else', () => {
+    expect(() => parseManagedIdentity('yes please')).toThrow(/MS365_MCP_MANAGED_IDENTITY/);
+  });
+
+  it('treats MS365_MCP_MANAGED_IDENTITY=false as unset', () => {
+    vi.stubEnv('MS365_MCP_MANAGED_IDENTITY', 'false');
+    try {
+      expect(() => new AppTokenClient(secrets)).not.toThrow();
+      expect(msal.miConfigs).toHaveLength(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('starts on GCC High with no client id, tenant or Key Vault', async () => {
+    vi.stubEnv('MS365_MCP_CLOUD_TYPE', 'gcc-high');
+    vi.stubEnv('MS365_MCP_MANAGED_IDENTITY', 'system');
+    vi.stubEnv('MS365_MCP_CLIENT_ID', '');
+    vi.stubEnv('MS365_MCP_TENANT_ID', '');
+    vi.stubEnv('MS365_MCP_CLIENT_SECRET', '');
+    vi.stubEnv('MS365_MCP_KEYVAULT_URL', 'https://unreachable.vault.azure.net');
+    msal.acquireTokenManagedIdentity.mockResolvedValue({ accessToken: 'mi-token' });
+    clearSecretsCache();
+    try {
+      const authManager = await AuthManager.create([], undefined, {
+        appMode: true,
+        storage: { load: vi.fn(), save: vi.fn(), delete: vi.fn() } as never,
+      });
+      expect(await authManager.getToken()).toBe('mi-token');
+      expect(msal.acquireTokenManagedIdentity).toHaveBeenCalledWith({
+        resource: 'https://graph.microsoft.us',
+      });
+      // The server must not load the secrets again (Key Vault, or a gcc-high built-in client id that does not exist)
+      const server = new MicrosoftGraphServer(authManager, { appMode: true });
+      await expect(server.initialize('test')).resolves.toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses a managed identity next to a certificate', () => {
+    expect(
+      () => new AppTokenClient(hostOnly, { certPath: '/c.pem', managedIdentity: 'system' })
+    ).toThrow(/MS365_MCP_CLIENT_CERTIFICATE_PATH and MS365_MCP_MANAGED_IDENTITY/);
+  });
+
+  it('asks the host for a Graph token without tenant or app checks', async () => {
+    msal.acquireTokenManagedIdentity.mockResolvedValue({ accessToken: 'mi-token' });
+    const client = new AppTokenClient(hostOnly, { managedIdentity: 'system' });
+
+    expect(await client.getToken()).toBe('mi-token');
+    expect(msal.configs).toHaveLength(0);
+    expect(msal.miConfigs[0]).toEqual({ managedIdentityIdParams: {} });
+    expect(msal.acquireTokenManagedIdentity).toHaveBeenCalledWith({
+      resource: 'https://graph.microsoft.com',
+    });
+  });
+
+  it('warns that MS365_MCP_CLIENT_ID does not pick the identity', () => {
+    new AppTokenClient({ ...hostOnly, clientId: 'some-app' }, { managedIdentity: 'system' });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/MS365_MCP_CLIENT_ID is ignored with a managed identity/)
+    );
+  });
+
+  it('passes a user-assigned client id to MSAL', () => {
+    new AppTokenClient(hostOnly, { managedIdentity: '11111111-2222-3333-4444-555555555555' });
+    expect(msal.miConfigs[0]).toEqual({
+      managedIdentityIdParams: { userAssignedClientId: '11111111-2222-3333-4444-555555555555' },
+    });
+  });
+
+  it('uses the sovereign cloud Graph resource', () => {
+    msal.acquireTokenManagedIdentity.mockResolvedValue({ accessToken: 'mi-token' });
+    const client = new AppTokenClient(
+      { ...hostOnly, cloudType: 'china' },
+      { managedIdentity: 'system' }
+    );
+    return client.getToken().then(() =>
+      expect(msal.acquireTokenManagedIdentity).toHaveBeenCalledWith({
+        resource: 'https://microsoftgraph.chinacloudapi.cn',
+      })
+    );
   });
 });
 
@@ -183,7 +355,7 @@ describe.skipIf(!hasOpenssl)('loadCertificateCredential', () => {
 
   it('passes the certificate to MSAL instead of a secret', () => {
     const { pemPath } = makePem();
-    new AppTokenClient({ ...secrets, clientSecret: undefined }, pemPath);
+    new AppTokenClient({ ...secrets, clientSecret: undefined }, { certPath: pemPath });
     expect(msal.configs[0].auth.clientSecret).toBeUndefined();
     expect(msal.configs[0].auth.clientCertificate).toMatchObject({
       thumbprintSha256: expect.stringMatching(/^[0-9A-F]{64}$/),

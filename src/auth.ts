@@ -5,7 +5,12 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
-import { AppTokenClient, describeAppToken } from './app-mode.js';
+import {
+  AppTokenClient,
+  describeAppToken,
+  managedIdentitySecrets,
+  usesManagedIdentity,
+} from './app-mode.js';
 import { getCloudEndpoints, getDefaultClientId, getGraphBaseUrl } from './cloud-config.js';
 import {
   dedupeRefreshTokens,
@@ -829,6 +834,7 @@ class AuthManager {
    */
   private loginPersistence: { homeAccountId: string; message: string } | null;
   private appClient: AppTokenClient | null = null;
+  private appSecrets: AppSecrets | null = null;
 
   constructor(
     config: Configuration,
@@ -873,20 +879,33 @@ class AuthManager {
     expectedAccount?: ExpectedAccountOptions,
     options: AuthManagerCreateOptions = {}
   ): Promise<AuthManager> {
-    const secrets = await getSecrets();
-    const config = createMsalConfig(secrets);
+    const managedIdentity = Boolean(options.appMode) && usesManagedIdentity();
+    const secrets = managedIdentity ? managedIdentitySecrets() : await getSecrets();
+    // The public client is never used in app mode, but a managed identity on a cloud with
+    // no built-in app (GCC High) still needs some client id to construct it
+    const config = createMsalConfig(
+      managedIdentity && !secrets.clientId
+        ? { ...secrets, clientId: '00000000-0000-0000-0000-000000000000' }
+        : secrets
+    );
     const storage =
       options.storage ??
       (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
     const authManager = new AuthManager(config, scopes, expectedAccount, storage);
     if (options.appMode) {
       authManager.appClient = new AppTokenClient(secrets);
+      authManager.appSecrets = secrets;
     }
     return authManager;
   }
 
   isAppMode(): boolean {
     return this.appClient !== null;
+  }
+
+  /** The secrets app mode was set up with, so the server does not load them a second way. */
+  getAppSecrets(): AppSecrets | null {
+    return this.appSecrets;
   }
 
   async loadTokenCache(): Promise<void> {
