@@ -20,6 +20,7 @@ interface Endpoint {
   method: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  appScopes?: string[] | string[][];
   returnDownloadUrl?: boolean;
   llmTip?: string;
   queryParams?: string[];
@@ -50,13 +51,32 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not give appScopes to /me endpoints, which need a signed-in user', () => {
+    const violations = endpoints
+      .filter((e) => e.appScopes !== undefined && /^\/me(\/|$)/.test(e.pathPattern))
+      .map((e) => e.toolName);
+    expect(violations).toEqual([]);
+  });
+
+  it('should not put delegated-only permissions in appScopes', () => {
+    // .Shared and the chat/channel send scopes exist only as delegated permissions
+    const delegatedOnly = /\.Shared$|^ChatMessage\.Send$|^ChannelMessage\.Send$/;
+    const violations = endpoints.flatMap((e) =>
+      (e.appScopes ?? [])
+        .flat()
+        .filter((scope) => delegatedOnly.test(scope))
+        .map((scope) => `${e.toolName}: ${scope}`)
+    );
+    expect(violations).toEqual([]);
+  });
+
   it('should have well-formed scope groups (flat string[] or nested string[][])', () => {
     const isStringArray = (v: unknown): boolean =>
       Array.isArray(v) && v.every((s) => typeof s === 'string');
 
     const malformed: string[] = [];
     for (const e of endpoints) {
-      for (const field of ['scopes', 'workScopes'] as const) {
+      for (const field of ['scopes', 'workScopes', 'appScopes'] as const) {
         const value = e[field];
         if (value === undefined) continue;
         if (!Array.isArray(value)) {

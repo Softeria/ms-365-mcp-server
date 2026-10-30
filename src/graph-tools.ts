@@ -11,7 +11,10 @@ import { deriveTargetResource, type AuditTargetResource } from './audit-target-r
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
+  isEndpointInScopeMode,
   parseAllowedScopes,
+  scopeModeFor,
+  type ScopeMode,
 } from './auth.js';
 import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
@@ -98,6 +101,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  appScopes?: string[] | string[][];
   apiVersion?: string; // Graph API version ('v1.0' default, or 'beta'). Selects spec + URL prefix.
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
@@ -980,6 +984,19 @@ interface UtilityTool {
   stdioOnly?: boolean;
   // Registered only while this returns true, for a tool that needs operator opt-in.
   enabled?: () => boolean;
+  // Works only on the signed-in user's own /me paths, so it is hidden in --app-mode.
+  meOnly?: boolean;
+}
+
+function isUtilityToolAvailable(
+  utility: UtilityTool,
+  options: { readOnly: boolean; httpMode: boolean; scopeMode: ScopeMode }
+): boolean {
+  if (options.readOnly && !utility.readOnlyHint) return false;
+  if (options.httpMode && utility.stdioOnly) return false;
+  if (options.scopeMode === 'app' && utility.meOnly) return false;
+  if (utility.enabled && !utility.enabled()) return false;
+  return true;
 }
 
 interface DisabledToolScope {
@@ -1021,7 +1038,7 @@ function deniedToolPolicyForGraphTool(
 
 function collectDeniedToolPolicies(options: {
   readOnly: boolean;
-  orgMode: boolean;
+  scopeMode: ScopeMode;
   enabledToolsRegex?: RegExp;
   allowedScopesValue?: string;
   httpMode: boolean;
@@ -1031,7 +1048,7 @@ function collectDeniedToolPolicies(options: {
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (!options.orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+    if (!isEndpointInScopeMode(endpointConfig, options.scopeMode)) {
       continue;
     }
 
@@ -1052,7 +1069,7 @@ function collectDeniedToolPolicies(options: {
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, options.orgMode),
+            getEndpointScopeGroups(endpointConfig, options.scopeMode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -1064,9 +1081,7 @@ function collectDeniedToolPolicies(options: {
   }
 
   for (const utility of UTILITY_TOOLS) {
-    if (options.readOnly && !utility.readOnlyHint) continue;
-    if (options.httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
+    if (!isUtilityToolAvailable(utility, options)) continue;
     if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
       deniedTools.set(utility.name, {
         toolName: utility.name,
@@ -1188,7 +1203,7 @@ const contentIdSchema = z
   );
 
 const UPLOAD_TARGET_ERROR =
-  'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.';
+  'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments (or /users/{user-id}/... for another mailbox).';
 
 function uploadError(message: string): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
@@ -1447,7 +1462,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         target: z
           .string()
           .describe(
-            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox.'
           ),
         name: z
           .string()
@@ -1510,7 +1525,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         target: z
           .string()
           .describe(
-            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox.'
           ),
         filePath: z
           .string()
@@ -1663,6 +1678,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
   },
   {
     name: 'read-mail-text',
+    meOnly: true,
     method: 'GET',
     path: 'tool:read-mail-text',
     searchKeywords:
@@ -3522,6 +3538,7 @@ export interface GraphToolRegistrationOptions {
   readOnly?: boolean;
   enabledTools?: string;
   orgMode?: boolean;
+  appMode?: boolean;
   authManager?: AuthManager;
   multiAccount?: boolean;
   accountNames?: string[];
@@ -3692,6 +3709,7 @@ export function registerGraphTools(
     readOnly = false,
     enabledTools: enabledToolsPattern,
     orgMode = false,
+    appMode = false,
     authManager,
     multiAccount = false,
     accountNames = [],
@@ -3715,9 +3733,10 @@ export function registerGraphTools(
   let failedCount = 0;
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
   const disabledByAllowedScopes: DisabledToolScope[] = [];
+  const scopeMode = scopeModeFor({ orgMode, appMode });
   const deniedTools = collectDeniedToolPolicies({
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     httpMode,
@@ -3725,8 +3744,8 @@ export function registerGraphTools(
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
-      logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
+    if (!isEndpointInScopeMode(endpointConfig, scopeMode)) {
+      logger.info(`Skipping tool ${tool.alias} - not available in ${scopeMode} mode`);
       skippedCount++;
       continue;
     }
@@ -3753,7 +3772,7 @@ export function registerGraphTools(
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, orgMode),
+            getEndpointScopeGroups(endpointConfig, scopeMode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -3789,9 +3808,7 @@ export function registerGraphTools(
     userFields,
   };
   for (const utility of UTILITY_TOOLS) {
-    if (readOnly && !utility.readOnlyHint) continue;
-    if (httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
+    if (!isUtilityToolAvailable(utility, { readOnly, httpMode, scopeMode })) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx);
@@ -3814,7 +3831,7 @@ export function registerGraphTools(
 
 export function buildToolsRegistry(
   readOnly: boolean,
-  orgMode: boolean,
+  mode: boolean | ScopeMode,
   enabledToolsRegex?: RegExp,
   allowedScopesValue?: string,
   disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
@@ -3828,7 +3845,7 @@ export function buildToolsRegistry(
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+    if (!isEndpointInScopeMode(endpointConfig, mode)) {
       continue;
     }
 
@@ -3847,7 +3864,7 @@ export function buildToolsRegistry(
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, orgMode),
+            getEndpointScopeGroups(endpointConfig, mode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -3978,6 +3995,7 @@ export function registerDiscoveryTools(
     readOnly = false,
     enabledTools,
     orgMode = false,
+    appMode = false,
     authManager,
     multiAccount = false,
     accountNames = [],
@@ -4001,16 +4019,17 @@ export function registerDiscoveryTools(
   }
 
   const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const scopeMode = scopeModeFor({ orgMode, appMode });
   const deniedTools = collectDeniedToolPolicies({
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     httpMode,
   });
   const toolsRegistry = buildToolsRegistry(
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     disabledByAllowedScopes
@@ -4021,9 +4040,7 @@ export function registerDiscoveryTools(
     );
   }
   const utilityTools = UTILITY_TOOLS.filter((u) => {
-    if (readOnly && !u.readOnlyHint) return false;
-    if (httpMode && u.stdioOnly) return false;
-    if (u.enabled && !u.enabled()) return false;
+    if (!isUtilityToolAvailable(u, { readOnly, httpMode, scopeMode })) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
     return true;
   });

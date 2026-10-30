@@ -13,6 +13,8 @@ import {
 import { createTokenCacheStorage } from './token-cache-storage.js';
 import { dumpError, getActiveResources } from './crash-logging.js';
 import { version } from './version.js';
+import { APP_MODE_WARNING, assertAppModeOptions } from './app-mode.js';
+import { buildToolsRegistry } from './graph-tools.js';
 
 // Global crash handlers. Without these, an unhandled rejection from a dependency
 // (MSAL HTTP, keytar native, fetch in node) kills the stdio process silently
@@ -43,6 +45,9 @@ async function main(): Promise<void> {
     loadEnvFile();
 
     const args = parseArgs();
+    if (args.appMode) {
+      assertAppModeOptions(args);
+    }
 
     const includeWorkScopes = args.orgMode || false;
     if (includeWorkScopes) {
@@ -54,7 +59,7 @@ async function main(): Promise<void> {
 
     if (args.listPermissions) {
       const diagnostics = buildAllowedScopeDiagnostics(args);
-      const mode = includeWorkScopes ? 'org' : 'personal';
+      const mode = args.appMode ? 'app' : includeWorkScopes ? 'org' : 'personal';
       const filter = args.enabledTools ? args.enabledTools : undefined;
       if (diagnostics.disabledTools.length > 0) {
         console.error(
@@ -76,7 +81,22 @@ async function main(): Promise<void> {
       process.exit(0);
     }
 
-    const useLocalAuthStorage = shouldUseLocalAuthStorage(args);
+    if (args.appMode) {
+      logger.warn(APP_MODE_WARNING);
+      console.error(APP_MODE_WARNING);
+      // The mail/calendar/outlook presets are /me tools, so they can filter app mode down to nothing
+      const filter = args.enabledTools ? new RegExp(args.enabledTools, 'i') : undefined;
+      if (
+        buildToolsRegistry(Boolean(args.readOnly), 'app', filter, args.allowedScopes).size === 0
+      ) {
+        const empty =
+          'Warning: no Microsoft Graph tools are left in app mode with these filters. App mode only has the /users/{user-id}, directory, files, sites and Teams tools (see --preset work).';
+        logger.warn(empty);
+        console.error(empty);
+      }
+    }
+
+    const useLocalAuthStorage = !args.appMode && shouldUseLocalAuthStorage(args);
     const storage = await createTokenCacheStorage({
       allowCommandStorage: useLocalAuthStorage,
       logProvider: useLocalAuthStorage,
@@ -87,7 +107,7 @@ async function main(): Promise<void> {
         expectedUsername: args.expectedUsername,
         expectedHomeAccountId: args.expectedHomeAccountId,
       },
-      { storage }
+      { storage, appMode: args.appMode }
     );
     if (useLocalAuthStorage) {
       await authManager.loadTokenCache();

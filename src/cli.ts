@@ -94,6 +94,10 @@ program
     'Enable organization/work mode from start (includes Teams, SharePoint, etc.)'
   )
   .option('--work-mode', 'Alias for --org-mode')
+  .option(
+    '--app-mode',
+    'Use application permissions (client credentials) with no signed-in user. stdio only. Needs your own app registration, MS365_MCP_TENANT_ID, and MS365_MCP_CLIENT_SECRET or MS365_MCP_CLIENT_CERTIFICATE_PATH. Only tools that work with application permissions are offered.'
+  )
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option(
@@ -187,6 +191,7 @@ export interface CommandOptions {
   listPresets?: boolean;
   listPermissions?: boolean;
   orgMode?: boolean;
+  appMode?: boolean;
   workMode?: boolean;
   forceWorkScopes?: boolean;
   toon?: boolean;
@@ -259,6 +264,15 @@ export function parseArgs(): CommandOptions {
     if (names.some((name) => name === ''))
       throw new Error('--eager-tools requires non-empty exact tool names');
     options.eagerTools = [...new Set(names)];
+  }
+
+  if (process.env.MS365_MCP_APP_MODE === 'true' || process.env.MS365_MCP_APP_MODE === '1') {
+    options.appMode = true;
+  }
+
+  // App mode is tenant-only, so the work-account guidance and presets apply
+  if (options.appMode) {
+    options.orgMode = true;
   }
 
   if (options.preset) {
