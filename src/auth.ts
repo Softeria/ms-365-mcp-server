@@ -1495,7 +1495,9 @@ class AuthManager {
           };
         } else {
           const errorText = await response.text();
-          logger.error(`Graph API user data fetch failed: ${response.status} - ${errorText}`);
+          logger.error(
+            `Graph API user data fetch failed: ${response.status} (${errorText.length} chars)`
+          );
           return {
             success: false,
             message: `Login successful but Graph API access failed: ${response.status}`,

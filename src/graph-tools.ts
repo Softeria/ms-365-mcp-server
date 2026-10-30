@@ -80,6 +80,7 @@ import {
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
 import logger from './logger.js';
+import { describeError, describeShape, describeUrl, serializedSize } from './lib/log-safe.js';
 import { getRequestTokens } from './request-context.js';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 
@@ -436,7 +437,9 @@ function normalizeSearchQueryParam(
   if (inner === '') return noSearchableText();
   const normalized = `"${inner}"`;
   if (normalized !== raw) {
-    logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
+    logger.info(
+      `Auto-corrected parameter '$search': normalized KQL quoting (${normalized.length} chars)`
+    );
     queryParams['$search'] = normalized;
   }
 }
@@ -2615,11 +2618,8 @@ function hasOwn(obj: Record<string, unknown>, key: string): boolean {
 // escapes executeGraphTool entirely: the caller gets a protocol error instead of a tool
 // error, and no audit record is written at all. Nesting depth is caller-controlled.
 function describeParamsForLog(params: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(params);
-  } catch (error) {
-    return `[unserializable: ${error instanceof Error ? error.name : 'unknown error'}]`;
-  }
+  // Shape only: parameter values carry the user's search text, filters and message bodies.
+  return describeShape(params);
 }
 
 // A quote inside an OData string literal is doubled, e.g. TimeZoneStandard='{TimeZoneStandard}'
@@ -2901,7 +2901,7 @@ async function executeGraphTool(
         }
       } else if (paramName === 'body') {
         body = paramValue;
-        logger.info(`Set body param: ${JSON.stringify(body)}`);
+        logger.info(`Set body param: ${describeShape(body)} (${serializedSize(body)} bytes)`);
       } else if (
         path.includes(`:${paramName}`) ||
         path.includes(`{${paramName}}`) ||
@@ -2928,7 +2928,9 @@ async function executeGraphTool(
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
         queryParams[fixedParamName] = `${paramValue}`;
-        logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
+        logger.info(
+          `OData param fallback: forwarded ${fixedParamName} (${String(paramValue).length} chars)`
+        );
       } else if (
         bodyShape &&
         (hasOwn(bodyShape, paramName) || hasOwn(bodyShape, camelCaseParamName)) &&
@@ -2943,7 +2945,9 @@ async function executeGraphTool(
           `Body field fallback: merging top-level param '${fieldName}' into request body`
         );
       } else {
-        logger.warn(`Dropping unrecognized parameter '${paramName}' for tool ${tool.alias}`);
+        logger.warn(
+          `Dropping unrecognized parameter (${paramName.length} chars) for tool ${tool.alias}`
+        );
       }
     }
 
@@ -3203,10 +3207,11 @@ async function executeGraphTool(
       params,
     });
 
-    // Redact accessToken from log output to prevent credential leakage
+    // Path without its query string (where $search and $filter text lives); options by
+    // shape only. The per-request token is left out and marked.
     const { accessToken: _redacted, ...safeOptions } = options;
     logger.info(
-      `Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+      `Making graph request to ${describeUrl(path)} [${options.method || 'GET'}] with options: ${describeShape(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
     );
 
     const fetchAllPages = params.fetchAllPages === true;
@@ -3303,7 +3308,7 @@ async function executeGraphTool(
           let unmergeablePage = false;
 
           while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
-            logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
+            logger.info(`Fetching page ${pageCount + 1} from: ${describeUrl(nextLink)}`);
 
             // Extract path + query string from the nextLink URL.
             // Pass the full path (with query string) as the endpoint so that
@@ -3398,7 +3403,7 @@ async function executeGraphTool(
           }
         }
       } catch (e) {
-        logger.error(`Error during pagination: ${e}`);
+        logger.error(`Error during pagination: ${describeError(e)}`);
       }
 
       // Re-encode once in the configured format. Runs whenever page one parsed
@@ -3464,7 +3469,7 @@ async function executeGraphTool(
           logger.info(`Response contains ${jsonResponse.value.length} items`);
         }
         if (jsonResponse['@odata.nextLink']) {
-          logger.info(`Response has pagination nextLink: ${jsonResponse['@odata.nextLink']}`);
+          logger.info('Response has pagination nextLink');
         }
       } catch {
         // Non-JSON response
@@ -3498,7 +3503,7 @@ async function executeGraphTool(
     };
   } catch (error) {
     const err = error as { name?: string; code?: string | number; status?: string | number };
-    logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    logger.error(`Error in tool ${tool.alias}: ${describeError(error)}`);
     auditLog({
       event: 'tool.call',
       request_id: requestId,
