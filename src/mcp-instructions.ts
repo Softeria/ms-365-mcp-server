@@ -1,6 +1,7 @@
 /** Shared context for MCP `initialize.instructions` (hosts that forward it to the model). */
 export type McpInstructionsContext = {
   orgMode: boolean;
+  appMode?: boolean;
   readOnly: boolean;
   multiAccount: boolean;
 };
@@ -15,6 +16,10 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     'Teams chat and channel messages: prefer HTML contentType in the body; plain text is often mangled by Graph.',
     'Files / binary content: for large drive/SharePoint file content, prefer get-download-url to resolve a pre-authenticated URL for out-of-band download. Use download-bytes for authenticated byte reads such as mail attachments, profile photos, Teams hosted content, and meeting recordings. In stdio mode (or HTTP with --http-local-file-tools), download-bytes-to-file writes those same authenticated bytes straight to a local absolute path instead of returning base64. For large mail attachments and meeting recordings that is one out-of-band option; get-download-url is the other, on a server running with --enable-attachment-urls. These tools take relative Microsoft Graph paths, not absolute URLs. For uploads, upload-file-content takes a base64 string body (Graph allows 250MB, but the whole string passes through the agent context and a truncated one is written without error); use create-upload-session for anything but small files.',
   ];
+  if (opts.appMode)
+    parts.push(
+      'App mode: there is no signed-in user, so /me paths do not work. Name the user in /users/{user-id} paths with a UPN or object id.'
+    );
   if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
   if (opts.multiAccount)
     parts.push('Multiple accounts: pass the account parameter when required (see list-accounts).');

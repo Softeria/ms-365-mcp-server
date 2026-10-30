@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { getSecrets, type AppSecrets } from './secrets.js';
+import { AppTokenClient, describeAppToken } from './app-mode.js';
 import { getCloudEndpoints, getDefaultClientId, getGraphBaseUrl } from './cloud-config.js';
 import {
   dedupeRefreshTokens,
@@ -32,6 +33,8 @@ interface EndpointConfig {
   // held (e.g. copilot-retrieve needs Files.Read.All + Sites.Read.All, OR ExternalItem.Read.All).
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  // Application permissions for --app-mode. Only endpoints that have this field exist there.
+  appScopes?: string[] | string[][];
   llmTip?: string;
   readOnly?: boolean;
   presets?: string[]; // Presets this endpoint belongs to (mail, outlook, personal, ...)
@@ -276,6 +279,7 @@ const SCOPE_HIERARCHY: ScopeHierarchy = {
 
 interface AllowedScopeOptions {
   orgMode?: boolean;
+  appMode?: boolean;
   enabledTools?: string;
   readOnly?: boolean;
   allowedScopes?: string;
@@ -298,6 +302,36 @@ interface ScopeDiagnostics {
   extraAllowedScopesNotUsedByTools: string[];
 }
 
+/**
+ * Which endpoints.json field decides a tool: `scopes` (personal), `scopes` + `workScopes`
+ * (org), or `appScopes` alone (app). `true`/`false` mean org/personal for older callers.
+ */
+export type ScopeMode = 'personal' | 'org' | 'app';
+
+function toScopeMode(mode: boolean | ScopeMode = false): ScopeMode {
+  if (mode === true) return 'org';
+  if (mode === false) return 'personal';
+  return mode;
+}
+
+export function scopeModeFor(options: { orgMode?: boolean; appMode?: boolean }): ScopeMode {
+  if (options.appMode) return 'app';
+  return options.orgMode ? 'org' : 'personal';
+}
+
+type ScopeFields = Pick<EndpointConfig, 'scopes' | 'workScopes' | 'appScopes'>;
+
+/** Whether an endpoint exists at all in this mode, before read-only, tool filters and allowlists. */
+export function isEndpointInScopeMode(
+  endpoint: ScopeFields | undefined,
+  mode: boolean | ScopeMode = false
+): boolean {
+  const scopeMode = toScopeMode(mode);
+  if (scopeMode === 'app') return endpoint?.appScopes !== undefined;
+  if (scopeMode === 'personal' && endpoint && !endpoint.scopes && endpoint.workScopes) return false;
+  return true;
+}
+
 function parseAllowedScopes(value?: string): string[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -307,8 +341,8 @@ function parseAllowedScopes(value?: string): string[] | undefined {
 }
 
 function getEndpointRequiredScopes(
-  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
-  includeWorkAccountScopes: boolean = false
+  endpoint: ScopeFields | undefined,
+  includeWorkAccountScopes: boolean | ScopeMode = false
 ): string[] {
   if (!endpoint) {
     return [];
@@ -338,14 +372,18 @@ function toScopeGroups(value?: string[] | string[][]): string[][] {
  * endpoints.json validation, so in practice only one side contributes groups.
  */
 function getEndpointScopeGroups(
-  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
-  includeWorkAccountScopes: boolean = false
+  endpoint: ScopeFields | undefined,
+  includeWorkAccountScopes: boolean | ScopeMode = false
 ): string[][] {
   if (!endpoint) {
     return [];
   }
+  const mode = toScopeMode(includeWorkAccountScopes);
+  if (mode === 'app') {
+    return toScopeGroups(endpoint.appScopes);
+  }
   const groups = [...toScopeGroups(endpoint.scopes)];
-  if (includeWorkAccountScopes) {
+  if (mode === 'org') {
     groups.push(...toScopeGroups(endpoint.workScopes));
   }
   return groups;
@@ -358,8 +396,8 @@ function getEndpointScopeGroups(
  * to --extra-scopes. Flat (single-group) endpoints are unaffected.
  */
 function getEndpointLoginScopes(
-  endpoint: Pick<EndpointConfig, 'scopes' | 'workScopes'> | undefined,
-  includeWorkAccountScopes: boolean = false
+  endpoint: ScopeFields | undefined,
+  includeWorkAccountScopes: boolean | ScopeMode = false
 ): string[] {
   const groups = getEndpointScopeGroups(endpoint, includeWorkAccountScopes);
   return groups.length > 0 ? groups[0] : [];
@@ -468,7 +506,7 @@ function buildScopesFromEndpoints(
     }
 
     // Skip endpoints that only have workScopes if not in work mode
-    if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
+    if (!isEndpointInScopeMode(endpoint, includeWorkAccountScopes)) {
       return;
     }
 
@@ -539,7 +577,7 @@ function isScopeUsedByTools(allowedScope: string, toolScopes: string[]): boolean
 
 function endpointMatchesNormalToolSurface(
   endpoint: EndpointConfig,
-  includeWorkAccountScopes: boolean,
+  includeWorkAccountScopes: boolean | ScopeMode,
   enabledToolsRegex?: RegExp,
   readOnly: boolean = false
 ): boolean {
@@ -553,11 +591,7 @@ function endpointMatchesNormalToolSurface(
     return false;
   }
 
-  if (!includeWorkAccountScopes && !endpoint.scopes && endpoint.workScopes) {
-    return false;
-  }
-
-  return true;
+  return isEndpointInScopeMode(endpoint, includeWorkAccountScopes);
 }
 
 function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeDiagnostics {
@@ -579,12 +613,13 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
   // allowed scope is used by some tool (an OR-group's non-primary scopes still count).
   const effectiveToolScopesAllGroups = new Set<string>();
   const disabledTools: DisabledToolScope[] = [];
+  const mode = scopeModeFor(options);
 
   for (const endpoint of endpoints.default) {
     if (
       !endpointMatchesNormalToolSurface(
         endpoint,
-        Boolean(options.orgMode),
+        mode,
         enabledToolsRegex,
         Boolean(options.readOnly)
       )
@@ -592,9 +627,9 @@ function buildAllowedScopeDiagnostics(options: AllowedScopeOptions = {}): ScopeD
       continue;
     }
 
-    const scopeGroups = getEndpointScopeGroups(endpoint, Boolean(options.orgMode));
-    const loginScopes = getEndpointLoginScopes(endpoint, Boolean(options.orgMode));
-    const allScopes = getEndpointRequiredScopes(endpoint, Boolean(options.orgMode));
+    const scopeGroups = getEndpointScopeGroups(endpoint, mode);
+    const loginScopes = getEndpointLoginScopes(endpoint, mode);
+    const allScopes = getEndpointRequiredScopes(endpoint, mode);
     loginScopes.forEach((scope) => normalToolScopes.add(scope));
 
     const missingScopes = getMissingAllowedScopesForGroups(scopeGroups, allowedScopes);
@@ -688,6 +723,11 @@ interface LoginTestResult {
     displayName: string;
     userPrincipalName: string;
   };
+  appData?: {
+    appId?: string;
+    tenantId?: string;
+    roles: string[];
+  };
 }
 
 interface ExpectedAccountOptions {
@@ -697,6 +737,8 @@ interface ExpectedAccountOptions {
 
 interface AuthManagerCreateOptions {
   storage?: TokenCacheStorage;
+  /** --app-mode: client-credentials tokens instead of a signed-in account. */
+  appMode?: boolean;
 }
 
 /**
@@ -786,6 +828,7 @@ class AuthManager {
    * about - with several cached, one account's failure must not answer for another (#648).
    */
   private loginPersistence: { homeAccountId: string; message: string } | null;
+  private appClient: AppTokenClient | null = null;
 
   constructor(
     config: Configuration,
@@ -835,7 +878,15 @@ class AuthManager {
     const storage =
       options.storage ??
       (await createTokenCacheStorage({ allowCommandStorage: false, logProvider: true }));
-    return new AuthManager(config, scopes, expectedAccount, storage);
+    const authManager = new AuthManager(config, scopes, expectedAccount, storage);
+    if (options.appMode) {
+      authManager.appClient = new AppTokenClient(secrets);
+    }
+    return authManager;
+  }
+
+  isAppMode(): boolean {
+    return this.appClient !== null;
   }
 
   async loadTokenCache(): Promise<void> {
@@ -1206,6 +1257,10 @@ class AuthManager {
   }
 
   async getToken(forceRefresh = false): Promise<string | null> {
+    if (this.appClient) {
+      return this.appClient.getToken();
+    }
+
     if (this.isOAuthMode && this.oauthToken) {
       return this.oauthToken;
     }
@@ -1394,6 +1449,9 @@ class AuthManager {
   }
 
   async testLogin(): Promise<LoginTestResult> {
+    if (this.appClient) {
+      return this.testAppLogin(this.appClient);
+    }
     try {
       logger.info('Testing login...');
       // A sign-in whose tokens never reached the cache reports its failure here: on the
@@ -1456,6 +1514,22 @@ class AuthManager {
         success: false,
         message: `Login failed: ${(error as Error).message}`,
       };
+    }
+  }
+
+  // No /me for an app token: report the roles claim instead. It is empty for an app that only
+  // has Exchange RBAC for Applications grants, so an empty one is a hint, not a failure.
+  private async testAppLogin(appClient: AppTokenClient): Promise<LoginTestResult> {
+    try {
+      const appData = describeAppToken(await appClient.getToken());
+      const message =
+        appData.roles.length > 0
+          ? 'App token acquired'
+          : 'App token acquired, but it carries no Microsoft Entra application permissions. Fine if access comes only from Exchange RBAC for Applications; otherwise grant permissions and admin consent.';
+      return { success: true, message, appData };
+    } catch (error) {
+      logger.error(`App token request failed: ${describeAuthError(error)}`);
+      return { success: false, message: `App token request failed: ${(error as Error).message}` };
     }
   }
 
@@ -1589,7 +1663,7 @@ class AuthManager {
    * Used to decide whether to inject the `account` parameter into tool schemas.
    */
   async isMultiAccount(): Promise<boolean> {
-    if (this.hasExpectedAccount()) {
+    if (this.appClient || this.hasExpectedAccount()) {
       return false;
     }
     const accounts = await this.msalApp.getTokenCache().getAllAccounts();
@@ -1609,6 +1683,15 @@ class AuthManager {
    * @returns The access token string.
    */
   async getTokenForAccount(identifier?: string): Promise<string> {
+    if (this.appClient) {
+      if (identifier) {
+        throw new Error(
+          `Cannot switch to account '${identifier}': the server is in app mode and has no signed-in accounts.`
+        );
+      }
+      return this.appClient.getToken();
+    }
+
     if (this.isOAuthMode && this.oauthToken) {
       // Refuse instead of silently returning the bearer's identity (discussion #467):
       // in OAuth mode the token comes from the connecting client and cannot be
