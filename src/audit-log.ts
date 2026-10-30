@@ -9,8 +9,8 @@ import os from 'os';
  * Structured JSON audit log for tool invocations.
  *
  * Why a separate logger: the operational logger (`./logger.ts`) emits
- * human-friendly text and may incidentally include large tool params for
- * debugging. The audit log has a stricter, machine-parseable shape and a
+ * human-friendly text for debugging, describing values only by shape (see
+ * `lib/log-safe.ts`), never their content. The audit log has a stricter, machine-parseable shape and a
  * narrower allowlist of fields — it is the artifact that satisfies the
  * "who accessed what, when" requirement of data-subject access requests
  * (DSARs) and audit trails under common privacy regimes (GDPR, HIPAA,
@@ -37,7 +37,8 @@ import os from 'os';
  *    ordinary internal reply.
  *  - Apart from that and `target_resource.id` above, tool parameters and Graph
  *    response bodies are NEVER written to THIS log. The operational logger is
- *    separate and does log them.
+ *    separate and records only their shape (names, sizes, statuses), not their
+ *    content.
  *
  * Opt-out: set `MS365_MCP_AUDIT_LOG=false` to disable when audit is
  * collected through a separate sink (sidecar, OpenTelemetry, etc.).
