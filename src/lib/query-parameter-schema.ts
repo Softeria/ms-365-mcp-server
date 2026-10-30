@@ -17,7 +17,10 @@ export function queryParameterSchema(
   const bareName = name.replace(/^\$/, '').toLowerCase();
   if (!isQueryParamSupported(config, bareName)) return undefined;
 
-  const source = providerSchema instanceof z.ZodOptional ? providerSchema.unwrap() : providerSchema;
+  const source =
+    providerSchema instanceof z.ZodOptional
+      ? (providerSchema.unwrap() as z.ZodTypeAny)
+      : providerSchema;
   let schema = source;
   switch (bareName) {
     case 'select':

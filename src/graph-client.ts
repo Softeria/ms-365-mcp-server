@@ -452,7 +452,7 @@ class GraphClient {
       const errorText = await response.text();
       if (errorText.includes('scope') || errorText.includes('permission')) {
         throw new Error(
-          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`
+          `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. ${this.scopeErrorHint()}`
         );
       }
       throw new Error(
@@ -543,6 +543,14 @@ class GraphClient {
     }
   }
 
+  private scopeErrorHint(): string {
+    // --org-mode is already on in app mode: what is missing is a grant on the app itself
+    if (this.authManager.isAppMode?.()) {
+      return 'Grant one of these as an application permission to your app registration (with admin consent), or for mail and calendars through Exchange RBAC for Applications.';
+    }
+    return 'This tool requires organization mode. Please restart with --org-mode flag.';
+  }
+
   private async createGraphApiError(response: Response): Promise<GraphApiError> {
     const errorText = await response.text();
     const graphErrorCode = extractGraphErrorCode(errorText);
@@ -551,7 +559,7 @@ class GraphClient {
 
     if (response.status === 403 && isPermissionOrScopeError) {
       return new GraphApiError(
-        `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. This tool requires organization mode. Please restart with --org-mode flag.`,
+        `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. ${this.scopeErrorHint()}`,
         response.status,
         graphErrorCode
       );

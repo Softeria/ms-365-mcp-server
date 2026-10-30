@@ -4,6 +4,7 @@
     "method": "post",
     "toolName": "graph-batch",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Combine up to 20 Graph requests into a single HTTP call. Body: { requests: [{ id: '1', method: 'GET'|'POST'|'PATCH'|'DELETE', url: '/me/messages?$top=5', headers?: {...}, body?: {...}, dependsOn?: ['1'] }, ...] }. Returns { responses: [{ id, status, body, headers }] } in arbitrary order — match by id. Use cases: (1) parallelize many small reads (e.g. fetch 15 mail messages by id in one round-trip); (2) sequence dependent writes via dependsOn; (3) batch many Excel range writes into one call to dramatically reduce latency on large workbook builds. Note: each sub-request URL is relative to the Graph version root (/me/..., /drives/..., NOT https://graph.microsoft.com/v1.0/...)."
   },
   {
@@ -91,6 +92,7 @@
     "toolName": "list-shared-mailbox-messages",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
+    "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
@@ -99,6 +101,7 @@
     "toolName": "list-shared-mailbox-folder-messages",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
+    "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]],
     "llmTip": "CRITICAL: When searching emails, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'from:', 'subject:', 'body:', 'to:', 'cc:', 'bcc:', 'attachment:', 'hasAttachments:', 'importance:', 'received:', 'sent:'. Examples: $search=\"from:john@example.com\" | $search=\"subject:meeting AND hasAttachments:true\" | $search=\"body:urgent AND received>=2024-01-01\" | $search=\"from:alice AND importance:high\". Remember: ALWAYS wrap the entire search expression in double quotes! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter IMPORTANT: Always use $select to limit returned fields and reduce response size. Recommended default: $select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments. Use bodyPreview instead of body for listings. To read the full email body, use get-shared-mailbox-message with the specific message id."
   },
   {
@@ -107,7 +110,8 @@
     "toolName": "get-shared-mailbox-message",
     "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.Read.Shared"]
+    "workScopes": ["Mail.Read.Shared"],
+    "appScopes": [["Mail.Read"], ["Mail.ReadBasic.All"]]
   },
   {
     "pathPattern": "/users/{user-id}/sendMail",
@@ -115,6 +119,7 @@
     "toolName": "send-shared-mailbox-mail",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
+    "appScopes": ["Mail.Send"],
     "llmTip": "CRITICAL: Do not try to guess the email address of the recipients. Use the list-users tool to find the email address of the recipients."
   },
   {
@@ -122,7 +127,8 @@
     "method": "post",
     "toolName": "create-shared-mailbox-draft",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/move",
@@ -131,6 +137,7 @@
     "descriptionOverride": "Move a message in another user's mailbox or a shared mailbox to a different folder. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"],
     "llmTip": "destinationId accepts folder ID or well-known name (inbox, drafts, sentitems, deleteditems, junkemail, archive)."
   },
   {
@@ -139,7 +146,8 @@
     "toolName": "update-shared-mailbox-message",
     "descriptionOverride": "Update a message in another user's mailbox or a shared mailbox — for example mark it read or unread (isRead), flag it (flag), change its categories or importance, or edit a draft's subject, body, or recipients. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/reply",
@@ -147,6 +155,7 @@
     "toolName": "reply-shared-mailbox-mail",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
+    "appScopes": ["Mail.Send"],
     "llmTip": "Reply to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). The 'comment' field is your reply text. Do NOT reconstruct the email manually. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
@@ -155,6 +164,7 @@
     "toolName": "reply-all-shared-mailbox-mail",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
+    "appScopes": ["Mail.Send"],
     "llmTip": "Reply-all to a message from a shared mailbox preserving full HTML formatting and conversation thread. The 'user-id' is the shared mailbox email address. The 'comment' field is your reply text. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
@@ -163,6 +173,7 @@
     "toolName": "forward-shared-mailbox-mail",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
+    "appScopes": ["Mail.Send"],
     "llmTip": "Forward a message from a shared mailbox preserving full HTML formatting and attachments. The 'user-id' is the shared mailbox email address. 'toRecipients' is required. The 'comment' field adds text above the forwarded content. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
@@ -171,6 +182,7 @@
     "toolName": "create-shared-mailbox-reply-draft",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"],
     "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
   },
   {
@@ -179,6 +191,7 @@
     "toolName": "create-shared-mailbox-reply-all-draft",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"],
     "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
   },
   {
@@ -187,6 +200,7 @@
     "toolName": "create-shared-mailbox-forward-draft",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"],
     "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out. Requires delegated access to the shared mailbox."
   },
   {
@@ -195,6 +209,7 @@
     "toolName": "send-shared-mailbox-draft",
     "presets": ["work"],
     "workScopes": ["Mail.Send.Shared"],
+    "appScopes": ["Mail.Send"],
     "llmTip": "Send an existing draft from a shared mailbox. No request body needed — just call with the message ID and the shared mailbox user-id. Draft must exist in the shared mailbox's Drafts folder. Requires Send As permission on the shared mailbox in Exchange."
   },
   {
@@ -203,7 +218,8 @@
     "toolName": "list-shared-mailbox-folders",
     "descriptionOverride": "List the top-level mail folders in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.Read.Shared"]
+    "workScopes": ["Mail.Read.Shared"],
+    "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]]
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
@@ -211,7 +227,8 @@
     "toolName": "list-shared-mailbox-child-folders",
     "descriptionOverride": "List the child folders of a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.Read.Shared"]
+    "workScopes": ["Mail.Read.Shared"],
+    "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]]
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders",
@@ -219,7 +236,8 @@
     "toolName": "create-shared-mailbox-folder",
     "descriptionOverride": "Create a top-level mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
@@ -227,7 +245,8 @@
     "toolName": "create-shared-mailbox-child-folder",
     "descriptionOverride": "Create a subfolder inside a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
@@ -236,6 +255,7 @@
     "descriptionOverride": "List the attachments on a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
+    "appScopes": ["Mail.Read"],
     "llmTip": "To download the bytes, call download-bytes or get-download-url with target=/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value."
   },
   {
@@ -245,6 +265,7 @@
     "descriptionOverride": "Add an attachment under 3MB to a draft message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"],
     "llmTip": "Body requires @odata.type: {\"@odata.type\": \"#microsoft.graph.fileAttachment\", \"name\": \"file.pdf\", \"contentBytes\": \"<base64>\"}. Graph has no working path for 3MB and above here: upload sessions return 403 in a shared or delegated mailbox."
   },
   {
@@ -253,7 +274,8 @@
     "toolName": "delete-shared-mailbox-attachment",
     "descriptionOverride": "Delete an attachment from a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
-    "workScopes": ["Mail.ReadWrite.Shared"]
+    "workScopes": ["Mail.ReadWrite.Shared"],
+    "appScopes": ["Mail.ReadWrite"]
   },
   {
     "pathPattern": "/users",
@@ -261,6 +283,7 @@
     "toolName": "list-users",
     "presets": ["users", "work"],
     "workScopes": ["User.Read.All"],
+    "appScopes": [["User.Read.All"], ["Directory.Read.All"]],
     "llmTip": "CRITICAL: This request requires the ConsistencyLevel header set to eventual. When searching users, the $search parameter value MUST be wrapped in double quotes. Format: $search=\"your search query here\". Use KQL (Keyword Query Language) syntax to search specific properties: 'displayName:'. Examples: $search=\"displayName:john\" | $search=\"displayName:john\" OR \"displayName:jane\". Remember: ALWAYS wrap the entire search expression in double quotes and set the ConsistencyLevel header to eventual! Reference: https://learn.microsoft.com/en-us/graph/search-query-parameter"
   },
   {
@@ -601,6 +624,7 @@
     "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated access to that calendar is required. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
     "presets": ["work"],
     "workScopes": ["Calendars.Read.Shared"],
+    "appScopes": [["Calendars.ReadBasic"], ["Calendars.Read"]],
     "supportsTimezone": true
   },
   {
@@ -610,6 +634,7 @@
     "descriptionOverride": "List the occurrences, exceptions, and single instances of events in another user's default calendar over a time range. Requires the startDateTime and endDateTime query parameters in ISO 8601 format. Unlike list-shared-calendar-events, recurring series are expanded into individual occurrences.",
     "presets": ["work"],
     "workScopes": ["Calendars.Read.Shared"],
+    "appScopes": [["Calendars.ReadBasic"], ["Calendars.Read"]],
     "supportsTimezone": true
   },
   {
@@ -619,6 +644,7 @@
     "descriptionOverride": "Create an event in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated write access to that calendar is required. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone. For recurring events use the calendar owner's own time zone name rather than UTC, since Graph resolves DST against the zone in start.timeZone.",
     "presets": ["work"],
     "workScopes": ["Calendars.ReadWrite.Shared"],
+    "appScopes": ["Calendars.ReadWrite"],
     "supportsTimezone": true
   },
   {
@@ -628,6 +654,7 @@
     "descriptionOverride": "Update an event in another user's default calendar. Requires the calendar owner's user-id and the event's eventId from list-shared-calendar-events or get-shared-calendar-view. Times use nested {dateTime, timeZone} objects.",
     "presets": ["work"],
     "workScopes": ["Calendars.ReadWrite.Shared"],
+    "appScopes": ["Calendars.ReadWrite"],
     "supportsTimezone": true
   },
   {
@@ -637,7 +664,8 @@
     "descriptionOverride": "Delete an event from another user's default calendar. Requires the calendar owner's user-id and the event's eventId from list-shared-calendar-events or get-shared-calendar-view.",
     "llmTip": "Deleting a seriesMaster deletes ALL occurrences of the recurring event. If the owner organizes the meeting, deleting it sends a cancellation to the attendees.",
     "presets": ["work"],
-    "workScopes": ["Calendars.ReadWrite.Shared"]
+    "workScopes": ["Calendars.ReadWrite.Shared"],
+    "appScopes": ["Calendars.ReadWrite"]
   },
   {
     "pathPattern": "/me/calendars/{calendar-id}/events/{event-id}/instances",
@@ -702,6 +730,7 @@
     "toolName": "get-drive-delta",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select and delta tokens for incremental sync via @odata.deltaLink."
   },
   {
@@ -709,21 +738,24 @@
     "method": "get",
     "toolName": "get-drive-root-item",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": [["Files.Read"], ["Sites.Selected"]]
+    "scopes": [["Files.Read"], ["Sites.Selected"]],
+    "appScopes": [["Files.Read.All"], ["Group.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",
     "method": "get",
     "toolName": "list-folder-files",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": [["Files.Read"], ["Sites.Selected"]]
+    "scopes": [["Files.Read"], ["Sites.Selected"]],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
     "method": "delete",
     "toolName": "delete-onedrive-file",
     "presets": ["files", "onedrive", "personal"],
-    "scopes": ["Files.ReadWrite"]
+    "scopes": ["Files.ReadWrite"],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/content",
@@ -731,6 +763,7 @@
     "toolName": "upload-file-content",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Graph accepts up to 250MB here, but the whole string travels as a tool argument and a truncated one decodes to a truncated file with no error, so use create-upload-session rather than emitting a large base64 string. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
   },
   {
@@ -739,6 +772,7 @@
     "toolName": "create-upload-session",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
+    "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
@@ -747,6 +781,7 @@
     "toolName": "get-drive-item",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
+    "appScopes": [["Files.Read.All"], ["Group.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Gets metadata for a file or folder: name, size, lastModifiedDateTime, createdBy, webUrl, file (mimeType, hashes), folder (childCount), parentReference, and @microsoft.graph.downloadUrl. For large drive/SharePoint files, call get-download-url with target=/drives/{drive-id}/items/{driveItem-id}/content to fetch out-of-band with no Authorization header. For small files where base64 in the tool response is acceptable, call download-bytes with the same /content target."
   },
   {
@@ -755,6 +790,7 @@
     "toolName": "move-rename-onedrive-item",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request."
   },
   {
@@ -763,6 +799,7 @@
     "toolName": "create-onedrive-folder",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Creates a new folder inside the specified drive item. Body must include name (string) and folder ({}) fields. Use @microsoft.graph.conflictBehavior to control behavior on name conflict: 'rename' (default), 'replace', or 'fail'."
   },
   {
@@ -771,6 +808,7 @@
     "toolName": "share-drive-item",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
   },
   {
@@ -779,6 +817,7 @@
     "toolName": "create-drive-item-share-link",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
   },
   {
@@ -787,6 +826,7 @@
     "toolName": "copy-drive-item",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Asynchronously copy a file or folder to a new location and/or name. Body: { parentReference: { driveId: '...', id: '...' }, name?: 'New Name.xlsx' }. Returns 202 Accepted with a Location header pointing at a monitor URL for the async job. Ideal for duplicating templates (e.g. clone an Armhr Census Template per prospect), bulk file provisioning, or preserving an immutable snapshot of a working file."
   },
   {
@@ -795,6 +835,7 @@
     "toolName": "create-drive-item-preview",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Generate a short-lived embeddable preview URL for a file (Office docs, PDFs, images). Body: { page?: number | string, zoom?: number, viewer?: 'onedrive' | 'office' }. Returns getUrl (interactive) and postUrl (form-post). Useful for surfacing inline previews in summary emails or chat messages without needing the recipient to open the file."
   },
   {
@@ -803,6 +844,7 @@
     "toolName": "list-drive-item-thumbnails",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Lists thumbnail sets for a file. Each set contains small (96px), medium (176px), large (800px) thumbnails with url and dimensions. Returns empty for unsupported types (text docs). Use $select=small,medium,large or $expand=small($select=url) to fetch specific sizes. The returned URLs are short-lived — fetch the bytes immediately."
   },
   {
@@ -811,6 +853,7 @@
     "toolName": "list-drive-item-permissions",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
   },
   {
@@ -819,6 +862,7 @@
     "toolName": "delete-drive-item-permission",
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
+    "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Removes a specific permission from a file or folder. Only permissions that are not inherited can be deleted. Use list-drive-item-permissions first to find the permission ID."
   },
   {
@@ -827,6 +871,7 @@
     "toolName": "list-drive-item-versions",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
   },
   {
@@ -835,6 +880,7 @@
     "toolName": "search-onedrive-files",
     "presets": ["files", "onedrive", "personal", "search"],
     "scopes": ["Files.Read"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"]],
     "skipEncoding": ["q"],
     "llmTip": "Searches for files in a drive by name or content. The q parameter searches file names, metadata, and file content. Returns matching driveItems with id, name, webUrl, size, lastModifiedDateTime. Use list-drives first to get the drive-id."
   },
@@ -986,6 +1032,7 @@
     "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
+    "appScopes": ["Mail.Read"],
     "acceptType": "text/plain",
     "blobOutput": true,
     "llmTip": "Download a message of a shared mailbox as an .eml. Find the message id with list-shared-mailbox-messages first. With the server's blob output on, the bytes come back as a file resource; pass fileName to name it."
@@ -1007,6 +1054,7 @@
     "descriptionOverride": "Download the raw bytes of a file attachment of a message in another user's mailbox or a shared mailbox, by message ID and attachment ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
+    "appScopes": ["Mail.Read"],
     "blobOutput": true,
     "llmTip": "Find the attachment id with list-shared-mailbox-attachments first. With the server's blob output on, the bytes come back as a file resource; pass fileName (the attachment's name) to name it. Files over the server's download limit are refused with an error naming the limit."
   },
@@ -1205,6 +1253,41 @@
     "scopes": ["Notes.Read"]
   },
   {
+    "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
+    "method": "patch",
+    "toolName": "update-onenote-page-content",
+    "presets": ["onenote", "personal"],
+    "scopes": ["Notes.ReadWrite"],
+    "requestBodySchema": {
+      "type": "array",
+      "description": "Array of patchContentCommand objects applied in order to the page's HTML.",
+      "items": {
+        "type": "object",
+        "required": ["target", "action"],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+          },
+          "action": {
+            "type": "string",
+            "enum": ["append", "insert", "prepend", "replace", "delete"],
+            "description": "What to do at the target. 'delete' takes no content."
+          },
+          "position": {
+            "type": "string",
+            "enum": ["after", "before"],
+            "description": "For 'insert'/'append', whether content goes after (default) or before the target's content."
+          },
+          "content": {
+            "type": "string",
+            "description": "HTML to add. Required for all actions except 'delete'."
+          }
+        }
+      }
+    }
+  },
+  {
     "pathPattern": "/sites/{site-id}/onenote/notebooks",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-notebooks",
@@ -1358,7 +1441,15 @@
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.Read"],
     "queryParams": ["top", "skip", "filter", "skiptoken"],
-    "llmTip": "Lists all To Do task lists. Returns todoTaskList-id needed for all task operations. The default list is typically called 'Tasks'."
+    "llmTip": "If it returns only 'Flagged Emails', use list-todo-task-lists-delta instead."
+  },
+  {
+    "pathPattern": "/me/todo/lists/delta()",
+    "method": "get",
+    "toolName": "list-todo-task-lists-delta",
+    "presets": ["personal", "tasks"],
+    "scopes": ["Tasks.ReadWrite"],
+    "queryParams": ["select", "skiptoken"]
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -1472,7 +1563,8 @@
     "method": "get",
     "toolName": "get-planner-plan",
     "presets": ["tasks", "work"],
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"]
   },
   {
     "pathPattern": "/planner/plans",
@@ -1480,6 +1572,7 @@
     "toolName": "create-planner-plan",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "Body: {\"container\": {\"url\": \"https://graph.microsoft.com/v1.0/groups/{group-id}\"}, \"title\": \"...\"}. For a team, the group id is the team id. The signed-in user must be a member of the group. The container cannot be changed later. Returns the new plan id; to show the plan in a channel, add a Planner tab with create-channel-tab."
   },
   {
@@ -1488,6 +1581,7 @@
     "toolName": "update-planner-plan",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-plan (use includeHeaders=true)."
   },
   {
@@ -1496,6 +1590,7 @@
     "toolName": "list-group-planner-plans",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"],
     "llmTip": "Lists the plans owned by a Microsoft 365 group. For a team, the group id is the team id."
   },
   {
@@ -1504,6 +1599,7 @@
     "toolName": "list-plan-tasks",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"],
     "llmTip": "Priority is 0-10 (lower = higher priority); Planner's own UI presets are 1=Urgent, 3=Important, 5=Medium, 9=Low."
   },
   {
@@ -1512,6 +1608,7 @@
     "toolName": "get-planner-task",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"],
     "llmTip": "Response includes @odata.etag — save it, required as If-Match header for update-planner-task. Use includeHeaders=true to capture it."
   },
   {
@@ -1519,7 +1616,8 @@
     "method": "post",
     "toolName": "create-planner-task",
     "presets": ["tasks", "work"],
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"]
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}",
@@ -1527,6 +1625,7 @@
     "toolName": "update-planner-task",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "CRITICAL: Requires If-Match header with the task's @odata.etag value, otherwise returns 412 Precondition Failed. Get the ETag from get-planner-task with includeHeaders=true. Priority is 0-10 (lower = higher priority); Planner's own UI presets are 1=Urgent, 3=Important, 5=Medium, 9=Low."
   },
   {
@@ -1535,6 +1634,7 @@
     "toolName": "get-planner-task-details",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"],
     "llmTip": "Response includes @odata.etag — required for update-planner-task-details. Use includeHeaders=true."
   },
   {
@@ -1543,6 +1643,7 @@
     "toolName": "update-planner-task-details",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-task-details (use includeHeaders=true). Checklist items use GUID keys: {\"checklist\": {\"<guid>\": {\"title\": \"...\", \"isChecked\": false}}}."
   },
   {
@@ -1550,7 +1651,8 @@
     "method": "get",
     "toolName": "list-plan-buckets",
     "presets": ["tasks", "work"],
-    "scopes": ["Tasks.Read"]
+    "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"]
   },
   {
     "pathPattern": "/planner/buckets/{plannerBucket-id}",
@@ -1558,6 +1660,7 @@
     "toolName": "get-planner-bucket",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.Read"],
+    "appScopes": ["Tasks.Read.All"],
     "llmTip": "Response includes @odata.etag — required as If-Match for update-planner-bucket and delete-planner-bucket. Use includeHeaders=true."
   },
   {
@@ -1565,7 +1668,8 @@
     "method": "post",
     "toolName": "create-planner-bucket",
     "presets": ["tasks", "work"],
-    "scopes": ["Tasks.ReadWrite"]
+    "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"]
   },
   {
     "pathPattern": "/planner/buckets/{plannerBucket-id}",
@@ -1573,6 +1677,7 @@
     "toolName": "update-planner-bucket",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
   },
   {
@@ -1581,6 +1686,7 @@
     "toolName": "delete-planner-bucket",
     "presets": ["tasks", "work"],
     "scopes": ["Tasks.ReadWrite"],
+    "appScopes": ["Tasks.ReadWrite.All"],
     "llmTip": "CRITICAL: Requires If-Match header with ETag from get-planner-bucket (use includeHeaders=true)."
   },
   {
@@ -1706,6 +1812,7 @@
     "toolName": "list-user-direct-reports",
     "presets": ["users", "work"],
     "workScopes": ["User.Read.All"],
+    "appScopes": [["User.Read.All"], ["Directory.Read.All"]],
     "llmTip": "Lists users who report directly to a specific user. Use with get-user-manager to traverse the org hierarchy."
   },
   {
@@ -1730,6 +1837,12 @@
     "toolName": "list-groups",
     "presets": ["work"],
     "workScopes": ["Group.Read.All"],
+    "appScopes": [
+      ["Group.ReadBasic.All"],
+      ["GroupMember.Read.All"],
+      ["Group.Read.All"],
+      ["Directory.Read.All"]
+    ],
     "llmTip": "Lists organization groups (Microsoft 365 groups, security groups, distribution lists). Use $filter=groupTypes/any(g:g eq 'Unified') for M365 groups only. Use $filter=mailEnabled eq true and securityEnabled eq false for distribution lists. Use $search=\"displayName:keyword\" to search by name (requires ConsistencyLevel: eventual header). Use $select to limit fields."
   },
   {
@@ -1738,6 +1851,12 @@
     "toolName": "get-group",
     "presets": ["work"],
     "workScopes": ["Group.Read.All"],
+    "appScopes": [
+      ["Group.ReadBasic.All"],
+      ["GroupMember.Read.All"],
+      ["Group.Read.All"],
+      ["Directory.Read.All"]
+    ],
     "llmTip": "Gets a specific group's details: displayName, description, mail, visibility, groupTypes, membershipRule, createdDateTime. Use $select to limit returned properties."
   },
   {
@@ -1762,6 +1881,13 @@
     "toolName": "list-group-members",
     "presets": ["work"],
     "workScopes": ["GroupMember.Read.All"],
+    "appScopes": [
+      ["GroupMember.ReadBasic.All"],
+      ["Directory.Read.All"],
+      ["Group.Read.All"],
+      ["Group.ReadBasic.All"],
+      ["GroupMember.Read.All"]
+    ],
     "llmTip": "Lists members of a group. Returns directoryObjects with displayName, mail, jobTitle, userPrincipalName. Use $select to limit fields. Use $top and pagination for large groups."
   },
   {
@@ -1770,6 +1896,7 @@
     "toolName": "list-group-owners",
     "presets": ["work"],
     "workScopes": ["GroupMember.Read.All"],
+    "appScopes": [["GroupMember.Read.All"], ["Directory.Read.All"], ["Group.Read.All"]],
     "llmTip": "Lists owners of a group. Owners can manage group settings and membership. Returns directoryObjects with displayName, mail, userPrincipalName."
   },
   {
@@ -1786,7 +1913,8 @@
     "method": "get",
     "toolName": "get-chat",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Chat.ReadBasic"]
+    "workScopes": ["Chat.ReadBasic"],
+    "appScopes": [["Chat.ReadBasic.All"], ["Chat.ReadBasic.WhereInstalled"], ["Chat.Read.All"]]
   },
   {
     "pathPattern": "/chats/{chat-id}/members",
@@ -1794,6 +1922,7 @@
     "toolName": "list-chat-members",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMember.Read"],
+    "appScopes": [["ChatMember.Read.All"], ["Chat.ReadBasic.All"], ["Chat.Read.All"]],
     "nameFilter": true,
     "llmTip": "Lists members of a chat. Each member has displayName, email, roles (owner/guest), and visibleHistoryStartDateTime. For meeting chats, use the chatInfo.threadId from get-online-meeting as the chat-id to see who participated in the meeting chat. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
@@ -1803,6 +1932,7 @@
     "toolName": "list-chat-messages",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMessage.Read"],
+    "appScopes": ["Chat.Read.All"],
     "llmTip": "Lists messages in a chat. $top is capped at 50 (higher values return 400) and $orderby accepts only descending order on createdDateTime or lastModifiedDateTime - ascending is rejected. Meeting chats mostly hold system events; transcripts are not available here, use list-meeting-transcripts instead."
   },
   {
@@ -1810,7 +1940,8 @@
     "method": "get",
     "toolName": "get-chat-message",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"]
+    "workScopes": ["ChatMessage.Read"],
+    "appScopes": ["Chat.Read.All"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}",
@@ -1827,6 +1958,7 @@
     "toolName": "list-chat-message-hosted-contents",
     "presets": ["teams", "work"],
     "workScopes": ["ChatMessage.Read"],
+    "appScopes": ["Chat.Read.All"],
     "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
   },
   {
@@ -1853,6 +1985,7 @@
     "apiVersion": "beta",
     "presets": ["teams", "work"],
     "workScopes": ["TeamworkCustomEmoji.Read"],
+    "appScopes": ["TeamworkCustomEmoji.Read.All"],
     "queryParams": ["top", "filter", "select", "skiptoken"],
     "llmTip": "Lists the organization's custom Teams emojis, including displayName, createdBy and createdDateTime. Graph can return contentBytes: null by default; request select='displayName,contentBytes' (or a string array) to retrieve base64 PNG/GIF images. Supports $top, $filter and $select. Image bytes can make responses large: use a small $top when selecting contentBytes; use fetchAllPages only for an explicitly requested export. displayName is the unique key, not an id. Work/school accounts only. Microsoft Graph beta API: subject to change."
   },
@@ -1863,6 +1996,7 @@
     "apiVersion": "beta",
     "presets": ["teams", "work"],
     "workScopes": ["TeamworkCustomEmoji.Create"],
+    "appScopes": ["TeamworkCustomEmoji.Create.All"],
     "requestBodySchema": {
       "type": "object",
       "required": ["displayName", "contentBytes"],
@@ -1885,42 +2019,67 @@
     "method": "get",
     "toolName": "get-team",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Team.ReadBasic.All"]
+    "workScopes": ["Team.ReadBasic.All"],
+    "appScopes": [
+      ["Team.ReadBasic.All"],
+      ["TeamSettings.Read.All"],
+      ["Group.Read.All"],
+      ["Directory.Read.All"]
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "get",
     "toolName": "list-team-channels",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Channel.ReadBasic.All"]
+    "workScopes": ["Channel.ReadBasic.All"],
+    "appScopes": [
+      ["Channel.ReadBasic.All"],
+      ["ChannelSettings.Read.All"],
+      ["Directory.Read.All"],
+      ["Group.Read.All"]
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "get",
     "toolName": "get-team-channel",
     "presets": ["teams", "teams-write", "work"],
-    "workScopes": ["Channel.ReadBasic.All"]
+    "workScopes": ["Channel.ReadBasic.All"],
+    "appScopes": [
+      ["Channel.ReadBasic.All"],
+      ["ChannelSettings.Read.All"],
+      ["Directory.Read.All"],
+      ["Group.Read.All"]
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels",
     "method": "post",
     "toolName": "create-team-channel",
     "presets": ["teams", "work"],
-    "workScopes": ["Channel.Create"]
+    "workScopes": ["Channel.Create"],
+    "appScopes": [["Channel.Create"], ["Directory.ReadWrite.All"], ["Group.ReadWrite.All"]]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "patch",
     "toolName": "update-team-channel",
     "presets": ["teams", "work"],
-    "workScopes": ["ChannelSettings.ReadWrite.All"]
+    "workScopes": ["ChannelSettings.ReadWrite.All"],
+    "appScopes": [
+      ["ChannelSettings.ReadWrite.All"],
+      ["Directory.ReadWrite.All"],
+      ["Group.ReadWrite.All"]
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}",
     "method": "delete",
     "toolName": "delete-team-channel",
     "presets": ["teams", "work"],
-    "workScopes": ["Channel.Delete.All"]
+    "workScopes": ["Channel.Delete.All"],
+    "appScopes": [["Channel.Delete.All"], ["Directory.ReadWrite.All"], ["Group.ReadWrite.All"]]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages",
@@ -1928,6 +2087,7 @@
     "toolName": "list-channel-messages",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.Read.All"],
+    "appScopes": [["ChannelMessage.Read.All"], ["Group.Read.All"]],
     "queryParams": ["top", "expand", "skiptoken"]
   },
   {
@@ -1935,7 +2095,8 @@
     "method": "get",
     "toolName": "get-channel-message",
     "presets": ["teams", "work"],
-    "workScopes": ["ChannelMessage.Read.All"]
+    "workScopes": ["ChannelMessage.Read.All"],
+    "appScopes": [["ChannelMessage.Read.All"], ["Group.Read.All"]]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}",
@@ -1952,6 +2113,7 @@
     "toolName": "list-channel-message-hosted-contents",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.Read.All"],
+    "appScopes": ["ChannelMessage.Read.All"],
     "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams channel message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/hostedContents/{id}/$value."
   },
   {
@@ -1978,6 +2140,7 @@
     "toolName": "list-channel-message-replies",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelMessage.Read.All"],
+    "appScopes": [["ChannelMessage.Read.All"], ["Group.Read.All"]],
     "queryParams": ["top", "skiptoken"]
   },
   {
@@ -1994,21 +2157,30 @@
     "method": "post",
     "toolName": "add-team-member",
     "presets": ["teams", "work"],
-    "workScopes": ["TeamMember.ReadWrite.All"]
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "appScopes": [["TeamMember.ReadWriteNonOwnerRole.All"], ["TeamMember.ReadWrite.All"]]
   },
   {
     "pathPattern": "/teams/{team-id}/members/{conversationMember-id}",
     "method": "delete",
     "toolName": "remove-team-member",
     "presets": ["teams", "work"],
-    "workScopes": ["TeamMember.ReadWrite.All"]
+    "workScopes": ["TeamMember.ReadWrite.All"],
+    "appScopes": [["TeamMember.ReadWriteNonOwnerRole.All"], ["TeamMember.ReadWrite.All"]]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
     "method": "get",
     "toolName": "list-channel-tabs",
     "presets": ["teams", "work"],
-    "workScopes": ["TeamsTab.Read.All"]
+    "workScopes": ["TeamsTab.Read.All"],
+    "appScopes": [
+      ["TeamsTab.Read.All"],
+      ["TeamsTab.ReadWriteSelfForTeam.All"],
+      ["TeamsTab.ReadWriteForTeam.All"],
+      ["Group.Read.All"],
+      ["Directory.Read.All"]
+    ]
   },
   {
     "pathPattern": "/teams/{team-id}/channels/{channel-id}/tabs",
@@ -2016,6 +2188,14 @@
     "toolName": "create-channel-tab",
     "presets": ["teams", "work"],
     "workScopes": ["TeamsTab.Create"],
+    "appScopes": [
+      ["TeamsTab.Create"],
+      ["TeamsTab.ReadWriteSelfForTeam.All"],
+      ["TeamsTab.ReadWriteForTeam.All"],
+      ["TeamsTab.ReadWrite.All"],
+      ["Group.ReadWrite.All"],
+      ["Directory.ReadWrite.All"]
+    ],
     "llmTip": "Body: {\"displayName\": \"...\", \"teamsApp@odata.bind\": \"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/{teamsAppId}\", \"configuration\": {\"entityId\": ..., \"contentUrl\": ..., \"websiteUrl\": ..., \"removeUrl\": ...}}. Built-in app ids: website com.microsoft.teamspace.tab.web, document library com.microsoft.teamspace.tab.files.sharepoint, Planner com.microsoft.teamspace.tab.planner (see https://learn.microsoft.com/graph/teams-configuring-builtin-tabs). Planner tab for a basic plan (create it first with create-planner-plan): entityId \"planner.v1.{new-guid}_p_{planId}\"; contentUrl \"https://tasks.teams.microsoft.com/teamsui/{tid}/Home/PlannerFrame?page=7&auth_pvr=OrgId&auth_upn={userPrincipalName}&groupId={groupId}&planRoute=/v1/plan/{planId}&subEntityId={subEntityId}&channelId={channelId}&entityId={entityId}&tid={tid}&userObjectId={userObjectId}&sessionId={sessionId}&theme={theme}&mkt={locale}&ringId={ringId}&PlannerRouteHint={tid}&tabVersion=20200228.1_s\"; removeUrl the same with page=13; websiteUrl \"https://planner.cloud.microsoft/webui/v1/plan/{planId}?tid={tenantId}\". Replace only {planId}, {new-guid} and {tenantId} with real values; every other {placeholder} must stay literal, Teams fills it in. A tasks.office.com URL or a missing placeholder renders an error inside the tab."
   },
   {
@@ -2038,6 +2218,7 @@
     "toolName": "list-team-members",
     "presets": ["teams", "work"],
     "workScopes": ["TeamMember.Read.All"],
+    "appScopes": ["TeamMember.Read.All"],
     "nameFilter": true,
     "llmTip": "Lists members of a team. Each member has displayName, email, roles and userId. Pass name to keep only members whose displayName or email contains that text (case-insensitive); use the returned userId in an @mention."
   },
@@ -2047,6 +2228,7 @@
     "toolName": "get-channel-files-folder",
     "presets": ["teams", "work"],
     "workScopes": ["ChannelSettings.Read.All"],
+    "appScopes": [["Files.Read.All"], ["Group.Read.All"], ["Sites.Read.All"]],
     "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
   },
   {
@@ -2084,42 +2266,48 @@
     "method": "get",
     "toolName": "list-pinned-chat-messages",
     "presets": ["teams", "work"],
-    "workScopes": ["Chat.Read"]
+    "workScopes": ["Chat.Read"],
+    "appScopes": [["ChatMessage.Read.All"], ["Chat.Read.All"]]
   },
   {
     "pathPattern": "/chats/{chat-id}/pinnedMessages",
     "method": "post",
     "toolName": "pin-chat-message",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Send"]
+    "workScopes": ["ChatMessage.Send"],
+    "appScopes": ["Chat.ReadWrite.All"]
   },
   {
     "pathPattern": "/chats/{chat-id}/pinnedMessages/{pinnedChatMessageInfo-id}",
     "method": "delete",
     "toolName": "unpin-chat-message",
     "presets": ["teams", "work"],
-    "workScopes": ["Chat.ReadWrite"]
+    "workScopes": ["Chat.ReadWrite"],
+    "appScopes": ["Chat.ReadWrite.All"]
   },
   {
     "pathPattern": "/sites",
     "method": "get",
     "toolName": "search-sharepoint-sites",
     "presets": ["search", "work"],
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "appScopes": ["Sites.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}",
     "method": "get",
     "toolName": "get-sharepoint-site",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/drives",
     "method": "get",
     "toolName": "list-sharepoint-site-drives",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/drives/{drive-id}",
@@ -2133,28 +2321,32 @@
     "method": "get",
     "toolName": "list-sharepoint-site-items",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/items/{baseItem-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-item",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/lists",
     "method": "get",
     "toolName": "list-sharepoint-site-lists",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}",
     "method": "get",
     "toolName": "get-sharepoint-site-list",
     "presets": ["work"],
-    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
@@ -2162,6 +2354,7 @@
     "toolName": "list-sharepoint-site-list-items",
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
   },
   {
@@ -2170,7 +2363,33 @@
     "toolName": "get-sharepoint-site-list-item",
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Manage.All"], ["Sites.Selected"]],
     "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/delta()",
+    "method": "get",
+    "toolName": "list-sharepoint-site-list-items-delta",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "queryParams": ["select", "expand", "top"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}/versions",
+    "method": "get",
+    "toolName": "list-sharepoint-site-list-item-versions",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}/versions/{listItemVersion-id}",
+    "method": "get",
+    "toolName": "get-sharepoint-site-list-item-version",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]]
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items",
@@ -2178,6 +2397,7 @@
     "toolName": "create-sharepoint-list-item",
     "presets": ["work"],
     "workScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Creates a new item in a SharePoint list. Body: { fields: { Title: 'Item name', ColumnName: 'value', ... } }. Use list-sharepoint-site-lists to find the list ID and get-sharepoint-site-list to discover available columns."
   },
   {
@@ -2186,6 +2406,7 @@
     "toolName": "update-sharepoint-list-item",
     "presets": ["work"],
     "workScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first."
   },
   {
@@ -2194,6 +2415,7 @@
     "toolName": "delete-sharepoint-list-item",
     "presets": ["work"],
     "workScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Deletes a list item permanently. This cannot be undone — the item is moved to the site recycle bin."
   },
   {
@@ -2202,6 +2424,7 @@
     "toolName": "create-sharepoint-list",
     "presets": ["work"],
     "workScopes": [["Sites.Manage.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Manage.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "llmTip": "Creates a new SharePoint list in a site. Body: { displayName: 'My List', description: 'Optional', list: { template: 'genericList' }, columns: [ { name: 'Status', text: {} }, { name: 'Due', dateTime: {} } ] }. Templates include genericList, documentLibrary, tasks, calendar, contacts, links, announcements, survey. Columns can be defined inline at creation; otherwise add them later via create-sharepoint-list-column. Use search-sharepoint-sites or get-sharepoint-site-by-path to find the site ID first."
   },
   {
@@ -2210,6 +2433,12 @@
     "toolName": "list-sharepoint-list-columns",
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
     "llmTip": "Lists column definitions for a SharePoint list. Returns each column's id, name, displayName, description, type indicator (text, number, choice, dateTime, person, lookup, boolean, calculated, hyperlinkOrPicture, etc.), required, indexed, hidden, readOnly. Use this to discover the schema before creating or updating list items."
   },
   {
@@ -2218,6 +2447,7 @@
     "toolName": "create-sharepoint-list-column",
     "presets": ["work"],
     "workScopes": [["Sites.Manage.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Manage.All"], ["Sites.FullControl.All"], ["Sites.Selected"]],
     "llmTip": "Creates a new column on a SharePoint list. Body must include name and exactly one column type property: { name: 'Priority', text: {} } or { name: 'DueDate', dateTime: { format: 'dateOnly' } } or { name: 'Status', choice: { choices: ['Open','In Progress','Done'] } }. Other types: number, boolean, currency, hyperlinkOrPicture, personOrGroup, lookup, calculated. Optional: displayName, description, required, indexed, enforceUniqueValues."
   },
   {
@@ -2226,6 +2456,12 @@
     "toolName": "get-sharepoint-list-column",
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
     "llmTip": "Gets a specific column definition by ID, including its full type configuration (choices for choice columns, format for dateTime, etc.). Use list-sharepoint-list-columns first to find the column ID."
   },
   {
@@ -2234,6 +2470,7 @@
     "toolName": "update-sharepoint-list-column",
     "presets": ["work"],
     "workScopes": [["Sites.Manage.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Manage.All"], ["Sites.FullControl.All"], ["Sites.Selected"]],
     "llmTip": "Updates a column definition. Body: { displayName: 'New name', description: 'New description', required: true, ... }. The column type itself (text, choice, etc.) cannot be changed — only its metadata and per-type options (e.g. choices array for a choice column). Send only the fields you want to change."
   },
   {
@@ -2242,6 +2479,7 @@
     "toolName": "delete-sharepoint-list-column",
     "presets": ["work"],
     "workScopes": [["Sites.Manage.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Manage.All"], ["Sites.FullControl.All"], ["Sites.Selected"]],
     "llmTip": "Deletes a column from a SharePoint list. This is irreversible — all data stored in this column across every list item is lost. Confirm with the user before calling. Cannot delete built-in columns (Title, Created, Modified, etc.)."
   },
   {
@@ -2250,6 +2488,7 @@
     "toolName": "get-sharepoint-site-by-path",
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
     "skipEncoding": ["path"],
     "llmTip": "Resolve a SharePoint site from its server-relative URL. site-id is the hostname (contoso.sharepoint.com) and path is the site path without a leading slash (sites/marketing, teams/hr). Returns the site object whose id feeds list-sharepoint-site-drives."
   },
@@ -2258,7 +2497,8 @@
     "method": "get",
     "toolName": "get-sharepoint-sites-delta",
     "presets": ["work"],
-    "workScopes": ["Sites.Read.All"]
+    "workScopes": ["Sites.Read.All"],
+    "appScopes": [["Sites.Read.All"], ["Sites.FullControl.All"], ["Sites.Manage.All"]]
   },
   {
     "pathPattern": "/search/query",
@@ -2456,6 +2696,7 @@
     "toolName": "list-group-conversations",
     "presets": ["work"],
     "workScopes": ["Group.Read.All"],
+    "appScopes": [["Group-Conversation.Read.All"], ["Group.Read.All"]],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group conversations."
   },
   {
@@ -2464,6 +2705,7 @@
     "toolName": "list-group-threads",
     "presets": ["work"],
     "workScopes": ["Group.Read.All"],
+    "appScopes": [["Group-Conversation.Read.All"], ["Group.Read.All"]],
     "llmTip": "Legacy — Microsoft recommends Teams channels instead of group threads."
   },
   {
@@ -2489,6 +2731,7 @@
     "toolName": "get-user-presence",
     "presets": ["teams", "work"],
     "workScopes": ["Presence.Read.All"],
+    "appScopes": ["Presence.Read.All"],
     "llmTip": "Gets presence status for a specific user by their user ID or UPN (email). Returns availability and activity. Use list-users to find the user ID first."
   },
   {
@@ -2498,6 +2741,7 @@
     "presets": ["teams", "work"],
     "readOnly": true,
     "workScopes": ["Presence.Read.All"],
+    "appScopes": ["Presence.Read.All"],
     "contentType": "application/json",
     "llmTip": "Gets presence for multiple users in a single call. Body: { ids: ['user-id-1', 'user-id-2', ...] }. Returns array of presence objects. More efficient than calling get-user-presence for each user. Maximum 650 user IDs per request."
   },
@@ -2507,6 +2751,7 @@
     "toolName": "get-virtual-event-webinar",
     "presets": ["teams", "work"],
     "workScopes": ["VirtualEvent.Read"],
+    "appScopes": ["VirtualEvent.Read.All"],
     "llmTip": "Gets a specific webinar with full details: displayName, description, startDateTime, endDateTime, audience, coOrganizers, presenters, registrationConfiguration, and status."
   },
   {
@@ -2515,6 +2760,7 @@
     "toolName": "list-webinar-sessions",
     "presets": ["teams", "work"],
     "workScopes": ["VirtualEvent.Read"],
+    "appScopes": ["VirtualEvent.Read.All"],
     "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
   },
   {
@@ -2523,6 +2769,7 @@
     "toolName": "get-room",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
     "llmTip": "Gets a place cast as a room, returning room-specific properties: displayName, emailAddress (for booking), capacity, building, floorNumber, floorLabel, isWheelChairAccessible, audioDeviceName, videoDeviceName, displayDeviceName. The place-id can be the room's ID or email address."
   },
   {
@@ -2531,6 +2778,7 @@
     "toolName": "get-room-list",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
     "llmTip": "Gets a place cast as a room list, returning room list properties: displayName, emailAddress, address. Use the place-id (ID or email address) of the room list. Then use list-room-list-rooms to get the rooms within this list."
   },
   {
@@ -2540,6 +2788,7 @@
     "descriptionOverride": "List the meeting rooms that belong to a room list.",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
     "llmTip": "The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
   },
   {
@@ -2549,6 +2798,7 @@
     "descriptionOverride": "Get a single meeting room from a room list, by room ID.",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
     "llmTip": "The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
   },
   {
@@ -2557,6 +2807,7 @@
     "toolName": "update-place",
     "presets": ["calendar", "work"],
     "workScopes": ["Place.ReadWrite.All"],
+    "appScopes": ["Place.ReadWrite.All"],
     "llmTip": "Updates properties of a place (room, room list, building, floor, section, desk, workspace). Body can include: displayName, phone, capacity, building, floorNumber, floorLabel, tags, audioDeviceName, videoDeviceName, displayDeviceName, isWheelChairAccessible. Use get-room or get-room-list to verify current values before updating."
   },
   {
@@ -2640,6 +2891,7 @@
     "toolName": "create-group",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
+    "appScopes": [["Group.Create"], ["Directory.ReadWrite.All"], ["Group.ReadWrite.All"]],
     "llmTip": "Creates a new group. Required body: { displayName, mailEnabled (bool), mailNickname (no spaces), securityEnabled (bool) }. For Microsoft 365 group: mailEnabled=true, securityEnabled=false, groupTypes=['Unified']. For security group: mailEnabled=false, securityEnabled=true, groupTypes=[]. Optional: description, visibility ('Public' or 'Private'), owners@odata.bind and members@odata.bind arrays with user directoryObject URLs."
   },
   {
@@ -2648,6 +2900,7 @@
     "toolName": "update-group",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
+    "appScopes": [["Group.ReadWrite.All"], ["Directory.ReadWrite.All"]],
     "llmTip": "Updates group properties. Body can include: displayName, description, visibility ('Public' or 'Private'), mailNickname. Use get-group to verify current values before updating."
   },
   {
@@ -2656,6 +2909,7 @@
     "toolName": "delete-group",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
+    "appScopes": ["Group.ReadWrite.All"],
     "llmTip": "Permanently deletes a group and all its associated resources (conversations, files, calendar, planner). This action is irreversible. Use get-group to verify the group before deleting."
   },
   {
@@ -2664,6 +2918,11 @@
     "toolName": "add-group-member",
     "presets": ["work"],
     "workScopes": ["GroupMember.ReadWrite.All"],
+    "appScopes": [
+      ["GroupMember.ReadWrite.All"],
+      ["Group.ReadWrite.All"],
+      ["Directory.ReadWrite.All"]
+    ],
     "llmTip": "Adds a member to a group. Body: { '@odata.id': 'https://graph.microsoft.com/v1.0/directoryObjects/{user-id}' }. Use list-users to find the user ID first. The user must not already be a member."
   },
   {
@@ -2672,6 +2931,11 @@
     "toolName": "remove-group-member",
     "presets": ["work"],
     "workScopes": ["GroupMember.ReadWrite.All"],
+    "appScopes": [
+      ["GroupMember.ReadWrite.All"],
+      ["Directory.ReadWrite.All"],
+      ["Group.ReadWrite.All"]
+    ],
     "llmTip": "Removes a member from a group. Use list-group-members to find the member's directory object ID first. Cannot remove the last owner of a group."
   },
   {
@@ -2680,6 +2944,7 @@
     "toolName": "add-group-owner",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
+    "appScopes": [["Group.ReadWrite.All"], ["Directory.ReadWrite.All"]],
     "llmTip": "Adds an owner to a group. Body: { '@odata.id': 'https://graph.microsoft.com/v1.0/users/{user-id}' }. Use list-users to find the user ID. A group can have a maximum of 100 owners."
   },
   {
@@ -2688,6 +2953,7 @@
     "toolName": "remove-group-owner",
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
+    "appScopes": [["Group.ReadWrite.All"], ["Directory.ReadWrite.All"]],
     "llmTip": "Removes an owner from a group. A group must have at least one owner — this call fails if you try to remove the last owner. Use list-group-owners to find the owner's ID."
   },
   {
@@ -2696,6 +2962,7 @@
     "toolName": "create-chat",
     "presets": ["teams", "work"],
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
+    "appScopes": ["Chat.Create"],
     "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
   },
   {
@@ -2703,6 +2970,7 @@
     "method": "get",
     "toolName": "list-subscriptions",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Lists webhook subscriptions owned by the current app/user. Returns id, resource, changeType, notificationUrl, expirationDateTime, clientState. Use $filter=resource eq '/me/messages' to find subscriptions for a specific resource. No dedicated 'Subscription.*' scope exists — the caller must already have a read permission for the subscribed resource (e.g. Mail.Read for /me/messages), which is supplied by the tool that reads that resource."
   },
   {
@@ -2710,6 +2978,7 @@
     "method": "post",
     "toolName": "create-subscription",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Creates a webhook subscription for change notifications. Required body: { changeType (comma-separated: 'created,updated,deleted'), notificationUrl (HTTPS, must validate with token echo), resource (e.g. '/me/mailFolders/inbox/messages', '/users/{id}/events', '/teams/{id}/channels/{id}/messages'), expirationDateTime (ISO 8601, max varies by resource type — 1 hour for calls, 24h for messages, 3 days for mail), clientState (opaque string returned in notifications, for validation) }. Optional: includeResourceData (true enables rich notifications, requires encryptionCertificate + encryptionCertificateId). No dedicated scope — caller must have a read permission for the target resource (e.g. Mail.Read, Calendars.Read, ChannelMessage.Read.All, Files.Read.All)."
   },
   {
@@ -2717,6 +2986,7 @@
     "method": "get",
     "toolName": "get-subscription",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Gets a specific webhook subscription by id. Use list-subscriptions to find the id. Returns full subscription details including resource, changeType, notificationUrl, expirationDateTime, applicationId."
   },
   {
@@ -2724,6 +2994,7 @@
     "method": "patch",
     "toolName": "update-subscription",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Renews a webhook subscription by extending its expiration. Body: { expirationDateTime (ISO 8601, new expiry) }. Call before the current expirationDateTime to avoid missing notifications. Max extension varies by resource type — check Microsoft Graph docs for subscription limits."
   },
   {
@@ -2731,6 +3002,7 @@
     "method": "delete",
     "toolName": "delete-subscription",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Deletes a webhook subscription. No further change notifications will be sent. Use this to clean up stale subscriptions or stop receiving notifications. Use list-subscriptions to find the id."
   },
   {
@@ -2738,6 +3010,7 @@
     "method": "post",
     "toolName": "reauthorize-subscription",
     "scopes": [],
+    "appScopes": [],
     "llmTip": "Reauthorizes a subscription after receiving a 'reauthorizationRequired' lifecycle notification from Microsoft Graph. No body required. Must be called within the reauthorizationRequiredDateTime window (typically 48h) to avoid subscription expiry."
   },
   {
@@ -2746,6 +3019,7 @@
     "toolName": "extract-drive-item-sensitivity-labels",
     "presets": ["files", "onedrive", "personal"],
     "workScopes": ["Files.Read.All"],
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "llmTip": "Returns the Microsoft Information Protection (MIP) sensitivity labels assigned to a file. No request body. Response: { value: { labels: [{ sensitivityLabelId, assignmentMethod, tenantId }] } }. Use list-sensitivity-labels to map sensitivityLabelId to a human-readable name. Not supported for personal Microsoft accounts. May return 423 Locked if the file is double-key-encrypted or decryption is deferred."
   },
   {

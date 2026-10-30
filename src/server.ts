@@ -330,13 +330,16 @@ class MicrosoftGraphServer {
           discovery: Boolean(this.options.discovery),
           eagerTools: this.options.eagerTools,
           orgMode: Boolean(this.options.orgMode),
+          appMode: Boolean(this.options.appMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
         }),
       }
     );
 
-    const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
+    // App mode has no accounts to log in to, list or switch between
+    const shouldRegisterAuthTools =
+      !this.options.appMode && (!this.options.http || this.options.enableAuthTools);
     if (shouldRegisterAuthTools) {
       registerAuthTools(server, this.authManager);
     }
@@ -347,6 +350,7 @@ class MicrosoftGraphServer {
       onUnavailableEagerTool: this.reportUnavailableEagerTool,
       enabledTools: this.options.enabledTools,
       orgMode: this.options.orgMode,
+      appMode: this.options.appMode,
       authManager: this.authManager,
       multiAccount: this.multiAccount,
       accountNames: this.accountNames,
