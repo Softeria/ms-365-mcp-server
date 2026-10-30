@@ -834,6 +834,7 @@ class AuthManager {
    */
   private loginPersistence: { homeAccountId: string; message: string } | null;
   private appClient: AppTokenClient | null = null;
+  private appSecrets: AppSecrets | null = null;
 
   constructor(
     config: Configuration,
@@ -893,12 +894,18 @@ class AuthManager {
     const authManager = new AuthManager(config, scopes, expectedAccount, storage);
     if (options.appMode) {
       authManager.appClient = new AppTokenClient(secrets);
+      authManager.appSecrets = secrets;
     }
     return authManager;
   }
 
   isAppMode(): boolean {
     return this.appClient !== null;
+  }
+
+  /** The secrets app mode was set up with, so the server does not load them a second way. */
+  getAppSecrets(): AppSecrets | null {
+    return this.appSecrets;
   }
 
   async loadTokenCache(): Promise<void> {

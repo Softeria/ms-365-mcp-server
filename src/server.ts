@@ -387,7 +387,8 @@ class MicrosoftGraphServer {
   }
 
   async initialize(version: string): Promise<void> {
-    this.secrets = await getSecrets();
+    // A managed identity must not fall back to Key Vault or the built-in client id here
+    this.secrets = this.authManager.getAppSecrets?.() ?? (await getSecrets());
     this.version = version;
 
     // Detect multi-account mode and cache account names for schema enum.

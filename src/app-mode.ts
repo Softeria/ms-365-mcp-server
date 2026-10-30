@@ -217,6 +217,11 @@ export class AppTokenClient {
     if (env.managedIdentity) {
       // The identity belongs to the Azure host, so there is no tenant or app registration to name
       const managedIdentityIdParams = parseManagedIdentity(env.managedIdentity);
+      if (secrets.clientId) {
+        logger.warn(
+          'App mode: MS365_MCP_CLIENT_ID is ignored with a managed identity. For a user-assigned identity, put its client id in MS365_MCP_MANAGED_IDENTITY.'
+        );
+      }
       const mia = new ManagedIdentityApplication({ managedIdentityIdParams });
       this.acquire = () => mia.acquireToken({ resource: graphResource });
       logger.info(

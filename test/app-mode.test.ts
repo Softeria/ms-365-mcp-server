@@ -43,6 +43,9 @@ const {
 } = await import('../src/app-mode.js');
 const { buildAllowedScopeDiagnostics, isEndpointInScopeMode } = await import('../src/auth.js');
 const AuthManager = (await import('../src/auth.js')).default;
+const MicrosoftGraphServer = (await import('../src/server.js')).default;
+const { clearSecretsCache } = await import('../src/secrets.js');
+const logger = (await import('../src/logger.js')).default;
 const { buildToolsRegistry, registerDiscoveryTools, registerGraphTools } =
   await import('../src/graph-tools.js');
 const { buildMcpServerInstructions } = await import('../src/mcp-instructions.js');
@@ -222,6 +225,7 @@ describe('managed identity', () => {
     vi.stubEnv('MS365_MCP_CLIENT_SECRET', '');
     vi.stubEnv('MS365_MCP_KEYVAULT_URL', 'https://unreachable.vault.azure.net');
     msal.acquireTokenManagedIdentity.mockResolvedValue({ accessToken: 'mi-token' });
+    clearSecretsCache();
     try {
       const authManager = await AuthManager.create([], undefined, {
         appMode: true,
@@ -231,6 +235,9 @@ describe('managed identity', () => {
       expect(msal.acquireTokenManagedIdentity).toHaveBeenCalledWith({
         resource: 'https://graph.microsoft.us',
       });
+      // The server must not load the secrets again (Key Vault, or a gcc-high built-in client id that does not exist)
+      const server = new MicrosoftGraphServer(authManager, { appMode: true });
+      await expect(server.initialize('test')).resolves.toBeUndefined();
     } finally {
       vi.unstubAllEnvs();
     }
@@ -252,6 +259,13 @@ describe('managed identity', () => {
     expect(msal.acquireTokenManagedIdentity).toHaveBeenCalledWith({
       resource: 'https://graph.microsoft.com',
     });
+  });
+
+  it('warns that MS365_MCP_CLIENT_ID does not pick the identity', () => {
+    new AppTokenClient({ ...hostOnly, clientId: 'some-app' }, { managedIdentity: 'system' });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/MS365_MCP_CLIENT_ID is ignored with a managed identity/)
+    );
   });
 
   it('passes a user-assigned client id to MSAL', () => {
