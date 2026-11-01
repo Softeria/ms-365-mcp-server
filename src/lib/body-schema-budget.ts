@@ -14,10 +14,10 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  * Why this exists: a connector is served a fixed total amount of tool-definition data.
  * The list is walked alphabetically, each tool is charged on admission, and one that no
  * longer fits is skipped *entirely* — so a handful of very large write schemas silently
- * cost us whole tools further down the alphabet. Unrationed, a 327-tool org surface
- * serves ~1.67 MB of schema — 1.6× the budget, 78 tools skipped — and a handful of write
+ * cost us whole tools further down the alphabet. Unrationed, a 367-tool org surface
+ * serves ~1.92 MB of schema — 1.8× the budget, 153 tools skipped — and a handful of write
  * schemas carry it: `create-sharepoint-list` alone expands from 670 bytes of endpoint
- * config into ~84 KB served, because the generated client inlines the Graph OpenAPI body
+ * config into ~70 KB served, because the generated client inlines the Graph OpenAPI body
  * shape.
  *
  * What the platform charges (confirmed by Anthropic support, 2026-09-01; nothing public
@@ -39,7 +39,7 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  * reported it.
  *
  * Pruning is **opt-in**: set `MS365_MCP_TOOL_DEFINITION_BUDGET=<bytes>` (4096 is the
- * value measured to keep a full org surface at ~64 % of the connector budget). Unset,
+ * value measured to keep a full org surface at ~78 % of the connector budget). Unset,
  * every tool registers byte for byte as generated. The ration is ours, not the platform's
  * — a per-tool ceiling that keeps the aggregate under the connector budget without
  * needing to know the final tool count.

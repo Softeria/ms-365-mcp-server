@@ -3904,8 +3904,9 @@ export function registerGraphTools(
   }
 
   // The per-tool ration is a means; this total is the constraint that actually decides
-  // whether a tool is served, so report it whether or not pruning is enabled — but once
-  // per surface, not once per request: HTTP mode registers on every POST.
+  // whether a tool is served by a hosted connector, so report it whether or not pruning
+  // is enabled — but once per surface, not once per request: HTTP mode registers on
+  // every POST.
   const surfaceKey = [
     budgetContext.schemaFingerprint,
     readOnly,
@@ -3916,7 +3917,7 @@ export function registerGraphTools(
   ].join('|');
   if (!budgetSummaryLogged.has(surfaceKey)) {
     budgetSummaryLogged.add(surfaceKey);
-    logBudgetSummary(servedSchemaBytes, prunedForBudget, definitionBudget);
+    logBudgetSummary(servedSchemaBytes, prunedForBudget, definitionBudget, httpMode);
   }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
@@ -3944,20 +3945,23 @@ type PrunedForBudget = {
 function logBudgetSummary(
   servedSchemaBytes: number,
   prunedForBudget: readonly PrunedForBudget[],
-  budget: number | undefined
+  budget: number | undefined,
+  httpMode: boolean
 ): void {
   const connectorShare = ((servedSchemaBytes / CONNECTOR_DEFINITION_BUDGET) * 100).toFixed(1);
   logger.info(
-    `Tool input schemas total ${servedSchemaBytes} bytes as served by tools/list, ${connectorShare}% of the ${CONNECTOR_DEFINITION_BUDGET}-byte connector budget`
+    `Tool input schemas total ${servedSchemaBytes} bytes as served by tools/list, ${connectorShare}% of the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector`
   );
-  if (servedSchemaBytes > CONNECTOR_DEFINITION_BUDGET) {
+  // Only a hosted connector admits tools against that budget. Over stdio every tool is
+  // served whatever the total, so warning there would report drops that never happen.
+  if (httpMode && servedSchemaBytes > CONNECTOR_DEFINITION_BUDGET) {
     const remedy =
       budget === undefined
         ? `Set MS365_MCP_TOOL_DEFINITION_BUDGET=${DEFAULT_TOOL_DEFINITION_BUDGET} to trim oversized request bodies, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`
         : `Lower MS365_MCP_TOOL_DEFINITION_BUDGET, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`;
     logger.warn(
-      `Served tool schemas exceed the ${CONNECTOR_DEFINITION_BUDGET}-byte connector budget by ${servedSchemaBytes - CONNECTOR_DEFINITION_BUDGET} bytes. ` +
-        `Tools are admitted alphabetically, so the tail of the alphabet will be silently omitted. ` +
+      `Served tool schemas exceed the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector by ${servedSchemaBytes - CONNECTOR_DEFINITION_BUDGET} bytes. ` +
+        `Such a connector admits tools alphabetically, so the tail of the alphabet will be silently omitted. ` +
         remedy
     );
   }
