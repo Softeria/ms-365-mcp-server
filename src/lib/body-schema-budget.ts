@@ -1,6 +1,9 @@
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { normalizeToolSchemaRefs } from '../normalize-tool-schema.js';
+import {
+  normalizeToolSchemaRefs,
+  tidyToolJsonSchema,
+  toolInputJsonSchema,
+} from '../normalize-tool-schema.js';
 import { positiveIntFromEnv } from './param-descriptions.js';
 
 /**
@@ -28,8 +31,9 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  *   organization cannot evict this one's tools, and splitting a surface across two
  *   connectors is a genuine mitigation.
  *
- * Measurement mirrors the wire exactly: the SDK's own Zod→JSON-Schema conversion for
- * `tools/list`, then `normalizeToolSchemaRefs`, which is what a connector receives. It
+ * Measurement mirrors the wire exactly: the same conversion `tools/list` serves
+ * (`toolInputJsonSchema`, then `normalizeToolSchemaRefs` and `tidyToolJsonSchema`), which
+ * is what a connector receives. It
  * always runs, and the aggregate is logged at registration whether or not anything is
  * pruned — the total is what decides whether a tool is served, and until now nothing
  * reported it.
@@ -43,7 +47,7 @@ import { positiveIntFromEnv } from './param-descriptions.js';
  * When it runs, only the body is pruned, only for tools that actually exceed the ration,
  * and only as far as needed — the least destructive strategy that fits wins, so most
  * tools are untouched. Graph validates the body server-side anyway and bodies already go
- * through `lenientBodySchema` + passthrough, so pruning costs schema-level guidance, not
+ * through `lenientBodySchema` + `.loose()`, so pruning costs schema-level guidance, not
  * the ability to make the call. Field *names* are what a model needs to compose a
  * request, and the per-field description text is what actually consumes the budget — so
  * descriptions go before structure, and the body itself only as a last resort (see
@@ -115,7 +119,7 @@ function withDescription(
   original: z.ZodTypeAny,
   keepDescription: boolean
 ): z.ZodTypeAny {
-  const description = original._def.description;
+  const description = original.description;
   return description && keepDescription ? rebuilt.describe(description) : rebuilt;
 }
 
@@ -128,7 +132,7 @@ function collapsedKind(schema: z.ZodTypeAny): CollapsedKind {
   if (unwrapped instanceof z.ZodObject || unwrapped instanceof z.ZodRecord) return 'object';
   if (unwrapped instanceof z.ZodUnion) {
     // The generated client wraps most Graph object references as
-    // `z.union([namedType, z.object({}).partial().passthrough()])` — alternatives of the
+    // `z.union([namedType, z.object({}).partial().loose()])` — alternatives of the
     // same kind collapse to that kind; genuinely mixed unions collapse to `any`.
     const kinds = new Set((unwrapped.options as z.ZodTypeAny[]).map(collapsedKind));
     return kinds.size === 1 ? [...kinds][0] : 'other';
@@ -145,7 +149,7 @@ function collapse(schema: z.ZodTypeAny, keepDescription: boolean): z.ZodTypeAny 
     case 'array':
       return withDescription(z.array(z.any()), schema, keepDescription);
     case 'object':
-      return withDescription(z.record(z.any()), schema, keepDescription);
+      return withDescription(z.record(z.string(), z.any()), schema, keepDescription);
     default:
       return withDescription(z.any(), schema, keepDescription);
   }
@@ -156,15 +160,15 @@ function unwrapContainer(schema: z.ZodTypeAny): z.ZodTypeAny {
   let current = schema;
   for (let i = 0; i < 10; i++) {
     if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
-      current = current.unwrap();
+      current = current.unwrap() as z.ZodTypeAny;
       continue;
     }
     if (current instanceof z.ZodLazy) {
-      current = current.schema;
+      current = current.unwrap() as z.ZodTypeAny;
       continue;
     }
     if (current instanceof z.ZodDefault) {
-      current = current._def.innerType;
+      current = current.def.innerType as z.ZodTypeAny;
       continue;
     }
     return current;
@@ -192,20 +196,20 @@ export function pruneSchemaDepth(
   const keepDescription = describeDepth > 0;
 
   if (schema instanceof z.ZodOptional) {
-    return pruneSchemaDepth(schema.unwrap(), maxDepth, describeDepth).optional();
+    return pruneSchemaDepth(schema.unwrap() as z.ZodTypeAny, maxDepth, describeDepth).optional();
   }
   if (schema instanceof z.ZodNullable) {
-    return pruneSchemaDepth(schema.unwrap(), maxDepth, describeDepth).nullable();
+    return pruneSchemaDepth(schema.unwrap() as z.ZodTypeAny, maxDepth, describeDepth).nullable();
   }
   if (schema instanceof z.ZodDefault) {
-    return pruneSchemaDepth(schema._def.innerType, maxDepth, describeDepth).default(
-      schema._def.defaultValue
+    return pruneSchemaDepth(schema.def.innerType as z.ZodTypeAny, maxDepth, describeDepth).default(
+      schema.def.defaultValue as never
     );
   }
   if (schema instanceof z.ZodLazy) {
     // Recursive Graph types (driveItem → children → driveItem) only terminate because
     // of the depth budget, so resolve the getter eagerly here.
-    return pruneSchemaDepth(schema.schema, maxDepth, describeDepth);
+    return pruneSchemaDepth(schema.unwrap() as z.ZodTypeAny, maxDepth, describeDepth);
   }
 
   if (maxDepth <= 0) return collapse(schema, keepDescription);
@@ -216,14 +220,14 @@ export function pruneSchemaDepth(
     for (const [key, value] of Object.entries(shape)) {
       pruned[key] = pruneSchemaDepth(value, maxDepth - 1, describeDepth - 1);
     }
-    // Passthrough for the same reason as lenientBodySchema: strip-mode objects drop
-    // unknown keys before the handler runs (#569).
-    return withDescription(z.object(pruned).passthrough(), schema, keepDescription);
+    // Loose for the same reason as lenientBodySchema: strip-mode objects drop unknown
+    // keys before the handler runs (#569).
+    return withDescription(z.object(pruned).loose(), schema, keepDescription);
   }
 
   if (schema instanceof z.ZodArray) {
     return withDescription(
-      z.array(pruneSchemaDepth(schema.element, maxDepth - 1, describeDepth - 1)),
+      z.array(pruneSchemaDepth(schema.element as z.ZodTypeAny, maxDepth - 1, describeDepth - 1)),
       schema,
       keepDescription
     );
@@ -232,8 +236,8 @@ export function pruneSchemaDepth(
   if (schema instanceof z.ZodRecord) {
     return withDescription(
       z.record(
-        schema.keySchema,
-        pruneSchemaDepth(schema.valueSchema, maxDepth - 1, describeDepth - 1)
+        schema.keyType,
+        pruneSchemaDepth(schema.valueType as z.ZodTypeAny, maxDepth - 1, describeDepth - 1)
       ),
       schema,
       keepDescription
@@ -252,7 +256,7 @@ export function pruneSchemaDepth(
   }
 
   // A described scalar still carries its text; strip it when we are past describeDepth.
-  if (!keepDescription && schema._def.description) {
+  if (!keepDescription && schema.description) {
     return collapseScalarDescription(schema);
   }
 
@@ -274,32 +278,28 @@ function collapseScalarDescription(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 /**
- * Serialize a tool's input schema exactly as `tools/list` will emit it: the SDK's own
- * conversion (`toJsonSchemaCompat`, Zod v3 branch — `strictUnions`, input pipe strategy,
- * default `$refStrategy: 'root'`), then the same `normalizeToolSchemaRefs` pass
- * `installToolSchemaRefNormalization` applies on the way out (hoist to `#/$defs/`, inline
- * back where a client can't resolve `$defs` — #571, #643 — keep the ref for recursive or
- * oversized expansions).
+ * Serialize a tool's input schema exactly as `tools/list` will emit it: the conversion
+ * `installToolSchemaRefNormalization` hands the SDK (`toolInputJsonSchema`), then the
+ * `normalizeToolSchemaRefs` and `tidyToolJsonSchema` passes it applies on the way out
+ * (hoist to `#/$defs/`, inline back where a client can't resolve `$defs` — #571, #643 —
+ * keep the ref for recursive or oversized expansions).
  *
  * Kept in one place so the measurement cannot drift from the transport: whatever the
  * normalization decides to inline is what the connector is charged for. An earlier
- * version re-converted with `$refStrategy: 'none'` instead, which inlined recursive
- * Graph bodies the transport keeps as refs and over-stated them by an order of magnitude
- * (`create-sharepoint-list`: ~1 MB measured against ~84 KB served).
+ * version re-converted with every ref inlined instead, which inlined recursive Graph
+ * bodies the transport keeps as refs and over-stated them by an order of magnitude.
  */
 export function serveToolInputSchema(
   paramSchema: Record<string, z.ZodTypeAny>
 ): Record<string, unknown> {
-  return serveInputSchema(z.object(paramSchema).passthrough());
+  return serveInputSchema(z.object(paramSchema).loose());
 }
 
 /** Same pipeline for an already-built object schema (utility tools register a plain shape). */
-export function serveInputSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  const converted = zodToJsonSchema(schema, {
-    strictUnions: true,
-    pipeStrategy: 'input',
-  }) as Record<string, unknown>;
-  return normalizeToolSchemaRefs(converted);
+export function serveInputSchema(schema: z.core.$ZodObject): Record<string, unknown> {
+  const served = normalizeToolSchemaRefs(toolInputJsonSchema(schema));
+  tidyToolJsonSchema(served);
+  return served;
 }
 
 /**
@@ -310,11 +310,11 @@ export function serveInputSchema(schema: z.ZodTypeAny): Record<string, unknown> 
  * so counting them here would prune bodies to pay for text that costs nothing.
  */
 export function measureToolDefinitionBytes(paramSchema: Record<string, z.ZodTypeAny>): number {
-  return measureInputSchemaBytes(z.object(paramSchema).passthrough());
+  return measureInputSchemaBytes(z.object(paramSchema).loose());
 }
 
-/** Served byte length of any registered input schema, passthrough or not. */
-export function measureInputSchemaBytes(schema: z.ZodTypeAny): number {
+/** Served byte length of any registered input schema, loose or not. */
+export function measureInputSchemaBytes(schema: z.core.$ZodObject): number {
   return Buffer.byteLength(JSON.stringify(serveInputSchema(schema)), 'utf8');
 }
 

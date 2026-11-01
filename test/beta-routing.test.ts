@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -45,7 +45,7 @@ describe('beta endpoint routing (dual-generator)', () => {
   });
 
   function getToolHandler(toolName: string) {
-    registerGraphTools(mockServer, mockGraphClient, true);
+    registerGraphTools(mockServer, mockGraphClient, { readOnly: true });
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call, `tool ${toolName} should be registered`).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
@@ -59,14 +59,14 @@ describe('beta endpoint routing (dual-generator)', () => {
   }
 
   it('registers tools from both the v1.0 and beta clients', () => {
-    registerGraphTools(mockServer, mockGraphClient, true);
+    registerGraphTools(mockServer, mockGraphClient, { readOnly: true });
     const registered = mockServer.registerTool.mock.calls.map((c: unknown[]) => c[0]);
     expect(registered).toContain('get-current-user');
     expect(registered).toContain('get-my-profile');
   });
 
   it('prefixes a beta tool description with [beta] and leaves v1.0 unmarked', () => {
-    registerGraphTools(mockServer, mockGraphClient, true);
+    registerGraphTools(mockServer, mockGraphClient, { readOnly: true });
     const descOf = (name: string) =>
       (
         mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === name)?.[1] as {

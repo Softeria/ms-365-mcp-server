@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -51,7 +51,7 @@ describe('Path parameter encoding (issue #245)', () => {
   });
 
   function getToolHandler(toolName: string) {
-    registerGraphTools(mockServer, mockGraphClient, false);
+    registerGraphTools(mockServer, mockGraphClient);
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;

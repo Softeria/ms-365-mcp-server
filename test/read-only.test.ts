@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../src/cli.js';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/cli.js', () => {
   const parseArgsMock = vi.fn();
@@ -83,12 +83,12 @@ describe('Read-Only Mode', () => {
     const options = parseArgs();
     expect(options.readOnly).toBe(true);
 
-    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, { readOnly: options.readOnly });
 
     // 1 GET graph endpoint via registerTool; parse-teams-url + download-bytes +
-    // download-bytes-to-file + get-download-url utilities via tool
+    // download-bytes-to-file + get-download-url + read-mail-text utilities via tool
     expect(mockServer.registerTool).toHaveBeenCalledTimes(1);
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    expect(mockServer.tool).toHaveBeenCalledTimes(5);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -102,12 +102,13 @@ describe('Read-Only Mode', () => {
     const options = parseArgs();
     expect(options.readOnly).toBe(false);
 
-    registerGraphTools(mockServer, {} as GraphClient, options.readOnly);
+    registerGraphTools(mockServer, {} as GraphClient, { readOnly: options.readOnly });
 
     // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + utilities
-    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url)
+    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url,
+    // get-upload-url, read-mail-text)
     expect(mockServer.registerTool).toHaveBeenCalledTimes(4);
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    expect(mockServer.tool).toHaveBeenCalledTimes(6);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -123,7 +124,11 @@ describe('Read-Only Mode', () => {
     const enabledToolsPattern = undefined;
     const orgMode = true;
 
-    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+    registerGraphTools(mockServer, {} as GraphClient, {
+      readOnly,
+      enabledTools: enabledToolsPattern,
+      orgMode,
+    });
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
 
@@ -139,15 +144,16 @@ describe('Read-Only Mode', () => {
     expect(toolCalls).not.toContain('update-mail-folder');
 
     // 2 graph tools (list-mail-messages + get-schedule) + utilities
-    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url)
+    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url,
+    // read-mail-text)
     expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
-    expect(mockServer.tool).toHaveBeenCalledTimes(4);
+    expect(mockServer.tool).toHaveBeenCalledTimes(5);
   });
 
   it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {
     // get-schedule is a POST with readOnly: true; its hints should reflect that it
     // is a read-only query rather than being derived from the POST verb alone.
-    registerGraphTools(mockServer, {} as GraphClient, false, undefined, true);
+    registerGraphTools(mockServer, {} as GraphClient, { orgMode: true });
 
     const annotationsFor = (alias: string) => {
       const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === alias);
@@ -173,7 +179,11 @@ describe('Read-Only Mode', () => {
     const enabledToolsPattern = undefined;
     const orgMode = true;
 
-    registerGraphTools(mockServer, {} as GraphClient, readOnly, enabledToolsPattern, orgMode);
+    registerGraphTools(mockServer, {} as GraphClient, {
+      readOnly,
+      enabledTools: enabledToolsPattern,
+      orgMode,
+    });
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
 

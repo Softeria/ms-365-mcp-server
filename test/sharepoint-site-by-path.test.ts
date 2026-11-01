@@ -1,10 +1,10 @@
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import { registerGraphTools } from '../src/graph-tools.js';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -81,7 +81,7 @@ describe('get-sharepoint-site-by-path', () => {
     function getToolHandler(toolName: string) {
       // orgMode (5th arg) must be true: this endpoint declares only workScopes,
       // so it is skipped entirely in personal mode.
-      registerGraphTools(mockServer, mockGraphClient, false, undefined, true);
+      registerGraphTools(mockServer, mockGraphClient, { orgMode: true });
       const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
       expect(call).toBeDefined();
       return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;

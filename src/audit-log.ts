@@ -109,6 +109,9 @@ export interface AuditEvent {
   recipient_count?: number;
   recipient_domains?: string[];
   recipient_domains_truncated?: boolean;
+  result_count?: number;
+  result_has_more?: boolean;
+  response_bytes?: number;
   target_resource?: { type: string; id?: string };
   error_type?: string;
   error_code?: string | number;

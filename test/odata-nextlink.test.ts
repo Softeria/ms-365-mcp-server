@@ -14,6 +14,7 @@ vi.mock('../src/cloud-config.js', () => ({
     graphApi: 'https://graph.microsoft.com',
     authority: 'https://login.microsoftonline.com',
   }),
+  getGraphBaseUrl: () => 'https://graph.microsoft.com',
 }));
 
 vi.mock('../src/lib/microsoft-auth.js', () => ({
@@ -45,7 +46,7 @@ describe('OData nextLink preservation', () => {
     graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
   });
 
-  it('should preserve @odata.nextLink in response while removing other @odata properties', async () => {
+  it('should preserve @odata.nextLink and @odata.count in response while removing other @odata properties', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -63,7 +64,7 @@ describe('OData nextLink preservation', () => {
 
     expect(parsed['@odata.nextLink']).toBe('https://graph.microsoft.com/v1.0/me/messages?$skip=10');
     expect(parsed['@odata.context']).toBeUndefined();
-    expect(parsed['@odata.count']).toBeUndefined();
+    expect(parsed['@odata.count']).toBe(42);
 
     mockFetch.mockRestore();
   });

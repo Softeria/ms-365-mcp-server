@@ -20,8 +20,13 @@ interface Endpoint {
   method: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  appScopes?: string[] | string[][];
   returnDownloadUrl?: boolean;
   llmTip?: string;
+  queryParams?: string[];
+  maxTop?: number;
+  nameFilter?: boolean;
+  mentionShorthand?: boolean;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -46,13 +51,32 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not give appScopes to /me endpoints, which need a signed-in user', () => {
+    const violations = endpoints
+      .filter((e) => e.appScopes !== undefined && /^\/me(\/|$)/.test(e.pathPattern))
+      .map((e) => e.toolName);
+    expect(violations).toEqual([]);
+  });
+
+  it('should not put delegated-only permissions in appScopes', () => {
+    // .Shared and the chat/channel send scopes exist only as delegated permissions
+    const delegatedOnly = /\.Shared$|^ChatMessage\.Send$|^ChannelMessage\.Send$/;
+    const violations = endpoints.flatMap((e) =>
+      (e.appScopes ?? [])
+        .flat()
+        .filter((scope) => delegatedOnly.test(scope))
+        .map((scope) => `${e.toolName}: ${scope}`)
+    );
+    expect(violations).toEqual([]);
+  });
+
   it('should have well-formed scope groups (flat string[] or nested string[][])', () => {
     const isStringArray = (v: unknown): boolean =>
       Array.isArray(v) && v.every((s) => typeof s === 'string');
 
     const malformed: string[] = [];
     for (const e of endpoints) {
-      for (const field of ['scopes', 'workScopes'] as const) {
+      for (const field of ['scopes', 'workScopes', 'appScopes'] as const) {
         const value = e[field];
         if (value === undefined) continue;
         if (!Array.isArray(value)) {
@@ -144,6 +168,30 @@ describe('endpoints.json validation', () => {
     expect(endpoint?.llmTip).toContain('call download-bytes');
   });
 
+  it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
+    const checklistTools = [
+      'list-todo-checklist-items',
+      'create-todo-checklist-item',
+      'update-todo-checklist-item',
+      'delete-todo-checklist-item',
+    ];
+
+    for (const toolName of checklistTools) {
+      const endpoint = endpoints.find((e) => e.toolName === toolName);
+      expect(endpoint, `${toolName} should exist`).toBeDefined();
+      expect(endpoint?.scopes).toEqual(
+        endpoint?.method === 'get' ? ['Tasks.Read'] : ['Tasks.ReadWrite']
+      );
+    }
+
+    // Graph 400s a PATCH on the task that carries checklistItems, so the model has to be
+    // pointed at the /checklistItems tools instead.
+    const updateTask = endpoints.find((e) => e.toolName === 'update-todo-task');
+    expect(updateTask?.llmTip).toContain('update-todo-checklist-item');
+    expect(updateTask?.llmTip).toContain('create-todo-checklist-item');
+    expect(updateTask?.llmTip).toContain('delete-todo-checklist-item');
+  });
+
   it('should document the @mention shape on the Teams send/reply tools', () => {
     const mentionTools = [
       'send-chat-message',
@@ -159,6 +207,55 @@ describe('endpoints.json validation', () => {
       expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('<at id');
       expect(endpoint?.llmTip, `${toolName} llmTip`).toContain('userIdentityType');
     }
+  });
+
+  describe('per-tool behavior fields', () => {
+    const generated = new Map([...api.endpoints, ...betaApi.endpoints].map((e) => [e.alias, e]));
+    const queryNames = (toolName: string) =>
+      (generated.get(toolName)?.parameters ?? [])
+        .filter((p) => p.type === 'Query')
+        .map((p) => p.name.replace(/^\$/, '').toLowerCase());
+
+    it('lists only query params the generated tool has, plus the skiptoken cursor', () => {
+      for (const e of endpoints.filter((x) => x.queryParams)) {
+        const known = new Set([...queryNames(e.toolName), 'skiptoken']);
+        const listed = e.queryParams!.map((p) => p.toLowerCase());
+        for (const name of listed) {
+          expect(known.has(name), `${e.toolName} queryParams has unknown "${name}"`).toBe(true);
+        }
+        expect(new Set(listed).size, `${e.toolName} queryParams has duplicates`).toBe(
+          listed.length
+        );
+      }
+    });
+
+    it('caps $top only where the tool takes $top', () => {
+      for (const e of endpoints.filter((x) => x.maxTop !== undefined)) {
+        expect(Number.isInteger(e.maxTop) && e.maxTop! > 0, `${e.toolName} maxTop`).toBe(true);
+        expect(queryNames(e.toolName), `${e.toolName} has no $top`).toContain('top');
+        if (e.queryParams) expect(e.queryParams.map((p) => p.toLowerCase())).toContain('top');
+      }
+    });
+
+    it('puts nameFilter only on GET tools', () => {
+      for (const e of endpoints.filter((x) => x.nameFilter)) {
+        expect(e.method, `${e.toolName} nameFilter`).toBe('get');
+      }
+    });
+
+    // Nothing in the body schema explains the shorthand, so a flag the llmTip doesn't
+    // mention is invisible to the model, and a tip without the flag promises a rewrite
+    // the server doesn't do
+    it('puts mentionShorthand exactly on the tools whose llmTip explains <at user-id>', () => {
+      for (const e of endpoints) {
+        expect(!!e.mentionShorthand, `${e.toolName} mentionShorthand`).toBe(
+          !!e.llmTip?.includes('user-id=')
+        );
+        if (e.mentionShorthand) {
+          expect(['post', 'patch'], `${e.toolName} mentionShorthand`).toContain(e.method);
+        }
+      }
+    });
   });
 
   it('should accept and preserve userIdentityType on a mentions payload (passthrough schema)', () => {

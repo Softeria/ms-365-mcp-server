@@ -34,6 +34,32 @@ describe('redactSensitive', () => {
     expect(out).toContain('3600');
   });
 
+  it('redacts several emails in one message and keeps text around them', () => {
+    expect(redactSensitive('from a.b+tag@x.co to <c_d@sub.example.org>; cc e@f.io.')).toBe(
+      'from [REDACTED_EMAIL] to <[REDACTED_EMAIL]>; cc [REDACTED_EMAIL].'
+    );
+  });
+
+  it('leaves a bare @ or an @ without a valid domain untouched', () => {
+    for (const text of ['@mention', 'a@b', 'a@b.c', 'user@ host.com', '@@', 'x@-', 'a@b.c1']) {
+      expect(redactSensitive(text)).toBe(text);
+    }
+  });
+
+  it('stays linear on a long run of local-part characters without an @', () => {
+    // Base64 of text (e.g. a mail attachment's contentBytes) is one long run
+    // of characters the email local part accepts. A backtracking email regex
+    // is quadratic on it: ~14 s for 80 kB.
+    const contentBytes = Buffer.from('<p>Hello world</p>\n'.repeat(5000)).toString('base64');
+    expect(contentBytes.length).toBeGreaterThan(100_000);
+    const message = `Set body param: {"contentBytes":"${contentBytes}"}`;
+    const start = performance.now();
+    const out = redactSensitive(message);
+    const elapsed = performance.now() - start;
+    expect(out).toBe(message);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
   it('redacts email addresses / UPNs', () => {
     expect(redactSensitive('login failed for alice.smith@contoso.com')).toBe(
       'login failed for [REDACTED_EMAIL]'

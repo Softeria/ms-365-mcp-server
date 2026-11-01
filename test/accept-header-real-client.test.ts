@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { describe, expect, it, vi } from 'vitest';
 import type { GraphClient } from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 
 // End-to-end smoke against the REAL generated client (no endpoint mocks):
 // both acceptType endpoints must expose Accept and forward it to graphRequest.
@@ -26,7 +26,7 @@ describe('Accept override, real generated client', () => {
     }) as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
-    registerGraphTools(server, graphClient, false, undefined, true);
+    registerGraphTools(server, graphClient, { orgMode: true });
     return { handlers, calls };
   }
 

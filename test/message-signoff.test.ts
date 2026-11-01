@@ -279,6 +279,34 @@ describe('applyMessageSignoffToRequest - direct mail sends', () => {
     }
   });
 
+  it('signs sendMail when the body uses the PascalCase keys of the generated tool schema', () => {
+    const result = signed('POST', '/me/sendMail', {
+      Message: { subject: 's', ...chatMessage('report attached', 'text') },
+      SaveToSentItems: false,
+    }) as { Message: { body: { content: string } }; SaveToSentItems: boolean };
+    expect(result.Message.body.content).toBe(`${PREFIX} report attached`);
+    expect(result.SaveToSentItems).toBe(false);
+  });
+
+  it('signs the Comment and Message of reply/forward actions with PascalCase keys', () => {
+    vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_SUFFIX', '- AI');
+    for (const path of [
+      '/me/messages/AAMk1/reply',
+      '/me/messages/AAMk1/replyAll',
+      '/me/messages/AAMk1/forward',
+      '/me/messages/AAMk1/createReply',
+      '/me/messages/AAMk1/createForward',
+    ]) {
+      const result = signed('POST', path, { Comment: 'my reply' }) as { Comment: string };
+      expect(result.Comment).toBe(`${PREFIX} my reply - AI`);
+    }
+    vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_SUFFIX', undefined);
+    const inline = signed('POST', '/me/messages/AAMk1/reply', {
+      Message: chatMessage('inline reply', 'text'),
+    }) as { Message: { body: { content: string } } };
+    expect(inline.Message.body.content).toBe(`${PREFIX} inline reply`);
+  });
+
   it('fails closed on a sendMail without signable content', () => {
     for (const payload of [{}, { message: { subject: 'only a subject' } }]) {
       expect(() => signed('POST', '/me/sendMail', payload)).toThrow(MessageSignoffError);

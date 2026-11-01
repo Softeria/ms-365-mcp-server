@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   DEFAULT_TOOL_DEFINITION_BUDGET,
   clearToolDefinitionBudgetCache,
@@ -11,14 +10,17 @@ import {
   pruneSchemaDepth,
   serveToolInputSchema,
 } from '../src/lib/body-schema-budget.js';
-import { installToolSchemaRefNormalization } from '../src/normalize-tool-schema.js';
+import {
+  installToolSchemaRefNormalization,
+  zodToToolJsonSchema,
+} from '../src/normalize-tool-schema.js';
 
 /**
  * A body shape deep and wide enough to blow past the budget, like the Graph list/channel
  * bodies.
  *
  * Leaf count is `width ** (depth + 1)`, so keep both small: the helper is only here to
- * overflow a 4 KiB budget, and a wider tree just burns CI time in zodToJsonSchema.
+ * overflow a 4 KiB budget, and a wider tree just burns CI time in the JSON Schema conversion.
  */
 function deepBody(depth: number, width = 5): z.ZodTypeAny {
   if (depth === 0) {
@@ -112,14 +114,14 @@ describe('pruneSchemaDepth', () => {
   });
 
   // The generated client wraps Graph object references as
-  // `z.union([namedType, z.object({}).partial().passthrough()])`, so a union is the
+  // `z.union([namedType, z.object({}).partial().loose()])`, so a union is the
   // common shape of a nested body field, not an exotic one.
   it('prunes each union alternative at the same depth instead of passing the union through whole', () => {
     const wordy = z.object({
       deep: z.object({ deeper: z.string().describe('x'.repeat(2000)) }),
     });
     const schema = z.object({
-      start: z.union([wordy, z.object({}).partial().passthrough()]),
+      start: z.union([wordy, z.object({}).partial().loose()]),
     });
 
     const pruned = pruneSchemaDepth(schema, 2, 1) as z.ZodObject<z.ZodRawShape>;
@@ -133,7 +135,7 @@ describe('pruneSchemaDepth', () => {
   it('collapses a union of object shapes to an open object, keeping the kind', () => {
     const pruned = pruneSchemaDepth(
       z.object({
-        start: z.union([z.object({ dateTime: z.string() }), z.object({}).partial().passthrough()]),
+        start: z.union([z.object({ dateTime: z.string() }), z.object({}).partial().loose()]),
       }),
       1
     );
@@ -156,7 +158,10 @@ describe('pruneSchemaDepth', () => {
 
   it('prunes record values one level down, like array elements', () => {
     const schema = z.object({
-      bag: z.record(z.object({ inner: z.object({ leaf: z.string().describe('y'.repeat(500)) }) })),
+      bag: z.record(
+        z.string(),
+        z.object({ inner: z.object({ leaf: z.string().describe('y'.repeat(500)) }) })
+      ),
     });
 
     const pruned = pruneSchemaDepth(schema, 2) as z.ZodObject<z.ZodRawShape>;
@@ -191,9 +196,7 @@ describe('measureToolDefinitionBytes', () => {
     const paramSchema = { body: z.object({ root: node, alias: node }) };
 
     const expanded = Buffer.byteLength(
-      JSON.stringify(
-        zodToJsonSchema(z.object(paramSchema).passthrough(), { $refStrategy: 'none' })
-      ),
+      JSON.stringify(zodToToolJsonSchema(z.object(paramSchema).loose(), 'inline')),
       'utf8'
     );
     const served = JSON.stringify(serveToolInputSchema(paramSchema));
@@ -210,7 +213,7 @@ describe('measureToolDefinitionBytes', () => {
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     server.registerTool(
       'probe',
-      { description: 'probe', inputSchema: z.object(paramSchema).passthrough() },
+      { description: 'probe', inputSchema: z.object(paramSchema).loose() },
       async () => ({ content: [] })
     );
     installToolSchemaRefNormalization(server);

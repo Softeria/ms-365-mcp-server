@@ -10,10 +10,10 @@
  *
  * The fix: skip MSAL account resolution when a request-context token exists.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GraphClient from '../src/graph-client.js';
+import { registerGraphTools } from '../src/graph-tools.js';
 import { requestContext } from '../src/request-context.js';
 
 vi.mock('../src/logger.js', () => ({
@@ -75,6 +75,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
         ok: true,
         status: 200,
         text: async () => JSON.stringify({ value: [] }),
+        arrayBuffer: async () => new TextEncoder().encode(JSON.stringify({ value: [] })).buffer,
         headers: new Headers(),
       };
     });
@@ -95,16 +96,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     };
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
-    registerGraphTools(
-      server,
-      graphClient,
-      false,
-      undefined,
-      false,
-      mockAuthManager as any,
-      false,
-      []
-    );
+    registerGraphTools(server, graphClient, { authManager: mockAuthManager as any });
 
     expect(capturedHandler).toBeDefined();
 
@@ -137,16 +129,7 @@ describe('Issue #258: HTTP/OAuth mode with empty MSAL cache', () => {
     };
     const graphClient = new GraphClient(mockAuthManager as any, mockSecrets);
 
-    registerGraphTools(
-      server,
-      graphClient,
-      false,
-      undefined,
-      false,
-      mockAuthManager as any,
-      false,
-      []
-    );
+    registerGraphTools(server, graphClient, { authManager: mockAuthManager as any });
 
     expect(capturedHandler).toBeDefined();
 
