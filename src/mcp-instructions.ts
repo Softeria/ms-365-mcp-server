@@ -4,6 +4,7 @@ export type McpInstructionsContext = {
   appMode?: boolean;
   readOnly: boolean;
   multiAccount: boolean;
+  attachmentUrlsEnabled?: boolean;
 };
 
 function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
@@ -14,7 +15,11 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     'When you need an organizational user or recipient address, resolve it with list-users (or another directory tool); do not invent SMTP addresses.',
     'Directory $search on collections such as /users or /groups requires ConsistencyLevel: eventual when the tool exposes that header.',
     'Teams chat and channel messages: prefer HTML contentType in the body; plain text is often mangled by Graph.',
-    'Files / binary content: for large drive/SharePoint file content, prefer get-download-url to resolve a pre-authenticated URL for out-of-band download. Use download-bytes for authenticated byte reads such as mail attachments, profile photos, Teams hosted content, and meeting recordings. In stdio mode (or HTTP with --http-local-file-tools), download-bytes-to-file writes those same authenticated bytes straight to a local absolute path instead of returning base64. For large mail attachments and meeting recordings that is one out-of-band option; get-download-url is the other, on a server running with --enable-attachment-urls. These tools take relative Microsoft Graph paths, not absolute URLs. For uploads, upload-file-content takes a base64 string body (Graph allows 250MB, but the whole string passes through the agent context and a truncated one is written without error); use create-upload-session for anything but small files.',
+    'Files / binary content: for large drive/SharePoint file content, prefer get-download-url to resolve a pre-authenticated URL for out-of-band download.',
+    opts.attachmentUrlsEnabled
+      ? 'Attachment URLs are enabled: for document reading and downloads, prefer get-download-url for mail attachments, meeting recordings and other authenticated byte resources, then hand the URL to an external converter or downloader. Use download-bytes only when the caller explicitly needs bytes. Server-minted URLs are single-use: mint a fresh URL for every fetch, including probes, conversion, continuation and retries; retain the same target, account and document selection. Drive-provider URLs may have different lifecycles. This is a preference, not enforcement: enabling attachment URLs does not scrub arbitrary response bodies; use existing tool filtering when a text-only tool surface is required.'
+      : 'Use download-bytes for authenticated byte reads such as mail attachments, profile photos, Teams hosted content, and meeting recordings.',
+    'In stdio mode (or HTTP with --http-local-file-tools), download-bytes-to-file writes authenticated bytes straight to a local absolute path instead of returning base64. These tools take relative Microsoft Graph paths, not absolute URLs. For uploads, upload-file-content takes a base64 string body (Graph allows 250MB, but the whole string passes through the agent context and a truncated one is written without error); use create-upload-session for anything but small files.',
   ];
   if (opts.appMode)
     parts.push(

@@ -566,9 +566,9 @@ describe('graph-tools', () => {
 
         const [payload] = auditLogMock.mock.calls[0];
         expect(payload.result_count).toBe(2);
-        // Truncated at the cap: the merged body drops @odata.nextLink, so the
-        // audit event is the only place Graph-has-more survives.
-        expect(JSON.parse(result.content[0].text)['@odata.nextLink']).toBeUndefined();
+        expect(JSON.parse(result.content[0].text)['@odata.nextLink']).toBe(
+          'https://graph.microsoft.com/v1.0/me/messages?$skip=2'
+        );
         expect(payload.result_has_more).toBe(true);
         expect(payload.response_bytes).toBe(100);
       } finally {

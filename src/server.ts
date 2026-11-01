@@ -333,6 +333,7 @@ class MicrosoftGraphServer {
           appMode: Boolean(this.options.appMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
+          attachmentUrlsEnabled: Boolean(this.options.http && this.options.enableAttachmentUrls),
         }),
       }
     );

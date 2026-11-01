@@ -732,7 +732,23 @@ Instead of loading every tool upfront, use dynamic discovery so the LLM finds an
 npx @softeria/ms-365-mcp-server --discovery
 ```
 
-Keeps the initial context small and cuts token usage, especially useful for long sessions or cost-sensitive setups (e.g. Open WebUI running against a paid API).
+For hosts that eagerly load every advertised schema, combine `--discovery` with the smallest
+useful presets or tool filter. Hosts with native deferred tool loading can use that with
+direct registration; measure before adding a second discovery layer.
+
+Other existing ways to keep reads bounded:
+
+- Use `read-mail-text` for mail triage, honor `truncated`, and retrieve the full or exact body when needed.
+- Query small calendar windows with modest `top` and `select`; follow continuation only when the task needs more.
+- Treat experimental TOON output as a measured alternative after narrowing tools and reads.
+
+Bounded collection reads with `fetchAllPages: true` retain an outstanding `@odata.nextLink`
+when a page/item cap stops the merge; `_meta.result_has_more` then remains true. Exhausted
+collections have neither a next link nor more results. Where a tool advertises `skiptoken`,
+pass back the returned link containing `$skip` or `$skiptoken` and retain the original
+query/selection to continue without restarting. That parameter cannot replay drive/sites
+delta links carrying `token=`; those links are still returned, but manual resume through
+`skiptoken` is unsupported. The item cap is page-granular, not a byte or token budget.
 
 ### Hybrid discovery with direct tools
 
@@ -841,7 +857,7 @@ Environment variables:
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
-- `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
+- `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops after a whole page reaches this count, so the result can exceed the cap.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BLOB_OUTPUT=true|1`: File download tools (`download-bytes`, `get-mail-message-mime`, `get-shared-mailbox-message-mime`, `get-mail-attachment-content`, `get-shared-mailbox-attachment-content`) answer a short JSON text block (`name`, `contentType`, `size`) and an MCP `EmbeddedResource` with `BlobResourceContents` (`uri`, `mimeType`, `blob`) instead of base64 JSON in text. The `uri`'s last segment is the optional `fileName` argument. Default: off. Alternative to the --blob-output flag.
 - `MS365_MCP_BLOB_MAX_BYTES=<n>`: With blob output on, the largest file a download tool reads (positive integer, default `5242880`). The server stops reading past it and answers an error naming the limit.
@@ -917,9 +933,11 @@ the message has it. `get-mail-message` returns the raw body.
 `get-download-url` returns Microsoft's own pre-authenticated `@microsoft.graph.downloadUrl`
 for OneDrive and SharePoint items. Graph publishes no such URL for **mail and calendar
 attachments, meeting recordings, or any other `/$value` byte endpoint** — for those, the
-only way to read the bytes has been `download-bytes`, which returns base64 into the
-agent's context. A 73 KB, 3-page PDF costs about 24,500 tokens that way, and the model
-cannot parse them anyway.
+byte tools such as `download-bytes` return base64 into the agent's context unless blob
+output is enabled. A synthetic 75,000-byte file becomes 100,000 base64 characters before
+JSON overhead; this is character arithmetic, not a tokenizer-specific measurement.
+`download-bytes-to-file` can instead save bytes locally in stdio mode or HTTP with
+`--http-local-file-tools`.
 
 `--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
 URL of its own, `get-download-url` mints one this server serves. With it on,
@@ -942,6 +960,36 @@ credential.
 **This grants no authority the calling agent did not already have.** Every target that can
 be minted is one `download-bytes` would fetch for the same caller on the same account. The
 ticket only moves those bytes out of the context window and into a direct transfer.
+
+When attachment URLs are enabled, prefer `get-download-url` for document reading and
+downloads; reserve byte tools for callers that explicitly need bytes. This is a preference,
+not enforcement: `--enable-attachment-urls` does not scrub arbitrary response bodies.
+Use existing `--enabled-tools` / `--enabled-tools-file` filtering to restrict the tool
+surface when a client requires text-only results, and select metadata fields on listings.
+
+### Example: attachment metadata to an external reader
+
+In HTTP attachment-URL mode, these synthetic model-facing calls contain metadata and a
+URL handoff only:
+
+```json
+{"tool":"list-mail-attachments","arguments":{"messageId":"example-message","select":"id,name,contentType,size,isInline"}}
+{"value":[{"id":"example-attachment","name":"example.pdf","contentType":"application/pdf","size":75000,"isInline":false}]}
+{"tool":"get-download-url","arguments":{"target":"/me/messages/example-message/attachments/example-attachment/$value"}}
+{"downloadUrl":"<fresh single-use URL>"}
+```
+
+The client gives the returned URL to an external downloader or converter (for example,
+Docglean); the binary document never enters this trace. In discovery mode, obtain the
+schemas with `get-tool-schema` and invoke these names through `execute-tool`. Keep the
+same identity/account for listing and minting. HTTP bearer/OBO mode binds the caller's
+identity and does not accept account switching; where an `account` parameter is advertised,
+use the same account throughout.
+
+Mint a **fresh server URL for every fetch**, including a probe, conversion, continuation,
+or retry. Keep the target, account and document selection (such as selected pages) the
+same when continuing a read. Do not automatically fetch every continuation: retrieve more
+only when relevant. Microsoft's drive-provider URLs can have different lifecycle semantics.
 
 ### Uploading attachments the same way
 
