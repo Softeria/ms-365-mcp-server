@@ -135,6 +135,57 @@ describe('loadEnvFile', () => {
     expect(message).not.toContain('DATABASE_URL');
   });
 
+  // READ_ONLY and the other documented unprefixed variables used to apply from .env.
+  // Refusing them silently left write tools enabled with no sign of it.
+  it('names the unprefixed server variables it refuses, and says a restriction is off', () => {
+    delete process.env.READ_ONLY;
+    const file = writeEnvFile('READ_ONLY=true\nENABLED_TOOLS=^list-\nLOG_LEVEL=debug\nSILENT=1\n');
+
+    const result = loadEnvFile({ path: file });
+
+    expect(process.env.READ_ONLY).toBeUndefined();
+    expect(result.applied).toEqual([]);
+    expect(console.error).toHaveBeenCalledTimes(1);
+    const message = vi.mocked(console.error).mock.calls[0][0] as string;
+    expect(message).toContain('ENABLED_TOOLS, LOG_LEVEL, READ_ONLY, SILENT');
+    expect(message).toContain('ENABLED_TOOLS and READ_ONLY from .env are not applied');
+    expect(message).not.toContain('^list-');
+  });
+
+  it('says a single refused restriction is off', () => {
+    const file = writeEnvFile('READ_ONLY=true\n');
+
+    loadEnvFile({ path: file });
+
+    const message = vi.mocked(console.error).mock.calls[0][0] as string;
+    expect(message).toContain(
+      'READ_ONLY from .env is not applied: the tool restriction it asks for is off'
+    );
+  });
+
+  it('counts ENABLED_TOOLS_FILE among the restrictions a .env cannot set', () => {
+    const file = writeEnvFile(
+      'READ_ONLY=true\nENABLED_TOOLS=^list-\nENABLED_TOOLS_FILE=/tmp/tools\n'
+    );
+
+    loadEnvFile({ path: file });
+
+    const message = vi.mocked(console.error).mock.calls[0][0] as string;
+    expect(message).toContain(
+      'ENABLED_TOOLS, ENABLED_TOOLS_FILE and READ_ONLY from .env are not applied'
+    );
+  });
+
+  it('does not claim a restriction is off when none was refused', () => {
+    const file = writeEnvFile('LOG_LEVEL=debug\n');
+
+    loadEnvFile({ path: file });
+
+    const message = vi.mocked(console.error).mock.calls[0][0] as string;
+    expect(message).toContain('LOG_LEVEL');
+    expect(message).not.toContain('is not applied');
+  });
+
   it('stays quiet when only unrelated variables are ignored', () => {
     const file = writeEnvFile('DATABASE_URL=postgres://user:pw@host/db\n');
 
