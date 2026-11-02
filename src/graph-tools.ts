@@ -1863,7 +1863,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'GET',
     path: 'tool:download-bytes',
     description:
-      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For large drive/SharePoint file content, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context. With the server\'s blob output on, the bytes come back as a file resource instead (capped by the server\'s download limit); pass fileName to name it.',
+      'Download binary content from Microsoft Graph and return it as base64. Single tool for any binary read: drive file content, mail attachment, profile photo, Teams hosted content, meeting recording. Returns { contentType, encoding: "base64", contentLength, contentBytes }. For large drive/SharePoint file content, prefer get-download-url, which returns a pre-authenticated URL to stream bytes out-of-band instead of base64 through the agent context. With --enable-attachment-urls in HTTP mode, also prefer get-download-url for document reads from authenticated byte endpoints. With the server\'s blob output on, the bytes come back as a file resource instead (capped by the server\'s download limit); pass fileName to name it.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1982,7 +1982,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     // sits past the cap. That keeps the hint for the reading LLM while letting
     // get-download-url own the high-signal "drive"/"sharepoint" search terms.
     description:
-      'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. The only out-of-band way to save mail attachments and meeting recordings, whose bytes are exposed solely through authenticated endpoints. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode, or HTTP with --http-local-file-tools. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
+      'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. An out-of-band way to save mail attachments and meeting recordings. With --enable-attachment-urls in HTTP mode, prefer get-download-url to hand their bytes to an external downloader or converter. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode, or HTTP with --http-local-file-tools. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
     readOnlyHint: true,
     openWorldHint: true,
     stdioOnly: true,
@@ -3300,7 +3300,6 @@ async function executeGraphTool(
           // response — otherwise fetchAllPages on a /delta endpoint silently drops
           // the resume token and forces callers to re-list from scratch.
           let deltaLink = combinedResponse['@odata.deltaLink'];
-          let unmergeablePage = false;
 
           while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
             logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
@@ -3332,7 +3331,6 @@ async function executeGraphTool(
                 logger.warn(
                   `Pagination stopped at page ${pageCount + 1}: response was not a collection`
                 );
-                unmergeablePage = true;
                 break;
               }
               allItems = allItems.concat(nextJsonResponse.value);
@@ -3348,7 +3346,6 @@ async function executeGraphTool(
               }
               pageCount++;
             } else {
-              unmergeablePage = true;
               break;
             }
           }
@@ -3367,10 +3364,9 @@ async function executeGraphTool(
             // @odata.count is Graph's total for the filtered collection, so it is
             // left as page one reported it (it can exceed allItems.length when
             // maxPages/maxItems truncates the merge).
-            // A page that could not be merged is not a limit the caller chose, so
-            // the body keeps the link to it. Without it the short list reads as
-            // the whole collection.
-            if (unmergeablePage && nextLink) {
+            // Keep the outstanding cursor whenever the merge stops early, including
+            // configured limits, so callers can continue without replaying page one.
+            if (nextLink) {
               combinedResponse['@odata.nextLink'] = nextLink;
             } else {
               delete combinedResponse['@odata.nextLink'];
@@ -3379,9 +3375,7 @@ async function executeGraphTool(
             // merged, restate all three for the whole read.
             //
             // nextLink still being set means the loop stopped early: on maxPages,
-            // on maxItems, or on a page it could not merge. Graph has more. For
-            // the two limits the merged body drops @odata.nextLink, so the audit
-            // event is the only place that truncation is visible.
+            // on maxItems, or on a page it could not merge. Graph has more.
             response._meta = {
               ...response._meta,
               result_count: allItems.length,
