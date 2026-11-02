@@ -979,8 +979,10 @@ URL handoff only:
 {"downloadUrl":"<fresh single-use URL>"}
 ```
 
-The client gives the returned URL to an external downloader or converter (for example,
-Docglean); the binary document never enters this trace. In discovery mode, obtain the
+The client gives the returned URL to any external downloader or document-processing MCP
+server that can fetch it, using that server's advertised tool names and parameter schemas.
+MS365 requires no particular processor or conversion result format; the binary document
+never enters this trace. In discovery mode, obtain the
 schemas with `get-tool-schema` and invoke these names through `execute-tool`. Keep the
 same identity/account for listing and minting. HTTP bearer/OBO mode binds the caller's
 identity and does not accept account switching; where an `account` parameter is advertised,
