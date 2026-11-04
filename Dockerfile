@@ -13,10 +13,11 @@ FROM node:24-alpine AS release
 
 WORKDIR /app
 
-COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package*.json ./
 
 ENV NODE_ENV=production
 RUN npm ci --ignore-scripts --omit=dev
+
+COPY --from=builder /app/dist /app/dist
 
 ENTRYPOINT ["node", "dist/index.js"]
