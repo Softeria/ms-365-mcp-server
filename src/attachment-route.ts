@@ -29,6 +29,7 @@ import type { Handler, Request, Response } from 'express';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from './logger.js';
+import { describeError, describeUrl } from './lib/log-safe.js';
 import type GraphClient from './graph-client.js';
 import type AuthManager from './auth.js';
 import {
@@ -208,7 +209,7 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
       // what an operator needs to diagnose a failure and is not itself a capability --
       // reaching it still requires a Graph token.
       logger.error(
-        `Attachment redemption failed for ${ticket.target}: ${(error as Error).message}`
+        `Attachment redemption failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
       );
       res.status(502).type('text/plain').send('Upstream fetch failed');
       return;
@@ -249,7 +250,9 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
       // Headers are already sent, so there is no status left to change. Destroy
       // rather than end, so the peer sees a truncated transfer instead of a
       // short body that looks complete.
-      logger.error(`Attachment stream aborted for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment stream aborted for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       res.destroy();
     }
   };
@@ -322,7 +325,9 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
           : await deps.authManager.getTokenForAccount(ticket.accountName);
       if (!accessToken) throw new Error('No access token for this ticket');
     } catch (error) {
-      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment upload failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       res.status(502).type('text/plain').send('Upstream upload failed');
       return;
     }
@@ -351,7 +356,9 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
         ...(ticket.contentId ? { contentId: ticket.contentId } : {}),
       });
     } catch (error) {
-      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment upload failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       if (!res.headersSent) res.status(502).type('text/plain').send('Upstream upload failed');
     }
   };

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
+import { describeError } from './log-safe.js';
 import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
 /**
@@ -304,8 +305,151 @@ function unwrapToken<T>(result: TokenResponse, failureMessage: string): T {
     throw new OAuthUpstreamError(result.status, result.raw, result.parsed);
   }
 
-  logger.error(`${failureMessage}: ${result.raw}`);
+  logger.error(
+    `${failureMessage}: HTTP ${result.status}, unparsed body (${result.raw.length} chars)`
+  );
   throw new Error(`${failureMessage}: ${result.raw}`);
+}
+
+export type CredentialVerdict = 'accepted' | 'rejected' | 'unavailable' | 'malformed';
+
+export interface ClientCredentialCheck {
+  ok: boolean;
+  verdict: CredentialVerdict;
+  checkedAt: string;
+  status?: number;
+  error?: string;
+  error_codes?: number[];
+  correlation_id?: string;
+  detail?: string;
+}
+
+const SELF_TEST_TIMEOUT_MS = 15_000;
+const SAFE_CODE = /^[A-Za-z0-9_.-]{1,64}$/;
+
+/**
+ * Startup self-test for a confidential client: ask Microsoft for an app token with
+ * the configured client id, secret and tenant, and discard it. It establishes one
+ * thing only: whether Microsoft accepts these app credentials. It says nothing
+ * about user sign-in, On-Behalf-Of exchange, Graph permissions or Claude.
+ *
+ * Verdicts: `accepted` (a well-formed token came back), `rejected` (Microsoft
+ * answered with an OAuth error: AADSTS7000215 wrong secret value, 7000222 expired,
+ * 700016 unknown client id), `unavailable` (no answer within the deadline, or a
+ * network failure), `malformed` (an answer that is neither). Never throws; never
+ * records the secret, a token or a response body; bounded by a deadline that
+ * covers the body read.
+ */
+export async function checkClientCredentials(
+  clientId: string,
+  clientSecret: string,
+  tenantId: string,
+  cloudType: CloudType = 'global',
+  timeoutMs: number = SELF_TEST_TIMEOUT_MS
+): Promise<ClientCredentialCheck> {
+  const checkedAt = new Date().toISOString();
+  const cloudEndpoints = getCloudEndpoints(cloudType);
+  const graphBase = cloudEndpoints.graphApi.replace(/\/$/, '');
+  const params = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: `${graphBase}/.default`,
+  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${cloudEndpoints.authority}/${tenantId}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params,
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let json: unknown = null;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      json = null;
+    }
+    const obj = json && typeof json === 'object' ? (json as Record<string, unknown>) : null;
+    if (response.ok) {
+      if (obj && typeof obj.access_token === 'string' && obj.access_token.length > 0) {
+        return { ok: true, verdict: 'accepted', checkedAt, status: response.status };
+      }
+      return {
+        ok: false,
+        verdict: 'malformed',
+        checkedAt,
+        status: response.status,
+        detail: `HTTP ${response.status} without a token (${raw.length} chars)`,
+      };
+    }
+    if (obj && typeof obj.error === 'string' && SAFE_CODE.test(obj.error)) {
+      const codes = Array.isArray(obj.error_codes)
+        ? obj.error_codes.filter((c): c is number => Number.isInteger(c))
+        : [];
+      const corr =
+        typeof obj.correlation_id === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(obj.correlation_id)
+          ? obj.correlation_id
+          : undefined;
+      return {
+        ok: false,
+        verdict: 'rejected',
+        checkedAt,
+        status: response.status,
+        error: obj.error,
+        error_codes: codes,
+        correlation_id: corr,
+      };
+    }
+    return {
+      ok: false,
+      verdict: 'malformed',
+      checkedAt,
+      status: response.status,
+      detail: `HTTP ${response.status}, unparsed response (${raw.length} chars)`,
+    };
+  } catch (error) {
+    const timedOut = controller.signal.aborted;
+    return {
+      ok: false,
+      verdict: 'unavailable',
+      checkedAt,
+      detail: timedOut
+        ? `no answer within ${timeoutMs} ms`
+        : `request failed: ${describeError(error)}`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The one line the startup self-test prints. Only two codes justify a conclusion
+ * about the secret: 7000215 (the value sent is not a current secret of the app)
+ * and 7000222 (the secret has expired). Every other rejection is reported with
+ * its code and left for the troubleshooting table; it is not called a bad secret.
+ */
+export function credentialCheckMessage(c: ClientCredentialCheck, tenantId: string): string {
+  const codes = (c.error_codes ?? []).join(', ');
+  const ref = `${c.error ?? 'none'}, error_codes [${codes}], correlation_id ${c.correlation_id ?? 'none'}`;
+  switch (c.verdict) {
+    case 'accepted':
+      return `Startup self-test: Microsoft accepted the client id and secret for tenant ${tenantId}. (App credentials only; not a test of user sign-in or Graph access.)`;
+    case 'rejected':
+      if (c.error_codes?.includes(7000215)) {
+        return `Startup self-test FAILED: Microsoft rejected the client secret as not a current secret value of this app (${ref}). Sign-ins will fail until the secret value is corrected and the revision restarted.`;
+      }
+      if (c.error_codes?.includes(7000222)) {
+        return `Startup self-test FAILED: the client secret has expired (${ref}). Sign-ins will fail until a new secret is created, stored, and the revision restarted.`;
+      }
+      return `Startup self-test FAILED: Microsoft rejected the app credentials (${ref}). Look the code up in the troubleshooting table; this says nothing about the secret value.`;
+    case 'unavailable':
+      return `Startup self-test could not be completed (${c.detail ?? 'unknown'}); the credentials were not judged. Check network access to the Microsoft login endpoint.`;
+    default:
+      return `Startup self-test inconclusive: ${c.detail ?? 'unexpected answer'}; the credentials were not judged.`;
+  }
 }
 
 /**
