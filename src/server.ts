@@ -47,6 +47,19 @@ import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './li
 import { requestContext } from './request-context.js';
 import { getSecrets, type AppSecrets } from './secrets.js';
 
+/**
+ * Ceiling on array elements plus object keys in one tool call's arguments,
+ * checked by the SDK before Zod validates them. Without it, one request
+ * within the body limit could exhaust the heap during validation
+ * (GHSA-46jr-4wx8-v453). The SDK leaves it off by default. The largest
+ * legitimate inputs are Excel range writes: a 2D `values` array costs
+ * rows × (cols + 1), so 100×100 `values` plus `numberFormat` is about
+ * 20 200. 50 000 keeps two of those in one `graph-batch`; a batch of 20
+ * writes fits when each stays near 2 400 cells. File uploads travel as one
+ * string.
+ */
+export const MAX_TOOL_INPUT_ELEMENTS = 50_000;
+
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 
 export function isLoopbackHost(host: string | undefined): boolean {
@@ -334,6 +347,7 @@ class MicrosoftGraphServer {
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
         }),
+        maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       }
     );
 
