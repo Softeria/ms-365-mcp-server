@@ -18,7 +18,11 @@ import AuthManager, {
 } from './auth.js';
 import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
-import GraphClient, { getBlobMaxBytes, isBlobOutputEnabled } from './graph-client.js';
+import GraphClient, {
+  getBlobMaxBytes,
+  isBlobOutputEnabled,
+  type AcceptFallback,
+} from './graph-client.js';
 import { getAttachmentMinting } from './lib/attachment-minting.js';
 import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
 import { getUploadDirs, openUploadFile, type UploadFile } from './lib/upload-dirs.js';
@@ -80,6 +84,12 @@ import {
 } from './lib/mail-text.js';
 import { describeToolSchema, describeUtilityToolSchema } from './lib/tool-schema.js';
 import {
+  ACCEPT_VALUE_ERROR,
+  ACCEPT_VALUE_MAX_LENGTH,
+  ACCEPT_VALUE_PATTERN,
+  isAcceptValue,
+} from './lib/media-type.js';
+import {
   restrictUserFieldQuery,
   restrictUserFieldUrl,
   shouldStripUserFieldExpand,
@@ -122,6 +132,10 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  // Retry once with fallback.accept when Graph refuses acceptType with a 403 carrying
+  // fallback.innerErrorCode. Applies whenever acceptType is what goes out (unset, or
+  // echoed by the caller); an explicit, different Accept turns it off.
+  acceptFallback?: AcceptFallback;
   // A file download. With MS365_MCP_BLOB_OUTPUT on, the tool answers a short JSON text block
   // plus an MCP blob resource (capped by MS365_MCP_BLOB_MAX_BYTES); it takes an optional fileName.
   blobOutput?: boolean;
@@ -1454,6 +1468,36 @@ async function mintDownloadUrl(
   };
 }
 
+// A caller-settable Accept value, as zod. regex and max stay declarative (not .refine)
+// so the published JSON schema carries pattern and maxLength. An empty string means unset.
+function acceptValueSchema(): z.ZodTypeAny {
+  return z
+    .string()
+    .max(ACCEPT_VALUE_MAX_LENGTH)
+    .regex(ACCEPT_VALUE_PATTERN, ACCEPT_VALUE_ERROR)
+    .optional();
+}
+
+// Optional Accept param shared by the byte-download utilities.
+function acceptParamSchema(): z.ZodTypeAny {
+  return acceptValueSchema().describe(
+    'Optional Accept header. Set only when Graph asks for another format ' +
+      '(transcript content: application/vnd.microsoft.graph.transcript+text).'
+  );
+}
+
+// Re-checked in execute: execute can be reached without schema parsing (execute-tool).
+// Returns the error result for an invalid value, undefined when accept is unset or valid.
+function invalidAcceptResult(accept: unknown): CallToolResult | undefined {
+  if (accept == null || (typeof accept === 'string' && isAcceptValue(accept))) {
+    return undefined;
+  }
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ error: ACCEPT_VALUE_ERROR }) }],
+    isError: true,
+  };
+}
+
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
   {
     name: 'get-upload-url',
@@ -1893,6 +1937,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .describe(
             'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
           ),
+        accept: acceptParamSchema(),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -1936,6 +1981,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       if (alteredTarget) return alteredTarget;
       const restrictedTarget = userProfilePassthroughError(target, userFields);
       if (restrictedTarget) return restrictedTarget;
+      const acceptError = invalidAcceptResult(params.accept);
+      if (acceptError) return acceptError;
+      const accept = params.accept as string | undefined;
       try {
         const accountModeError = await checkAccountParamInBearerMode(accountParam, authManager);
         if (accountModeError) {
@@ -1970,6 +2018,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           rawResponse: true,
           forceBinary: true,
           ...blob,
+          ...(accept ? { headers: { Accept: accept } } : {}),
         });
       } catch (error) {
         return {
@@ -2012,6 +2061,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           .describe(
             "Absolute path on the server's filesystem where the bytes are written, e.g. /Users/me/downloads/invoice.pdf. Must be absolute; relative paths are rejected. The parent directory must already exist, and an existing file is never overwritten (the call errors if outputPath already exists)."
           ),
+        accept: acceptParamSchema(),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -2069,6 +2119,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       if (alteredTarget) return alteredTarget;
       const restrictedTarget = userProfilePassthroughError(target, userFields);
       if (restrictedTarget) return restrictedTarget;
+      const acceptError = invalidAcceptResult(params.accept);
+      if (acceptError) return acceptError;
+      const accept = params.accept as string | undefined;
       if (!path.isAbsolute(outputPath)) {
         return {
           content: [
@@ -2119,6 +2172,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         // in memory as base64, which dies on big recordings (V8 max string length).
         const result = await graphClient.downloadToFile(target, outputPath, {
           accessToken: accountAccessToken,
+          ...(accept ? { headers: { Accept: accept } } : {}),
         });
         return {
           content: [
@@ -2935,8 +2989,14 @@ async function executeGraphTool(
       } else if (paramName.toLowerCase() === 'accept' && config?.acceptType) {
         // The synthetic Accept param added for acceptType endpoints. It has no entry in
         // the generated client's parameter list, so it lands here rather than in the
-        // 'Header' case above.
-        headers['Accept'] = `${paramValue}`;
+        // 'Header' case above. Same rule as the byte-download tools; an empty value
+        // means unset, so the configured default still applies.
+        if (paramValue !== '' && paramValue != null) {
+          if (typeof paramValue !== 'string' || !isAcceptValue(paramValue)) {
+            throw new Error(ACCEPT_VALUE_ERROR);
+          }
+          headers['Accept'] = paramValue;
+        }
       } else if (isOdataParam) {
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
@@ -3102,6 +3162,17 @@ async function executeGraphTool(
       headers['Accept'] = config.acceptType;
       logger.info(`Setting custom Accept: ${config.acceptType}`);
     }
+    // The fallback applies whenever the configured default is what goes out, even
+    // when the caller echoed it explicitly; a different explicit Accept is honoured as-is.
+    // A caller-set $format wins over Accept at Graph, so a retry would be refused again:
+    // no fallback then either.
+    const acceptFallback =
+      // Media types compare case-insensitively (RFC 9110 §8.3.1).
+      config?.acceptType &&
+      headers['Accept']?.toLowerCase() === config.acceptType.toLowerCase() &&
+      queryParams['$format'] === undefined
+        ? config.acceptFallback
+        : undefined;
 
     // Captured before the query string is built so the same value can be reapplied to
     // the response for the operations where Graph ignores it (#660). $select is what
@@ -3159,9 +3230,11 @@ async function executeGraphTool(
       forceBinary?: boolean;
       maxBytes?: number;
       blobOutput?: { fileName?: string };
+      acceptFallback?: AcceptFallback;
     } = {
       method: tool.method.toUpperCase(),
       headers,
+      ...(acceptFallback ? { acceptFallback } : {}),
     };
 
     if (config?.blobOutput && isBlobOutputEnabled()) {
@@ -3630,10 +3703,9 @@ function registerGraphToolWithMcp(
   // caller has no way to reach the alternate representation of the resource — the
   // configured default would be the only value the server can ever send.
   if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
-    paramSchema['Accept'] = z
-      .string()
-      .optional()
-      .describe(getAcceptParamDescription(endpointConfig.acceptType));
+    paramSchema['Accept'] = acceptValueSchema().describe(
+      getAcceptParamDescription(endpointConfig.acceptType)
+    );
   }
 
   if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {

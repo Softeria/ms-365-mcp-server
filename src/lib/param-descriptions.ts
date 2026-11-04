@@ -162,8 +162,7 @@ export const EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION =
 export function getAcceptParamDescription(acceptType: string): string {
   return (
     `Accept header for the response representation. Defaults to "${acceptType}". ` +
-    'Only set this when Graph asks for a different format — e.g. a 403 SpeakerAttributionNotAllowed ' +
-    'on transcript content names the media type to retry with.'
+    'Leave unset unless you need a different format.'
   );
 }
 

@@ -2622,7 +2622,11 @@
     "presets": ["teams", "work"],
     "workScopes": ["OnlineMeetingTranscript.Read.All"],
     "acceptType": "text/vtt",
-    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps."
+    "acceptFallback": {
+      "innerErrorCode": "SpeakerAttributionNotAllowed",
+      "accept": "application/vnd.microsoft.graph.transcript+text"
+    },
+    "llmTip": "Returns the transcript content in WebVTT format with speaker identification and timestamps. When the tenant disables speaker attribution, the server retries once and returns timestamped text without speaker names."
   },
   {
     "pathPattern": "/me/adhocCalls/getAllTranscripts(userId='{userId}',startDateTime={startDateTime},endDateTime={endDateTime})",
