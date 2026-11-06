@@ -152,11 +152,20 @@ describe('normalizeToolSchemaRefs', () => {
     const schema = {
       type: 'object',
       properties: {
-        confirm: { description: 'Set only after approval.', allOf: [{ $ref: '#/properties/confirmType' }] },
+        confirm: {
+          description: 'Set only after approval.',
+          allOf: [{ $ref: '#/properties/confirmType' }],
+        },
         confirmType: { type: 'boolean' },
-        excludeResponse: { description: 'Omit the response body.', allOf: [{ $ref: '#/properties/excludeType' }] },
+        excludeResponse: {
+          description: 'Omit the response body.',
+          allOf: [{ $ref: '#/properties/excludeType' }],
+        },
         excludeType: { type: 'boolean' },
-        includeHeaders: { description: 'Include response headers.', allOf: [{ $ref: '#/properties/headersType' }] },
+        includeHeaders: {
+          description: 'Include response headers.',
+          allOf: [{ $ref: '#/properties/headersType' }],
+        },
         headersType: { type: 'boolean' },
         body: {
           type: 'object',
@@ -173,9 +182,18 @@ describe('normalizeToolSchemaRefs', () => {
     tidyToolJsonSchema(out);
     expect(Object.keys(out.$defs as object)).toHaveLength(2); // body and wrapper both kept
     const properties = out.properties as Record<string, Record<string, unknown>>;
-    expect(properties.confirm).toEqual({ type: 'boolean', description: 'Set only after approval.' });
-    expect(properties.excludeResponse).toEqual({ type: 'boolean', description: 'Omit the response body.' });
-    expect(properties.includeHeaders).toEqual({ type: 'boolean', description: 'Include response headers.' });
+    expect(properties.confirm).toEqual({
+      type: 'boolean',
+      description: 'Set only after approval.',
+    });
+    expect(properties.excludeResponse).toEqual({
+      type: 'boolean',
+      description: 'Omit the response body.',
+    });
+    expect(properties.includeHeaders).toEqual({
+      type: 'boolean',
+      description: 'Include response headers.',
+    });
     const refs = collectRefs(out);
     expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
     for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();

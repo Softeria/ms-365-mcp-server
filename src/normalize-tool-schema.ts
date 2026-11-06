@@ -373,7 +373,8 @@ function isLeafDef(value: unknown): boolean {
   if (!isPlainObject(value)) return false;
   const type = value.type;
   return (
-    (typeof type === 'string' && ['boolean', 'integer', 'number', 'string', 'null'].includes(type)) ||
+    (typeof type === 'string' &&
+      ['boolean', 'integer', 'number', 'string', 'null'].includes(type)) ||
     Array.isArray(value.enum) ||
     'const' in value
   );
