@@ -148,12 +148,16 @@ describe('normalizeToolSchemaRefs', () => {
     expect((out.properties as Record<string, unknown>).use7).toEqual({ type: 'string' });
   });
 
-  it('skips inlining entirely once any def is cyclic', () => {
-    // `wrapper` would expand fine on its own, but `body` recurses so a ref survives
-    // regardless. Expanding wrapper would just add bytes.
+  it('inlines scalar defs while retaining complex defs alongside a recursive def', () => {
     const schema = {
       type: 'object',
       properties: {
+        confirm: { description: 'Set only after approval.', allOf: [{ $ref: '#/properties/confirmType' }] },
+        confirmType: { type: 'boolean' },
+        excludeResponse: { description: 'Omit the response body.', allOf: [{ $ref: '#/properties/excludeType' }] },
+        excludeType: { type: 'boolean' },
+        includeHeaders: { description: 'Include response headers.', allOf: [{ $ref: '#/properties/headersType' }] },
+        headersType: { type: 'boolean' },
         body: {
           type: 'object',
           properties: {
@@ -166,7 +170,12 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
+    tidyToolJsonSchema(out);
     expect(Object.keys(out.$defs as object)).toHaveLength(2); // body and wrapper both kept
+    const properties = out.properties as Record<string, Record<string, unknown>>;
+    expect(properties.confirm).toEqual({ type: 'boolean', description: 'Set only after approval.' });
+    expect(properties.excludeResponse).toEqual({ type: 'boolean', description: 'Omit the response body.' });
+    expect(properties.includeHeaders).toEqual({ type: 'boolean', description: 'Include response headers.' });
     const refs = collectRefs(out);
     expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
     for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
