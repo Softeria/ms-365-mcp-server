@@ -368,7 +368,13 @@ class MicrosoftGraphServer {
     const shouldRegisterAuthTools =
       !this.options.appMode && (!this.options.http || this.options.enableAuthTools);
     if (shouldRegisterAuthTools) {
-      registerAuthTools(server, this.authManager);
+      registerAuthTools(server, this.authManager, {
+        enabledTools: this.options.enabledTools,
+        // With MS365_MCP_OAUTH_TOKEN the token comes from outside, so there is
+        // nothing to log in to or switch between. verify-login still checks the
+        // token, and list-accounts says cached accounts can't be used (#512).
+        readOnly: this.options.readOnly || Boolean(process.env.MS365_MCP_OAUTH_TOKEN),
+      });
     }
 
     const registrationOptions = {

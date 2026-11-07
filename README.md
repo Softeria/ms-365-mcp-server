@@ -827,6 +827,8 @@ When running as an MCP server, the following options can be used:
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
+The account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`) follow the same filters: `--enabled-tools` applies to them, every `--preset` includes them, and `--read-only` or `MS365_MCP_OAUTH_TOKEN` keeps only `verify-login` and `list-accounts`.
+
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
