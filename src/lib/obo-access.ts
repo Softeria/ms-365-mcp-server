@@ -72,7 +72,12 @@ const ASSERTION_ERROR_CODES = new Set([
   'consent_required',
   'login_required',
 ]);
-const ASSERTION_AADSTS = /\bAADSTS(50013|500133|50027|50173|700082|65001|50076|50079)\b/;
+// AADSTS5002723 ("Invalid JWT token", e.g. a token issued for another app) arrives
+// with errorCode invalid_client, which otherwise means a server-side credential
+// problem, so it is matched by its code. (A forged or expired assertion for a
+// personal account comes back as AADSTS70012 temporarily_unavailable, which a
+// real outage also returns, so it stays a 500.)
+const ASSERTION_AADSTS = /\bAADSTS(50013|500133|50027|50173|700082|65001|50076|50079|5002723)\b/;
 
 export function isRejectedAssertion(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;

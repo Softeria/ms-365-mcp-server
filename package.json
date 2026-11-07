@@ -9,7 +9,7 @@
     "ms-365-mcp-server": "dist/index.js"
   },
   "scripts": {
-    "generate": "node bin/generate-graph-client.mjs",
+    "generate": "node bin/generate-graph-client.mjs && tsx bin/generate-presets-md.ts",
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -35,7 +35,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.2.2",
+    "@azure/msal-node": "^7.1.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@toon-format/toon": "^2.3.1",
     "commander": "^11.1.0",
@@ -47,8 +47,7 @@
     "open": "^11.0.0",
     "parse5": "^8.0.1",
     "winston": "^3.17.0",
-    "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.25.1"
+    "zod": "^4.6.7"
   },
   "optionalDependencies": {
     "@azure/identity": "^4.5.0",

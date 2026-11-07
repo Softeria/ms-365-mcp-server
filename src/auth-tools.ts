@@ -4,14 +4,19 @@ import AuthManager from './auth.js';
 import logger from './logger.js';
 import { getRequestTokens } from './request-context.js';
 
-/** Account tools that log in, log out or change the cached accounts; --read-only drops them. */
-const STATE_CHANGING_AUTH_TOOLS = new Set(['login', 'logout', 'select-account', 'remove-account']);
-
 export interface AuthToolsOptions {
   /** --enabled-tools regex; applied to the account tools like to every other tool. */
   enabledTools?: string;
-  /** --read-only: skip the account tools that change state. */
+  /** --read-only: skip the account tools whose readOnlyHint is not true. */
   readOnly?: boolean;
+}
+
+function readOnlyHintOf(args: unknown[]): boolean {
+  const annotations = args.find(
+    (arg): arg is { readOnlyHint?: boolean } =>
+      typeof arg === 'object' && arg !== null && 'readOnlyHint' in arg
+  );
+  return annotations?.readOnlyHint === true;
 }
 
 export function registerAuthTools(
@@ -27,13 +32,11 @@ export function registerAuthTools(
       // Same as the Graph tools: an invalid pattern is ignored (and logged there).
     }
   }
-  const isEnabled = (name: string): boolean =>
-    !(options.readOnly && STATE_CHANGING_AUTH_TOOLS.has(name)) &&
-    !(enabledToolsRegex && !enabledToolsRegex.test(name));
-  // Registers only the tools the active filters allow; the calls below stay as they were.
+  // Same gate as the utility tools (#440): --read-only keeps only readOnlyHint: true.
   const server = {
     tool: ((name: string, ...args: unknown[]) => {
-      if (!isEnabled(name)) return undefined;
+      if (options.readOnly && !readOnlyHintOf(args)) return undefined;
+      if (enabledToolsRegex && !enabledToolsRegex.test(name)) return undefined;
       return (mcpServer.tool as (...a: unknown[]) => unknown).call(mcpServer, name, ...args);
     }) as McpServer['tool'],
   };
@@ -43,6 +46,7 @@ export function registerAuthTools(
     {
       force: z.boolean().default(false).describe('Force a new login even if already logged in'),
     },
+    { title: 'login', readOnlyHint: false, openWorldHint: false },
     async ({ force }) => {
       try {
         if (!force) {
@@ -113,49 +117,61 @@ export function registerAuthTools(
     }
   );
 
-  server.tool('logout', 'Log out from Microsoft account', {}, async () => {
-    try {
-      await authManager.logout();
+  server.tool(
+    'logout',
+    'Log out from Microsoft account',
+    {},
+    { title: 'logout', readOnlyHint: false, openWorldHint: false },
+    async () => {
+      try {
+        await authManager.logout();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ message: 'Logged out successfully' }),
+            },
+          ],
+        };
+      } catch {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Logout failed' }),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'verify-login',
+    'Check current Microsoft authentication status',
+    {},
+    { title: 'verify-login', readOnlyHint: true, openWorldHint: false },
+    async () => {
+      let testResult: Awaited<ReturnType<AuthManager['testLogin']>>;
+      try {
+        testResult = await authManager.testLogin();
+      } catch (error) {
+        testResult = {
+          success: false,
+          message: `Login failed: ${(error as Error).message}`,
+        };
+      }
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ message: 'Logged out successfully' }),
-          },
-        ],
-      };
-    } catch {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ error: 'Logout failed' }),
+            text: JSON.stringify(testResult),
           },
         ],
       };
     }
-  });
-
-  server.tool('verify-login', 'Check current Microsoft authentication status', {}, async () => {
-    let testResult: Awaited<ReturnType<AuthManager['testLogin']>>;
-    try {
-      testResult = await authManager.testLogin();
-    } catch (error) {
-      testResult = {
-        success: false,
-        message: `Login failed: ${(error as Error).message}`,
-      };
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(testResult),
-        },
-      ],
-    };
-  });
+  );
 
   server.tool(
     'list-accounts',
@@ -218,6 +234,7 @@ export function registerAuthTools(
     {
       account: z.string().describe('Email address or account ID of the account to select'),
     },
+    { title: 'select-account', readOnlyHint: false, openWorldHint: false },
     async ({ account }) => {
       try {
         await authManager.selectAccount(account);
@@ -251,6 +268,7 @@ export function registerAuthTools(
     {
       account: z.string().describe('Email address or account ID of the account to remove'),
     },
+    { title: 'remove-account', readOnlyHint: false, openWorldHint: false },
     async ({ account }) => {
       try {
         const success = await authManager.removeAccount(account);

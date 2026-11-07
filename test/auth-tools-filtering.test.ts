@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type AuthManager from '../src/auth.js';
 import { registerAuthTools } from '../src/auth-tools.js';
+import { getCombinedPresetPattern } from '../src/tool-categories.js';
 import MicrosoftGraphServer from '../src/server.js';
 
 const graphToolMocks = vi.hoisted(() => ({
@@ -48,6 +49,35 @@ describe('registerAuthTools filtering', () => {
     expect(registeredNames({ readOnly: true })).toEqual(['verify-login', 'list-accounts']);
   });
 
+  it('gives every account tool a readOnlyHint, true only where --read-only keeps it', () => {
+    const hints: Record<string, unknown> = {};
+    const server = {
+      tool: vi.fn((name: string, ...args: unknown[]) => {
+        const annotations = args.find(
+          (arg) => typeof arg === 'object' && arg !== null && 'readOnlyHint' in arg
+        ) as { readOnlyHint: boolean } | undefined;
+        hints[name] = annotations?.readOnlyHint;
+      }),
+    };
+    registerAuthTools(server as never, {} as AuthManager);
+    expect(hints).toEqual({
+      login: false,
+      logout: false,
+      'verify-login': true,
+      'list-accounts': true,
+      'select-account': false,
+      'remove-account': false,
+    });
+  });
+
+  it.each([['mail'], ['files'], ['teams-write'], ['mail,calendar']])(
+    'keeps every account tool under --preset %s',
+    (preset) => {
+      const pattern = getCombinedPresetPattern(preset.split(','));
+      expect(registeredNames({ enabledTools: pattern })).toEqual(ALL);
+    }
+  );
+
   it('ignores an invalid --enabled-tools pattern, as the Graph tools do', () => {
     expect(registeredNames({ enabledTools: '(' })).toEqual(ALL);
   });
@@ -68,9 +98,9 @@ describe('account tools with MS365_MCP_OAUTH_TOKEN', () => {
     return Object.keys(mcp._registeredTools);
   }
 
-  it('are not registered when the token comes from the environment', () => {
+  it('keep only the read-only ones when the token comes from the environment', () => {
     vi.stubEnv('MS365_MCP_OAUTH_TOKEN', 'dummy');
-    expect(toolNames()).toEqual([]);
+    expect(toolNames()).toEqual(['verify-login', 'list-accounts']);
   });
 
   it('are registered in stdio mode otherwise', () => {

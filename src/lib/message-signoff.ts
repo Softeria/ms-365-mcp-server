@@ -189,12 +189,19 @@ function signReplyForwardDraft(
 ): unknown {
   if (!isPlainObject(payload)) return payload;
   let signed = payload;
-  if (typeof signed.comment === 'string' && signed.comment.trim() !== '') {
-    signed = { ...signed, comment: signContent(signed.comment, false, prefix, suffix) };
+  // The generated tool schemas name these keys in PascalCase (Comment, Message),
+  // direct Graph callers use camelCase; sign whichever spelling is present.
+  for (const key of ['comment', 'Comment']) {
+    const comment = signed[key];
+    if (typeof comment === 'string' && comment.trim() !== '') {
+      signed = { ...signed, [key]: signContent(comment, false, prefix, suffix) };
+    }
   }
-  const message = signed.message;
-  if (isPlainObject(message) && message.body !== undefined) {
-    signed = { ...signed, message: signItemBodyContainer(target, message, prefix, suffix) };
+  for (const key of ['message', 'Message']) {
+    const message = signed[key];
+    if (isPlainObject(message) && message.body !== undefined) {
+      signed = { ...signed, [key]: signItemBodyContainer(target, message, prefix, suffix) };
+    }
   }
   return signed;
 }
@@ -205,10 +212,17 @@ function signReplyForwardDraft(
  * signable content.
  */
 function signSendMail(target: string, payload: unknown, prefix?: string, suffix?: string): unknown {
-  if (!isPlainObject(payload) || !isPlainObject(payload.message)) {
+  // `message` for direct Graph callers, `Message` as the generated tool schema names it.
+  const key = isPlainObject(payload)
+    ? (['message', 'Message'] as const).find((k) => isPlainObject(payload[k]))
+    : undefined;
+  if (!isPlainObject(payload) || key === undefined) {
     throw new MessageSignoffError(target, 'the body has no message object');
   }
-  return { ...payload, message: signItemBodyContainer(target, payload.message, prefix, suffix) };
+  return {
+    ...payload,
+    [key]: signItemBodyContainer(target, payload[key] as Json, prefix, suffix),
+  };
 }
 
 /** POST /groups/.../threads/.../reply: the outbound post rides in payload.post. */

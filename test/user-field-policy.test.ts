@@ -167,3 +167,24 @@ describe('restrictUserFieldUrl', () => {
     expect(fields).toEqual(['id', 'displayName']);
   });
 });
+
+describe('spellings Graph resolves to the same request', () => {
+  it('sees through a percent-encoded path', () => {
+    expect(userFieldEnforcement('/%75sers/abc')).toBe('request-and-response');
+    expect(userFieldEnforcement('/%2575sers')).toBe('request-and-response');
+    expect(userFieldEnforcement('/me/%6Danager')).toBe('response-only');
+    expect(targetsUserProfile('/%75sers/abc?$select=employeeId')).toBe(true);
+    expect(userFieldEnforcement('/users/abc/messages')).toBe('none');
+  });
+
+  it('narrows a case-variant $select and drops a case-variant $expand in a batch URL', () => {
+    const { url, fields } = restrictUserFieldUrl(
+      '/users?$SELECT=employeeId,mail&$Expand=manager',
+      ['mail'],
+      'request-and-response'
+    );
+    expect(fields).toEqual(['mail']);
+    expect(url).toBe('/users?$select=mail');
+    expect(stripUserFieldExpandFromUrl('/me?EXPAND=manager&$top=1')).toBe('/me?$top=1');
+  });
+});

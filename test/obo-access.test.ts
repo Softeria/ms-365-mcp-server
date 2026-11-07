@@ -73,6 +73,21 @@ describe('obo-access helpers', () => {
         msalError('invalid_client', 'AADSTS7000215: Invalid client secret provided.')
       )
     ).toBe(false);
+    // A token issued for another app: errorCode invalid_client, but the assertion is at fault.
+    expect(
+      isRejectedAssertion(
+        msalError(
+          'invalid_client',
+          'AADSTS5002723: Invalid JWT token. No certificate SHA-1 thumbprint, certificate SHA-256 thumbprint, nor keyId found in token header.'
+        )
+      )
+    ).toBe(true);
+    // Personal accounts answer a forged or expired assertion with the same code as an outage.
+    expect(
+      isRejectedAssertion(
+        msalError('temporarily_unavailable', 'AADSTS70012: The request could not be completed.')
+      )
+    ).toBe(false);
     expect(isRejectedAssertion(msalError('network_error', 'getaddrinfo ENOTFOUND'))).toBe(false);
     expect(isRejectedAssertion(new Error('boom'))).toBe(false);
     expect(isRejectedAssertion(undefined)).toBe(false);
@@ -156,6 +171,19 @@ describe('--obo /mcp: 401 on a rejected assertion, 403 outside the allowlist (#6
       /^Bearer resource_metadata=".*\/\.well-known\/oauth-protected-resource", error="invalid_token"/
     );
     expect(await r.json()).toMatchObject({ error: 'invalid_token' });
+  });
+
+  it('answers 401 for a token issued for another app (AADSTS5002723 under invalid_client)', async () => {
+    vi.spyOn(OboClient.prototype, 'exchangeToken').mockRejectedValue(
+      msalError(
+        'invalid_client',
+        'AADSTS5002723: Invalid JWT token. No certificate SHA-1 thumbprint found.'
+      )
+    );
+    await start();
+    const r = await listTools(jwt({ tid: TENANT_A }));
+    expect(r.status).toBe(401);
+    expect(r.headers.get('www-authenticate')).toMatch(/error="invalid_token"/);
   });
 
   it('still answers 500 when the exchange fails for another reason', async () => {

@@ -137,6 +137,59 @@ describe('upload tickets and PUT /attachment', () => {
     expect(again.statusCode).toBe(404);
   });
 
+  it('attaches inline under the Content-ID the ticket carries', async () => {
+    graphClient.makeRequest.mockResolvedValue({ id: 'att-2' });
+    const { id } = store.mintUploadWithToken(DRAFT_ATTACHMENTS, 'REQ_TOKEN', {
+      name: 'photo.png',
+      contentType: 'image/png',
+      contentId: 'signature-photo',
+    });
+    const handler = createAttachmentUploadHandler(deps());
+    const res = makeRes();
+    await handler(makeReq(Buffer.from('png'), id), res as never);
+
+    expect(res.statusCode).toBe(201);
+    expect(res.jsonBody).toEqual({
+      ok: true,
+      name: 'photo.png',
+      size: 3,
+      id: 'att-2',
+      contentId: 'signature-photo',
+    });
+    expect(JSON.parse(graphClient.makeRequest.mock.calls[0][1].body)).toEqual({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'photo.png',
+      contentType: 'image/png',
+      contentBytes: Buffer.from('png').toString('base64'),
+      isInline: true,
+      contentId: 'signature-photo',
+    });
+  });
+
+  it('marks a large inline file inline in its upload session', async () => {
+    const size = 4 * 1024 * 1024;
+    graphClient.makeRequest.mockResolvedValue({ uploadUrl: 'https://up.example/session' });
+    global.fetch = vi.fn(async () => ({ status: 202 }) as Response) as never;
+    const { id } = store.mintUpload(DRAFT_ATTACHMENTS, undefined, {
+      name: 'banner.png',
+      contentType: 'image/png',
+      contentId: 'banner',
+    });
+    const handler = createAttachmentUploadHandler(deps());
+    const res = makeRes();
+    await handler(makeReq(Buffer.alloc(size, 1), id), res as never);
+
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(graphClient.makeRequest.mock.calls[0][1].body).AttachmentItem).toEqual({
+      attachmentType: 'file',
+      name: 'banner.png',
+      size,
+      contentType: 'image/png',
+      isInline: true,
+      contentId: 'banner',
+    });
+  });
+
   it('streams a large file through an upload session in Graph-sized chunks', async () => {
     const size = 4 * 1024 * 1024;
     graphClient.makeRequest.mockResolvedValue({ uploadUrl: 'https://up.example/session' });
@@ -271,6 +324,30 @@ describe('get-upload-url', () => {
       purpose: 'upload',
       target: DRAFT_ATTACHMENTS,
     });
+  });
+
+  it('records contentId on the ticket and refuses a malformed one', async () => {
+    const ok = await tool.execute(
+      {
+        target: DRAFT_ATTACHMENTS,
+        name: 'photo.png',
+        contentType: 'image/png',
+        contentId: 'louis.photo@upsters',
+      },
+      ctx()
+    );
+    expect(ok.isError).toBeFalsy();
+    const ticketId = new URL(parse(ok as never).uploadUrl).searchParams.get(TICKET_PARAM)!;
+    expect(store.redeem(ticketId)).toMatchObject({ contentId: 'louis.photo@upsters' });
+
+    for (const contentId of ['<photo>', 'a b', '"x"', '-lead', 'x'.repeat(101)]) {
+      const result = await tool.execute(
+        { target: DRAFT_ATTACHMENTS, name: 'photo.png', contentId },
+        ctx()
+      );
+      expect(result.isError, contentId).toBe(true);
+    }
+    expect(store.size()).toBe(0);
   });
 
   it('refuses anything but a message or event attachments collection', async () => {

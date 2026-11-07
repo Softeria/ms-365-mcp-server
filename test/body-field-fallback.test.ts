@@ -13,6 +13,27 @@ vi.mock('../src/logger.js', () => ({
 vi.mock('../src/generated/client-beta.js', () => ({ api: { endpoints: [] } }));
 vi.mock('../src/generated/client.js', async () => {
   const { z } = await import('zod');
+  // Trimmed like the generated schemas: `isRead` is a real message field that
+  // the spec-derived shape omits and passthrough carries to Graph anyway
+  const messageSchema = z.object({
+    id: z.string().optional(),
+    createdDateTime: z.string().optional(),
+    subject: z.string().nullish(),
+    categories: z.array(z.string()).nullish(),
+    body: z
+      .object({
+        contentType: z.enum(['text', 'html']).optional(),
+        content: z.string().nullish(),
+      })
+      .nullish(),
+    toRecipients: z
+      .array(
+        z.object({
+          emailAddress: z.object({ address: z.string().optional() }).optional(),
+        })
+      )
+      .nullish(),
+  });
   return {
     api: {
       endpoints: [
@@ -21,31 +42,16 @@ vi.mock('../src/generated/client.js', async () => {
           method: 'post',
           path: '/me/messages',
           description: 'Create a draft email.',
+          parameters: [{ name: 'body', type: 'Body', schema: messageSchema }],
+        },
+        {
+          alias: 'update-mail-message',
+          method: 'patch',
+          path: '/me/messages/:messageId',
+          description: 'Update a message.',
           parameters: [
-            {
-              name: 'body',
-              type: 'Body',
-              // Trimmed like the generated schemas: `isRead` is a real message field that
-              // the spec-derived shape omits and passthrough carries to Graph anyway
-              schema: z.object({
-                id: z.string().optional(),
-                createdDateTime: z.string().optional(),
-                subject: z.string().nullish(),
-                body: z
-                  .object({
-                    contentType: z.enum(['text', 'html']).optional(),
-                    content: z.string().nullish(),
-                  })
-                  .nullish(),
-                toRecipients: z
-                  .array(
-                    z.object({
-                      emailAddress: z.object({ address: z.string().optional() }).optional(),
-                    })
-                  )
-                  .nullish(),
-              }),
-            },
+            { name: 'messageId', type: 'Path', schema: z.string() },
+            { name: 'body', type: 'Body', schema: messageSchema },
           ],
         },
       ],
@@ -337,5 +343,78 @@ describe('Flattened body field fallback (issue #569)', () => {
     await handler({ body: { body: { contentType: 'html', content: 'Hi' } } });
 
     expect(sentBody()).toEqual({ body: { contentType: 'html', content: 'Hi' } });
+  });
+
+  describe('PATCH with an explicit body (issue #731)', () => {
+    it('sends only the explicit body fields and ignores flattened siblings', async () => {
+      const handler = getToolHandler('update-mail-message');
+
+      await handler({
+        messageId: 'offline-message-id',
+        body: { categories: ['Example category'] },
+        toRecipients: [{ name: 'Dummy recipient' }],
+        subject: 'echoed subject',
+      });
+
+      expect(sentBody()).toEqual({ categories: ['Example category'] });
+    });
+
+    it('logs the ignored field names but never their values', async () => {
+      const logger = (await import('../src/logger.js')).default;
+      const handler = getToolHandler('update-mail-message');
+
+      await handler({
+        messageId: 'offline-message-id',
+        body: { categories: ['Example category'] },
+        subject: 'secret-subject-value',
+      });
+
+      const warnings = (logger.warn as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+      const ignored = warnings.find((w: string) => w.includes('Ignoring flattened body fields'));
+      expect(ignored).toContain('subject');
+      expect(ignored).not.toContain('secret-subject-value');
+    });
+
+    it('still builds the body from flattened fields when no body is passed', async () => {
+      const handler = getToolHandler('update-mail-message');
+
+      await handler({ messageId: 'offline-message-id', categories: ['Example category'] });
+
+      expect(sentBody()).toEqual({ categories: ['Example category'] });
+    });
+
+    it('still merges flattened fields into an empty body object', async () => {
+      const handler = getToolHandler('update-mail-message');
+
+      await handler({ messageId: 'offline-message-id', subject: 'Hello', body: {} });
+
+      expect(sentBody()).toEqual({ subject: 'Hello' });
+    });
+
+    it('still merges flattened fields when the body was a misplaced itemBody (draft edit)', async () => {
+      const handler = getToolHandler('update-mail-message');
+
+      await handler({
+        messageId: 'offline-message-id',
+        subject: 'Hello',
+        body: { contentType: 'text', content: 'Hi there' },
+      });
+
+      expect(sentBody()).toEqual({
+        subject: 'Hello',
+        body: { contentType: 'text', content: 'Hi there' },
+      });
+    });
+
+    it('keeps the POST merge of flattened fields into an explicit body (issue #569)', async () => {
+      const handler = getToolHandler('create-draft-email');
+
+      await handler({
+        body: { categories: ['Example category'] },
+        subject: 'Hello',
+      });
+
+      expect(sentBody()).toEqual({ subject: 'Hello', categories: ['Example category'] });
+    });
   });
 });
