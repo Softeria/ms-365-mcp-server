@@ -27,6 +27,7 @@ interface Endpoint {
   maxTop?: number;
   nameFilter?: boolean;
   mentionShorthand?: boolean;
+  deltaToken?: boolean;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -240,6 +241,13 @@ describe('endpoints.json validation', () => {
     it('puts nameFilter only on GET tools', () => {
       for (const e of endpoints.filter((x) => x.nameFilter)) {
         expect(e.method, `${e.toolName} nameFilter`).toBe('get');
+      }
+    });
+
+    it('puts deltaToken only on GET delta() tools', () => {
+      for (const e of endpoints.filter((x) => x.deltaToken)) {
+        expect(e.method, `${e.toolName} deltaToken`).toBe('get');
+        expect(e.pathPattern, `${e.toolName} deltaToken`).toMatch(/\/delta\(\)$/);
       }
     });
 

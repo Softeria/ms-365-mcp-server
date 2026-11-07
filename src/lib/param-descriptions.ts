@@ -142,6 +142,11 @@ export function isSkiptokenApplicable(
   return false;
 }
 
+// Delta tools whose Graph links page with token= rather than $skiptoken (deltaToken in
+// endpoints.json). normalizeDeltaTokenParam in graph-tools.ts reads the token out of a link.
+export const DELTA_TOKEN_PARAM_DESCRIPTION =
+  'Delta state to resume from: the @odata.deltaLink from the last sync to get only the changes since then, the @odata.nextLink for the next page, or latest to skip existing items and get a deltaLink for changes from now. Omit to enumerate everything.';
+
 export const COUNT_PARAM_DESCRIPTION =
   'Set true to enable advanced query mode (ConsistencyLevel: eventual). Required for complex $filter on flag/flagStatus or contains(). The response then includes @odata.count, the total for the filtered collection, which can exceed the items returned when fetchAllPages hits its page/item cap.';
 

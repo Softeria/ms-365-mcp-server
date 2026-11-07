@@ -15,6 +15,7 @@ import {
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
   getAcceptParamDescription,
   MEMBER_NAME_PARAM_DESCRIPTION,
+  DELTA_TOKEN_PARAM_DESCRIPTION,
   type QueryParamConfig,
 } from './param-descriptions.js';
 
@@ -32,6 +33,7 @@ export interface ToolSchemaConfig extends DestructiveCheckConfig, QueryParamConf
   supportsExpandExtendedProperties?: boolean;
   acceptType?: string;
   nameFilter?: boolean;
+  deltaToken?: boolean;
 }
 
 /**
@@ -203,6 +205,20 @@ export function describeToolSchema(
       description: SKIPTOKEN_PARAM_DESCRIPTION,
       schema: { type: 'string' },
     });
+  }
+
+  // Mirrors registerGraphTools: delta tools that page with token= get `token`.
+  if (config?.deltaToken) {
+    const synthetic = {
+      name: 'token',
+      in: 'Query' as const,
+      required: false,
+      description: DELTA_TOKEN_PARAM_DESCRIPTION,
+      schema: { type: 'string' },
+    };
+    const existing = params.findIndex((p) => p.name === 'token');
+    if (existing >= 0) params[existing] = synthetic;
+    else params.push(synthetic);
   }
 
   // Mirrors registerGraphTools: multi-account mode adds an `account` param to every tool.

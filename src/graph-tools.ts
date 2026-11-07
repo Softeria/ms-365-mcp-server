@@ -49,6 +49,7 @@ import {
   getMaxPages,
   isFetchAllPagesApplicable,
   isSkiptokenApplicable,
+  DELTA_TOKEN_PARAM_DESCRIPTION,
   MEMBER_NAME_PARAM_DESCRIPTION,
   paginationAllowed,
   positiveIntFromEnv,
@@ -137,6 +138,8 @@ interface EndpointConfig {
   queryParams?: string[];
   maxTop?: number; // Upper bound for $top, enforced in the schema
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
+  // Adds a `token` param: Graph pages and resumes this delta query with token=, not $skiptoken
+  deltaToken?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
 }
 
@@ -455,12 +458,13 @@ function normalizeSearchQueryParam(
  * calendar links page with $skip instead, so that value goes out as $skip
  * (https://learn.microsoft.com/en-us/graph/query-parameters). A link carrying neither is
  * refused: forwarding it hands Graph a garbage cursor, and dropping it would return the
- * first page as though it were the next one. The drive and sites delta tools land there,
- * since their nextLink pages with a token= value this param cannot resend.
+ * first page as though it were the next one. Delta tools whose links page with a token=
+ * value land there too; they take that link in their own `token` param (deltaToken).
  */
 function normalizeSkiptokenQueryParam(
   queryParams: Record<string, string>,
-  toolAlias: string
+  toolAlias: string,
+  deltaToken = false
 ): CallToolResult | undefined {
   const raw = queryParams['$skiptoken'];
   if (raw === undefined) return;
@@ -479,7 +483,10 @@ function normalizeSkiptokenQueryParam(
             error: 'invalid_skiptoken',
             tool: toolAlias,
             message:
-              'The value passed as skiptoken has no $skiptoken or $skip to page with. The drive and sites delta tools page with a token= link, which skiptoken cannot resend.' +
+              'The value passed as skiptoken has no $skiptoken or $skip to page with.' +
+              (deltaToken
+                ? ' This tool pages and resumes with a token= link: pass that link as token instead of skiptoken.'
+                : ' Delta tools that page with a token= link take it in their token parameter, where they have one.') +
               (paginationAllowed()
                 ? ' Remove skiptoken and retry with fetchAllPages set to true to follow the link, or remove it for the first page.'
                 : ' Remove skiptoken and retry for the first page.'),
@@ -516,6 +523,66 @@ function normalizeSkiptokenQueryParam(
     }
   }
   queryParams['$skiptoken'] = token;
+}
+
+/**
+ * `token` (endpoints with deltaToken) takes the delta state Graph hands back: the bare token,
+ * `latest`, or the whole @odata.nextLink / @odata.deltaLink, whose token sits in a query
+ * string (`?token=...`) or in function form (`delta(token='...')`). The token is sent as
+ * Graph's `token` query parameter, percent-decoded once so it is not encoded twice
+ * (https://learn.microsoft.com/en-us/graph/api/driveitem-delta). A link with a $deltatoken
+ * instead resends that. A link carrying neither is refused rather than starting a full
+ * enumeration the caller did not ask for.
+ */
+function normalizeDeltaTokenParam(
+  raw: unknown,
+  queryParams: Record<string, string>,
+  toolAlias: string
+): CallToolResult | undefined {
+  if (raw === undefined || raw === null) return;
+  let token = `${raw}`.trim();
+  if (token === '') return;
+
+  const invalidToken = (): CallToolResult => {
+    logger.warn(`Refusing ${toolAlias}: 'token' has no token value to resume from`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'invalid_delta_token',
+            tool: toolAlias,
+            message:
+              'The value passed as token has no token= value. Pass the @odata.nextLink or @odata.deltaLink this tool returned, the bare token from it, or latest. Remove token to enumerate from the start.',
+          }),
+        },
+      ],
+      isError: true,
+    };
+  };
+
+  // Anchored on the start or a separator, so $deltatoken= and $skiptoken= are not read as token=
+  const marker = token.match(/(?:^|[?&(,])token=(?:'([^']*)'|([^&)#']*))/i);
+  if (marker) {
+    token = marker[1] ?? marker[2];
+  } else if (/:\/\/|[?(]/.test(token)) {
+    const deltatoken = token.match(/(?:^|[?&])(?:\$|%24)deltatoken=([^&#]*)/i)?.[1];
+    if (!deltatoken) return invalidToken();
+    queryParams['$deltatoken'] = decodeOnce(deltatoken);
+    return;
+  }
+  if (token === '') return invalidToken();
+  queryParams['token'] = decodeOnce(token);
+}
+
+function decodeOnce(value: string): string {
+  if (!value.includes('%')) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    logger.warn('Delta token looks percent-encoded but could not be decoded; sending as-is');
+    return value;
+  }
 }
 
 const DEFAULT_MAX_ITEMS = 10_000;
@@ -2770,6 +2837,7 @@ async function executeGraphTool(
     for (const [paramName, paramValue] of Object.entries(params)) {
       if (paramName === 'fileName' && config?.blobOutput) continue;
       if (paramName === 'name' && config?.nameFilter) continue;
+      if (paramName === 'token' && config?.deltaToken) continue;
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -3058,8 +3126,16 @@ async function executeGraphTool(
       body = rewritten.body;
     }
 
-    const skiptokenError = normalizeSkiptokenQueryParam(queryParams, tool.alias);
+    const skiptokenError = normalizeSkiptokenQueryParam(
+      queryParams,
+      tool.alias,
+      config?.deltaToken
+    );
     if (skiptokenError) return skiptokenError;
+    if (config?.deltaToken) {
+      const deltaTokenError = normalizeDeltaTokenParam(params.token, queryParams, tool.alias);
+      if (deltaTokenError) return deltaTokenError;
+    }
 
     clampTopQueryParam(queryParams);
     const searchError = normalizeSearchQueryParam(queryParams, tool.path, tool.alias);
@@ -3659,6 +3735,11 @@ function registerGraphToolWithMcp(
 
   if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
     paramSchema['skiptoken'] = z.string().optional().describe(SKIPTOKEN_PARAM_DESCRIPTION);
+  }
+
+  // Replaces any generated `token` too, whose description does not say what to pass
+  if (endpointConfig?.deltaToken) {
+    paramSchema['token'] = z.string().optional().describe(DELTA_TOKEN_PARAM_DESCRIPTION);
   }
 
   // Add account parameter for multi-account mode.
