@@ -97,8 +97,10 @@ docker run -p 3000:3000 \
      --max-replicas 3 \
      --cpu 0.5 --memory 1Gi \
      --system-assigned \
+     --secrets "pkce-secret=$(openssl rand -base64 48)" \
      --env-vars \
        "MS365_MCP_KEYVAULT_URL=https://your-keyvault.vault.azure.net" \
+       "MS365_MCP_PKCE_SECRET=secretref:pkce-secret" \
        "MS365_MCP_ORG_MODE=true" \
        "MS365_MCP_PUBLIC_URL=https://mcp.example.com" \
      --command "node" "dist/index.js" "--http" "3000" "--org-mode"
@@ -224,6 +226,7 @@ The client automatically discovers OAuth endpoints and opens a browser for authe
 ## Security Considerations
 
 - **Stateless**: the server does not store tokens — each request carries the user's Bearer token
+- **More than one instance? Set `MS365_MCP_PKCE_SECRET`** (32+ random characters, the same on every instance). Otherwise the two-leg PKCE flow keeps a mapping in process memory between `/authorize` and `/token`, and a sign-in whose `/token` lands on another replica, or comes after a restart, fails with `AADSTS501481`. With the secret, the server side of the PKCE pair is derived from the client's challenge and nothing is stored. A single instance can leave it unset. Clients must use `code_challenge_method=S256`. Setting or rotating the secret fails sign-ins that are in progress at that moment.
 - **Account pinning**: `MS365_MCP_EXPECTED_USERNAME` and `MS365_MCP_EXPECTED_HOME_ACCOUNT_ID` protect local MSAL cache flows for headless stdio deployments. In `--http`, `--obo`, or `MS365_MCP_OAUTH_TOKEN` deployments they are warning-only because Graph calls use request-provided tokens.
 - **Admin consent**: grant tenant-wide consent to avoid per-user consent prompts
 - **Managed identity**: use managed identity for Key Vault access (no secrets in environment variables)
