@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { queryParameterSchema } from './query-parameter-schema.js';
+import { tidyToolJsonSchema, zodToToolJsonSchema } from '../normalize-tool-schema.js';
 import type { api } from '../generated/client.js';
 import { isDestructiveOperation, type DestructiveCheckConfig } from './destructive-ops.js';
 import {
@@ -43,13 +43,59 @@ export interface ToolSchemaContext {
   accountNames?: string[];
 }
 
+// zod 4 keeps a .describe() made before .optional() on the inner schema only
 function unwrapOptional(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: boolean } {
-  const def = (schema as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
-  const typeName = def?.typeName;
-  if (typeName === 'ZodOptional' || typeName === 'ZodDefault' || typeName === 'ZodNullable') {
-    return { inner: def!.innerType!, optional: true };
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodDefault ||
+    schema instanceof z.ZodNullable
+  ) {
+    return { inner: schema.unwrap() as z.ZodTypeAny, optional: true };
   }
   return { inner: schema, optional: false };
+}
+
+// Discovery hands each parameter out as its own self-contained schema
+export function toParamJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
+  const json = zodToToolJsonSchema(schema, 'inline');
+  delete json.$schema;
+  const definitions = (json.definitions ?? {}) as Record<string, unknown>;
+  delete json.definitions;
+  const expanded = expandRecursion(json, definitions, new Set()) as Record<string, unknown>;
+  tidyToolJsonSchema(expanded);
+  return expanded;
+}
+
+// get-tool-schema hands parameters out inside a bigger response, where a `$ref` (zod 4 keeps
+// one for recursion, even a bare `#`) points at the wrong document. Expand each recursive
+// schema once and stop with `{}` where it comes back around, as zod 3 did.
+function expandRecursion(
+  node: unknown,
+  definitions: Record<string, unknown>,
+  expanding: Set<string>
+): unknown {
+  if (!node || typeof node !== 'object') return node;
+  if (Array.isArray(node)) return node.map((item) => expandRecursion(item, definitions, expanding));
+  const { $ref, ...rest } = node as Record<string, unknown>;
+  const siblings: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    siblings[key] = expandRecursion(value, definitions, expanding);
+  }
+  if (typeof $ref !== 'string') return siblings;
+  const name = $ref.startsWith('#/definitions/') ? $ref.slice('#/definitions/'.length) : null;
+  if (
+    name === null ||
+    expanding.has(name) ||
+    !Object.prototype.hasOwnProperty.call(definitions, name)
+  ) {
+    return siblings;
+  }
+  const target = expandRecursion(
+    definitions[name],
+    definitions,
+    new Set([...expanding, name])
+  ) as Record<string, unknown>;
+  return { ...target, ...siblings };
 }
 
 /**
@@ -95,14 +141,13 @@ export function describeToolSchema(
     if (!effectiveSchema) return [];
     const { inner, optional } = unwrapOptional(effectiveSchema);
     const isPath = p.type === 'Path';
-    const jsonSchema = zodToJsonSchema(inner, { target: 'jsonSchema7', $refStrategy: 'none' });
-    const { $schema: _s, ...schema } = jsonSchema as Record<string, unknown>;
+    const schema = toParamJsonSchema(inner);
     return [
       {
         name: p.name,
         in: p.type as 'Path' | 'Query' | 'Body' | 'Header',
         required: isPath || !optional,
-        description: effectiveSchema.description ?? p.description,
+        description: effectiveSchema.description ?? inner.description ?? p.description,
         schema,
       },
     ];
@@ -247,13 +292,12 @@ export function describeUtilityToolSchema<C>(
   const schemaMap = utility.buildSchema(ctx);
   const params = Object.entries(schemaMap).map(([name, zodSchema]) => {
     const { inner, optional } = unwrapOptional(zodSchema);
-    const jsonSchema = zodToJsonSchema(inner, { target: 'jsonSchema7', $refStrategy: 'none' });
-    const { $schema: _s, ...schema } = jsonSchema as Record<string, unknown>;
+    const schema = toParamJsonSchema(inner);
     return {
       name,
       in: 'Query' as const,
       required: !optional,
-      description: zodSchema.description,
+      description: zodSchema.description ?? inner.description,
       schema,
     };
   });

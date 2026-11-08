@@ -570,6 +570,61 @@ This method:
 - Use your pre-existing OAuth token for Microsoft Graph API requests
 - Does not handle token refresh (token lifecycle management is your responsibility)
 
+#### 4. App Mode (application permissions, no signed-in user)
+
+> **Warning**: application permissions apply to the whole tenant. `Mail.Read` granted to the app reads every
+> mailbox, `Files.ReadWrite.All` writes every OneDrive and site, and whoever can call this server acts with
+> them. Grant the fewest permissions you can. To limit which mailboxes and calendars it reaches, grant the
+> mail and calendar permissions with
+> [RBAC for Applications in Exchange Online](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac)
+> **instead of** in Microsoft Entra: the two add up, so an Entra `Mail.Read` grant left in place still reaches
+> every mailbox. SharePoint sites can be narrowed with `Sites.Selected`.
+
+For unattended agents that act as the app registration itself (client credentials):
+
+```bash
+MS365_MCP_CLIENT_ID=<your app id> \
+MS365_MCP_TENANT_ID=<your tenant id or domain> \
+MS365_MCP_CLIENT_SECRET=<secret> \
+npx @softeria/ms-365-mcp-server --app-mode --read-only
+```
+
+- Use your own app registration with **application** permissions and admin consent, and set exactly one
+  credential:
+  - `MS365_MCP_CLIENT_SECRET`
+  - `MS365_MCP_CLIENT_CERTIFICATE_PATH`: a PEM file with the certificate and its unencrypted private key
+  - `MS365_MCP_FEDERATED_TOKEN_FILE`: a token from an identity provider the app trusts through
+    [workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation),
+    read again on every token request. On AKS set it to `$AZURE_FEDERATED_TOKEN_FILE`, which Kubernetes
+    keeps fresh. A GitHub Actions OIDC token is valid for 5 minutes, so writing it to a file once only
+    covers the first Graph token (about an hour) unless something rewrites the file. If Entra answers
+    `AADSTS700213`, set the federated credential's subject to the one quoted in the error (GitHub's
+    subject can include the owner and repo ids).
+
+  `MS365_MCP_TENANT_ID` must be a real tenant, not `common`.
+
+- On an Azure host (App Service, Container Apps, VM, ...) set `MS365_MCP_MANAGED_IDENTITY=system`, or the
+  client id of a user-assigned identity, instead. No app registration, tenant id or secret is needed, and
+  Key Vault (`MS365_MCP_KEYVAULT_URL`) is not read. Graph
+  application permissions for a managed identity can't be granted in the portal;
+  [assign them with PowerShell or the Graph API](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-assign-app-role-managed-identity).
+  On Azure Container Instances, give the container one kind of identity: with both a system- and a
+  user-assigned identity, the system-assigned token request fails there.
+- Tokens are renewed automatically. Nothing is cached on disk.
+- Only tools that work with application permissions are offered: the `/users/{user-id}` mail and calendar
+  tools (pass a UPN or object id as `user-id`), users and groups, OneDrive/SharePoint drives and lists, Planner,
+  Teams reads, presence, places and subscriptions. `/me` tools, Excel, OneNote and sending Teams chat or channel
+  messages are not available, because Graph does not support them with application permissions.
+- `--list-permissions --app-mode` lists the application permissions the offered tools use. `--allowed-scopes`,
+  `--enabled-tools`, `--preset` and `--read-only` narrow the surface as usual.
+- `--verify-login --app-mode` gets a token and shows the app id, tenant and granted roles (Exchange RBAC
+  grants do not show up there).
+- The `mail`, `calendar` and `outlook` presets are built from `/me` tools and leave little in app mode; the
+  `/users/{user-id}` mail and calendar tools are in `work`.
+- stdio only. It refuses `--http`, `--obo`, `--extra-scopes`, `MS365_MCP_OAUTH_TOKEN` and the
+  login/account options.
+- Webinar tools also need an application access policy assigned to the organizer.
+
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
 >
 > **Authentication Tools**: In HTTP mode, login/logout tools are disabled by default since OAuth handles authentication.
@@ -745,6 +800,8 @@ When running as an MCP server, the following options can be used:
                   which reads files from those directories.
                   Refused unless --http binds a loopback host with no --public-url and no
                   --trust-proxy-auth
+--app-mode        Use application permissions (client credentials) with no signed-in user. stdio only
+                  (see "App Mode" under Authentication)
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
                   exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs").
@@ -770,6 +827,8 @@ When running as an MCP server, the following options can be used:
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
+The account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`) follow the same filters: `--enabled-tools` applies to them, every `--preset` includes them, and `--read-only` or `MS365_MCP_OAUTH_TOKEN` keeps only `verify-login` and `list-accounts`.
+
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
@@ -777,10 +836,15 @@ Environment variables:
 - `ENABLED_TOOLS_FILE`: Path to a file with one regex per line (alternative to --enabled-tools-file). Blank lines and whole-line `#` comments are dropped, then lines are joined with `|` (same as `ENABLED_TOOLS=line1|line2|…`). Layering (later wins): `--enabled-tools` → `--enabled-tools-file` → `--preset` → `ENABLED_TOOLS` → `ENABLED_TOOLS_FILE`
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
+- `MS365_MCP_APP_MODE=true|1`: Enable app mode (alternative to --app-mode flag)
+- `MS365_MCP_CLIENT_CERTIFICATE_PATH=<path>`: PEM file with a certificate and its unencrypted private key, used instead of `MS365_MCP_CLIENT_SECRET` in app mode
+- `MS365_MCP_FEDERATED_TOKEN_FILE=<path>`: Federated token (workload identity federation), used instead of a secret or certificate in app mode
+- `MS365_MCP_MANAGED_IDENTITY=system|<client id>`: Use the host's managed identity in app mode, instead of an app registration
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
+- `MS365_MCP_TOOL_DEFINITION_BUDGET=<bytes>`: Opt in to trimming oversized request-body schemas so every tool fits a hosted connector's tool-definition budget (1 048 576 bytes of input schema per connector, admitted alphabetically — a tool that no longer fits is silently skipped). `4096` keeps a full org surface at ~78 % of that budget. Only bodies above the ration are trimmed, nested descriptions before structure, field names last. Unset (default): nothing is trimmed; the server still logs the total input-schema bytes served and, in HTTP mode, warns when the surface exceeds the connector budget.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BLOB_OUTPUT=true|1`: File download tools (`download-bytes`, `get-mail-message-mime`, `get-shared-mailbox-message-mime`, `get-mail-attachment-content`, `get-shared-mailbox-attachment-content`) answer a short JSON text block (`name`, `contentType`, `size`) and an MCP `EmbeddedResource` with `BlobResourceContents` (`uri`, `mimeType`, `blob`) instead of base64 JSON in text. The `uri`'s last segment is the optional `fileName` argument. Default: off. Alternative to the --blob-output flag.
 - `MS365_MCP_BLOB_MAX_BYTES=<n>`: With blob output on, the largest file a download tool reads (positive integer, default `5242880`). The server stops reading past it and answers an error naming the limit.
@@ -790,6 +854,7 @@ Environment variables:
 - `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
 - `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
+- `MS365_MCP_PKCE_SECRET=<32+ random characters>`: For HTTP mode with more than one instance (replicas, serverless, a restart between sign-in steps). The server derives its side of the two-leg PKCE flow from this secret instead of keeping it in process memory, so `/token` works on any instance that has the same secret. Without it, `/token` must reach the instance that served `/authorize`, or sign-in fails with `AADSTS501481`. A shorter secret fails startup
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"

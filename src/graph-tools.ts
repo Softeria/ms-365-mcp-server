@@ -11,7 +11,10 @@ import { deriveTargetResource, type AuditTargetResource } from './audit-target-r
 import AuthManager, {
   getEndpointScopeGroups,
   getMissingAllowedScopesForGroups,
+  isEndpointInScopeMode,
   parseAllowedScopes,
+  scopeModeFor,
+  type ScopeMode,
 } from './auth.js';
 import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
@@ -27,6 +30,14 @@ import {
   TicketStoreFullError,
 } from './lib/attachment-tickets.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
+import {
+  CONNECTOR_DEFINITION_BUDGET,
+  DEFAULT_TOOL_DEFINITION_BUDGET,
+  fitToolDefinitionToBudget,
+  getToolDefinitionBudget,
+  measureInputSchemaBytes,
+  type BudgetFitResult,
+} from './lib/body-schema-budget.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import {
   CONFIRM_PARAM_DESCRIPTION,
@@ -97,6 +108,7 @@ interface EndpointConfig {
   toolName: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  appScopes?: string[] | string[][];
   apiVersion?: string; // Graph API version ('v1.0' default, or 'beta'). Selects spec + URL prefix.
   returnDownloadUrl?: boolean;
   supportsTimezone?: boolean;
@@ -125,14 +137,13 @@ interface EndpointConfig {
   maxTop?: number; // Upper bound for $top, enforced in the schema
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
-  // A second tool on a Graph operation that already has one. The tool takes its input
-  // schema (path params, confirm, account, ...) from the generated operation for
-  // pathPattern + method, but the request it sends is this one instead: `path` in the
-  // endpoints.json {param} form, filled from the same path params; `body` merged over
-  // whatever body the caller gave. The generator skips these entries, so the spec keeps
-  // one operation per path and method. Used by delete-mail-message, which shares the
-  // DELETE /me/messages/{message-id} schema but moves the message to Deleted Items.
-  requestOverride?: { method: string; path: string; body?: Record<string, unknown> };
+  // A second tool on a Graph operation that already has one, always sending this body.
+  // It is a copy of the generated operation for pathPattern + method without the body
+  // param, so the method, path, confirm gate and read-only handling stay the operation's
+  // own. The generator skips these entries, so the spec keeps one operation per path and
+  // method. delete-mail-message is move-mail-message with { destinationId: 'deleteditems' }.
+  fixedBody?: Record<string, unknown>;
+  disabled?: boolean; // Left out of the generated clients, so never registered
 }
 
 const endpointsData = JSON.parse(
@@ -147,28 +158,32 @@ export function generatedPathFor(pathPattern: string): string {
   );
 }
 
-// An entry with requestOverride is not in the generated clients (the generator leaves it
-// out), so it is cloned here from the generated operation it shares its schema with. An
-// entry whose operation is missing is reported and left out; test/delete-mail-message.test.ts
-// checks that every entry in the shipped endpoints.json resolves.
-export function deriveOverrideEndpoints(
+// A fixedBody entry is not in the generated clients (the generator leaves it out), so it
+// is copied here from the generated operation it shares. An entry whose operation is
+// missing is reported and left out; test/delete-mail-message.test.ts checks that every
+// entry in the shipped endpoints.json resolves.
+export function deriveFixedBodyEndpoints(
   configs: EndpointConfig[],
   generated: { v1: typeof api.endpoints; beta: typeof betaApi.endpoints },
   report: (message: string) => void
 ): typeof api.endpoints {
   const derived: typeof api.endpoints = [];
   for (const e of configs) {
-    if (!e.requestOverride) continue;
+    if (!e.fixedBody || e.disabled) continue;
     const source = e.apiVersion === 'beta' ? generated.beta : generated.v1;
     const wantedPath = generatedPathFor(e.pathPattern);
     const base = source.find((t) => t.method === e.method.toLowerCase() && t.path === wantedPath);
     if (!base) {
       report(
-        `endpoints.json: ${e.toolName} has requestOverride but no generated operation for ${e.method.toUpperCase()} ${e.pathPattern}; tool not registered`
+        `endpoints.json: ${e.toolName} has fixedBody but no generated operation for ${e.method.toUpperCase()} ${e.pathPattern}; tool not registered`
       );
       continue;
     }
-    derived.push({ ...base, alias: e.toolName });
+    derived.push({
+      ...base,
+      alias: e.toolName,
+      parameters: (base.parameters ?? []).filter((p) => p.type !== 'Body'),
+    });
   }
   return derived;
 }
@@ -176,7 +191,7 @@ export function deriveOverrideEndpoints(
 const allEndpoints = [
   ...api.endpoints,
   ...betaApi.endpoints,
-  ...deriveOverrideEndpoints(endpointsData, { v1: api.endpoints, beta: betaApi.endpoints }, (m) =>
+  ...deriveFixedBodyEndpoints(endpointsData, { v1: api.endpoints, beta: betaApi.endpoints }, (m) =>
     logger.error(m)
   ),
 ];
@@ -1029,6 +1044,19 @@ interface UtilityTool {
   stdioOnly?: boolean;
   // Registered only while this returns true, for a tool that needs operator opt-in.
   enabled?: () => boolean;
+  // Works only on the signed-in user's own /me paths, so it is hidden in --app-mode.
+  meOnly?: boolean;
+}
+
+export function isUtilityToolAvailable(
+  utility: UtilityTool,
+  options: { readOnly: boolean; httpMode: boolean; scopeMode: ScopeMode }
+): boolean {
+  if (options.readOnly && !utility.readOnlyHint) return false;
+  if (options.httpMode && utility.stdioOnly) return false;
+  if (options.scopeMode === 'app' && utility.meOnly) return false;
+  if (utility.enabled && !utility.enabled()) return false;
+  return true;
 }
 
 interface DisabledToolScope {
@@ -1070,7 +1098,7 @@ function deniedToolPolicyForGraphTool(
 
 function collectDeniedToolPolicies(options: {
   readOnly: boolean;
-  orgMode: boolean;
+  scopeMode: ScopeMode;
   enabledToolsRegex?: RegExp;
   allowedScopesValue?: string;
   httpMode: boolean;
@@ -1080,7 +1108,7 @@ function collectDeniedToolPolicies(options: {
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (!options.orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+    if (!isEndpointInScopeMode(endpointConfig, options.scopeMode)) {
       continue;
     }
 
@@ -1101,7 +1129,7 @@ function collectDeniedToolPolicies(options: {
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, options.orgMode),
+            getEndpointScopeGroups(endpointConfig, options.scopeMode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -1113,9 +1141,7 @@ function collectDeniedToolPolicies(options: {
   }
 
   for (const utility of UTILITY_TOOLS) {
-    if (options.readOnly && !utility.readOnlyHint) continue;
-    if (options.httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
+    if (!isUtilityToolAvailable(utility, options)) continue;
     if (options.enabledToolsRegex && !options.enabledToolsRegex.test(utility.name)) {
       deniedTools.set(utility.name, {
         toolName: utility.name,
@@ -1237,7 +1263,7 @@ const contentIdSchema = z
   );
 
 const UPLOAD_TARGET_ERROR =
-  'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.';
+  'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments (or /users/{user-id}/... for another mailbox).';
 
 function uploadError(message: string): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
@@ -1496,7 +1522,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         target: z
           .string()
           .describe(
-            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox.'
           ),
         name: z
           .string()
@@ -1559,7 +1585,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         target: z
           .string()
           .describe(
-            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments.'
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox.'
           ),
         filePath: z
           .string()
@@ -1712,6 +1738,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
   },
   {
     name: 'read-mail-text',
+    meOnly: true,
     method: 'GET',
     path: 'tool:read-mail-text',
     searchKeywords:
@@ -1914,10 +1941,10 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           ),
         fileName: z
           .string()
+          .optional()
           .describe(
             'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
-          )
-          .optional(),
+          ),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -2494,37 +2521,48 @@ function namesNestedBodyType(value: unknown): boolean {
 }
 
 // Dig out the object shape of a Body schema so flattened top-level params can be
-// matched against it (#569). z.lazy (chatMessage etc.) hides it behind _def.getter
+// matched against it (#569). z.lazy (chatMessage etc.) hides it behind def.getter
 function bodySchemaShape(schema: z.ZodTypeAny | undefined): Record<string, unknown> | null {
   let current: z.ZodTypeAny | undefined = schema;
   for (let i = 0; i < 10 && current; i++) {
     if (current instanceof z.ZodObject) {
       return current.shape as Record<string, unknown>;
     }
-    const def = (
-      current as {
-        _def?: { innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; getter?: () => z.ZodTypeAny };
-      }
-    )._def;
-    current = def?.innerType ?? def?.schema ?? def?.getter?.();
+    const def = current.def as {
+      innerType?: z.ZodTypeAny;
+      in?: z.ZodTypeAny;
+      getter?: () => z.ZodTypeAny;
+    };
+    current = def.innerType ?? def.in ?? def.getter?.();
   }
   return null;
 }
 
 // SDK validation hands the handler the PARSED value, and strip-mode objects silently
-// drop unknown keys - passthrough keeps whatever the client sent
+// drop unknown keys - loose keeps whatever the client sent. Memoized so every HTTP
+// request gets the same schema object, and its JSON Schema conversion stays cached.
+const lenientBodySchemas = new WeakMap<z.ZodTypeAny, z.ZodTypeAny>();
 function lenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  let lenient = lenientBodySchemas.get(schema);
+  if (!lenient) {
+    lenient = buildLenientBodySchema(schema);
+    lenientBodySchemas.set(schema, lenient);
+  }
+  return lenient;
+}
+
+function buildLenientBodySchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   if (schema instanceof z.ZodObject) {
-    return schema.passthrough();
+    return schema.loose();
   }
   if (schema instanceof z.ZodOptional) {
-    return lenientBodySchema(schema.unwrap()).optional();
+    return lenientBodySchema(schema.unwrap() as z.ZodTypeAny).optional();
   }
   if (schema instanceof z.ZodNullable) {
-    return lenientBodySchema(schema.unwrap()).nullable();
+    return lenientBodySchema(schema.unwrap() as z.ZodTypeAny).nullable();
   }
   if (schema instanceof z.ZodLazy) {
-    return z.lazy(() => lenientBodySchema(schema.schema));
+    return z.lazy(() => lenientBodySchema(schema.unwrap() as z.ZodTypeAny));
   }
   return schema;
 }
@@ -2722,7 +2760,7 @@ async function executeGraphTool(
   const requestId = randomUUID();
   const startTime = Date.now();
   const upn = getUserIdentityForAudit(getRequestTokens()?.accessToken);
-  const httpMethod = (config?.requestOverride?.method ?? tool.method).toUpperCase();
+  const httpMethod = tool.method.toUpperCase();
   let targetResource: AuditTargetResource | undefined;
   // Hoisted alongside targetResource so the catch-path audit can still report
   // recipients. A send that times out or trips the breaker is exactly the
@@ -2764,7 +2802,7 @@ async function executeGraphTool(
 
     const parameterDefinitions = tool.parameters || [];
 
-    let path = config?.requestOverride ? generatedPathFor(config.requestOverride.path) : tool.path;
+    let path = tool.path;
     const queryParams: Record<string, string> = {};
     const headers: Record<string, string> = {};
 
@@ -2774,6 +2812,10 @@ async function executeGraphTool(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
     const strayBodyFields: Record<string, unknown> = {};
+    // Set when the caller's body was reshaped because it held a nested field (an itemBody)
+    // rather than the entity itself - then the caller never wrote the entity, so flattened
+    // siblings are still its intended fields even on PATCH (#731)
+    let bodyRepaired = false;
     const memberNameFilter =
       config?.nameFilter && typeof params.name === 'string' ? params.name : undefined;
 
@@ -2906,6 +2948,7 @@ async function executeGraphTool(
                     `Auto-corrected parameter '${paramName}': AI passed nested field directly, wrapped it as {${paramName}: ...}`
                   );
                   body = wrapped;
+                  bodyRepaired = true;
                 } else {
                   body = paramValue;
                 }
@@ -3021,6 +3064,7 @@ async function executeGraphTool(
 
         if (Object.keys(nested).length > 0) {
           body = { ...kept, body: { ...nested, ...annotations } };
+          bodyRepaired = true;
           logger.info(
             `Moved misplaced fields into nested 'body' for ${tool.alias}: ${Object.keys(nested).join(', ')}`
           );
@@ -3029,7 +3073,19 @@ async function executeGraphTool(
     }
 
     if (Object.keys(strayBodyFields).length > 0) {
-      if (isPlainObject(body)) {
+      if (
+        httpMethod === 'PATCH' &&
+        !bodyRepaired &&
+        isPlainObject(body) &&
+        Object.keys(body).length > 0
+      ) {
+        // A PATCH changes exactly the properties it carries, so an explicit entity body is
+        // authoritative: merging flattened siblings would update properties the caller never
+        // put in it (#731). Field names only - the values can be message content
+        logger.warn(
+          `Ignoring flattened body fields (${Object.keys(strayBodyFields).join(', ')}) for ${tool.alias}: PATCH uses the explicit body as-is; put every property to change inside body`
+        );
+      } else if (isPlainObject(body)) {
         // Spread order lets an explicit body win over stray duplicates
         body = { ...strayBodyFields, ...body };
         logger.info(`Merged flattened body fields: ${Object.keys(strayBodyFields).join(', ')}`);
@@ -3156,14 +3212,13 @@ async function executeGraphTool(
       maxBytes?: number;
       blobOutput?: { fileName?: string };
     } = {
-      method: httpMethod,
+      method: tool.method.toUpperCase(),
       headers,
     };
 
-    if (config?.requestOverride?.body) {
-      const given =
-        body !== null && typeof body === 'object' ? (body as Record<string, unknown>) : {};
-      body = { ...given, ...config.requestOverride.body };
+    // A fixedBody tool has no body param of its own, so this is the whole body
+    if (config?.fixedBody) {
+      body = { ...config.fixedBody };
     }
 
     if (config?.blobOutput && isBlobOutputEnabled()) {
@@ -3566,6 +3621,7 @@ export interface GraphToolRegistrationOptions {
   readOnly?: boolean;
   enabledTools?: string;
   orgMode?: boolean;
+  appMode?: boolean;
   authManager?: AuthManager;
   multiAccount?: boolean;
   accountNames?: string[];
@@ -3574,16 +3630,31 @@ export interface GraphToolRegistrationOptions {
   userFields?: string;
 }
 
+/** What registerGraphTools passes to fit each tool into the connector definition budget. */
+interface ToolBudgetContext {
+  /** undefined = measure and report only; pruning is opt-in via the env var. */
+  definitionBudget: number | undefined;
+  /** Every setting besides static endpoint data that shapes a tool's paramSchema. */
+  schemaFingerprint: string;
+}
+
+/**
+ * Registers one Graph tool. With a budget context, the tool's served schema is measured
+ * (and, when a ration is set, its body depth trimmed) and the fit is returned; without
+ * one, as for eager tools in discovery mode, the schema registers as generated.
+ */
 function registerGraphToolWithMcp(
   server: McpServer,
   tool: (typeof allEndpoints)[number],
   endpointConfig: EndpointConfig | undefined,
   graphClient: GraphClient,
-  options: GraphToolRegistrationOptions
-): void {
+  options: GraphToolRegistrationOptions,
+  budget?: ToolBudgetContext
+): BudgetFitResult | undefined {
   const { authManager, multiAccount = false, accountNames = [] } = options;
   const userFields = parseUserFields(options.userFields);
   const paramSchema: Record<string, z.ZodTypeAny> = {};
+  const bodyParamNames: string[] = [];
   if (tool.parameters && tool.parameters.length > 0) {
     for (const param of tool.parameters) {
       if (param.type === 'Query') {
@@ -3592,10 +3663,12 @@ function registerGraphToolWithMcp(
         continue;
       }
       // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
-      paramSchema[param.name] =
-        param.type === 'Body' && param.schema
-          ? lenientBodySchema(param.schema as z.ZodTypeAny)
-          : param.schema || z.any();
+      if (param.type === 'Body' && param.schema) {
+        paramSchema[param.name] = lenientBodySchema(param.schema as z.ZodTypeAny);
+        bodyParamNames.push(param.name);
+      } else {
+        paramSchema[param.name] = param.schema || z.any();
+      }
     }
   }
 
@@ -3616,33 +3689,33 @@ function registerGraphToolWithMcp(
   if (endpointConfig?.acceptType && paramSchema['Accept'] === undefined) {
     paramSchema['Accept'] = z
       .string()
-      .describe(getAcceptParamDescription(endpointConfig.acceptType))
-      .optional();
+      .optional()
+      .describe(getAcceptParamDescription(endpointConfig.acceptType));
   }
 
   if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
     paramSchema['fileName'] = z
       .string()
+      .optional()
       .describe(
         'Name of the file, used as the last segment of the returned resource URI when the server runs with blob output. Optional.'
-      )
-      .optional();
+      );
   }
 
   if (isFetchAllPagesApplicable(tool)) {
     const maxPages = getMaxPages();
     paramSchema['fetchAllPages'] = z
       .boolean()
-      .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig))
-      .optional();
+      .optional()
+      .describe(getFetchAllPagesParamDescription(maxPages, endpointConfig));
   }
 
   if (endpointConfig?.nameFilter) {
-    paramSchema['name'] = z.string().describe(MEMBER_NAME_PARAM_DESCRIPTION).optional();
+    paramSchema['name'] = z.string().optional().describe(MEMBER_NAME_PARAM_DESCRIPTION);
   }
 
   if (isSkiptokenApplicable(tool, Object.keys(paramSchema), endpointConfig)) {
-    paramSchema['skiptoken'] = z.string().describe(SKIPTOKEN_PARAM_DESCRIPTION).optional();
+    paramSchema['skiptoken'] = z.string().optional().describe(SKIPTOKEN_PARAM_DESCRIPTION);
   }
 
   // Add account parameter for multi-account mode.
@@ -3652,21 +3725,21 @@ function registerGraphToolWithMcp(
   if (multiAccount) {
     paramSchema['account'] = z
       .string()
-      .describe(getAccountParamDescription(accountNames))
-      .optional();
+      .optional()
+      .describe(getAccountParamDescription(accountNames));
   }
 
   // Add includeHeaders parameter for all tools to capture ETags and other headers
   paramSchema['includeHeaders'] = z
     .boolean()
-    .describe('Include response headers (including ETag) in the response metadata')
-    .optional();
+    .optional()
+    .describe('Include response headers (including ETag) in the response metadata');
 
   // Add excludeResponse parameter to only return success/failure indication
   paramSchema['excludeResponse'] = z
     .boolean()
-    .describe('Exclude the full response body and only return success or failure indication')
-    .optional();
+    .optional()
+    .describe('Exclude the full response body and only return success or failure indication');
 
   // Destructive tools (POST except readOnly, PATCH, PUT, DELETE) require an
   // explicit `confirm: true` server-side gate. See isDestructiveOperation +
@@ -3674,20 +3747,20 @@ function registerGraphToolWithMcp(
   // the LLM/agent sees it upfront.
   const destructive = isDestructiveOperation(tool.method, endpointConfig);
   if (destructive) {
-    paramSchema['confirm'] = z.boolean().describe(CONFIRM_PARAM_DESCRIPTION).optional();
+    paramSchema['confirm'] = z.boolean().optional().describe(CONFIRM_PARAM_DESCRIPTION);
   }
 
   // Add timezone parameter for calendar endpoints that support it
   if (endpointConfig?.supportsTimezone) {
-    paramSchema['timezone'] = z.string().describe(TIMEZONE_PARAM_DESCRIPTION).optional();
+    paramSchema['timezone'] = z.string().optional().describe(TIMEZONE_PARAM_DESCRIPTION);
   }
 
   // Add expandExtendedProperties parameter for calendar endpoints that support it
   if (endpointConfig?.supportsExpandExtendedProperties) {
     paramSchema['expandExtendedProperties'] = z
       .boolean()
-      .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION)
-      .optional();
+      .optional()
+      .describe(EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION);
   }
 
   // Build the tool description, optionally appending LLM tips
@@ -3706,7 +3779,23 @@ function registerGraphToolWithMcp(
   // read-only query lands as destructiveHint:true and clients mis-rank it.
   const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
-  // .passthrough() object, not a raw shape - the SDK wraps raw shapes in z.object()
+  // A connector is served a bounded total of input-schema bytes, charged in
+  // alphabetical order, and a tool that no longer fits is skipped whole - so an
+  // oversized write schema costs us unrelated tools later in the alphabet. Measure what
+  // each tool costs; when a ration is set, trim the body depth of the few tools that
+  // overflow it and register the rest byte-for-byte unchanged. Memoised per tool: HTTP
+  // mode re-registers everything on every request, and the measuring pass is the
+  // expensive part of registration.
+  const fit = budget
+    ? fitToolDefinitionToBudget(
+        paramSchema,
+        bodyParamNames,
+        budget.definitionBudget ?? Number.POSITIVE_INFINITY,
+        `${budget.schemaFingerprint}|${tool.alias}`
+      )
+    : undefined;
+
+  // .loose() object, not a raw shape - the SDK wraps raw shapes in z.object()
   // and strips unknown keys before the handler runs, which is exactly how #569's
   // flattened subject/toRecipients got lost
   server.registerTool(
@@ -3714,7 +3803,7 @@ function registerGraphToolWithMcp(
     {
       title: tool.alias,
       description: toolDescription,
-      inputSchema: z.object(paramSchema).passthrough(),
+      inputSchema: z.object(fit?.paramSchema ?? paramSchema).loose(),
       annotations: {
         title: tool.alias,
         readOnlyHint: isReadOnlyTool,
@@ -3725,6 +3814,7 @@ function registerGraphToolWithMcp(
     async (params: Record<string, unknown>) =>
       executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
   );
+  return fit;
 }
 
 export function registerGraphTools(
@@ -3736,6 +3826,7 @@ export function registerGraphTools(
     readOnly = false,
     enabledTools: enabledToolsPattern,
     orgMode = false,
+    appMode = false,
     authManager,
     multiAccount = false,
     accountNames = [],
@@ -3759,18 +3850,35 @@ export function registerGraphTools(
   let failedCount = 0;
   const allowedScopes = parseAllowedScopes(allowedScopesValue);
   const disabledByAllowedScopes: DisabledToolScope[] = [];
+  const scopeMode = scopeModeFor({ orgMode, appMode });
   const deniedTools = collectDeniedToolPolicies({
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     httpMode,
   });
+  // What the connector budget is charged for the Graph tools, summed as they register.
+  let servedSchemaBytes = 0;
+  const definitionBudget = getToolDefinitionBudget();
+  // Keys the fit cache, so a process that flips one of these (tests do) never reuses a
+  // stale fit. Mirror every env read the schema build makes: budget, account list,
+  // fetchAllPages presence (MS365_MCP_ALLOW_PAGINATION) and its page cap.
+  const budgetContext: ToolBudgetContext = {
+    definitionBudget,
+    schemaFingerprint: [
+      definitionBudget ?? 'unrationed',
+      multiAccount ? accountNames.join('\0') : '',
+      paginationAllowed(),
+      getMaxPages(),
+    ].join('|'),
+  };
+  const prunedForBudget: PrunedForBudget[] = [];
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
-      logger.info(`Skipping work account tool ${tool.alias} - not in org mode`);
+    if (!isEndpointInScopeMode(endpointConfig, scopeMode)) {
+      logger.info(`Skipping tool ${tool.alias} - not available in ${scopeMode} mode`);
       skippedCount++;
       continue;
     }
@@ -3797,7 +3905,7 @@ export function registerGraphTools(
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, orgMode),
+            getEndpointScopeGroups(endpointConfig, scopeMode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -3807,7 +3915,29 @@ export function registerGraphTools(
     }
 
     try {
-      registerGraphToolWithMcp(server, tool, endpointConfig, graphClient, options);
+      // Fitting runs inside registration, so a tool whose schema cannot be measured or
+      // trimmed fails alone instead of aborting the whole surface.
+      const fit = registerGraphToolWithMcp(
+        server,
+        tool,
+        endpointConfig,
+        graphClient,
+        options,
+        budgetContext
+      );
+      if (fit) {
+        servedSchemaBytes += fit.bytesAfter;
+        if (fit.appliedStrategy !== null) {
+          prunedForBudget.push({
+            toolName: tool.alias,
+            depth: fit.appliedStrategy.maxDepth,
+            describeDepth: fit.appliedStrategy.describeDepth,
+            bytesBefore: fit.bytesBefore,
+            bytesAfter: fit.bytesAfter,
+            bodyWentOpaque: fit.bodyWentOpaque,
+          });
+        }
+      }
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${tool.alias}: ${(error as Error).message}`);
@@ -3833,17 +3963,36 @@ export function registerGraphTools(
     userFields,
   };
   for (const utility of UTILITY_TOOLS) {
-    if (readOnly && !utility.readOnlyHint) continue;
-    if (httpMode && utility.stdioOnly) continue;
-    if (utility.enabled && !utility.enabled()) continue;
+    if (!isUtilityToolAvailable(utility, { readOnly, httpMode, scopeMode })) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
+      // Utility schemas are small and never pruned, but the connector charges for them
+      // like any other tool, so they belong in the total. server.tool() wraps the raw
+      // shape in a strict z.object(), so measure that form rather than a loose one.
+      servedSchemaBytes += measureInputSchemaBytes(z.object(utility.buildSchema(utilityCtx)));
       registerUtilityToolWithMcp(server, utility, utilityCtx);
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${utility.name}: ${(error as Error).message}`);
       failedCount++;
     }
+  }
+
+  // The per-tool ration is a means; this total is the constraint that actually decides
+  // whether a tool is served by a hosted connector, so report it whether or not pruning
+  // is enabled — but once per surface, not once per request: HTTP mode registers on
+  // every POST.
+  const surfaceKey = [
+    budgetContext.schemaFingerprint,
+    readOnly,
+    scopeMode,
+    enabledToolsPattern ?? '',
+    allowedScopesValue ?? '',
+    httpMode,
+  ].join('|');
+  if (!budgetSummaryLogged.has(surfaceKey)) {
+    budgetSummaryLogged.add(surfaceKey);
+    logBudgetSummary(servedSchemaBytes, prunedForBudget, definitionBudget, httpMode);
   }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
@@ -3856,9 +4005,81 @@ export function registerGraphTools(
   return registeredCount;
 }
 
+/** Surfaces whose budget summary has already been logged in this process. */
+const budgetSummaryLogged = new Set<string>();
+
+type PrunedForBudget = {
+  toolName: string;
+  depth: number;
+  describeDepth: number;
+  bytesBefore: number;
+  bytesAfter: number;
+  bodyWentOpaque: boolean;
+};
+
+function logBudgetSummary(
+  servedSchemaBytes: number,
+  prunedForBudget: readonly PrunedForBudget[],
+  budget: number | undefined,
+  httpMode: boolean
+): void {
+  const connectorShare = ((servedSchemaBytes / CONNECTOR_DEFINITION_BUDGET) * 100).toFixed(1);
+  logger.info(
+    `Tool input schemas total ${servedSchemaBytes} bytes as served by tools/list, ${connectorShare}% of the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector`
+  );
+  // Only a hosted connector admits tools against that budget. Over stdio every tool is
+  // served whatever the total, so warning there would report drops that never happen.
+  if (httpMode && servedSchemaBytes > CONNECTOR_DEFINITION_BUDGET) {
+    const remedy =
+      budget === undefined
+        ? `Set MS365_MCP_TOOL_DEFINITION_BUDGET=${DEFAULT_TOOL_DEFINITION_BUDGET} to trim oversized request bodies, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`
+        : `Lower MS365_MCP_TOOL_DEFINITION_BUDGET, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`;
+    logger.warn(
+      `Served tool schemas exceed the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector by ${servedSchemaBytes - CONNECTOR_DEFINITION_BUDGET} bytes. ` +
+        `Such a connector admits tools alphabetically, so the tail of the alphabet will be silently omitted. ` +
+        remedy
+    );
+  }
+
+  if (budget !== undefined && prunedForBudget.length > 0) {
+    const saved = prunedForBudget.reduce((n, p) => n + (p.bytesBefore - p.bytesAfter), 0);
+    const stillOver = prunedForBudget.filter((p) => p.bytesAfter > budget);
+    logger.info(
+      `Body schemas trimmed on ${prunedForBudget.length} tools to fit the ${budget}-byte definition budget, saving ${saved} bytes: ` +
+        prunedForBudget
+          .map(
+            (p) =>
+              `${p.toolName}(d${p.depth}/desc${p.describeDepth} ${p.bytesBefore}->${p.bytesAfter})`
+          )
+          .join(', ')
+    );
+
+    // Losing field names is the only outcome that leaves a model guessing what the body
+    // accepts, so it is reported separately from ordinary depth trimming.
+    const opaque = prunedForBudget.filter((p) => p.bodyWentOpaque);
+    if (opaque.length > 0) {
+      logger.warn(
+        `${opaque.length} tools had their body collapsed to an open object, so callers see no field names: ` +
+          opaque.map((p) => p.toolName).join(', ') +
+          `. Raise MS365_MCP_TOOL_DEFINITION_BUDGET to keep their schemas.`
+      );
+    }
+
+    if (stillOver.length > 0) {
+      // Registered anyway - a working oversized tool beats a missing one. Overshooting
+      // the per-tool ration is not itself fatal; it eats into the connector total, which
+      // the aggregate line above is what actually reports on.
+      logger.warn(
+        `${stillOver.length} tools remain above the ${budget}-byte ration at minimum depth and spend more of the connector budget than planned: ` +
+          stillOver.map((p) => `${p.toolName}(${p.bytesAfter})`).join(', ')
+      );
+    }
+  }
+}
+
 export function buildToolsRegistry(
   readOnly: boolean,
-  orgMode: boolean,
+  mode: boolean | ScopeMode,
   enabledToolsRegex?: RegExp,
   allowedScopesValue?: string,
   disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = []
@@ -3872,7 +4093,7 @@ export function buildToolsRegistry(
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
 
-    if (!orgMode && endpointConfig && !endpointConfig.scopes && endpointConfig.workScopes) {
+    if (!isEndpointInScopeMode(endpointConfig, mode)) {
       continue;
     }
 
@@ -3891,7 +4112,7 @@ export function buildToolsRegistry(
       allowedScopes !== undefined && !endpointConfig
         ? ['endpoint scope metadata']
         : getMissingAllowedScopesForGroups(
-            getEndpointScopeGroups(endpointConfig, orgMode),
+            getEndpointScopeGroups(endpointConfig, mode),
             allowedScopes
           );
     if (missingScopes.length > 0) {
@@ -4022,6 +4243,7 @@ export function registerDiscoveryTools(
     readOnly = false,
     enabledTools,
     orgMode = false,
+    appMode = false,
     authManager,
     multiAccount = false,
     accountNames = [],
@@ -4045,16 +4267,17 @@ export function registerDiscoveryTools(
   }
 
   const disabledByAllowedScopes: Array<{ toolName: string; missingScopes: string[] }> = [];
+  const scopeMode = scopeModeFor({ orgMode, appMode });
   const deniedTools = collectDeniedToolPolicies({
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     httpMode,
   });
   const toolsRegistry = buildToolsRegistry(
     readOnly,
-    orgMode,
+    scopeMode,
     enabledToolsRegex,
     allowedScopesValue,
     disabledByAllowedScopes
@@ -4065,9 +4288,7 @@ export function registerDiscoveryTools(
     );
   }
   const utilityTools = UTILITY_TOOLS.filter((u) => {
-    if (readOnly && !u.readOnlyHint) return false;
-    if (httpMode && u.stdioOnly) return false;
-    if (u.enabled && !u.enabled()) return false;
+    if (!isUtilityToolAvailable(u, { readOnly, httpMode, scopeMode })) return false;
     if (enabledToolsRegex && !enabledToolsRegex.test(u.name)) return false;
     return true;
   });
@@ -4148,12 +4369,12 @@ export function registerDiscoveryTools(
     {
       query: z
         .string()
+        .optional()
         .describe(
           'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
-        )
-        .optional(),
-      category: z.string().describe(`Optional pre-filter by category: ${categoryNames}`).optional(),
-      limit: z.number().describe('Maximum results (default: 10, max: 50)').optional(),
+        ),
+      category: z.string().optional().describe(`Optional pre-filter by category: ${categoryNames}`),
+      limit: z.number().optional().describe('Maximum results (default: 10, max: 50)'),
     },
     {
       title: 'search-tools',
@@ -4244,11 +4465,11 @@ export function registerDiscoveryTools(
     {
       tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
       parameters: z
-        .record(z.any())
+        .record(z.string(), z.any())
+        .optional()
         .describe(
           'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
-        )
-        .optional(),
+        ),
     },
     {
       title: 'execute-tool',

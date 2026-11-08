@@ -4,6 +4,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   normalizeToolSchemaRefs,
   installToolSchemaRefNormalization,
+  tidyToolJsonSchema,
+  toolInputJsonSchema,
 } from '../src/normalize-tool-schema.js';
 
 // Collect every $ref value in a schema.
@@ -462,7 +464,7 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
 
     server.registerTool(
       'create-folder',
-      { description: 'create', inputSchema: z.object({ body: folder }).passthrough() },
+      { description: 'create', inputSchema: z.object({ body: folder }).loose() },
       async () => ({ content: [] })
     );
 
@@ -491,5 +493,149 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
     // installer must fall back gracefully rather than crash startup.
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     expect(() => installToolSchemaRefNormalization(server)).not.toThrow();
+  });
+
+  // zod 4's own conversion inlines every shared sub-schema and writes them in its own
+  // dialect; tools/list should still hand out the zod 3 shape.
+  it('serves zod 4 schemas in the zod 3 shape', async () => {
+    const server = new McpServer({ name: 'test', version: '0.0.0' });
+    const timeZone = z
+      .object({ dateTime: z.string(), timeZone: z.string().nullish() })
+      .partial()
+      .loose();
+    const body = z
+      .object({
+        start: timeZone,
+        end: timeZone,
+        subject: z.string().describe('The subject.').nullish(),
+        createdDateTime: z
+          .string()
+          .regex(/^[0-9]{4,}-[0-9]{2}-[0-9]{2}T.*$/)
+          .datetime({ offset: true })
+          .nullish(),
+        reminderMinutes: z.number().int(),
+      })
+      .partial()
+      .loose();
+    const flag = z.boolean().describe('Shared');
+    server.registerTool(
+      'create-event',
+      {
+        description: 'create',
+        inputSchema: z
+          .object({ body, excludeResponse: flag.optional().describe('Exclude the response') })
+          .loose(),
+      },
+      async () => ({ content: [] })
+    );
+    installToolSchemaRefNormalization(server);
+    const handler = (
+      server.server as unknown as {
+        _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>>;
+      }
+    )._requestHandlers.get('tools/list')!;
+    const result = (await handler(
+      { method: 'tools/list' },
+      { signal: new AbortController().signal }
+    )) as { tools: Array<{ name: string; inputSchema: Record<string, unknown> }> };
+
+    const schema = result.tools[0].inputSchema;
+    const text = JSON.stringify(schema);
+    expect(collectRefs(schema)).toEqual([]);
+    expect(text).not.toContain('allOf');
+    expect(text).not.toContain('definitions');
+    expect(text).not.toContain(String(Number.MAX_SAFE_INTEGER));
+    const properties = (schema.properties as Record<string, Record<string, unknown>>).body
+      .properties as Record<string, Record<string, unknown>>;
+    expect(properties.subject).toEqual({ type: ['string', 'null'], description: 'The subject.' });
+    expect(properties.end).toEqual(properties.start);
+    const created = (properties.createdDateTime.anyOf as Record<string, unknown>[])[0];
+    expect(created).toEqual({
+      type: 'string',
+      format: 'date-time',
+      pattern: '^[0-9]{4,}-[0-9]{2}-[0-9]{2}T.*$',
+    });
+    expect(properties.reminderMinutes).toEqual({ type: 'integer' });
+    expect((schema.properties as Record<string, unknown>).excludeResponse).toEqual({
+      type: 'boolean',
+      description: 'Exclude the response',
+    });
+  });
+
+  it('builds the same schema per parameter as zod does for the whole object', () => {
+    type Folder = { name?: string; childFolders?: Folder[] };
+    const folder: z.ZodType<Folder> = z.lazy(() =>
+      z.object({ name: z.string().optional(), childFolders: z.array(folder).optional() })
+    );
+    const shared = z.object({ id: z.string() });
+    const schema = z
+      .object({
+        body: z.object({ a: shared, b: shared, folder }),
+        top: z.number().optional(),
+      })
+      .loose();
+    const ours = toolInputJsonSchema(schema);
+    const zods = z.toJSONSchema(schema, { target: 'draft-07', io: 'input', reused: 'ref' });
+    expect(ours.required).toEqual(['body']);
+    for (const r of collectRefs(ours)) expect(resolvePointer(ours, r)).toBeDefined();
+    const served = normalizeToolSchemaRefs(ours);
+    for (const r of collectRefs(served)) {
+      expect(r.startsWith('#/$defs/')).toBe(true);
+      expect(resolvePointer(served, r)).toBeDefined();
+    }
+    expect(JSON.stringify(served)).not.toContain('definitions');
+    // Same tree as zod's single pass once both are normalized
+    // zod's single pass leaves additionalProperties out where zod 3 said false
+    const dropAdditional = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (!Array.isArray(node)) delete (node as Record<string, unknown>).additionalProperties;
+      for (const value of Object.values(node)) dropAdditional(value);
+    };
+    const strip = (json: Record<string, unknown>) => {
+      const rest = normalizeToolSchemaRefs(json);
+      delete rest.$schema;
+      dropAdditional(rest);
+      return rest;
+    };
+    expect(strip(ours)).toEqual(strip(zods as Record<string, unknown>));
+  });
+});
+
+describe('toolInputJsonSchema', () => {
+  // zod 3 said additionalProperties: false for a plain z.object; zod 4 input mode says nothing
+  it('keeps the unknown-key policy zod 3 advertised', () => {
+    const nested = z.object({ a: z.string() });
+    const strip = toolInputJsonSchema(z.object({ nested: nested.optional() }));
+    expect(strip.additionalProperties).toBe(false);
+    const properties = strip.properties as Record<string, Record<string, unknown>>;
+    expect(properties.nested.additionalProperties).toBe(false);
+    expect(toolInputJsonSchema(z.object({}).strict()).additionalProperties).toBe(false);
+    expect(toolInputJsonSchema(z.object({}).loose()).additionalProperties).toBe(true);
+  });
+});
+
+describe('tidyToolJsonSchema', () => {
+  it('keeps an allOf around a $ref that carries a description', () => {
+    const node = { description: 'x', allOf: [{ $ref: '#/$defs/def0' }] };
+    tidyToolJsonSchema(node);
+    expect(node).toEqual({ description: 'x', allOf: [{ $ref: '#/$defs/def0' }] });
+  });
+
+  it('unwraps a bare allOf around a $ref', () => {
+    const node: Record<string, unknown> = { allOf: [{ $ref: '#/$defs/def0' }] };
+    tidyToolJsonSchema(node);
+    expect(node).toEqual({ $ref: '#/$defs/def0' });
+  });
+
+  it('leaves an allOf alone when its keys clash with the parent', () => {
+    const node = { type: 'string', allOf: [{ type: 'number' }] };
+    tidyToolJsonSchema(node);
+    expect(node).toEqual({ type: 'string', allOf: [{ type: 'number' }] });
+  });
+
+  it('only folds nullable primitives', () => {
+    const node = { anyOf: [{ type: 'string', pattern: 'x' }, { type: 'null' }] };
+    tidyToolJsonSchema(node);
+    expect(node).toEqual({ anyOf: [{ type: 'string', pattern: 'x' }, { type: 'null' }] });
   });
 });

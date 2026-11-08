@@ -356,7 +356,7 @@ describe('graph-tools', () => {
         method: 'post',
         path: '/$batch',
         alias: 'graph-batch',
-        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
       });
       const config = makeConfig({
         pathPattern: '/$batch',
@@ -691,7 +691,7 @@ describe('graph-tools', () => {
         method: 'post',
         path: '/me/messages',
         alias: 'create-draft-email',
-        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
       });
       const config = makeConfig({
         pathPattern: '/me/messages',
@@ -838,7 +838,7 @@ describe('graph-tools', () => {
             {
               name: 'body',
               type: 'Body',
-              schema: z.object({ message: z.object({}).passthrough() }),
+              schema: z.object({ message: z.object({}).loose() }),
             },
           ],
         })
@@ -5223,7 +5223,7 @@ describe('graph-tools', () => {
           alias,
           method,
           path: '/chats/{chat-id}/messages',
-          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
         })
       );
       mockEndpointsJson = [

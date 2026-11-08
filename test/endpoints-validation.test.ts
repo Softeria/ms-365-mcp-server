@@ -21,13 +21,15 @@ interface Endpoint {
   method: string;
   scopes?: string[] | string[][];
   workScopes?: string[] | string[][];
+  appScopes?: string[] | string[][];
   returnDownloadUrl?: boolean;
   llmTip?: string;
   queryParams?: string[];
   maxTop?: number;
   nameFilter?: boolean;
   mentionShorthand?: boolean;
-  requestOverride?: { method: string; path: string; body?: Record<string, unknown> };
+  fixedBody?: Record<string, unknown>;
+  descriptionOverride?: string;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -52,13 +54,32 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not give appScopes to /me endpoints, which need a signed-in user', () => {
+    const violations = endpoints
+      .filter((e) => e.appScopes !== undefined && /^\/me(\/|$)/.test(e.pathPattern))
+      .map((e) => e.toolName);
+    expect(violations).toEqual([]);
+  });
+
+  it('should not put delegated-only permissions in appScopes', () => {
+    // .Shared and the chat/channel send scopes exist only as delegated permissions
+    const delegatedOnly = /\.Shared$|^ChatMessage\.Send$|^ChannelMessage\.Send$/;
+    const violations = endpoints.flatMap((e) =>
+      (e.appScopes ?? [])
+        .flat()
+        .filter((scope) => delegatedOnly.test(scope))
+        .map((scope) => `${e.toolName}: ${scope}`)
+    );
+    expect(violations).toEqual([]);
+  });
+
   it('should have well-formed scope groups (flat string[] or nested string[][])', () => {
     const isStringArray = (v: unknown): boolean =>
       Array.isArray(v) && v.every((s) => typeof s === 'string');
 
     const malformed: string[] = [];
     for (const e of endpoints) {
-      for (const field of ['scopes', 'workScopes'] as const) {
+      for (const field of ['scopes', 'workScopes', 'appScopes'] as const) {
         const value = e[field];
         if (value === undefined) continue;
         if (!Array.isArray(value)) {
@@ -107,11 +128,11 @@ describe('endpoints.json validation', () => {
   it('should have a matching generated client endpoint for every entry', () => {
     const generated = [...api.endpoints, ...betaApi.endpoints];
     const generatedTools = new Set(generated.map((e) => e.alias));
-    // A requestOverride entry shares another tool's operation, so it is matched by that
+    // A fixedBody entry shares another tool's operation, so it is matched by that
     // operation's path and method rather than by its own name.
     const generatedOps = new Set(generated.map((e) => `${e.method} ${e.path}`));
     const orphans = endpoints.filter((e) =>
-      e.requestOverride
+      e.fixedBody
         ? !generatedOps.has(`${e.method.toLowerCase()} ${generatedPathFor(e.pathPattern)}`)
         : !generatedTools.has(e.toolName)
     );
@@ -125,6 +146,15 @@ describe('endpoints.json validation', () => {
           `Run npm run generate, or check that the path and method exist in the OpenAPI spec.\n${details}`
       );
     }
+  });
+
+  it('should give every fixedBody entry its own description', () => {
+    // A fixedBody tool is a copy of another tool's operation, so without an override it
+    // would be described as that operation (delete-mail-message as a plain move)
+    const undescribed = endpoints
+      .filter((e) => e.fixedBody && !e.descriptionOverride)
+      .map((e) => e.toolName);
+    expect(undescribed).toEqual([]);
   });
 
   it('should generate non-void response schemas for Planner task chat read/create tools', () => {
