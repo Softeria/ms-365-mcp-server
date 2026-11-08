@@ -89,6 +89,19 @@ const PRESET_META: Record<
 // enumerated list because a list would silently miss apps and every future preset.
 const UNIVERSAL_UTILITY_TOOLS = ['download-bytes', 'download-bytes-to-file'];
 
+// The account tools (auth-tools.ts) carry no preset membership either, and every preset needs
+// them: stdio login goes through login and verify-login, and with several accounts each tool's
+// `account` parameter points at list-accounts. teams-write keeps them too (#631). An explicit
+// --enabled-tools still decides for itself.
+const ACCOUNT_TOOLS = [
+  'login',
+  'logout',
+  'verify-login',
+  'list-accounts',
+  'select-account',
+  'remove-account',
+];
+
 // Scoped utilities are only meaningful where the resources they act on appear. Graph itself
 // publishes a pre-authenticated URL for drive/SharePoint file content ONLY (not mail/event
 // attachments or recordings), so get-download-url rides with the drive-backed presets; where it is
@@ -125,7 +138,11 @@ for (const [tool, presets] of Object.entries(SCOPED_UTILITY_TOOLS)) {
 function getToolsForPreset(preset: string): string[] {
   if (preset === 'all') {
     const endpointNames = [...new Set(endpointEntries.map((e) => e.toolName))];
-    const utilityNames = [...UNIVERSAL_UTILITY_TOOLS, ...Object.keys(SCOPED_UTILITY_TOOLS)];
+    const utilityNames = [
+      ...UNIVERSAL_UTILITY_TOOLS,
+      ...Object.keys(SCOPED_UTILITY_TOOLS),
+      ...ACCOUNT_TOOLS,
+    ];
     return [...new Set([...endpointNames, ...utilityNames])].sort();
   }
 
@@ -140,6 +157,7 @@ function getToolsForPreset(preset: string): string[] {
   return [
     ...new Set([
       ...endpointNames,
+      ...ACCOUNT_TOOLS,
       ...(PRESET_META[preset]?.omitUniversalUtilities ? [] : UNIVERSAL_UTILITY_TOOLS),
       ...Object.entries(SCOPED_UTILITY_TOOLS)
         .filter(([, presets]) => presets.includes(preset))

@@ -91,6 +91,8 @@ export async function renderPresetsMarkdown(): Promise<string> {
     '',
     'Tool and scope lists assume `--org-mode`; without it, personal accounts get fewer tools and scopes.',
     '',
+    'Every preset also includes the account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`; only `verify-login` and `list-accounts` under `--read-only`). They are not listed or counted below.',
+    '',
     '## Summary',
     '',
     '| Preset | Mode | Tools | Scopes | Org mode | Description |',
