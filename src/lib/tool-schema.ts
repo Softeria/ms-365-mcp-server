@@ -3,6 +3,7 @@ import { queryParameterSchema } from './query-parameter-schema.js';
 import { tidyToolJsonSchema, zodToToolJsonSchema } from '../normalize-tool-schema.js';
 import type { api } from '../generated/client.js';
 import { isDestructiveOperation, type DestructiveCheckConfig } from './destructive-ops.js';
+import { ACCEPT_VALUE_JSON_SCHEMA } from './media-type.js';
 import {
   isFetchAllPagesApplicable,
   isSkiptokenApplicable,
@@ -248,7 +249,7 @@ export function describeToolSchema(
       in: 'Header',
       required: false,
       description: getAcceptParamDescription(config.acceptType),
-      schema: { type: 'string' },
+      schema: { ...ACCEPT_VALUE_JSON_SCHEMA },
     });
   }
 
