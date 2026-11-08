@@ -2652,7 +2652,11 @@
     "presets": ["teams", "work"],
     "workScopes": ["CallTranscripts.Read.All"],
     "acceptType": "text/vtt",
-    "llmTip": "Returns the transcript of an ad hoc call as WebVTT with speaker tags and timestamps. Take adhocCallId (the callId) and callTranscriptId (the id) from list-adhoc-call-transcripts; copy both exactly. On 403 SpeakerAttributionNotAllowed retry with Accept set to application/vnd.microsoft.graph.transcript+text."
+    "acceptFallback": {
+      "innerErrorCode": "SpeakerAttributionNotAllowed",
+      "accept": "application/vnd.microsoft.graph.transcript+text"
+    },
+    "llmTip": "Returns the transcript of an ad hoc call as WebVTT with speaker tags and timestamps. Take adhocCallId (the callId) and callTranscriptId (the id) from list-adhoc-call-transcripts; copy both exactly. Falls back to text without speaker names when the tenant disables speaker attribution."
   },
   {
     "pathPattern": "/me/onlineMeetings/{onlineMeeting-id}/recordings",
