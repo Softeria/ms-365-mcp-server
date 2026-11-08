@@ -188,6 +188,19 @@ describe('endpoints.json validation', () => {
     expect(endpoint?.llmTip).toContain('call download-bytes');
   });
 
+  it('should request the org-wide Notes scopes for SharePoint-site OneNote tools', () => {
+    // Notes.Read / Notes.Create / Notes.ReadWrite only reach the user's own notebooks;
+    // Graph 403s /sites/{site-id}/onenote/... without Notes.Read.All or Notes.ReadWrite.All (#781)
+    const siteTools = endpoints.filter((e) => e.toolName.includes('sharepoint-site-onenote'));
+
+    expect(siteTools).toHaveLength(13);
+    for (const endpoint of siteTools) {
+      expect(endpoint.workScopes, endpoint.toolName).toEqual(
+        endpoint.method === 'get' ? ['Notes.Read.All'] : ['Notes.ReadWrite.All']
+      );
+    }
+  });
+
   it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
     const checklistTools = [
       'list-todo-checklist-items',

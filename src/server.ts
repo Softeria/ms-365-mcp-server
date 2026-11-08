@@ -493,7 +493,9 @@ class MicrosoftGraphServer {
     }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat, {
+      orgMode: Boolean(this.options.orgMode),
+    });
 
     if (!this.options.http) {
       this.server = this.createMcpServer();
