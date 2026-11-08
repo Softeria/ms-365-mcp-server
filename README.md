@@ -34,6 +34,8 @@ To route Graph traffic through a proxy of your own (one that terminates the clie
 - Tool filtering for granular access control
 - [Tool presets](#tool-presets) and [dynamic discovery](#dynamic-tool-discovery) to shrink the tool surface and token usage
 
+For external document readers, see the [provider-neutral document processing guide](docs/document-processing.md), including continuation and coverage handling.
+
 ## Output Format: JSON vs TOON
 
 The server supports two output formats that can be configured globally:
