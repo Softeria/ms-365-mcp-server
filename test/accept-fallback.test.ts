@@ -159,7 +159,7 @@ describe('GraphClient acceptFallback', () => {
   });
 });
 
-describe('get-meeting-transcript-content wiring', () => {
+describe('transcript content wiring', () => {
   function setup() {
     const server = new McpServer({ name: 't', version: '1' });
     const calls: Array<[string, Record<string, unknown>]> = [];
@@ -190,6 +190,16 @@ describe('get-meeting-transcript-content wiring', () => {
       onlineMeetingId: 'm1',
       callTranscriptId: 't1',
     });
+    expect(calls[0][1].acceptFallback).toEqual(FALLBACK);
+  });
+
+  it('passes the fallback for an ad hoc call transcript too', async () => {
+    const { handlers, calls } = setup();
+    await handlers.get('get-adhoc-call-transcript-content')!({
+      adhocCallId: 'c1',
+      callTranscriptId: 't1',
+    });
+    expect(calls[0][0]).toContain('/adhocCalls/c1/transcripts/t1/content');
     expect(calls[0][1].acceptFallback).toEqual(FALLBACK);
   });
 
