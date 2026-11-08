@@ -54,6 +54,7 @@ import {
   positiveIntFromEnv,
   SKIPTOKEN_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
+  IF_MATCH_PARAM_DESCRIPTION,
 } from './lib/param-descriptions.js';
 import { describePathParam } from './lib/path-params.js';
 import { queryParameterSchema } from './lib/query-parameter-schema.js';
@@ -121,6 +122,7 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  supportsIfMatch?: boolean; // Adds an optional If-Match header when the generated operation omits it
   // A file download. With MS365_MCP_BLOB_OUTPUT on, the tool answers a short JSON text block
   // plus an MCP blob resource (capped by MS365_MCP_BLOB_MAX_BYTES); it takes an optional fileName.
   blobOutput?: boolean;
@@ -2989,6 +2991,10 @@ async function executeGraphTool(
         // the generated client's parameter list, so it lands here rather than in the
         // 'Header' case above.
         headers['Accept'] = `${paramValue}`;
+      } else if (paramName.toLowerCase() === 'if-match' && config?.supportsIfMatch) {
+        // Some generated operations omit this Graph-supported header. Expose it only on
+        // configured endpoints and forward it through the same request header path.
+        headers['If-Match'] = `${paramValue}`;
       } else if (isOdataParam) {
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
@@ -3691,6 +3697,13 @@ function registerGraphToolWithMcp(
       .string()
       .optional()
       .describe(getAcceptParamDescription(endpointConfig.acceptType));
+  }
+
+  if (
+    endpointConfig?.supportsIfMatch &&
+    !Object.keys(paramSchema).some((name) => name.toLowerCase() === 'if-match')
+  ) {
+    paramSchema['If-Match'] = z.string().optional().describe(IF_MATCH_PARAM_DESCRIPTION);
   }
 
   if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {

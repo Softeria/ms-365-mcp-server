@@ -159,4 +159,31 @@ describe('per-tool behavior on the real tool surface', () => {
       '$orderby=createdDateTime'
     );
   });
+
+  it('surfaces If-Match for the SharePoint list item update in registration and discovery', () => {
+    const shape = registered('update-sharepoint-list-item').shape;
+    expect(Object.keys(shape).find((name) => name.toLowerCase() === 'if-match')).toBeDefined();
+    expect(registered('list-mail-messages').shape['If-Match']).toBeUndefined();
+
+    const entry = buildToolsRegistry(false, true).get('update-sharepoint-list-item');
+    expect(entry).toBeDefined();
+    const discovered = describeToolSchema(entry!.tool, entry!.config).parameters.find(
+      (param) => param.name.toLowerCase() === 'if-match'
+    );
+    expect(discovered).toMatchObject({ in: 'Header', required: false, schema: { type: 'string' } });
+  });
+
+  it('forwards the SharePoint list item ETag as an If-Match request header', async () => {
+    await registered('update-sharepoint-list-item').handler({
+      siteId: 'site-1',
+      listId: 'list-1',
+      listItemId: 'item-1',
+      body: { fields: { Title: 'Updated' } },
+      'If-Match': '"item-etag,1"',
+      confirm: true,
+    });
+
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(options?.headers).toMatchObject({ 'If-Match': '"item-etag,1"' });
+  });
 });
