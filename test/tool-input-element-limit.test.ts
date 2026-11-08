@@ -5,6 +5,9 @@
  * option stops being wired in.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import express from 'express';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -105,5 +108,93 @@ describe('tool input element ceiling', () => {
     expect(JSON.stringify(result.content)).toContain(
       `more than the maximum of ${MAX_TOOL_INPUT_ELEMENTS} elements`
     );
+  });
+});
+
+// The /mcp handler gives the SDK transport what express.json() parsed. When there is
+// nothing, the transport reads the body itself, so it needs the same limit.
+describe('request body limit', () => {
+  const savedEnv = { ...process.env };
+  let graphServer: MicrosoftGraphServer | undefined;
+
+  const call = (values: string[]) =>
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'echo-values', arguments: { values } },
+    });
+  // About 130 KB: over the 100 KiB limit, far under the element ceiling.
+  const oversized = call(Array.from({ length: 26_000 }, () => 'xx'));
+
+  beforeEach(() => {
+    process.env.MS365_MCP_CLIENT_ID = 'test-client-id';
+    process.env.MS365_MCP_TENANT_ID = 'test-tenant';
+    process.env.MS365_MCP_RATE_LIMIT_DISABLED = 'true';
+    delete process.env.MS365_MCP_KEYVAULT_URL;
+    delete process.env.MS365_MCP_PUBLIC_URL;
+    delete process.env.MS365_MCP_BASE_URL;
+    clearSecretsCache();
+  });
+
+  afterEach(async () => {
+    await graphServer?.stop();
+    graphServer = undefined;
+    vi.restoreAllMocks();
+    process.env = { ...savedEnv };
+    clearSecretsCache();
+  });
+
+  async function startHttp(): Promise<number> {
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const { port } = probe.address() as AddressInfo;
+    await new Promise<void>((resolve) => probe.close(() => resolve()));
+    const authManager = {
+      isMultiAccount: vi.fn().mockResolvedValue(false),
+      listAccounts: vi.fn().mockResolvedValue([]),
+      isOAuthModeEnabled: vi.fn().mockReturnValue(false),
+      getToken: vi.fn().mockResolvedValue('SERVER_OWN_TOKEN'),
+      getTokenForAccount: vi.fn().mockResolvedValue('SERVER_OWN_TOKEN'),
+    } as unknown as AuthManager;
+    graphServer = new MicrosoftGraphServer(authManager, { http: `127.0.0.1:${port}` });
+    await graphServer.initialize('test');
+    await graphServer.start();
+    return port;
+  }
+
+  function post(port: number, body: string): Promise<Response> {
+    return fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: 'Bearer test-token',
+      },
+      body,
+    });
+  }
+
+  function skipJsonParser() {
+    vi.spyOn(express, 'json').mockReturnValue((_req, _res, next) => next());
+  }
+
+  it('refuses an oversized body that express.json() left unread', async () => {
+    skipJsonParser();
+    const response = await post(await startHttp(), oversized);
+    expect(response.status).toBe(413);
+    expect(await response.text()).toContain('Payload Too Large');
+  });
+
+  it('answers a small body that express.json() left unread', async () => {
+    skipJsonParser();
+    const response = await post(await startHttp(), call(['a', 'b']));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"text":"2"');
+  });
+
+  it('refuses an oversized body in express.json()', async () => {
+    const response = await post(await startHttp(), oversized);
+    expect(response.status).toBe(413);
   });
 });

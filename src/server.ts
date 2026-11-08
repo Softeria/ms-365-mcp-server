@@ -49,8 +49,8 @@ import { getSecrets, type AppSecrets } from './secrets.js';
 
 /**
  * Ceiling on array elements plus object keys in one tool call's arguments,
- * checked by the SDK before Zod validates them. Without it, one request
- * within the body limit could exhaust the heap during validation
+ * checked by the SDK before Zod validates them. Validation work grows with
+ * the element count, so this bounds it per call
  * (GHSA-46jr-4wx8-v453). The SDK leaves it off by default. The largest
  * legitimate inputs are Excel range writes: a 2D `values` array costs
  * rows × (cols + 1), so 100×100 `values` plus `numberFormat` is about
@@ -59,6 +59,12 @@ import { getSecrets, type AppSecrets } from './secrets.js';
  * string.
  */
 export const MAX_TOOL_INPUT_ELEMENTS = 50_000;
+
+/**
+ * Largest MCP request body, for express.json() and the SDK transport alike
+ * (GHSA-46jr-4wx8-v453). 100 KiB is express.json()'s default.
+ */
+const MAX_REQUEST_BODY_BYTES = 100 * 1024;
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -593,7 +599,7 @@ class MicrosoftGraphServer {
         })
       );
 
-      app.use(express.json());
+      app.use(express.json({ limit: MAX_REQUEST_BODY_BYTES }));
       app.use(express.urlencoded({ extended: true }));
 
       // Add CORS headers for all routes
@@ -1112,6 +1118,7 @@ class MicrosoftGraphServer {
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
               enableJsonResponse: true, // Reply to POSTs with plain JSON, not one-shot SSE
+              maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
             });
 
             res.on('close', () => {
