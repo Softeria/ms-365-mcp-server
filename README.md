@@ -553,7 +553,8 @@ With these configured, the server will use your custom Azure app instead of the 
 > **Note**: `.env` is read from the directory the server is started in, and the MCP client decides what
 > that is. Only `MS365_MCP_CLIENT_ID`, `MS365_MCP_CLIENT_SECRET`, `MS365_MCP_TENANT_ID` and
 > `MS365_MCP_CLOUD_TYPE` are read from it. Every other variable listed above must be set in your shell
-> or MCP client config; anything else found in a `.env` is ignored with a warning on stderr.
+> or MCP client config - `READ_ONLY`, `ENABLED_TOOLS` and `ENABLED_TOOLS_FILE` included, so a `.env`
+> cannot restrict the tools either. Any of them found in a `.env` is ignored with a warning on stderr.
 
 #### 3. Bring Your Own Token (BYOT)
 
@@ -843,6 +844,8 @@ When running as an MCP server, the following options can be used:
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
+The account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`) follow the same filters: `--enabled-tools` applies to them, every `--preset` includes them, and `--read-only` or `MS365_MCP_OAUTH_TOKEN` keeps only `verify-login` and `list-accounts`.
+
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
@@ -858,6 +861,7 @@ Environment variables:
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops after a whole page reaches this count, so the result can exceed the cap.
+- `MS365_MCP_TOOL_DEFINITION_BUDGET=<bytes>`: Opt in to trimming oversized request-body schemas so every tool fits a hosted connector's tool-definition budget (1 048 576 bytes of input schema per connector, admitted alphabetically — a tool that no longer fits is silently skipped). `4096` keeps a full org surface at ~78 % of that budget. Only bodies above the ration are trimmed, nested descriptions before structure, field names last. Unset (default): nothing is trimmed; the server still logs the total input-schema bytes served and, in HTTP mode, warns when the surface exceeds the connector budget.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BLOB_OUTPUT=true|1`: File download tools (`download-bytes`, `get-mail-message-mime`, `get-shared-mailbox-message-mime`, `get-mail-attachment-content`, `get-shared-mailbox-attachment-content`) answer a short JSON text block (`name`, `contentType`, `size`) and an MCP `EmbeddedResource` with `BlobResourceContents` (`uri`, `mimeType`, `blob`) instead of base64 JSON in text. The `uri`'s last segment is the optional `fileName` argument. Default: off. Alternative to the --blob-output flag.
 - `MS365_MCP_BLOB_MAX_BYTES=<n>`: With blob output on, the largest file a download tool reads (positive integer, default `5242880`). The server stops reading past it and answers an error naming the limit.
@@ -867,6 +871,7 @@ Environment variables:
 - `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
 - `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
+- `MS365_MCP_PKCE_SECRET=<32+ random characters>`: For HTTP mode with more than one instance (replicas, serverless, a restart between sign-in steps). The server derives its side of the two-leg PKCE flow from this secret instead of keeping it in process memory, so `/token` works on any instance that has the same secret. Without it, `/token` must reach the instance that served `/authorize`, or sign-in fails with `AADSTS501481`. A shorter secret fails startup
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"

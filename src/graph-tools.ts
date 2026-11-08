@@ -30,6 +30,14 @@ import {
   TicketStoreFullError,
 } from './lib/attachment-tickets.js';
 import { buildBM25Index, scoreQuery, tokenize, type BM25Index } from './lib/bm25.js';
+import {
+  CONNECTOR_DEFINITION_BUDGET,
+  DEFAULT_TOOL_DEFINITION_BUDGET,
+  fitToolDefinitionToBudget,
+  getToolDefinitionBudget,
+  measureInputSchemaBytes,
+  type BudgetFitResult,
+} from './lib/body-schema-budget.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
 import {
   CONFIRM_PARAM_DESCRIPTION,
@@ -86,7 +94,6 @@ import { TOOL_CATEGORIES } from './tool-categories.js';
 // Tools from every Graph API version share one registry. Each tool's version is carried
 // by its endpoints.json config (apiVersion), so the generated clients stay version-agnostic
 // and the runtime picks the URL prefix per request. v1.0 endpoints are unchanged.
-const allEndpoints = [...api.endpoints, ...betaApi.endpoints];
 export interface DiscoverySearchIndex {
   bm25: BM25Index;
   nameTokens: Map<string, Set<string>>;
@@ -130,11 +137,64 @@ interface EndpointConfig {
   maxTop?: number; // Upper bound for $top, enforced in the schema
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
+  // A second tool on a Graph operation that already has one, always sending this body.
+  // It is a copy of the generated operation for pathPattern + method without the body
+  // param, so the method, path, confirm gate and read-only handling stay the operation's
+  // own. The generator skips these entries, so the spec keeps one operation per path and
+  // method. delete-mail-message is move-mail-message with { destinationId: 'deleteditems' }.
+  fixedBody?: Record<string, unknown>;
+  disabled?: boolean; // Left out of the generated clients, so never registered
 }
 
 const endpointsData = JSON.parse(
   readFileSync(path.join(__dirname, 'endpoints.json'), 'utf8')
 ) as EndpointConfig[];
+
+// endpoints.json writes path params as {message-id}; the generated client as :messageId.
+export function generatedPathFor(pathPattern: string): string {
+  return pathPattern.replace(
+    /\{([^}]+)\}/g,
+    (_, name: string) => `:${name.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase())}`
+  );
+}
+
+// A fixedBody entry is not in the generated clients (the generator leaves it out), so it
+// is copied here from the generated operation it shares. An entry whose operation is
+// missing is reported and left out; test/delete-mail-message.test.ts checks that every
+// entry in the shipped endpoints.json resolves.
+export function deriveFixedBodyEndpoints(
+  configs: EndpointConfig[],
+  generated: { v1: typeof api.endpoints; beta: typeof betaApi.endpoints },
+  report: (message: string) => void
+): typeof api.endpoints {
+  const derived: typeof api.endpoints = [];
+  for (const e of configs) {
+    if (!e.fixedBody || e.disabled) continue;
+    const source = e.apiVersion === 'beta' ? generated.beta : generated.v1;
+    const wantedPath = generatedPathFor(e.pathPattern);
+    const base = source.find((t) => t.method === e.method.toLowerCase() && t.path === wantedPath);
+    if (!base) {
+      report(
+        `endpoints.json: ${e.toolName} has fixedBody but no generated operation for ${e.method.toUpperCase()} ${e.pathPattern}; tool not registered`
+      );
+      continue;
+    }
+    derived.push({
+      ...base,
+      alias: e.toolName,
+      parameters: (base.parameters ?? []).filter((p) => p.type !== 'Body'),
+    });
+  }
+  return derived;
+}
+
+const allEndpoints = [
+  ...api.endpoints,
+  ...betaApi.endpoints,
+  ...deriveFixedBodyEndpoints(endpointsData, { v1: api.endpoints, beta: betaApi.endpoints }, (m) =>
+    logger.error(m)
+  ),
+];
 
 /**
  * Prefix beta-version tools with a [beta] marker so the instability is visible in the
@@ -2752,6 +2812,10 @@ async function executeGraphTool(
       parameterDefinitions.find((p) => p.type === 'Body')?.schema as z.ZodTypeAny | undefined
     );
     const strayBodyFields: Record<string, unknown> = {};
+    // Set when the caller's body was reshaped because it held a nested field (an itemBody)
+    // rather than the entity itself - then the caller never wrote the entity, so flattened
+    // siblings are still its intended fields even on PATCH (#731)
+    let bodyRepaired = false;
     const memberNameFilter =
       config?.nameFilter && typeof params.name === 'string' ? params.name : undefined;
 
@@ -2884,6 +2948,7 @@ async function executeGraphTool(
                     `Auto-corrected parameter '${paramName}': AI passed nested field directly, wrapped it as {${paramName}: ...}`
                   );
                   body = wrapped;
+                  bodyRepaired = true;
                 } else {
                   body = paramValue;
                 }
@@ -2999,6 +3064,7 @@ async function executeGraphTool(
 
         if (Object.keys(nested).length > 0) {
           body = { ...kept, body: { ...nested, ...annotations } };
+          bodyRepaired = true;
           logger.info(
             `Moved misplaced fields into nested 'body' for ${tool.alias}: ${Object.keys(nested).join(', ')}`
           );
@@ -3007,7 +3073,19 @@ async function executeGraphTool(
     }
 
     if (Object.keys(strayBodyFields).length > 0) {
-      if (isPlainObject(body)) {
+      if (
+        httpMethod === 'PATCH' &&
+        !bodyRepaired &&
+        isPlainObject(body) &&
+        Object.keys(body).length > 0
+      ) {
+        // A PATCH changes exactly the properties it carries, so an explicit entity body is
+        // authoritative: merging flattened siblings would update properties the caller never
+        // put in it (#731). Field names only - the values can be message content
+        logger.warn(
+          `Ignoring flattened body fields (${Object.keys(strayBodyFields).join(', ')}) for ${tool.alias}: PATCH uses the explicit body as-is; put every property to change inside body`
+        );
+      } else if (isPlainObject(body)) {
         // Spread order lets an explicit body win over stray duplicates
         body = { ...strayBodyFields, ...body };
         logger.info(`Merged flattened body fields: ${Object.keys(strayBodyFields).join(', ')}`);
@@ -3137,6 +3215,11 @@ async function executeGraphTool(
       method: tool.method.toUpperCase(),
       headers,
     };
+
+    // A fixedBody tool has no body param of its own, so this is the whole body
+    if (config?.fixedBody) {
+      body = { ...config.fixedBody };
+    }
 
     if (config?.blobOutput && isBlobOutputEnabled()) {
       options.forceBinary = true;
@@ -3541,16 +3624,31 @@ export interface GraphToolRegistrationOptions {
   userFields?: string;
 }
 
+/** What registerGraphTools passes to fit each tool into the connector definition budget. */
+interface ToolBudgetContext {
+  /** undefined = measure and report only; pruning is opt-in via the env var. */
+  definitionBudget: number | undefined;
+  /** Every setting besides static endpoint data that shapes a tool's paramSchema. */
+  schemaFingerprint: string;
+}
+
+/**
+ * Registers one Graph tool. With a budget context, the tool's served schema is measured
+ * (and, when a ration is set, its body depth trimmed) and the fit is returned; without
+ * one, as for eager tools in discovery mode, the schema registers as generated.
+ */
 function registerGraphToolWithMcp(
   server: McpServer,
   tool: (typeof allEndpoints)[number],
   endpointConfig: EndpointConfig | undefined,
   graphClient: GraphClient,
-  options: GraphToolRegistrationOptions
-): void {
+  options: GraphToolRegistrationOptions,
+  budget?: ToolBudgetContext
+): BudgetFitResult | undefined {
   const { authManager, multiAccount = false, accountNames = [] } = options;
   const userFields = parseUserFields(options.userFields);
   const paramSchema: Record<string, z.ZodTypeAny> = {};
+  const bodyParamNames: string[] = [];
   if (tool.parameters && tool.parameters.length > 0) {
     for (const param of tool.parameters) {
       if (param.type === 'Query') {
@@ -3559,10 +3657,12 @@ function registerGraphToolWithMcp(
         continue;
       }
       // Lenient Body validation, or the SDK strips a flattened body value to {} (#569)
-      paramSchema[param.name] =
-        param.type === 'Body' && param.schema
-          ? lenientBodySchema(param.schema as z.ZodTypeAny)
-          : param.schema || z.any();
+      if (param.type === 'Body' && param.schema) {
+        paramSchema[param.name] = lenientBodySchema(param.schema as z.ZodTypeAny);
+        bodyParamNames.push(param.name);
+      } else {
+        paramSchema[param.name] = param.schema || z.any();
+      }
     }
   }
 
@@ -3673,6 +3773,22 @@ function registerGraphToolWithMcp(
   // read-only query lands as destructiveHint:true and clients mis-rank it.
   const isReadOnlyTool = tool.method.toUpperCase() === 'GET' || endpointConfig?.readOnly === true;
 
+  // A connector is served a bounded total of input-schema bytes, charged in
+  // alphabetical order, and a tool that no longer fits is skipped whole - so an
+  // oversized write schema costs us unrelated tools later in the alphabet. Measure what
+  // each tool costs; when a ration is set, trim the body depth of the few tools that
+  // overflow it and register the rest byte-for-byte unchanged. Memoised per tool: HTTP
+  // mode re-registers everything on every request, and the measuring pass is the
+  // expensive part of registration.
+  const fit = budget
+    ? fitToolDefinitionToBudget(
+        paramSchema,
+        bodyParamNames,
+        budget.definitionBudget ?? Number.POSITIVE_INFINITY,
+        `${budget.schemaFingerprint}|${tool.alias}`
+      )
+    : undefined;
+
   // .loose() object, not a raw shape - the SDK wraps raw shapes in z.object()
   // and strips unknown keys before the handler runs, which is exactly how #569's
   // flattened subject/toRecipients got lost
@@ -3681,7 +3797,7 @@ function registerGraphToolWithMcp(
     {
       title: tool.alias,
       description: toolDescription,
-      inputSchema: z.object(paramSchema).loose(),
+      inputSchema: z.object(fit?.paramSchema ?? paramSchema).loose(),
       annotations: {
         title: tool.alias,
         readOnlyHint: isReadOnlyTool,
@@ -3692,6 +3808,7 @@ function registerGraphToolWithMcp(
     async (params: Record<string, unknown>) =>
       executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
   );
+  return fit;
 }
 
 export function registerGraphTools(
@@ -3735,6 +3852,22 @@ export function registerGraphTools(
     allowedScopesValue,
     httpMode,
   });
+  // What the connector budget is charged for the Graph tools, summed as they register.
+  let servedSchemaBytes = 0;
+  const definitionBudget = getToolDefinitionBudget();
+  // Keys the fit cache, so a process that flips one of these (tests do) never reuses a
+  // stale fit. Mirror every env read the schema build makes: budget, account list,
+  // fetchAllPages presence (MS365_MCP_ALLOW_PAGINATION) and its page cap.
+  const budgetContext: ToolBudgetContext = {
+    definitionBudget,
+    schemaFingerprint: [
+      definitionBudget ?? 'unrationed',
+      multiAccount ? accountNames.join('\0') : '',
+      paginationAllowed(),
+      getMaxPages(),
+    ].join('|'),
+  };
+  const prunedForBudget: PrunedForBudget[] = [];
 
   for (const tool of allEndpoints) {
     const endpointConfig = endpointsData.find((e) => e.toolName === tool.alias);
@@ -3776,7 +3909,29 @@ export function registerGraphTools(
     }
 
     try {
-      registerGraphToolWithMcp(server, tool, endpointConfig, graphClient, options);
+      // Fitting runs inside registration, so a tool whose schema cannot be measured or
+      // trimmed fails alone instead of aborting the whole surface.
+      const fit = registerGraphToolWithMcp(
+        server,
+        tool,
+        endpointConfig,
+        graphClient,
+        options,
+        budgetContext
+      );
+      if (fit) {
+        servedSchemaBytes += fit.bytesAfter;
+        if (fit.appliedStrategy !== null) {
+          prunedForBudget.push({
+            toolName: tool.alias,
+            depth: fit.appliedStrategy.maxDepth,
+            describeDepth: fit.appliedStrategy.describeDepth,
+            bytesBefore: fit.bytesBefore,
+            bytesAfter: fit.bytesAfter,
+            bodyWentOpaque: fit.bodyWentOpaque,
+          });
+        }
+      }
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${tool.alias}: ${(error as Error).message}`);
@@ -3805,12 +3960,33 @@ export function registerGraphTools(
     if (!isUtilityToolAvailable(utility, { readOnly, httpMode, scopeMode })) continue;
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
+      // Utility schemas are small and never pruned, but the connector charges for them
+      // like any other tool, so they belong in the total. server.tool() wraps the raw
+      // shape in a strict z.object(), so measure that form rather than a loose one.
+      servedSchemaBytes += measureInputSchemaBytes(z.object(utility.buildSchema(utilityCtx)));
       registerUtilityToolWithMcp(server, utility, utilityCtx);
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${utility.name}: ${(error as Error).message}`);
       failedCount++;
     }
+  }
+
+  // The per-tool ration is a means; this total is the constraint that actually decides
+  // whether a tool is served by a hosted connector, so report it whether or not pruning
+  // is enabled — but once per surface, not once per request: HTTP mode registers on
+  // every POST.
+  const surfaceKey = [
+    budgetContext.schemaFingerprint,
+    readOnly,
+    scopeMode,
+    enabledToolsPattern ?? '',
+    allowedScopesValue ?? '',
+    httpMode,
+  ].join('|');
+  if (!budgetSummaryLogged.has(surfaceKey)) {
+    budgetSummaryLogged.add(surfaceKey);
+    logBudgetSummary(servedSchemaBytes, prunedForBudget, definitionBudget, httpMode);
   }
 
   // Layer 3 (list-accounts tool) is registered by registerAuthTools in auth-tools.ts.
@@ -3821,6 +3997,78 @@ export function registerGraphTools(
   );
   installDeniedToolAuditHandler(server, deniedTools);
   return registeredCount;
+}
+
+/** Surfaces whose budget summary has already been logged in this process. */
+const budgetSummaryLogged = new Set<string>();
+
+type PrunedForBudget = {
+  toolName: string;
+  depth: number;
+  describeDepth: number;
+  bytesBefore: number;
+  bytesAfter: number;
+  bodyWentOpaque: boolean;
+};
+
+function logBudgetSummary(
+  servedSchemaBytes: number,
+  prunedForBudget: readonly PrunedForBudget[],
+  budget: number | undefined,
+  httpMode: boolean
+): void {
+  const connectorShare = ((servedSchemaBytes / CONNECTOR_DEFINITION_BUDGET) * 100).toFixed(1);
+  logger.info(
+    `Tool input schemas total ${servedSchemaBytes} bytes as served by tools/list, ${connectorShare}% of the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector`
+  );
+  // Only a hosted connector admits tools against that budget. Over stdio every tool is
+  // served whatever the total, so warning there would report drops that never happen.
+  if (httpMode && servedSchemaBytes > CONNECTOR_DEFINITION_BUDGET) {
+    const remedy =
+      budget === undefined
+        ? `Set MS365_MCP_TOOL_DEFINITION_BUDGET=${DEFAULT_TOOL_DEFINITION_BUDGET} to trim oversized request bodies, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`
+        : `Lower MS365_MCP_TOOL_DEFINITION_BUDGET, use --discovery, narrow --enabled-tools, or split the surface across two connectors.`;
+    logger.warn(
+      `Served tool schemas exceed the ${CONNECTOR_DEFINITION_BUDGET}-byte budget of a hosted connector by ${servedSchemaBytes - CONNECTOR_DEFINITION_BUDGET} bytes. ` +
+        `Such a connector admits tools alphabetically, so the tail of the alphabet will be silently omitted. ` +
+        remedy
+    );
+  }
+
+  if (budget !== undefined && prunedForBudget.length > 0) {
+    const saved = prunedForBudget.reduce((n, p) => n + (p.bytesBefore - p.bytesAfter), 0);
+    const stillOver = prunedForBudget.filter((p) => p.bytesAfter > budget);
+    logger.info(
+      `Body schemas trimmed on ${prunedForBudget.length} tools to fit the ${budget}-byte definition budget, saving ${saved} bytes: ` +
+        prunedForBudget
+          .map(
+            (p) =>
+              `${p.toolName}(d${p.depth}/desc${p.describeDepth} ${p.bytesBefore}->${p.bytesAfter})`
+          )
+          .join(', ')
+    );
+
+    // Losing field names is the only outcome that leaves a model guessing what the body
+    // accepts, so it is reported separately from ordinary depth trimming.
+    const opaque = prunedForBudget.filter((p) => p.bodyWentOpaque);
+    if (opaque.length > 0) {
+      logger.warn(
+        `${opaque.length} tools had their body collapsed to an open object, so callers see no field names: ` +
+          opaque.map((p) => p.toolName).join(', ') +
+          `. Raise MS365_MCP_TOOL_DEFINITION_BUDGET to keep their schemas.`
+      );
+    }
+
+    if (stillOver.length > 0) {
+      // Registered anyway - a working oversized tool beats a missing one. Overshooting
+      // the per-tool ration is not itself fatal; it eats into the connector total, which
+      // the aggregate line above is what actually reports on.
+      logger.warn(
+        `${stillOver.length} tools remain above the ${budget}-byte ration at minimum depth and spend more of the connector budget than planned: ` +
+          stillOver.map((p) => `${p.toolName}(${p.bytesAfter})`).join(', ')
+      );
+    }
+  }
 }
 
 export function buildToolsRegistry(

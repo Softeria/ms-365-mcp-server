@@ -36,7 +36,9 @@ describe('Auth Tools', () => {
     verifyLoginTool = vi.fn();
 
     server = {
-      tool: vi.fn((name, description, schema, handler) => {
+      // The handler is always the last argument; the annotations sit before it.
+      tool: vi.fn((name, ...args) => {
+        const handler = args.at(-1);
         if (name === 'login') {
           loginTool = handler;
         }
