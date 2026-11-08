@@ -553,7 +553,8 @@ With these configured, the server will use your custom Azure app instead of the 
 > **Note**: `.env` is read from the directory the server is started in, and the MCP client decides what
 > that is. Only `MS365_MCP_CLIENT_ID`, `MS365_MCP_CLIENT_SECRET`, `MS365_MCP_TENANT_ID` and
 > `MS365_MCP_CLOUD_TYPE` are read from it. Every other variable listed above must be set in your shell
-> or MCP client config; anything else found in a `.env` is ignored with a warning on stderr.
+> or MCP client config - `READ_ONLY`, `ENABLED_TOOLS` and `ENABLED_TOOLS_FILE` included, so a `.env`
+> cannot restrict the tools either. Any of them found in a `.env` is ignored with a warning on stderr.
 
 #### 3. Bring Your Own Token (BYOT)
 
