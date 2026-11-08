@@ -29,7 +29,6 @@ For example, in HTTP mode with `--enable-attachment-urls` and appropriate mail s
 In discovery mode, use `search-tools`, `get-tool-schema` and `execute-tool` to reach the
 M365 tools. Where an `account` parameter is advertised, keep it unchanged throughout;
 HTTP bearer/OBO mode uses the connecting identity and does not support account switching.
-For app mode use `/users/{user-id}/…`, since `/me` has no signed-in user.
 
 Server-minted URLs are **single-use**. Each GET consumes the ticket, even if later
 processing fails. Obtain a fresh URL for every fetch, including probes, conversion,
