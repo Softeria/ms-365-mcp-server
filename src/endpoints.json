@@ -256,7 +256,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": ["Mail.Read"],
-    "llmTip": "To download the bytes, call download-bytes or get-download-url with target=/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value."
+    "llmTip": "For document reading with --enable-attachment-urls in HTTP mode, prefer get-download-url and an external converter or downloader. For explicit bytes or without attachment URLs, call download-bytes. Both tools take target=/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
@@ -349,7 +349,7 @@
     "toolName": "list-mail-attachments",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.Read"],
-    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. To download the bytes, call download-bytes with target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
+    "llmTip": "Lists attachments on a message: id, name, contentType, size, isInline. For document reading with --enable-attachment-urls in HTTP mode, prefer get-download-url and an external converter or downloader. For explicit bytes or without attachment URLs, call download-bytes. Both tools take target=/me/messages/{message-id}/attachments/{attachment-id}/$value (the /$value suffix returns raw bytes; the bare attachment URL embeds contentBytes in JSON which can truncate large files)."
   },
   {
     "pathPattern": "/me/messages/{message-id}/attachments/{attachment-id}",
