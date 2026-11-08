@@ -10,16 +10,16 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 369<br>180 | 63<br>37 | -<br>-               | All available tools                                                                                                               |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>180 | 63<br>37 | -<br>-               | All available tools                                                                                                               |
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   47<br>22 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
 | `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   25<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
-| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   49<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
+| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
 | `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   23<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
 | `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   3<br>1 | -<br>-               | OneNote notebook operations                                                                                                       |
-| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   96<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
-| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  177<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
+| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
+| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
 | `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     7<br>7 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
 | `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                          |
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
@@ -31,7 +31,7 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 All available tools
 
-Tools (369):
+Tools (370):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -118,6 +118,7 @@ Tools (369):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-onedrive-file`
@@ -965,7 +966,7 @@ Scopes (2):
 
 Email operations (read, send, manage folders, attachments)
 
-Tools (49):
+Tools (50):
 
 - `add-mail-attachment`
 - `copy-mail-message`
@@ -983,6 +984,7 @@ Tools (49):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `download-bytes`
 - `download-bytes-to-file`
@@ -1189,7 +1191,7 @@ Scopes (1):
 
 Outlook app only: mail, calendar and contacts
 
-Tools (96):
+Tools (97):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -1223,6 +1225,7 @@ Tools (96):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-outlook-contact`
@@ -1356,7 +1359,7 @@ Scopes (6):
 
 Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)
 
-Tools (177):
+Tools (178):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -1410,6 +1413,7 @@ Tools (177):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-onedrive-file`
