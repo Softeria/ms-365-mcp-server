@@ -41,7 +41,7 @@ export const UNPREFIXED_SERVER_VARIABLES = [
   'SILENT',
 ];
 
-/** Of those, the ones that restrict what the server may do. Dropping them widens it. */
+/** Of those, the ones that restrict which tools the server offers. */
 const RESTRICTING_VARIABLES = ['READ_ONLY', 'ENABLED_TOOLS', 'ENABLED_TOOLS_FILE'];
 
 /** 'A', 'A and B', 'A, B and C'. */
@@ -96,9 +96,10 @@ export function loadEnvFile(options: { path?: string } = {}): LoadEnvFileResult 
     (key) => key.startsWith('MS365_MCP_') || UNPREFIXED_SERVER_VARIABLES.includes(key)
   );
   if (ignoredOwn.length > 0) {
-    // A dropped READ_ONLY or ENABLED_TOOLS leaves more tools enabled than the
-    // operator asked for, so say so plainly rather than only listing the name.
-    const widened = ignoredOwn.filter((key) => RESTRICTING_VARIABLES.includes(key));
+    // Spell out that a tool setting refused from .env restricts nothing. That is
+    // all we can say: the environment or a CLI flag may set the same thing, and the
+    // flags are only parsed after this runs.
+    const restricting = ignoredOwn.filter((key) => RESTRICTING_VARIABLES.includes(key));
     // Key names only, never values: a .env is exactly where secrets live.
     // stderr because stdout is the MCP transport, and the file logger is
     // invisible in stdio mode.
@@ -106,11 +107,9 @@ export function loadEnvFile(options: { path?: string } = {}): LoadEnvFileResult 
       `[ms365-mcp] Ignored ${ignoredOwn.length} variable(s) from .env: ${[...ignoredOwn].sort().join(', ')}. ` +
         `Only ${ENV_FILE_ALLOWLIST.join(', ')} are read from .env - ` +
         `set anything else in your shell or MCP client config.` +
-        (widened.length === 0
+        (restricting.length === 0
           ? ''
-          : widened.length === 1
-            ? ` ${widened[0]} from .env is not applied: the tool restriction it asks for is off.`
-            : ` ${joinNames(widened.sort())} from .env are not applied: the tool restrictions they ask for are off.`)
+          : ` ${joinNames(restricting.sort())} from .env ${restricting.length === 1 ? 'does' : 'do'} not restrict the tools.`)
     );
   }
 
