@@ -2415,7 +2415,8 @@
     "presets": ["work"],
     "workScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first."
+    "supportsIfMatch": true,
+    "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first. For optimistic concurrency, pass its ETag as If-Match; enable includeHeaders=true when reading to capture the ETag. A stale ETag returns 412 without applying the update."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",

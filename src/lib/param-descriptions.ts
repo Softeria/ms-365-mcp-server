@@ -153,6 +153,9 @@ export const CONFIRM_PARAM_DESCRIPTION =
   'Set to true only after the user has explicitly approved this action. ' +
   'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.';
 
+export const IF_MATCH_PARAM_DESCRIPTION =
+  'Optional ETag for a conditional update. Use the ETag from the list item read (with includeHeaders=true); if it is stale, Graph returns 412 and does not apply the update.';
+
 export const TIMEZONE_PARAM_DESCRIPTION =
   'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.';
 
