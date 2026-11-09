@@ -67,27 +67,34 @@ repeated conversion, particularly OCR, can produce different text; fresh URLs al
 not guarantee a stable snapshot. Restart or report that uncertainty instead of claiming
 gap-free coverage.
 
-## Optional worked example: Docglean 0.1.3
+## Optional worked example: a bring-your-own converter
 
-[Docglean](https://github.com/msoukhomlinov/docglean-mcp/tree/v0.1.3) is one possible
-processor, not a dependency. Its `probe_document(uri, auth_profile?)` can help choose a
-selection; `convert_to_markdown(uri, max_chars, offset=0, pages?, auth_profile?)` converts
-directly. Authentication-profile arguments are advertised only when configured. Every
-call downloads the source anew; a `pages` selection narrows conversion, not download size.
-Supported selection units depend on format, and some formats reject `pages`.
+Any converter MCP server that accepts a source URL is a possible processor, not a
+dependency. The tool names and result fields below are illustrative of a URL-fetching
+text converter: use the names, arguments and fields your converter actually advertises
+(see the discovery guidance above), and preserve whatever it returns.
 
-For a PDF selection, call `convert_to_markdown` with a freshly minted URL as `uri`,
-`pages: "2"`, and `max_chars: 2000`. Preserve its native `markdown`, `next_offset`,
-`returned_chars`, `total_chars`, `content_status`, `format`, `pages_total`,
-`pages_returned`, `source_truncated`, and any `ocr` / `pdf_classification` evidence.
-If needed, mint a fresh URL and call again with the exact `next_offset` as `offset`,
-keeping `pages: "2"` and extraction settings unchanged. `max_chars` is a per-call output
-budget and may change without recomputing the returned offset.
+Suppose the converter advertises a probe tool (`probe(uri, …)`) that reports the
+source's format and extent, and a convert tool
+(`convert(uri, max_chars, offset=0, pages?)`) that fetches the source and returns
+produced text plus a continuation offset. If it also advertises authentication-profile
+arguments for sources that need their own credentials, pass them as the converter
+documents. Every call downloads the source anew; a `pages` selection narrows
+conversion, not download size. Supported selection units depend on format, and some
+formats reject `pages`.
 
-`next_offset: null` exhausts only the Markdown produced. `source_truncated` reports
-known CSV/workbook row-cap omissions; `false` does not guarantee source coverage.
-Inspect `content_status` and OCR evidence such as skipped pages/reasons or unread frames.
-Document-level classification is not proof that a selected range was fully read.
+For a PDF selection, call the convert tool with a freshly minted URL as `uri`,
+`pages: "2"`, and `max_chars: 2000`. Preserve its native result fields: the produced
+text, the continuation offset, produced and total character counts, content status,
+format, page counts, source truncation, and any OCR or classification evidence. If
+needed, mint a fresh URL and call again with the exact offset the converter returned,
+keeping `pages: "2"` and the extraction settings unchanged. `max_chars` is a per-call
+output budget and may change without recomputing the returned offset.
+
+A null (or absent) continuation offset exhausts only the text produced. A source-truncation
+flag reports known row-cap omissions; its absence does not guarantee source coverage.
+Inspect the content status and OCR evidence such as skipped pages/reasons or unread
+frames. Document-level classification is not proof that a selected range was fully read.
 
 ## Verification and limits
 

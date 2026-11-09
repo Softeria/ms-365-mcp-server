@@ -1058,8 +1058,8 @@ per-request.
 
 The signing key is optional. Without one, minted URLs are just `/attachment?t=<ticket>` and
 any HTTP client can fetch them; the ticket alone authorises redemption. Set a key only if
-the fetcher verifies the `dgk`/`dgx`/`dgs` signature (see below), such as a docglean-mcp
-sidecar, which will refuse an unsigned URL. Setting `_KEY_ID` without a key, or a `_KEY_FILE` that is
+the fetcher verifies the `dgk`/`dgx`/`dgs` signature (see below) and will refuse an
+unsigned URL. Setting `_KEY_ID` without a key, or a `_KEY_FILE` that is
 empty or unreadable, fails at startup.
 
 ### Splitting the attachment listener
@@ -1130,7 +1130,7 @@ services:
       --http 10.89.0.2:3000 --trust-proxy-auth
       --enable-attachment-urls
       --attachment-port 3001 --attachment-host 10.89.1.2
-  docglean:
+  converter:
     networks: [convert-net]
 ```
 
@@ -1165,15 +1165,13 @@ What authorises redemption _here_ is the ticket. Verifying the signature on the 
 would prove only that we minted the URL — which the ticket already proves — while coupling
 redemption to the sidecar's clock and to the key surviving a restart.
 
-The wire format is [docglean-mcp](https://github.com/msoukhomlinov/docglean-mcp)'s
-`signing.py` (`canonical_string`), and `src/lib/url-signing.ts` is a port of it. The
-canonical string is `\n`-joined: `v1`, lowercased scheme, lowercased host, the port always
-explicit, the path, the remaining query with `dgk`/`dgx`/`dgs` removed and the rest sorted
-and re-encoded, and the expiry. The test vectors in
-`test/attachment-url-signing.test.ts` were verified against the Python implementation byte
-for byte — three places where the obvious JavaScript disagrees with Python (`!*'()`
-escaping, `+` decoding as a space, and code-point vs UTF-16 sort order) are why that check
-exists rather than being assumed.
+The wire format is a `v1` canonical-string HMAC over the minted URL, implemented in
+`src/lib/url-signing.ts`. The canonical string is `\n`-joined: `v1`, lowercased scheme,
+lowercased host, the port always explicit, the path, the remaining query with `dgk`/`dgx`/`dgs`
+removed and the rest sorted and re-encoded, and the expiry. The test vectors in
+`test/attachment-url-signing.test.ts` pin the format byte for byte — including the three
+places where the obvious JavaScript encoding is wrong (`!*'()` escaping, `+` decoding as a
+space, and code-point vs UTF-16 sort order) — so the check exists rather than being assumed.
 
 The ticket travels in the **query, not the path**, because the verifying sidecar keeps a
 fetched URL's path in its error messages and strips the query.
