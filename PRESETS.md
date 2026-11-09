@@ -304,10 +304,10 @@ Tools (370):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-specific-calendar-events`
@@ -632,10 +632,10 @@ Tools (180):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-specific-calendar-events`
@@ -1149,10 +1149,10 @@ Tools (29):
 - `list-onenote-pages`
 - `list-onenote-section-groups`
 - `list-onenote-section-pages`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `update-onenote-page-content`
@@ -1183,10 +1183,10 @@ Tools (17):
 - `list-onenote-pages`
 - `list-onenote-section-groups`
 - `list-onenote-section-pages`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 
@@ -2230,10 +2230,10 @@ Tools (190):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-team-channels`
@@ -2447,10 +2447,10 @@ Tools (110):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-team-channels`
