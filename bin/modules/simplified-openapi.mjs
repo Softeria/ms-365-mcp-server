@@ -34,7 +34,8 @@ export function createAndSaveSimplifiedOpenAPI(
   //     synthesize the whole operation from endpoints.json.
   //  2. The method exists but the endpoint declares its own requestBodySchema
   //     (Microsoft published a deprecated/malformed/private-preview body our generator
-  //     can't consume): override ONLY the request body and keep Microsoft's published
+  //     can't consume, or a body far bigger than what the operation accepts, #757):
+  //     override ONLY the request body and keep Microsoft's published
   //     responses/parameters intact, so we don't silently drop upstream fields or mask
   //     a future upstream fix. requestBodySchema is explicit opt-in per endpoint.
   for (const endpoint of endpoints) {
