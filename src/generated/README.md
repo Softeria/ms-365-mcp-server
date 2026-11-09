@@ -44,13 +44,13 @@ improvements should now be much easier to implement and maintain.
 To regenerate the client code (e.g., after API changes or to update the supported endpoints):
 
 ```
-npm run bin/generate-graph-client.mjs
+node bin/generate-graph-client.mjs
 ```
 
 This command does the following:
 
 1. Fetches/processes the OpenAPI spec
 2. Generates the TypeScript client with Zod validation
-3. Outputs the result to `client.ts` in this directory
+3. Writes the v1.0 and beta clients to `client.ts` and `client-beta.ts`.
 
 No complex build scripts needed - the generation is handled by openapi-zod-client.
