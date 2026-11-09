@@ -40,7 +40,7 @@ describe('buildMcpServerInstructions', () => {
     expect(enabled).toContain('fresh URL for every fetch');
     expect(enabled).toContain('probes, conversion, continuation and retries');
     expect(enabled).toContain('same target, account and document selection');
-    expect(enabled).toContain('Drive-provider URLs may have different lifecycles');
+    expect(enabled).toContain('mail attachments, meeting recordings, drive files');
     expect(enabled).toContain('does not scrub arbitrary response bodies');
     expect(enabled).toContain('tool filtering');
     expect(enabled).not.toContain('Use download-bytes for authenticated byte reads');

@@ -36,7 +36,12 @@ import {
   isPlainGraphPath,
   TICKET_PARAM,
 } from './lib/attachment-tickets.js';
-import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
+import {
+  DriveNameConflictError,
+  MAX_UPLOAD_BYTES,
+  uploadAttachment,
+  uploadToDrive,
+} from './lib/attachment-upload.js';
 
 export interface AttachmentRouteDeps {
   store: AttachmentTicketStore;
@@ -329,6 +334,37 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
 
     res.setHeader('cache-control', 'no-store');
     res.setHeader('x-content-type-options', 'nosniff');
+
+    if (ticket.drive) {
+      try {
+        const item = await uploadToDrive(
+          graphClient,
+          {
+            target: ticket.target,
+            name: ticket.name,
+            size: declared,
+            conflictBehavior: ticket.drive.conflictBehavior,
+            accessToken,
+          },
+          req
+        );
+        res.status(201).json({ ok: true, name: ticket.name, size: declared, ...item });
+      } catch (error) {
+        logger.error(`Drive upload failed for ${ticket.target}: ${(error as Error).message}`);
+        if (res.headersSent) return;
+        if (error instanceof DriveNameConflictError) {
+          res
+            .status(409)
+            .type('text/plain')
+            .send(
+              'A file with that name already exists in the folder. Mint a new URL with conflictBehavior replace or rename.'
+            );
+          return;
+        }
+        res.status(502).type('text/plain').send('Upstream upload failed');
+      }
+      return;
+    }
 
     try {
       const created = await uploadAttachment(

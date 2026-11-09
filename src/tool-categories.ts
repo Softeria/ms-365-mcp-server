@@ -112,7 +112,7 @@ const ACCOUNT_TOOLS = [
 // read-mail-text reads mail, so it rides with the mail-backed presets.
 const SCOPED_UTILITY_TOOLS: Record<string, string[]> = {
   'get-download-url': ['files', 'onedrive', 'personal', 'work', 'search'],
-  'get-upload-url': ['mail', 'calendar', 'outlook', 'personal', 'work'],
+  'get-upload-url': ['mail', 'calendar', 'outlook', 'files', 'onedrive', 'personal', 'work'],
   'upload-attachment-from-file': ['mail', 'calendar', 'outlook', 'personal', 'work'],
   'parse-teams-url': ['teams', 'teams-write', 'work'],
   'read-mail-text': ['mail', 'outlook', 'personal', 'work'],
