@@ -14,9 +14,9 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   47<br>22 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
-| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   25<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
+| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   26<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
 | `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
-| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   23<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
+| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   24<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
 | `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                       |
 | `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
 | `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
@@ -905,7 +905,7 @@ Scopes (1):
 
 OneDrive file and folder operations
 
-Tools (25):
+Tools (26):
 
 - `copy-drive-item`
 - `create-drive-item-preview`
@@ -922,6 +922,7 @@ Tools (25):
 - `get-drive-item`
 - `get-drive-root-item`
 - `get-sensitivity-label`
+- `get-upload-url`
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`
@@ -1066,7 +1067,7 @@ Scopes (3):
 
 OneDrive app only: drive and file operations, excluding Excel
 
-Tools (23):
+Tools (24):
 
 - `copy-drive-item`
 - `create-drive-item-preview`
@@ -1082,6 +1083,7 @@ Tools (23):
 - `get-drive-delta`
 - `get-drive-item`
 - `get-drive-root-item`
+- `get-upload-url`
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`

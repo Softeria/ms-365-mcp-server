@@ -949,7 +949,10 @@ JSON overhead; this is character arithmetic, not a tokenizer-specific measuremen
 `--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
 URL of its own, `get-download-url` mints one this server serves. With it on,
 `get-download-url` is registered under every `--preset` (except the send-only `teams-write`),
-so a `--preset mail` agent that lists an attachment can mint a URL for it. A minted URL only
+so a `--preset mail` agent that lists an attachment can mint a URL for it. OneDrive and
+SharePoint files get a minted URL too, instead of Graph's own: that one is about 1,300
+characters, too long for an agent that has to type it into a command, such as `curl` in a
+sandbox that cannot see tool results. A minted URL only
 works if the preset's scopes cover the resource: a contacts, tasks or excel preset has no Mail
 scopes, so a URL minted for a mail attachment fails when fetched.
 
@@ -1017,7 +1020,16 @@ Content-Length: <file size>
 `/me/events/{id}/attachments` for an event); `name` and `contentType` are recorded on the
 attachment. Files under 3 MB are attached inline; larger ones, up to Graph's 150 MB, stream
 through an upload session in 3.75 MiB chunks, so the server never holds more than one chunk.
-`Content-Length` is required. The ticket is single-use and burnt on first presentation
+`Content-Length` is required.
+
+`target` can also be a OneDrive or SharePoint folder (`/me/drive/root`,
+`/me/drive/items/{folder-id}`, `/drives/{drive-id}/items/{folder-id}`,
+`/sites/{site-id}/drive/items/{folder-id}`); the file is then created there as `name`,
+always through a Graph upload session, with the same 150 MB cap. `conflictBehavior` decides
+what happens when the name is taken: `fail` (the default, answered with 409), `replace` or
+`rename`. `contentType` and `contentId` do not apply to drive files.
+
+The ticket is single-use and burnt on first presentation
 whatever the outcome, and the upload is attached as the identity that minted it, exactly as
 downloads are fetched. An upload ticket presented to `GET` (or a download ticket to `PUT`)
 is refused with the same 404 as any other bad ticket.

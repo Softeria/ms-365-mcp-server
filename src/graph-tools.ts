@@ -1346,6 +1346,16 @@ const contentIdSchema = z
 const UPLOAD_TARGET_ERROR =
   'target must be the attachments collection of a draft message or an event: /me/messages/{message-id}/attachments or /me/events/{event-id}/attachments (or /users/{user-id}/... for another mailbox).';
 
+// A OneDrive or SharePoint folder the uploaded file lands in: a drive's root or a folder
+// item, addressed by id. The server appends :/{name}:/createUploadSession itself.
+const DRIVE_UPLOAD_TARGET =
+  /^(?:\/drives\/[^/]+|\/(?:me|users\/[^/]+|groups\/[^/]+|sites\/[^/]+)\/drive|\/(?:groups|sites)\/[^/]+\/drives\/[^/]+)\/(?:root|items\/[^/]+)$/;
+const UPLOAD_ANY_TARGET_ERROR = `${UPLOAD_TARGET_ERROR} Or a OneDrive/SharePoint folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id} or /sites/{site-id}/drive/items/{folder-id}.`;
+// Characters OneDrive and SharePoint refuse in a file name; "/" and "\" would also turn
+// the name into a path.
+const DRIVE_NAME_FORBIDDEN = /["*:<>?/\\|]/;
+const DRIVE_CONFLICT_BEHAVIORS = ['fail', 'replace', 'rename'] as const;
+
 function uploadError(message: string): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
 }
@@ -1358,6 +1368,16 @@ function cleanAttachmentName(name: string): string {
     })
     .join('')
     .slice(0, 255);
+}
+
+/** False for a string with a lone surrogate, which encodeURIComponent cannot encode. */
+function isEncodable(value: string): boolean {
+  try {
+    encodeURIComponent(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** An empty or non-string contentId means a regular attachment. */
@@ -1377,10 +1397,17 @@ async function mintUploadUrl(
   contentType: string,
   accountParam: string | undefined,
   authManager: AuthManager | undefined,
-  contentId?: string
+  contentId?: string,
+  conflictBehavior?: unknown
 ): Promise<CallToolResult> {
   const minting = getAttachmentMinting();
+  const isDrive = DRIVE_UPLOAD_TARGET.test(target);
   if (!minting) {
+    if (isDrive) {
+      return uploadError(
+        'This server is not running with --enable-attachment-urls, so no upload URL can be minted. Upload small files with upload-file-content, or get a Graph upload URL with create-upload-session.'
+      );
+    }
     const smallFileTool = target.includes('/events/')
       ? 'add-calendar-event-attachment'
       : target.startsWith('/users/')
@@ -1390,8 +1417,8 @@ async function mintUploadUrl(
       `This server is not running with --enable-attachment-urls, so no upload URL can be minted. Attach small files with ${smallFileTool} (base64 contentBytes).`
     );
   }
-  if (!UPLOAD_TARGET.test(target) || !isPlainGraphPath(target)) {
-    return uploadError(UPLOAD_TARGET_ERROR);
+  if ((!UPLOAD_TARGET.test(target) && !isDrive) || !isPlainGraphPath(target)) {
+    return uploadError(UPLOAD_ANY_TARGET_ERROR);
   }
   const cleanName = cleanAttachmentName(name);
   if (!cleanName) return uploadError('name is required.');
@@ -1400,6 +1427,31 @@ async function mintUploadUrl(
   }
   if (contentId !== undefined && !UPLOAD_CONTENT_ID.test(contentId)) {
     return uploadError(UPLOAD_CONTENT_ID_ERROR);
+  }
+  let drive: { conflictBehavior: (typeof DRIVE_CONFLICT_BEHAVIORS)[number] } | undefined;
+  if (isDrive) {
+    if (contentId !== undefined) {
+      return uploadError('contentId applies only to mail and event attachments, not drive files.');
+    }
+    // Refuse rather than clean: a trimmed or shortened name would land on, and with
+    // replace overwrite, a file the caller did not name.
+    if (
+      cleanName !== name ||
+      DRIVE_NAME_FORBIDDEN.test(name) ||
+      name.endsWith('.') ||
+      !isEncodable(name)
+    ) {
+      return uploadError(
+        'name must be a plain file name: no " * : < > ? / \\ | characters, no leading or trailing spaces, not ending in "." and at most 255 characters, e.g. report.pdf.'
+      );
+    }
+    const behavior = conflictBehavior ?? 'fail';
+    if (!DRIVE_CONFLICT_BEHAVIORS.includes(behavior as never)) {
+      return uploadError('conflictBehavior must be fail, replace or rename.');
+    }
+    drive = { conflictBehavior: behavior as (typeof DRIVE_CONFLICT_BEHAVIORS)[number] };
+  } else if (conflictBehavior !== undefined) {
+    return uploadError('conflictBehavior applies only to OneDrive/SharePoint folder targets.');
   }
 
   const identityFromRequest = Boolean(authManager?.isOAuthModeEnabled() || getRequestTokens());
@@ -1418,7 +1470,12 @@ async function mintUploadUrl(
 
   let ticket: { id: string; expiresAtMs: number };
   try {
-    const upload = { name: cleanName, contentType, ...(contentId ? { contentId } : {}) };
+    const upload = {
+      name: cleanName,
+      contentType,
+      ...(contentId ? { contentId } : {}),
+      ...(drive ? { drive } : {}),
+    };
     ticket = requestToken
       ? minting.store.mintUploadWithToken(target, requestToken, upload)
       : minting.store.mintUpload(target, accountParam, upload);
@@ -1436,6 +1493,7 @@ async function mintUploadUrl(
           expiresAt: new Date(ticket.expiresAtMs).toISOString(),
           singleUse: true,
           maxBytes: MAX_UPLOAD_BYTES,
+          ...(drive && { conflictBehavior: drive.conflictBehavior }),
           note: 'PUT the raw file bytes with a Content-Length (e.g. curl -T <file> "<uploadUrl>"). Served by this server; valid for one upload until it expires.',
         }),
       },
@@ -1477,7 +1535,10 @@ async function mintDownloadUrl(
   accountParam: string | undefined,
   authManager: AuthManager | undefined,
   // Given only for mail and event attachments: the client the content type is probed with.
-  probeWith?: Pick<GraphClient, 'makeRequest'>
+  probeWith?: Pick<GraphClient, 'makeRequest'>,
+  // Given for drive items, whose metadata the caller already read: the name and type for
+  // the redemption route, and the fields to return next to the URL.
+  known?: { probe: DownloadProbe; fields: Record<string, unknown> }
 ): Promise<CallToolResult | null> {
   const minting = getAttachmentMinting();
   if (!minting) return null;
@@ -1550,13 +1611,16 @@ async function mintDownloadUrl(
 
   // After the plain-path check, so a target whose checked and fetched paths diverge is
   // refused before Graph is asked about it.
-  const probe = probeWith
-    ? await probeAttachment(
-        target,
-        probeWith,
-        requestToken ?? (await authManager?.getTokenForAccount(accountParam).catch(() => undefined))
-      )
-    : {};
+  const probe = known
+    ? known.probe
+    : probeWith
+      ? await probeAttachment(
+          target,
+          probeWith,
+          requestToken ??
+            (await authManager?.getTokenForAccount(accountParam).catch(() => undefined))
+        )
+      : {};
   let ticket: { id: string; expiresAtMs: number };
   try {
     ticket = requestToken
@@ -1578,6 +1642,7 @@ async function mintDownloadUrl(
         type: 'text',
         text: JSON.stringify({
           downloadUrl: buildAttachmentUrl(minting.config, ticket.id),
+          ...known?.fields,
           expiresAt: new Date(ticket.expiresAtMs).toISOString(),
           singleUse: true,
           note: 'Served by this server, not by Microsoft Graph. Valid for one fetch until it expires.',
@@ -1623,9 +1688,9 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     method: 'PUT',
     path: 'tool:get-upload-url',
     searchKeywords:
-      'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url',
+      'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url upload onedrive file upload sharepoint file',
     description:
-      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the attachment. Files under 3 MB are attached directly, larger ones (up to 150 MB) through a Graph upload session. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes }.',
+      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, or as a file in a OneDrive/SharePoint folder, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments; or a drive folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the upload. Up to 150 MB. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. For a drive folder, conflictBehavior says what happens when the name is taken (default fail; contentId does not apply). Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes, conflictBehavior? }.',
     readOnlyHint: false,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -1633,11 +1698,13 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         target: z
           .string()
           .describe(
-            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox.'
+            'Attachments collection of a draft message or an event, e.g. /me/messages/{message-id}/attachments, /me/events/{event-id}/attachments, or /users/{user-id}/messages/{message-id}/attachments for another mailbox. Or a OneDrive/SharePoint folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}.'
           ),
         name: z
           .string()
-          .describe('Attachment file name as the recipient will see it, e.g. report.pdf'),
+          .describe(
+            'File name as it will be stored, e.g. report.pdf: the attachment name, or the file name in the drive folder.'
+          ),
         contentType: z
           .string()
           .optional()
@@ -1645,6 +1712,12 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             'MIME type of the file, e.g. application/pdf. Defaults to application/octet-stream.'
           ),
         contentId: contentIdSchema,
+        conflictBehavior: z
+          .enum(DRIVE_CONFLICT_BEHAVIORS)
+          .optional()
+          .describe(
+            'Drive folder targets only: what happens when the folder already has a file with this name. fail (default), replace, or rename.'
+          ),
       };
       if (ctx.multiAccount) {
         schema['account'] = z
@@ -1675,7 +1748,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         contentType,
         params.account as string | undefined,
         authManager,
-        optionalContentId(params.contentId)
+        optionalContentId(params.contentId),
+        params.conflictBehavior === '' ? undefined : params.conflictBehavior
       );
     },
   },
@@ -2332,7 +2406,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'download file download drive file download onedrive file sharepoint file download large drive file large sharepoint file large file out-of-band download pre-authenticated url',
     description:
-      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes.',
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes. With --enable-attachment-urls, drive files get a short single-use URL from this server as well, instead of the long one from Graph.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -2570,6 +2644,43 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           }
         }
         const downloadUrl = item?.['@microsoft.graph.downloadUrl'] as string | undefined;
+        const file = item?.file as { mimeType?: string } | undefined;
+        // With server-minted URLs on, drive files get this server's short link too: Graph's
+        // own URL is ~1,300 characters, too long for an agent that has to type it (#750).
+        if (getAttachmentMinting() && item && !item.folder) {
+          const name = typeof item.name === 'string' ? item.name : undefined;
+          const mimeType = typeof file?.mimeType === 'string' ? file.mimeType : undefined;
+          // Name the item by id, not by the path the caller gave: a path-addressed target
+          // such as root:/Q1 Report.pdf: is not a plain Graph path, and the id names exactly
+          // the item whose metadata was just read.
+          const driveId = (item.parentReference as { driveId?: unknown } | undefined)?.driveId;
+          const byId =
+            typeof driveId === 'string' && typeof item.id === 'string'
+              ? `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(item.id)}/content`
+              : `${itemPath}/content`;
+          const minted = await mintDownloadUrl(byId, accountParam, authManager, undefined, {
+            probe: {
+              ...(name && { probedName: name }),
+              ...(mimeType && { probedContentType: mimeType }),
+            },
+            fields: { name, size: item.size, contentType: mimeType },
+          });
+          if (minted) return minted;
+        }
+        if (getAttachmentMinting() && item?.folder) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error:
+                    'target is a folder. get-download-url serves one file; list the folder and ask for each file.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
         if (!downloadUrl) {
           // The metadata path carries no downloadUrl, but the bytes are still
           // reachable at its /content sub-resource -- which is what a ticket
@@ -2590,7 +2701,6 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             _meta: response._meta,
           };
         }
-        const file = item?.file as { mimeType?: string } | undefined;
         return {
           content: [
             {
