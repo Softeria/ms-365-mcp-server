@@ -10,14 +10,14 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>180 | 63<br>37 | -<br>-               | All available tools                                                                                                               |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>180 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   47<br>22 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
 | `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   25<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
 | `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
 | `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   23<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   3<br>1 | -<br>-               | OneNote notebook operations                                                                                                       |
+| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                       |
 | `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
 | `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
 | `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     7<br>7 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
@@ -25,7 +25,7 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                             |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>110 | 56<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>110 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all` full
 
@@ -404,7 +404,7 @@ Tools (370):
 - `upload-file-content`
 - `upload-my-profile-photo`
 
-Scopes (63):
+Scopes (65):
 
 - `Calendars.Read.Shared`
 - `Calendars.ReadWrite`
@@ -439,7 +439,9 @@ Scopes (63):
 - `MailboxSettings.ReadWrite`
 - `Notes.Create`
 - `Notes.Read`
+- `Notes.Read.All`
 - `Notes.ReadWrite`
+- `Notes.ReadWrite.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -657,7 +659,7 @@ Tools (180):
 - `search-query`
 - `search-sharepoint-sites`
 
-Scopes (37):
+Scopes (38):
 
 - `Calendars.Read`
 - `Calendars.Read.Shared`
@@ -677,6 +679,7 @@ Scopes (37):
 - `Mail.Read.Shared`
 - `MailboxSettings.Read`
 - `Notes.Read`
+- `Notes.Read.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -1153,11 +1156,13 @@ Tools (29):
 - `update-onenote-page-content`
 - `update-sharepoint-site-onenote-page-content`
 
-Scopes (3):
+Scopes (5):
 
 - `Notes.Create`
 - `Notes.Read`
+- `Notes.Read.All`
 - `Notes.ReadWrite`
+- `Notes.ReadWrite.All`
 
 ## `onenote` read only
 
@@ -1183,9 +1188,10 @@ Tools (17):
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 
-Scopes (1):
+Scopes (2):
 
 - `Notes.Read`
+- `Notes.Read.All`
 
 ## `outlook` full
 
@@ -2278,7 +2284,7 @@ Tools (190):
 - `update-team-channel`
 - `upload-attachment-from-file`
 
-Scopes (56):
+Scopes (55):
 
 - `Calendars.Read`
 - `Calendars.Read.Shared`
@@ -2306,9 +2312,8 @@ Scopes (56):
 - `Mail.Read.Shared`
 - `Mail.ReadWrite.Shared`
 - `Mail.Send.Shared`
-- `Notes.Create`
-- `Notes.Read`
-- `Notes.ReadWrite`
+- `Notes.Read.All`
+- `Notes.ReadWrite.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -2472,7 +2477,7 @@ Scopes (33):
 - `GroupMember.Read.All`
 - `Mail.Read`
 - `Mail.Read.Shared`
-- `Notes.Read`
+- `Notes.Read.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`

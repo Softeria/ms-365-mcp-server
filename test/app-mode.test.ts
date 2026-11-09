@@ -518,7 +518,7 @@ describe('app-mode tool surface', () => {
 });
 
 describe('403 permission hint', () => {
-  async function scopeError(isAppMode: boolean): Promise<string> {
+  async function scopeError(isAppMode: boolean, orgMode = false): Promise<string> {
     const { default: GraphClient } = await import('../src/graph-client.js');
     const originalFetch = global.fetch;
     global.fetch = (async () =>
@@ -532,7 +532,8 @@ describe('403 permission hint', () => {
       const client = new GraphClient(
         { getToken: async () => 'tok', isAppMode: () => isAppMode } as never,
         { clientId: 'x', tenantId: 't', cloudType: 'global' } as never,
-        'json'
+        'json',
+        { orgMode }
       );
       return await client.makeRequest('/users/u/messages').then(
         () => '',
@@ -549,7 +550,13 @@ describe('403 permission hint', () => {
     expect(message).not.toMatch(/--org-mode/);
   });
 
-  it('keeps the --org-mode hint otherwise', async () => {
+  it('does not tell an org-mode server to restart with --org-mode', async () => {
+    const message = await scopeError(false, true);
+    expect(message).toMatch(/sign in again to consent/);
+    expect(message).not.toMatch(/--org-mode/);
+  });
+
+  it('keeps the --org-mode hint when org mode is off', async () => {
     expect(await scopeError(false)).toMatch(/--org-mode/);
   });
 });

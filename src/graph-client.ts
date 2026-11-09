@@ -326,15 +326,18 @@ class GraphClient {
   private authManager: AuthManager;
   private secrets: AppSecrets;
   private readonly outputFormat: 'json' | 'toon' = 'json';
+  private readonly orgMode: boolean;
 
   constructor(
     authManager: AuthManager,
     secrets: AppSecrets,
-    outputFormat: 'json' | 'toon' = 'json'
+    outputFormat: 'json' | 'toon' = 'json',
+    options: { orgMode?: boolean } = {}
   ) {
     this.authManager = authManager;
     this.secrets = secrets;
     this.outputFormat = outputFormat;
+    this.orgMode = Boolean(options.orgMode);
   }
 
   async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<unknown> {
@@ -586,6 +589,10 @@ class GraphClient {
     // --org-mode is already on in app mode: what is missing is a grant on the app itself
     if (this.authManager.isAppMode?.()) {
       return 'Grant one of these as an application permission to your app registration (with admin consent), or for mail and calendars through Exchange RBAC for Applications.';
+    }
+    // Already in org mode: restarting with --org-mode would change nothing (#781)
+    if (this.orgMode) {
+      return 'The access token does not carry a scope this request needs. Make sure the app registration has the permission and sign in again to consent to it.';
     }
     return 'This tool requires organization mode. Please restart with --org-mode flag.';
   }

@@ -1301,77 +1301,77 @@
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-notebooks",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sections",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-notebook-sections",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/sections/{onenoteSection-id}/pages",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-section-pages",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sectionGroups",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-notebook-section-groups",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/sectionGroups/{sectionGroup-id}/sections",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-section-group-sections",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/sectionGroups/{sectionGroup-id}/sectionGroups",
     "method": "get",
     "toolName": "list-sharepoint-site-onenote-section-group-section-groups",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/pages/{onenotePage-id}/content",
     "method": "get",
     "toolName": "get-sharepoint-site-onenote-page-content",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read"]
+    "workScopes": ["Notes.Read.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks",
     "method": "post",
     "toolName": "create-sharepoint-site-onenote-notebook",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Create"]
+    "workScopes": ["Notes.ReadWrite.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks/{notebook-id}/sections",
     "method": "post",
     "toolName": "create-sharepoint-site-onenote-section",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Create"]
+    "workScopes": ["Notes.ReadWrite.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/sectionGroups/{sectionGroup-id}/sections",
     "method": "post",
     "toolName": "create-sharepoint-site-onenote-section-group-section",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Create"]
+    "workScopes": ["Notes.ReadWrite.All"]
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/sections/{onenoteSection-id}/pages",
     "method": "post",
     "toolName": "create-sharepoint-site-onenote-section-page",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Create"],
+    "workScopes": ["Notes.ReadWrite.All"],
     "contentType": "text/html",
     "llmTip": "Body must be a full HTML document (with <html><head><title>...</title></head><body>...</body></html>). Partial HTML fails silently."
   },
@@ -1380,7 +1380,7 @@
     "method": "patch",
     "toolName": "update-sharepoint-site-onenote-page-content",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.ReadWrite"],
+    "workScopes": ["Notes.ReadWrite.All"],
     "requestBodySchema": {
       "type": "array",
       "description": "Array of patchContentCommand objects applied in order to the page's HTML.",
@@ -1415,7 +1415,7 @@
     "method": "delete",
     "toolName": "delete-sharepoint-site-onenote-page",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.ReadWrite"]
+    "workScopes": ["Notes.ReadWrite.All"]
   },
   {
     "pathPattern": "/me/onenote/pages",
