@@ -1392,6 +1392,9 @@ If you're having problems or need help:
 - Email: eirikb@eirikb.no
 - Discord: https://discord.gg/WvGVNScrAZ or @eirikb
 
+Want to talk about rolling it out in your organization? Connect with me on
+[LinkedIn](https://www.linkedin.com/in/eirik-brandtz%C3%A6g-22253a286/).
+
 ## License
 
 MIT © 2026 Softeria
