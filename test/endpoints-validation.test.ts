@@ -10,7 +10,7 @@ if (!globalThis.File) (globalThis as any).File = Blob;
 
 const { api, schemas } = await import('../src/generated/client.js');
 const { api: betaApi } = await import('../src/generated/client-beta.js');
-const { generatedPathFor } = await import('../src/graph-tools.js');
+const { generatedPathFor, UTILITY_TOOLS } = await import('../src/graph-tools.js');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +122,22 @@ describe('endpoints.json validation', () => {
       expect.fail(
         `${duplicates.length} duplicate toolName(s) in endpoints.json. ` +
           `Each tool must be defined exactly once.\n${details}`
+      );
+    }
+  });
+
+  it('should keep tool names short enough for clients that add the server name (#801)', () => {
+    // Bedrock refuses tool names over 64 characters, and LibreChat sends each tool as
+    // <tool>_mcp_<server>. 52 leaves room for that with a server name of up to 7
+    // characters, such as the README's ms365.
+    const maxLength = 52;
+    const names = [...endpoints.map((e) => e.toolName), ...UTILITY_TOOLS.map((t) => t.name)];
+    const tooLong = names.filter((name) => name.length > maxLength);
+
+    if (tooLong.length > 0) {
+      expect.fail(
+        `${tooLong.length} tool name(s) over ${maxLength} characters:\n` +
+          tooLong.map((name) => `  ${name} (${name.length})`).join('\n')
       );
     }
   });

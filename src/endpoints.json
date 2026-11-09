@@ -1334,7 +1334,7 @@
   {
     "pathPattern": "/sites/{site-id}/onenote/sectionGroups/{sectionGroup-id}/sectionGroups",
     "method": "get",
-    "toolName": "list-sharepoint-site-onenote-section-group-section-groups",
+    "toolName": "list-sharepoint-site-onenote-child-section-groups",
     "presets": ["onenote", "work"],
     "workScopes": ["Notes.Read.All"]
   },
