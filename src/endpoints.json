@@ -2982,7 +2982,60 @@
     "presets": ["teams", "work"],
     "workScopes": ["Chat.Create", "Chat.ReadWrite"],
     "appScopes": ["Chat.Create"],
-    "llmTip": "Creates a new 1:1 or group Teams chat. Body: { chatType ('oneOnOne' or 'group'), topic (optional, group only), members: [{ '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner' | 'guest'], 'user@odata.bind': 'https://graph.microsoft.com/v1.0/users({id})' }] }. A oneOnOne chat requires exactly 2 members (self + other), both with role 'owner'. For group chats, include all participants. The signed-in user must be one of the members. Returns the created chat with its id — use that id with send-chat-message, list-chat-members, etc."
+    "requestBodySchema": {
+      "type": "object",
+      "required": ["chatType", "members"],
+      "properties": {
+        "chatType": {
+          "type": "string",
+          "enum": ["oneOnOne", "group"]
+        },
+        "topic": {
+          "type": "string",
+          "description": "Chat title. Group chats only."
+        },
+        "members": {
+          "type": "array",
+          "description": "Everyone in the chat, including the signed-in user. Each member also needs '@odata.type': '#microsoft.graph.aadUserConversationMember'.",
+          "items": {
+            "type": "object",
+            "required": ["roles", "user@odata.bind"],
+            "properties": {
+              "roles": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["owner", "guest"] }
+              },
+              "user@odata.bind": {
+                "type": "string",
+                "description": "e.g. https://graph.microsoft.com/v1.0/users('{user-id or userPrincipalName}')"
+              },
+              "tenantId": {
+                "type": "string",
+                "description": "Home tenant of a federated user from another organization. Such users keep the 'owner' role."
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "installedApps": {
+          "type": "array",
+          "description": "Teams apps to install in the new chat.",
+          "items": {
+            "type": "object",
+            "required": ["teamsApp@odata.bind"],
+            "properties": {
+              "teamsApp@odata.bind": {
+                "type": "string",
+                "description": "e.g. https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/{teams-app-id}"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "llmTip": "A oneOnOne chat takes exactly 2 members. The signed-in user must be a member. In-tenant guests take the 'guest' role. Use the returned id with send-chat-message."
   },
   {
     "pathPattern": "/subscriptions",
