@@ -79,6 +79,7 @@ describe('per-tool behavior on the real tool surface', () => {
     'get-drive-delta',
     'get-sharepoint-sites-delta',
     'list-sharepoint-site-list-items-delta',
+    'list-todo-task-lists-delta',
   ];
 
   it('offers the delta token param on exactly the delta tools that page with token=', () => {
@@ -109,6 +110,14 @@ describe('per-tool behavior on the real tool surface', () => {
     });
     const [path] = vi.mocked(graphClient.graphRequest).mock.calls[0];
     expect(path).toContain('/sites/s1/lists/l1/items/delta()?token=tok1');
+  });
+
+  it('resumes list-todo-task-lists-delta from a Graph deltaLink with $deltatoken', async () => {
+    await registered('list-todo-task-lists-delta').handler({
+      token: 'https://graph.microsoft.com/v1.0/me/todo/lists/delta?$deltatoken=todo-state-1',
+    });
+    const [path] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(path).toContain('/me/todo/lists/delta()?$deltatoken=todo-state-1');
   });
 
   it.each([
