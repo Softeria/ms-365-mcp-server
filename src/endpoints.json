@@ -863,7 +863,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
+    "llmTip": "Lists the effective sharing permissions Graph exposes to this caller, including direct and inherited grants. The item owner receives all permissions; a non-owner only receives permissions that apply to them, so this may not be a complete access inventory. Check inheritedFrom to identify inherited entries. Prefer grantedToV2 over deprecated grantedTo. Secret fields such as shareId and link.webUrl may be omitted unless the caller can create that sharing permission."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions/{permission-id}",
