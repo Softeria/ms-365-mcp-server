@@ -2889,10 +2889,11 @@
     "pathPattern": "/me/events/delta()",
     "method": "get",
     "toolName": "list-calendar-events-delta",
+    "apiVersion": "beta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "queryParams": ["startDateTime", "skiptoken"],
-    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+    "llmTip": "Incremental sync of events across the default calendar. This is a Microsoft Graph beta API and may change. On the first call, optionally set startDateTime to include only events starting on or after that time; do not set endDateTime. Follow @odata.nextLink until the response includes @odata.deltaLink, then use the returned link for later changes. The response is optimized and may include a limited property set; use get-calendar-event to fetch full details. For a time-bounded view with expanded recurring instances, use list-calendar-view-delta instead."
   },
   {
     "pathPattern": "/me/calendarView/delta()",
