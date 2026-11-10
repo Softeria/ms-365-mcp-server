@@ -29,6 +29,31 @@ describe('buildMcpServerInstructions', () => {
     expect(s).not.toContain('account parameter');
   });
 
+  it.each([false, true])('prefers URL handoffs only when enabled (discovery=%s)', (discovery) => {
+    const enabled = buildMcpServerInstructions({
+      ...baseCtx,
+      discovery,
+      attachmentUrlsEnabled: true,
+    });
+    expect(enabled).toContain('for document reading and downloads, prefer get-download-url');
+    expect(enabled).toContain('only when the caller explicitly needs bytes');
+    expect(enabled).toContain('fresh URL for every fetch');
+    expect(enabled).toContain('probes, conversion, continuation and retries');
+    expect(enabled).toContain('same target, account and document selection');
+    expect(enabled).toContain('mail attachments, meeting recordings, drive files');
+    expect(enabled).toContain('does not scrub arbitrary response bodies');
+    expect(enabled).toContain('tool filtering');
+    expect(enabled).not.toContain('Use download-bytes for authenticated byte reads');
+
+    const disabled = buildMcpServerInstructions({
+      ...baseCtx,
+      discovery,
+      attachmentUrlsEnabled: false,
+    });
+    expect(disabled).not.toContain('Attachment URLs are enabled');
+    expect(disabled).toContain('Use download-bytes for authenticated byte reads');
+  });
+
   it('routes drive file downloads to get-download-url and authenticated byte reads to download-bytes', () => {
     const s = buildMcpServerInstructions({ ...baseCtx, discovery: false });
     expect(s).toContain('large drive/SharePoint file content');

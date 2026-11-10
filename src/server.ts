@@ -51,6 +51,25 @@ import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './li
 import { requestContext } from './request-context.js';
 import { getSecrets, type AppSecrets } from './secrets.js';
 
+/**
+ * Ceiling on array elements plus object keys in one tool call's arguments,
+ * checked by the SDK before Zod validates them. Validation work grows with
+ * the element count, so this bounds it per call
+ * (GHSA-46jr-4wx8-v453). The SDK leaves it off by default. The largest
+ * legitimate inputs are Excel range writes: a 2D `values` array costs
+ * rows × (cols + 1), so 100×100 `values` plus `numberFormat` is about
+ * 20 200. 50 000 keeps two of those in one `graph-batch`; a batch of 20
+ * writes fits when each stays near 2 400 cells. File uploads travel as one
+ * string.
+ */
+export const MAX_TOOL_INPUT_ELEMENTS = 50_000;
+
+/**
+ * Largest MCP request body, for express.json() and the SDK transport alike
+ * (GHSA-46jr-4wx8-v453). 100 KiB is express.json()'s default.
+ */
+const MAX_REQUEST_BODY_BYTES = 100 * 1024;
+
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 
 export function isLoopbackHost(host: string | undefined): boolean {
@@ -268,6 +287,31 @@ type PkceEntry = {
   serverCodeVerifier: string;
   createdAt: number;
 };
+
+// Stateless two-leg PKCE (MS365_MCP_PKCE_SECRET), based on #672 by cbjerg.
+// pkceStore ties /authorize and /token to one process, so a second replica or a
+// restart between the two legs has no mapping and Entra answers AADSTS501481.
+// With the secret, the server verifier is HMAC(secret, client challenge): any
+// instance holding the secret recomputes it at /token, and nothing is stored.
+// Seeing the challenge in the redirect is not enough to get the verifier.
+export const PKCE_SECRET_MIN_LENGTH = 32;
+
+export function deriveServerCodeVerifier(secret: string, clientCodeChallenge: string): string {
+  return crypto.createHmac('sha256', secret).update(clientCodeChallenge).digest('base64url');
+}
+
+export function statelessPkceSecret(env: typeof process.env = process.env): string | undefined {
+  const secret = env.MS365_MCP_PKCE_SECRET;
+  if (secret === undefined || secret === '') return undefined;
+  if (secret.length < PKCE_SECRET_MIN_LENGTH) {
+    throw new Error(
+      `MS365_MCP_PKCE_SECRET must be at least ${PKCE_SECRET_MIN_LENGTH} characters; ` +
+        'a short secret makes the derived PKCE verifier guessable.'
+    );
+  }
+  return secret;
+}
+
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -292,6 +336,8 @@ class MicrosoftGraphServer {
 
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
   private pkceStore: Map<string, PkceEntry> = new Map();
+  // Set in start() for HTTP mode; replaces pkceStore when present.
+  private pkceSecret: string | undefined;
   private reportedUnavailableEagerTools = new Set<string>();
 
   private reportUnavailableEagerTool = (name: string): void => {
@@ -335,15 +381,26 @@ class MicrosoftGraphServer {
           discovery: Boolean(this.options.discovery),
           eagerTools: this.options.eagerTools,
           orgMode: Boolean(this.options.orgMode),
+          appMode: Boolean(this.options.appMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
+          attachmentUrlsEnabled: Boolean(this.options.http && this.options.enableAttachmentUrls),
         }),
+        maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       }
     );
 
-    const shouldRegisterAuthTools = !this.options.http || this.options.enableAuthTools;
+    // App mode has no accounts to log in to, list or switch between
+    const shouldRegisterAuthTools =
+      !this.options.appMode && (!this.options.http || this.options.enableAuthTools);
     if (shouldRegisterAuthTools) {
-      registerAuthTools(server, this.authManager);
+      registerAuthTools(server, this.authManager, {
+        enabledTools: this.options.enabledTools,
+        // With MS365_MCP_OAUTH_TOKEN the token comes from outside, so there is
+        // nothing to log in to or switch between. verify-login still checks the
+        // token, and list-accounts says cached accounts can't be used (#512).
+        readOnly: this.options.readOnly || Boolean(process.env.MS365_MCP_OAUTH_TOKEN),
+      });
     }
 
     const registrationOptions = {
@@ -352,6 +409,7 @@ class MicrosoftGraphServer {
       onUnavailableEagerTool: this.reportUnavailableEagerTool,
       enabledTools: this.options.enabledTools,
       orgMode: this.options.orgMode,
+      appMode: this.options.appMode,
       authManager: this.authManager,
       multiAccount: this.multiAccount,
       accountNames: this.accountNames,
@@ -388,7 +446,8 @@ class MicrosoftGraphServer {
   }
 
   async initialize(version: string): Promise<void> {
-    this.secrets = await getSecrets();
+    // A managed identity must not fall back to Key Vault or the built-in client id here
+    this.secrets = this.authManager.getAppSecrets?.() ?? (await getSecrets());
     this.version = version;
 
     // Detect multi-account mode and cache account names for schema enum.
@@ -460,7 +519,9 @@ class MicrosoftGraphServer {
     }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat, {
+      orgMode: Boolean(this.options.orgMode),
+    });
 
     if (!this.options.http) {
       this.server = this.createMcpServer();
@@ -547,6 +608,11 @@ class MicrosoftGraphServer {
     if (this.options.http) {
       const { host, port } = parseHttpOption(this.options.http);
 
+      this.pkceSecret = statelessPkceSecret();
+      if (this.pkceSecret) {
+        logger.info('Two-leg PKCE is stateless (MS365_MCP_PKCE_SECRET set)');
+      }
+
       const app = express();
 
       if (this.isLoopbackOnlyHttp()) {
@@ -579,7 +645,7 @@ class MicrosoftGraphServer {
         })
       );
 
-      app.use(express.json());
+      app.use(express.json({ limit: MAX_REQUEST_BODY_BYTES }));
       app.use(express.urlencoded({ extended: true }));
 
       // Add CORS headers for all routes
@@ -799,7 +865,7 @@ class MicrosoftGraphServer {
         // same challenge. /token sees the code but never the state, so it cannot
         // tell two flows sharing a verifier apart; keeping only the newest is a
         // bet, and it loses if two are genuinely in flight and the user finishes
-        // the older one. The stateless path below needs this too, since it sends
+        // the older one. The no-state forwarding path below needs this too, since it sends
         // the client's own challenge upstream and a leftover mapping would answer
         // that with our server verifier.
         if (clientCodeChallenge) {
@@ -816,7 +882,26 @@ class MicrosoftGraphServer {
 
         // Two-leg PKCE: if the client sent a code_challenge, store it and generate
         // a separate PKCE pair for the server↔Microsoft leg
-        if (clientCodeChallenge && state) {
+        if (clientCodeChallenge && this.pkceSecret) {
+          // /token can only recompute from sha256(verifier), so plain (also the
+          // default when the method is missing) can never match. Discovery only
+          // advertises S256.
+          if (clientCodeChallengeMethod !== 'S256') {
+            res.status(400).json({
+              error: 'invalid_request',
+              error_description: 'code_challenge_method must be S256',
+            });
+            return;
+          }
+          const serverCodeVerifier = deriveServerCodeVerifier(this.pkceSecret, clientCodeChallenge);
+          const serverCodeChallenge = crypto
+            .createHash('sha256')
+            .update(serverCodeVerifier)
+            .digest('base64url');
+          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+          logger.info('Two-leg PKCE (stateless): derived server challenge');
+        } else if (clientCodeChallenge && state) {
           const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
           const serverCodeChallenge = crypto
             .createHash('sha256')
@@ -963,8 +1048,16 @@ class MicrosoftGraphServer {
             // code_verifier against all stored challenges and use the server's verifier
             let matchedPkceState: string | undefined;
             let matchedPkceEntry: PkceEntry | undefined;
+            let derivedServerVerifier: string | undefined;
 
-            if (body.code_verifier) {
+            if (body.code_verifier && this.pkceSecret) {
+              const clientChallenge = crypto
+                .createHash('sha256')
+                .update(body.code_verifier as string)
+                .digest('base64url');
+              derivedServerVerifier = deriveServerCodeVerifier(this.pkceSecret, clientChallenge);
+              logger.info('Two-leg PKCE (stateless): derived server verifier');
+            } else if (body.code_verifier) {
               // Look through pkceStore for a matching client code_challenge
               const clientVerifier = body.code_verifier as string;
               const clientChallengeComputed = crypto
@@ -996,7 +1089,9 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
+              derivedServerVerifier ||
+                matchedPkceEntry?.serverCodeVerifier ||
+                (body.code_verifier as string | undefined),
               this.secrets!.cloudType,
               this.oboRedemptionScope()
             );
@@ -1098,6 +1193,7 @@ class MicrosoftGraphServer {
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
               enableJsonResponse: true, // Reply to POSTs with plain JSON, not one-shot SSE
+              maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
             });
 
             res.on('close', () => {

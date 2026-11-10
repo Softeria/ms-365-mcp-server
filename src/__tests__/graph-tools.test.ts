@@ -356,7 +356,7 @@ describe('graph-tools', () => {
         method: 'post',
         path: '/$batch',
         alias: 'graph-batch',
-        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
       });
       const config = makeConfig({
         pathPattern: '/$batch',
@@ -566,9 +566,9 @@ describe('graph-tools', () => {
 
         const [payload] = auditLogMock.mock.calls[0];
         expect(payload.result_count).toBe(2);
-        // Truncated at the cap: the merged body drops @odata.nextLink, so the
-        // audit event is the only place Graph-has-more survives.
-        expect(JSON.parse(result.content[0].text)['@odata.nextLink']).toBeUndefined();
+        expect(JSON.parse(result.content[0].text)['@odata.nextLink']).toBe(
+          'https://graph.microsoft.com/v1.0/me/messages?$skip=2'
+        );
         expect(payload.result_has_more).toBe(true);
         expect(payload.response_bytes).toBe(100);
       } finally {
@@ -691,7 +691,7 @@ describe('graph-tools', () => {
         method: 'post',
         path: '/me/messages',
         alias: 'create-draft-email',
-        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+        parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
       });
       const config = makeConfig({
         pathPattern: '/me/messages',
@@ -838,7 +838,7 @@ describe('graph-tools', () => {
             {
               name: 'body',
               type: 'Body',
-              schema: z.object({ message: z.object({}).passthrough() }),
+              schema: z.object({ message: z.object({}).loose() }),
             },
           ],
         })
@@ -1688,6 +1688,171 @@ describe('graph-tools', () => {
       expect(path).toContain('$filter=');
       expect(path).toContain('$top=5');
       expect(path).toContain('$skiptoken=tok');
+    });
+
+    it('points a deltaToken tool at token when skiptoken gets a token= link', async () => {
+      mockEndpoints.push(makeEndpoint({ alias: 'drive-delta', path: '/me/drive/delta()' }));
+      mockEndpointsJson = [
+        makeConfig({ toolName: 'drive-delta', pathPattern: '/me/drive/delta()', deltaToken: true }),
+      ];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+
+      const result = await server.tools.get('drive-delta')!.handler({
+        skiptoken: 'https://graph.microsoft.com/v1.0/me/drive/delta?token=abc',
+      });
+
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.error).toBe('invalid_skiptoken');
+      expect(payload.message).toContain('pass that link as token');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---- 2a2. token= delta paging ----
+  describe('delta token', () => {
+    const deltaEndpoint = () =>
+      makeEndpoint({
+        alias: 'items-delta',
+        path: '/sites/:siteId/lists/:listId/items/delta()',
+        parameters: [
+          { name: 'select', type: 'Query', schema: z.string().optional() },
+          { name: 'expand', type: 'Query', schema: z.string().optional() },
+          { name: 'top', type: 'Query', schema: z.number().optional() },
+        ],
+      });
+
+    const register = async (deltaToken: boolean | undefined) => {
+      mockEndpoints.push(deltaEndpoint());
+      mockEndpointsJson = [
+        makeConfig({
+          toolName: 'items-delta',
+          pathPattern: '/sites/{site-id}/lists/{list-id}/items/delta()',
+          queryParams: ['select', 'expand', 'top'],
+          ...(deltaToken === undefined ? {} : { deltaToken }),
+        }),
+      ];
+      const graphClient = createMockGraphClient();
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, graphClient as any);
+      return { server, graphClient };
+    };
+
+    const callForResult = async (args: Record<string, unknown>) => {
+      const { server, graphClient } = await register(true);
+      const result = await server.tools.get('items-delta')!.handler({
+        siteId: 's1',
+        listId: 'l1',
+        ...args,
+      });
+      return { result, graphClient };
+    };
+
+    /** The request path the tool sent to Graph. */
+    const callWith = async (args: Record<string, unknown>) => {
+      const { result, graphClient } = await callForResult(args);
+      expect(result.isError).not.toBe(true);
+      return graphClient.graphRequest.mock.calls[0][0] as string;
+    };
+
+    it('advertises token on a deltaToken tool', async () => {
+      const { server } = await register(true);
+      expect(server.tools.get('items-delta')!.schema.token).toBeDefined();
+    });
+
+    it.each([undefined, false])('omits token when deltaToken is %s', async (flag) => {
+      const { server } = await register(flag);
+      expect(server.tools.get('items-delta')!.schema.token).toBeUndefined();
+    });
+
+    it('shows token in discovery mode only on a deltaToken tool', async () => {
+      const { describeToolSchema } = await import('../lib/tool-schema.js');
+      const names = (deltaToken?: boolean) =>
+        describeToolSchema(deltaEndpoint() as any, {
+          queryParams: ['select', 'expand', 'top'],
+          deltaToken,
+        }).parameters.map((p) => p.name);
+      expect(names(true)).toContain('token');
+      expect(names()).not.toContain('token');
+    });
+
+    it('sends a bare token as token=', async () => {
+      const path = await callWith({ token: 'abc123' });
+      expect(path).toBe('/sites/s1/lists/l1/items/delta()?token=abc123');
+    });
+
+    it('sends latest as token=latest', async () => {
+      const path = await callWith({ token: 'latest' });
+      expect(path).toContain('?token=latest');
+    });
+
+    it('reads the token out of a whole @odata.deltaLink', async () => {
+      const path = await callWith({
+        token:
+          'https://graph.microsoft.com/v1.0/sites/s1/lists/l1/items/delta?token=MzslMjM0OyUyMzE7Mw',
+      });
+      expect(path).toBe('/sites/s1/lists/l1/items/delta()?token=MzslMjM0OyUyMzE7Mw');
+    });
+
+    it('reads the token out of a @odata.nextLink with params after it', async () => {
+      const path = await callWith({
+        token: 'https://graph.microsoft.com/v1.0/sites/s1/lists/l1/items/delta?token=tok1&$top=5',
+        top: 5,
+      });
+      expect(path).toContain('token=tok1');
+      expect(path).not.toContain('tok1%26');
+      expect(path).not.toContain('graph.microsoft.com');
+    });
+
+    it.each([
+      ['token=tok1', 'tok1'],
+      ["https://graph.microsoft.com/v1.0/me/drive/root/delta(token='tok1')", 'tok1'],
+      ["https://graph.microsoft.com/v1.0/me/drive/root/delta?(token='tok1')", 'tok1'],
+      ['https://graph.microsoft.com/v1.0/me/drive/delta(token=tok1)', 'tok1'],
+    ])('reads the token out of %s', async (value, expected) => {
+      const path = await callWith({ token: value });
+      expect(path).toContain(`?token=${expected}`);
+      expect(path).not.toContain("'");
+    });
+
+    it('percent-decodes a token copied out of a link once, so it is not encoded twice', async () => {
+      const path = await callWith({
+        token: 'https://graph.microsoft.com/v1.0/sites/delta?token=a%2Bb%3D%3D',
+      });
+      expect(path).toContain('token=a%2Bb%3D%3D');
+      expect(path).not.toContain('%25');
+    });
+
+    it('does not read a $deltatoken or $skiptoken as token=', async () => {
+      const path = await callWith({
+        token: 'https://graph.microsoft.com/v1.0/sites/delta?$deltatoken=dt1',
+      });
+      expect(path).toContain('$deltatoken=dt1');
+      expect(path).not.toContain('?token=');
+    });
+
+    it.each(['', '   '])('sends no token when blank (%j)', async (blank) => {
+      const path = await callWith({ token: blank });
+      expect(path).not.toContain('token');
+    });
+
+    it.each([
+      'https://graph.microsoft.com/v1.0/sites/s1/lists/l1/items/delta?$top=5',
+      'https://graph.microsoft.com/v1.0/sites/s1/lists/l1/items/delta?token=&$top=5',
+    ])('refuses a link with no token to resume from: %s', async (link) => {
+      const { result, graphClient } = await callForResult({ token: link });
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text).error).toBe('invalid_delta_token');
+      expect(graphClient.graphRequest).not.toHaveBeenCalled();
+    });
+
+    it('drops token on a tool without deltaToken', async () => {
+      const { server, graphClient } = await register(undefined);
+      await server.tools.get('items-delta')!.handler({ siteId: 's1', listId: 'l1', token: 'x' });
+      expect(graphClient.graphRequest.mock.calls[0][0]).not.toContain('token');
     });
   });
 
@@ -5223,7 +5388,7 @@ describe('graph-tools', () => {
           alias,
           method,
           path: '/chats/{chat-id}/messages',
-          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).passthrough() }],
+          parameters: [{ name: 'body', type: 'Body', schema: z.object({}).loose() }],
         })
       );
       mockEndpointsJson = [

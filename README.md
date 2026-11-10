@@ -34,6 +34,8 @@ To route Graph traffic through a proxy of your own (one that terminates the clie
 - Tool filtering for granular access control
 - [Tool presets](#tool-presets) and [dynamic discovery](#dynamic-tool-discovery) to shrink the tool surface and token usage
 
+For external document readers, see the [provider-neutral document processing guide](docs/document-processing.md), including continuation and coverage handling.
+
 ## Output Format: JSON vs TOON
 
 The server supports two output formats that can be configured globally:
@@ -553,7 +555,8 @@ With these configured, the server will use your custom Azure app instead of the 
 > **Note**: `.env` is read from the directory the server is started in, and the MCP client decides what
 > that is. Only `MS365_MCP_CLIENT_ID`, `MS365_MCP_CLIENT_SECRET`, `MS365_MCP_TENANT_ID` and
 > `MS365_MCP_CLOUD_TYPE` are read from it. Every other variable listed above must be set in your shell
-> or MCP client config; anything else found in a `.env` is ignored with a warning on stderr.
+> or MCP client config - `READ_ONLY`, `ENABLED_TOOLS` and `ENABLED_TOOLS_FILE` included, so a `.env`
+> cannot restrict the tools either. Any of them found in a `.env` is ignored with a warning on stderr.
 
 #### 3. Bring Your Own Token (BYOT)
 
@@ -569,6 +572,61 @@ This method:
 - Bypasses the interactive authentication flows
 - Use your pre-existing OAuth token for Microsoft Graph API requests
 - Does not handle token refresh (token lifecycle management is your responsibility)
+
+#### 4. App Mode (application permissions, no signed-in user)
+
+> **Warning**: application permissions apply to the whole tenant. `Mail.Read` granted to the app reads every
+> mailbox, `Files.ReadWrite.All` writes every OneDrive and site, and whoever can call this server acts with
+> them. Grant the fewest permissions you can. To limit which mailboxes and calendars it reaches, grant the
+> mail and calendar permissions with
+> [RBAC for Applications in Exchange Online](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac)
+> **instead of** in Microsoft Entra: the two add up, so an Entra `Mail.Read` grant left in place still reaches
+> every mailbox. SharePoint sites can be narrowed with `Sites.Selected`.
+
+For unattended agents that act as the app registration itself (client credentials):
+
+```bash
+MS365_MCP_CLIENT_ID=<your app id> \
+MS365_MCP_TENANT_ID=<your tenant id or domain> \
+MS365_MCP_CLIENT_SECRET=<secret> \
+npx @softeria/ms-365-mcp-server --app-mode --read-only
+```
+
+- Use your own app registration with **application** permissions and admin consent, and set exactly one
+  credential:
+  - `MS365_MCP_CLIENT_SECRET`
+  - `MS365_MCP_CLIENT_CERTIFICATE_PATH`: a PEM file with the certificate and its unencrypted private key
+  - `MS365_MCP_FEDERATED_TOKEN_FILE`: a token from an identity provider the app trusts through
+    [workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation),
+    read again on every token request. On AKS set it to `$AZURE_FEDERATED_TOKEN_FILE`, which Kubernetes
+    keeps fresh. A GitHub Actions OIDC token is valid for 5 minutes, so writing it to a file once only
+    covers the first Graph token (about an hour) unless something rewrites the file. If Entra answers
+    `AADSTS700213`, set the federated credential's subject to the one quoted in the error (GitHub's
+    subject can include the owner and repo ids).
+
+  `MS365_MCP_TENANT_ID` must be a real tenant, not `common`.
+
+- On an Azure host (App Service, Container Apps, VM, ...) set `MS365_MCP_MANAGED_IDENTITY=system`, or the
+  client id of a user-assigned identity, instead. No app registration, tenant id or secret is needed, and
+  Key Vault (`MS365_MCP_KEYVAULT_URL`) is not read. Graph
+  application permissions for a managed identity can't be granted in the portal;
+  [assign them with PowerShell or the Graph API](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-assign-app-role-managed-identity).
+  On Azure Container Instances, give the container one kind of identity: with both a system- and a
+  user-assigned identity, the system-assigned token request fails there.
+- Tokens are renewed automatically. Nothing is cached on disk.
+- Only tools that work with application permissions are offered: the `/users/{user-id}` mail and calendar
+  tools (pass a UPN or object id as `user-id`), users and groups, OneDrive/SharePoint drives and lists, Planner,
+  Teams reads, presence, places and subscriptions. `/me` tools, Excel, OneNote and sending Teams chat or channel
+  messages are not available, because Graph does not support them with application permissions.
+- `--list-permissions --app-mode` lists the application permissions the offered tools use. `--allowed-scopes`,
+  `--enabled-tools`, `--preset` and `--read-only` narrow the surface as usual.
+- `--verify-login --app-mode` gets a token and shows the app id, tenant and granted roles (Exchange RBAC
+  grants do not show up there).
+- The `mail`, `calendar` and `outlook` presets are built from `/me` tools and leave little in app mode; the
+  `/users/{user-id}` mail and calendar tools are in `work`.
+- stdio only. It refuses `--http`, `--obo`, `--extra-scopes`, `MS365_MCP_OAUTH_TOKEN` and the
+  login/account options.
+- Webinar tools also need an application access policy assigned to the organizer.
 
 > **Note**: HTTP mode requires authentication. For unauthenticated testing, use stdio mode with device code flow.
 >
@@ -677,7 +735,23 @@ Instead of loading every tool upfront, use dynamic discovery so the LLM finds an
 npx @softeria/ms-365-mcp-server --discovery
 ```
 
-Keeps the initial context small and cuts token usage, especially useful for long sessions or cost-sensitive setups (e.g. Open WebUI running against a paid API).
+For hosts that eagerly load every advertised schema, combine `--discovery` with the smallest
+useful presets or tool filter. Hosts with native deferred tool loading can use that with
+direct registration; measure before adding a second discovery layer.
+
+Other existing ways to keep reads bounded:
+
+- Use `read-mail-text` for mail triage, honor `truncated`, and retrieve the full or exact body when needed.
+- Query small calendar windows with modest `top` and `select`; follow continuation only when the task needs more.
+- Treat experimental TOON output as a measured alternative after narrowing tools and reads.
+
+Bounded collection reads with `fetchAllPages: true` retain an outstanding `@odata.nextLink`
+when a page/item cap stops the merge; `_meta.result_has_more` then remains true. Exhausted
+collections have neither a next link nor more results. Where a tool advertises `skiptoken`,
+pass back the returned link containing `$skip` or `$skiptoken` and retain the original
+query/selection to continue without restarting. That parameter cannot replay drive/sites
+delta links carrying `token=`; those links are still returned, but manual resume through
+`skiptoken` is unsupported. The item cap is page-granular, not a byte or token budget.
 
 ### Hybrid discovery with direct tools
 
@@ -745,6 +819,8 @@ When running as an MCP server, the following options can be used:
                   which reads files from those directories.
                   Refused unless --http binds a loopback host with no --public-url and no
                   --trust-proxy-auth
+--app-mode        Use application permissions (client credentials) with no signed-in user. stdio only
+                  (see "App Mode" under Authentication)
 --enable-auth-tools Enable login/logout tools when using HTTP mode (disabled by default in HTTP mode)
 --enable-attachment-urls Let get-download-url mint a server-served URL for byte resources Graph
                   exposes no pre-authenticated URL for (see "Server-Minted Attachment URLs").
@@ -770,6 +846,8 @@ When running as an MCP server, the following options can be used:
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
+The account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`) follow the same filters: `--enabled-tools` applies to them, every `--preset` includes them, and `--read-only` or `MS365_MCP_OAUTH_TOKEN` keeps only `verify-login` and `list-accounts`.
+
 Environment variables:
 
 - `READ_ONLY=true|1`: Alternative to --read-only flag
@@ -777,10 +855,15 @@ Environment variables:
 - `ENABLED_TOOLS_FILE`: Path to a file with one regex per line (alternative to --enabled-tools-file). Blank lines and whole-line `#` comments are dropped, then lines are joined with `|` (same as `ENABLED_TOOLS=line1|line2|…`). Layering (later wins): `--enabled-tools` → `--enabled-tools-file` → `--preset` → `ENABLED_TOOLS` → `ENABLED_TOOLS_FILE`
 - `MS365_MCP_ORG_MODE=true|1`: Enable organization/work mode (alternative to --org-mode flag)
 - `MS365_MCP_FORCE_WORK_SCOPES=true|1`: Backwards compatibility for MS365_MCP_ORG_MODE
+- `MS365_MCP_APP_MODE=true|1`: Enable app mode (alternative to --app-mode flag)
+- `MS365_MCP_CLIENT_CERTIFICATE_PATH=<path>`: PEM file with a certificate and its unencrypted private key, used instead of `MS365_MCP_CLIENT_SECRET` in app mode
+- `MS365_MCP_FEDERATED_TOKEN_FILE=<path>`: Federated token (workload identity federation), used instead of a secret or certificate in app mode
+- `MS365_MCP_MANAGED_IDENTITY=system|<client id>`: Use the host's managed identity in app mode, instead of an app registration
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
-- `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops and the response is truncated once this many items are collected.
+- `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops after a whole page reaches this count, so the result can exceed the cap.
+- `MS365_MCP_TOOL_DEFINITION_BUDGET=<bytes>`: Opt in to trimming oversized request-body schemas so every tool fits a hosted connector's tool-definition budget (1 048 576 bytes of input schema per connector, admitted alphabetically — a tool that no longer fits is silently skipped). `4096` keeps a full org surface at ~78 % of that budget. Only bodies above the ration are trimmed, nested descriptions before structure, field names last. Unset (default): nothing is trimmed; the server still logs the total input-schema bytes served and, in HTTP mode, warns when the surface exceeds the connector budget.
 - `MS365_MCP_ALLOW_PAGINATION=0|false|no`: Disable multi-page following entirely. When set, the `fetchAllPages` parameter is not advertised on tools, and any request that still passes it returns only the first page (default: pagination enabled).
 - `MS365_MCP_BLOB_OUTPUT=true|1`: File download tools (`download-bytes`, `get-mail-message-mime`, `get-shared-mailbox-message-mime`, `get-mail-attachment-content`, `get-shared-mailbox-attachment-content`) answer a short JSON text block (`name`, `contentType`, `size`) and an MCP `EmbeddedResource` with `BlobResourceContents` (`uri`, `mimeType`, `blob`) instead of base64 JSON in text. The `uri`'s last segment is the optional `fileName` argument. Default: off. Alternative to the --blob-output flag.
 - `MS365_MCP_BLOB_MAX_BYTES=<n>`: With blob output on, the largest file a download tool reads (positive integer, default `5242880`). The server stops reading past it and answers an error naming the limit.
@@ -790,6 +873,7 @@ Environment variables:
 - `MS365_MCP_MESSAGE_SIGNOFF_PREFIX=<text>`: Signoff prepended to outgoing messages so recipients can tell they were agent-sent, e.g. `🤖`. Default: none. CLI equivalent: `--message-signoff-prefix <text>` (see Message Signoff below)
 - `MS365_MCP_MESSAGE_SIGNOFF_SUFFIX=<text>`: Signoff appended to outgoing messages. Default: none. CLI equivalent: `--message-signoff-suffix <text>`. `--no-message-signoff` disables both (see Message Signoff below)
 - `MS365_MCP_RATE_LIMIT_DISABLED=true|1`: Disable per-IP rate limiting in HTTP mode (default: enabled — 30 req/min on `/authorize`, `/token`, `/register`; 120 req/min on `/mcp`)
+- `MS365_MCP_PKCE_SECRET=<32+ random characters>`: For HTTP mode with more than one instance (replicas, serverless, a restart between sign-in steps). The server derives its side of the two-leg PKCE flow from this secret instead of keeping it in process memory, so `/token` works on any instance that has the same secret. Without it, `/token` must reach the instance that served `/authorize`, or sign-in fails with `AADSTS501481`. A shorter secret fails startup
 - `MS365_MCP_TRUST_PROXY_HOPS=<n>`: Number of trusted reverse-proxy hops in HTTP mode (default `1`). Accurate per-IP rate limiting depends on this matching your deployment — set to the number of proxies in front of the server, `0` to use the raw socket peer IP, or a comma-separated subnet list
 - `MS365_MCP_ATTACHMENT_PORT=<port>`: Serve the attachment route on its own listener on this port (alternative to --attachment-port; requires `--enable-attachment-urls`)
 - `MS365_MCP_ATTACHMENT_HOST=<host>`: Interface the `MS365_MCP_ATTACHMENT_PORT` listener binds (alternative to --attachment-host; requires `--attachment-port`). Defaults to the host `--http` bound — which for a wildcard `--http` means both ports answer everywhere and the port split isolates nothing. See "Splitting the attachment listener"
@@ -856,14 +940,19 @@ the message has it. `get-mail-message` returns the raw body.
 `get-download-url` returns Microsoft's own pre-authenticated `@microsoft.graph.downloadUrl`
 for OneDrive and SharePoint items. Graph publishes no such URL for **mail and calendar
 attachments, meeting recordings, or any other `/$value` byte endpoint** — for those, the
-only way to read the bytes has been `download-bytes`, which returns base64 into the
-agent's context. A 73 KB, 3-page PDF costs about 24,500 tokens that way, and the model
-cannot parse them anyway.
+byte tools such as `download-bytes` return base64 into the agent's context unless blob
+output is enabled. A synthetic 75,000-byte file becomes 100,000 base64 characters before
+JSON overhead; this is character arithmetic, not a tokenizer-specific measurement.
+`download-bytes-to-file` can instead save bytes locally in stdio mode or HTTP with
+`--http-local-file-tools`.
 
 `--enable-attachment-urls` (HTTP mode, off by default) closes that gap. When Graph has no
 URL of its own, `get-download-url` mints one this server serves. With it on,
 `get-download-url` is registered under every `--preset` (except the send-only `teams-write`),
-so a `--preset mail` agent that lists an attachment can mint a URL for it. A minted URL only
+so a `--preset mail` agent that lists an attachment can mint a URL for it. OneDrive and
+SharePoint files get a minted URL too, instead of Graph's own: that one is about 1,300
+characters, too long for an agent that has to type it into a command, such as `curl` in a
+sandbox that cannot see tool results. A minted URL only
 works if the preset's scopes cover the resource: a contacts, tasks or excel preset has no Mail
 scopes, so a URL minted for a mail attachment fails when fetched.
 
@@ -882,6 +971,38 @@ credential.
 be minted is one `download-bytes` would fetch for the same caller on the same account. The
 ticket only moves those bytes out of the context window and into a direct transfer.
 
+When attachment URLs are enabled, prefer `get-download-url` for document reading and
+downloads; reserve byte tools for callers that explicitly need bytes. This is a preference,
+not enforcement: `--enable-attachment-urls` does not scrub arbitrary response bodies.
+Use existing `--enabled-tools` / `--enabled-tools-file` filtering to restrict the tool
+surface when a client requires text-only results, and select metadata fields on listings.
+
+### Example: attachment metadata to an external reader
+
+In HTTP attachment-URL mode, these synthetic model-facing calls contain metadata and a
+URL handoff only:
+
+```json
+{"tool":"list-mail-attachments","arguments":{"messageId":"example-message","select":"id,name,contentType,size,isInline"}}
+{"value":[{"id":"example-attachment","name":"example.pdf","contentType":"application/pdf","size":75000,"isInline":false}]}
+{"tool":"get-download-url","arguments":{"target":"/me/messages/example-message/attachments/example-attachment/$value"}}
+{"downloadUrl":"<fresh single-use URL>"}
+```
+
+The client gives the returned URL to any external downloader or document-processing MCP
+server that can fetch it, using that server's advertised tool names and parameter schemas.
+MS365 requires no particular processor or conversion result format; the binary document
+never enters this trace. In discovery mode, obtain the
+schemas with `get-tool-schema` and invoke these names through `execute-tool`. Keep the
+same identity/account for listing and minting. HTTP bearer/OBO mode binds the caller's
+identity and does not accept account switching; where an `account` parameter is advertised,
+use the same account throughout.
+
+Mint a **fresh server URL for every fetch**, including a probe, conversion, continuation,
+or retry. Keep the target, account and document selection (such as selected pages) the
+same when continuing a read. Do not automatically fetch every continuation: retrieve more
+only when relevant. Microsoft's drive-provider URLs can have different lifecycle semantics.
+
 ### Uploading attachments the same way
 
 The same ticket store works in the other direction. `get-upload-url` mints a URL for
@@ -899,7 +1020,16 @@ Content-Length: <file size>
 `/me/events/{id}/attachments` for an event); `name` and `contentType` are recorded on the
 attachment. Files under 3 MB are attached inline; larger ones, up to Graph's 150 MB, stream
 through an upload session in 3.75 MiB chunks, so the server never holds more than one chunk.
-`Content-Length` is required. The ticket is single-use and burnt on first presentation
+`Content-Length` is required.
+
+`target` can also be a OneDrive or SharePoint folder (`/me/drive/root`,
+`/me/drive/items/{folder-id}`, `/drives/{drive-id}/items/{folder-id}`,
+`/sites/{site-id}/drive/items/{folder-id}`); the file is then created there as `name`,
+always through a Graph upload session, with the same 150 MB cap. `conflictBehavior` decides
+what happens when the name is taken: `fail` (the default, answered with 409), `replace` or
+`rename`. `contentType` and `contentId` do not apply to drive files.
+
+The ticket is single-use and burnt on first presentation
 whatever the outcome, and the upload is attached as the identity that minted it, exactly as
 downloads are fetched. An upload ticket presented to `GET` (or a download ticket to `PUT`)
 is refused with the same 404 as any other bad ticket.
@@ -940,8 +1070,8 @@ per-request.
 
 The signing key is optional. Without one, minted URLs are just `/attachment?t=<ticket>` and
 any HTTP client can fetch them; the ticket alone authorises redemption. Set a key only if
-the fetcher verifies the `dgk`/`dgx`/`dgs` signature (see below), such as a docglean-mcp
-sidecar, which will refuse an unsigned URL. Setting `_KEY_ID` without a key, or a `_KEY_FILE` that is
+the fetcher verifies the `dgk`/`dgx`/`dgs` signature (see below) and will refuse an
+unsigned URL. Setting `_KEY_ID` without a key, or a `_KEY_FILE` that is
 empty or unreadable, fails at startup.
 
 ### Splitting the attachment listener
@@ -1012,7 +1142,7 @@ services:
       --http 10.89.0.2:3000 --trust-proxy-auth
       --enable-attachment-urls
       --attachment-port 3001 --attachment-host 10.89.1.2
-  docglean:
+  converter:
     networks: [convert-net]
 ```
 
@@ -1047,15 +1177,13 @@ What authorises redemption _here_ is the ticket. Verifying the signature on the 
 would prove only that we minted the URL — which the ticket already proves — while coupling
 redemption to the sidecar's clock and to the key surviving a restart.
 
-The wire format is [docglean-mcp](https://github.com/msoukhomlinov/docglean-mcp)'s
-`signing.py` (`canonical_string`), and `src/lib/url-signing.ts` is a port of it. The
-canonical string is `\n`-joined: `v1`, lowercased scheme, lowercased host, the port always
-explicit, the path, the remaining query with `dgk`/`dgx`/`dgs` removed and the rest sorted
-and re-encoded, and the expiry. The test vectors in
-`test/attachment-url-signing.test.ts` were verified against the Python implementation byte
-for byte — three places where the obvious JavaScript disagrees with Python (`!*'()`
-escaping, `+` decoding as a space, and code-point vs UTF-16 sort order) are why that check
-exists rather than being assumed.
+The wire format is a `v1` canonical-string HMAC over the minted URL, implemented in
+`src/lib/url-signing.ts`. The canonical string is `\n`-joined: `v1`, lowercased scheme,
+lowercased host, the port always explicit, the path, the remaining query with `dgk`/`dgx`/`dgs`
+removed and the rest sorted and re-encoded, and the expiry. The test vectors in
+`test/attachment-url-signing.test.ts` pin the format byte for byte — including the three
+places where the obvious JavaScript encoding is wrong (`!*'()` escaping, `+` decoding as a
+space, and code-point vs UTF-16 sort order) — so the check exists rather than being assumed.
 
 The ticket travels in the **query, not the path**, because the verifying sidecar keeps a
 fetched URL's path in its error messages and strips the query.
@@ -1275,6 +1403,9 @@ If you're having problems or need help:
 - Start a [discussion](https://github.com/softeria/ms-365-mcp-server/discussions)
 - Email: eirikb@eirikb.no
 - Discord: https://discord.gg/WvGVNScrAZ or @eirikb
+
+Want to talk about rolling it out in your organization? Connect with me on
+[LinkedIn](https://www.linkedin.com/in/eirik-brandtz%C3%A6g-22253a286/).
 
 ## License
 

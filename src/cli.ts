@@ -53,7 +53,7 @@ program
   )
   .option(
     '--enable-attachment-urls',
-    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints), and a short one for OneDrive/SharePoint files too; get-upload-url then also takes drive folders. Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
   )
   .option(
     '--attachment-port <port>',
@@ -94,6 +94,10 @@ program
     'Enable organization/work mode from start (includes Teams, SharePoint, etc.)'
   )
   .option('--work-mode', 'Alias for --org-mode')
+  .option(
+    '--app-mode',
+    'Use application permissions with no signed-in user. stdio only. Needs one credential: MS365_MCP_CLIENT_SECRET, MS365_MCP_CLIENT_CERTIFICATE_PATH or MS365_MCP_FEDERATED_TOKEN_FILE (with your own app registration and MS365_MCP_TENANT_ID), or MS365_MCP_MANAGED_IDENTITY on an Azure host. Only tools that work with application permissions are offered.'
+  )
   .option('--force-work-scopes', 'Backwards compatibility alias for --org-mode (deprecated)')
   .option('--toon', '(experimental) Enable TOON output format for 30-60% token reduction')
   .option(
@@ -187,6 +191,7 @@ export interface CommandOptions {
   listPresets?: boolean;
   listPermissions?: boolean;
   orgMode?: boolean;
+  appMode?: boolean;
   workMode?: boolean;
   forceWorkScopes?: boolean;
   toon?: boolean;
@@ -259,6 +264,15 @@ export function parseArgs(): CommandOptions {
     if (names.some((name) => name === ''))
       throw new Error('--eager-tools requires non-empty exact tool names');
     options.eagerTools = [...new Set(names)];
+  }
+
+  if (process.env.MS365_MCP_APP_MODE === 'true' || process.env.MS365_MCP_APP_MODE === '1') {
+    options.appMode = true;
+  }
+
+  // App mode is tenant-only, so the work-account guidance and presets apply
+  if (options.appMode) {
+    options.orgMode = true;
   }
 
   if (options.preset) {
