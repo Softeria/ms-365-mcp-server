@@ -1728,7 +1728,7 @@
     "toolName": "list-outlook-contacts",
     "presets": ["contacts", "outlook", "personal"],
     "scopes": ["Contacts.Read"],
-    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching."
+    "llmTip": "To match an exact email address, use $filter=emailAddresses/any(a:a/address eq 'name@example.com'). For emailAddresses, only eq on the address sub-property is supported; contains(), startswith(), and other operators are not."
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
