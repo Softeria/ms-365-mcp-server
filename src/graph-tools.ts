@@ -99,7 +99,13 @@ import {
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
 import logger from './logger.js';
-import { describeError, describeShape, describeUrl, serializedSize } from './lib/log-safe.js';
+import {
+  describeError,
+  describeShape,
+  describeText,
+  describeUrl,
+  serializedSize,
+} from './lib/log-safe.js';
 import { getRequestTokens } from './request-context.js';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 
@@ -515,7 +521,7 @@ function normalizeSearchQueryParam(
   const normalized = `"${inner}"`;
   if (normalized !== raw) {
     logger.info(
-      `Auto-corrected parameter '$search': normalized KQL quoting (${normalized.length} chars)`
+      `Auto-corrected parameter '$search': normalized KQL quoting ${describeText(normalized)}`
     );
     queryParams['$search'] = normalized;
   }
@@ -3232,7 +3238,7 @@ async function executeGraphTool(
         // list — forward it as a query param rather than silently dropping it.
         queryParams[fixedParamName] = `${paramValue}`;
         logger.info(
-          `OData param fallback: forwarded ${fixedParamName} (${String(paramValue).length} chars)`
+          `OData param fallback: forwarded ${fixedParamName} ${describeText(String(paramValue))}`
         );
       } else if (
         bodyShape &&
@@ -3249,7 +3255,7 @@ async function executeGraphTool(
         );
       } else {
         logger.warn(
-          `Dropping unrecognized parameter (${paramName.length} chars) for tool ${tool.alias}`
+          `Dropping unrecognized parameter ${describeText(paramName)} for tool ${tool.alias}`
         );
       }
     }
@@ -3805,7 +3811,9 @@ async function executeGraphTool(
           logger.info(`Response contains ${jsonResponse.value.length} items`);
         }
         if (jsonResponse['@odata.nextLink']) {
-          logger.info('Response has pagination nextLink');
+          logger.info(
+            `Response has pagination nextLink: ${describeUrl(jsonResponse['@odata.nextLink'])}`
+          );
         }
       } catch {
         // Non-JSON response

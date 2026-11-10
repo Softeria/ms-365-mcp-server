@@ -1,6 +1,4 @@
 import winston from 'winston';
-import { LOG_MAX_BYTES, LOG_MAX_FILES } from './lib/log-limits.js';
-import { BoundedFileTransport } from './lib/bounded-file-transport.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -10,7 +8,7 @@ import os from 'os';
  *
  * Why a separate logger: the operational logger (`./logger.ts`) emits
  * human-friendly text for debugging, describing values only by shape (see
- * `lib/log-safe.ts`), never their content. The audit log has a stricter, machine-parseable shape and a
+ * `lib/log-safe.ts`) unless `MS365_MCP_REDACT_PII=false`. The audit log has a stricter, machine-parseable shape and a
  * narrower allowlist of fields — it is the artifact that satisfies the
  * "who accessed what, when" requirement of data-subject access requests
  * (DSARs) and audit trails under common privacy regimes (GDPR, HIPAA,
@@ -38,7 +36,7 @@ import os from 'os';
  *  - Apart from that and `target_resource.id` above, tool parameters and Graph
  *    response bodies are NEVER written to THIS log. The operational logger is
  *    separate and records only their shape (names, sizes, statuses), not their
- *    content.
+ *    content, unless `MS365_MCP_REDACT_PII=false`.
  *
  * Opt-out: set `MS365_MCP_AUDIT_LOG=false` to disable when audit is
  * collected through a separate sink (sidecar, OpenTelemetry, etc.).
@@ -86,12 +84,11 @@ const auditLogger = winston.createLogger({
         process.env.SILENT === '1' ||
         process.env.VITEST === 'true',
     }),
-    // Bounded like the diagnostic logs: MS365_MCP_LOG_MAX_BYTES × MS365_MCP_LOG_MAX_FILES.
-    new BoundedFileTransport({
+    // Not bounded like the diagnostic logs: this is the audit trail, so when old
+    // records go is up to the operator.
+    new winston.transports.File({
       filename: auditLogPath,
-      maxBytes: LOG_MAX_BYTES,
-      maxFiles: LOG_MAX_FILES,
-      mode: FILE_MODE,
+      options: { flags: 'a', mode: FILE_MODE },
     }),
   ],
 });

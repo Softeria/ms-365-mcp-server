@@ -4,6 +4,11 @@
 // none of that belongs in a log file or in a console stream a platform
 // collects. Nothing here copies a string it was given: it reports counts,
 // sizes, numbers, and names only when they are on a fixed list.
+//
+// MS365_MCP_REDACT_PII=false is the opt-out for local debugging: then the
+// helpers return values in full.
+
+import { redactionEnabled } from './log-redactor.js';
 
 const MAX_LISTED = 40;
 
@@ -271,6 +276,7 @@ function describeValue(value: unknown): string {
  * fixed list are shown; every other key is counted. String values are lengths.
  */
 export function describeShape(value: unknown): string {
+  if (!redactionEnabled()) return stringify(value);
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return describeValue(value);
   }
@@ -284,6 +290,19 @@ export function describeShape(value: unknown): string {
   }
   if (other > 0) shown.push(`+${other} other`);
   return `{${shown.join(', ')}}`;
+}
+
+/** A free-text value: its length, or the text itself when MS365_MCP_REDACT_PII=false. */
+export function describeText(value: string): string {
+  return redactionEnabled() ? `(${value.length} chars)` : value;
+}
+
+function stringify(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch (error) {
+    return `[unserializable: ${error instanceof Error ? error.name : 'unknown error'}]`;
+  }
 }
 
 /** Byte length of a value as it would be serialized, or -1 if it cannot be. */
@@ -302,6 +321,7 @@ export function serializedSize(value: unknown): number {
  */
 export function describeUrl(url: string): string {
   if (typeof url !== 'string') return typeof url;
+  if (!redactionEnabled()) return url;
   let origin = '';
   let rest = url;
   const schemeEnd = url.indexOf('://');
@@ -378,9 +398,19 @@ const KNOWN_ERROR_NAMES = new Set([
  * `GraphApiError status=400 code=BadRequest` — the message is left out: a Graph
  * error echoes the request. The name is shown only if it is a known class, the
  * status only if it is an HTTP status, the code only if it is a short token.
+ * With MS365_MCP_REDACT_PII=false the real name and code and the message are shown.
  */
 export function describeError(error: unknown): string {
-  if (!(error instanceof Error)) return `non-error(${typeof error})`;
+  return errorText(error, !redactionEnabled());
+}
+
+/** describeError without the opt-out, for text that leaves the logs (the /health self-test). */
+export function summarizeError(error: unknown): string {
+  return errorText(error, false);
+}
+
+function errorText(error: unknown, full: boolean): string {
+  if (!(error instanceof Error)) return full ? stringify(error) : `non-error(${typeof error})`;
   const e = error as Error & {
     code?: unknown;
     status?: unknown;
@@ -388,7 +418,7 @@ export function describeError(error: unknown): string {
     graphErrorCode?: unknown;
     errorCode?: unknown;
   };
-  const parts = [KNOWN_ERROR_NAMES.has(e.name) ? e.name : 'Error'];
+  const parts = [full || KNOWN_ERROR_NAMES.has(e.name) ? e.name || 'Error' : 'Error'];
   const status = [e.httpStatus, e.status].find(
     (s) => Number.isInteger(s) && (s as number) >= 100 && (s as number) <= 599
   );
@@ -396,9 +426,12 @@ export function describeError(error: unknown): string {
   const code = [e.graphErrorCode, e.code, e.errorCode].find((c) => c !== undefined && c !== null);
   if (typeof code === 'number' && Number.isInteger(code)) parts.push(`code=${code}`);
   else if (typeof code === 'string') {
-    parts.push(KNOWN_ERROR_CODES.has(code) ? `code=${code}` : `code=unlisted(${code.length})`);
+    parts.push(
+      full || KNOWN_ERROR_CODES.has(code) ? `code=${code}` : `code=unlisted(${code.length})`
+    );
   }
-  return parts.join(' ');
+  const summary = parts.join(' ');
+  return full && e.message ? `${summary}: ${e.message}` : summary;
 }
 
 /**

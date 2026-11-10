@@ -1,7 +1,8 @@
-// Every log file this server writes is bounded: it rotates at MS365_MCP_LOG_MAX_BYTES
-// and at most MS365_MCP_LOG_MAX_FILES are kept, so a long-running container cannot fill
-// its disk. (Size-based rotation; not an age-based expiry.)
-import { afterAll, describe, expect, it } from 'vitest';
+// The diagnostic logs are bounded: they rotate at MS365_MCP_LOG_MAX_BYTES and at most
+// MS365_MCP_LOG_MAX_FILES are kept, so a long-running container cannot fill its disk.
+// (Size-based rotation; not an age-based expiry.) audit.log is the audit trail, so the
+// server never rotates or trims it.
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,7 +25,7 @@ describe('log rotation', () => {
     delete process.env.MS365_MCP_LOG_MAX_FILES;
   });
 
-  it('bounds mcp-server.log, error.log and audit.log, keeping the newest lines', async () => {
+  it('bounds mcp-server.log and error.log, keeping the newest lines, but never audit.log', async () => {
     const { default: logger } = await import('../src/logger.js');
     const { auditLog } = await import('../src/audit-log.js');
     const pad = 'x'.repeat(200);
@@ -34,21 +35,18 @@ describe('log rotation', () => {
       logger.error(`err ${i} ${pad}`);
       auditLog({ event: 'tool.call', tool: `t${i}`, request_id: pad } as never);
     }
-    const marks: Record<string, [string, string]> = {
-      'mcp-server.log': [' 99 ', ' 0 '],
-      'error.log': [' 99 ', ' 0 '],
-      'audit.log': ['"t99"', '"t0"'],
-    };
-    for (const stem of ['mcp-server.log', 'error.log', 'audit.log']) {
-      const [newest, oldest] = marks[stem];
+    for (const stem of ['mcp-server.log', 'error.log']) {
       const files = family(stem);
       expect(files.length, stem).toBe(3);
       expect(bytes(files), stem).toBeLessThanOrEqual(3 * 2048);
       const kept = lines(files);
       expect(kept.length, stem).toBeGreaterThan(10);
       // The newest line is in the live file, the oldest lines are gone.
-      expect(fs.readFileSync(path.join(logDir, stem), 'utf8')).toContain(newest);
-      expect(kept.some((l) => l.includes(oldest))).toBe(false);
+      expect(fs.readFileSync(path.join(logDir, stem), 'utf8')).toContain(' 99 ');
+      expect(kept.some((l) => l.includes(' 0 '))).toBe(false);
     }
+    // One file with every record, written asynchronously by winston's File transport.
+    await vi.waitFor(() => expect(lines(['audit.log'])).toHaveLength(100), { timeout: 5000 });
+    expect(family('audit.log')).toEqual(['audit.log']);
   });
 });

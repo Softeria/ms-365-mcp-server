@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { isIP, isIPv6 } from 'node:net';
+import { NON_TENANT_AUTHORITIES } from './app-mode.js';
 import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
 import AuthManager, {
@@ -1388,8 +1389,10 @@ class MicrosoftGraphServer {
       // so it can ask Microsoft once whether they are accepted, before any user tries.
       // The result goes to the console whether or not -v is set: a deployment whose
       // secret is wrong should say so in the first lines it prints.
-      if (this.oboClient && this.secrets?.clientSecret) {
-        if (!this.secrets.tenantId || this.secrets.tenantId === 'common') {
+      // Skipped under vitest: tests start real servers and must not call Microsoft.
+      if (this.oboClient && this.secrets?.clientSecret && process.env.VITEST !== 'true') {
+        const tenantId = this.secrets.tenantId;
+        if (!tenantId || NON_TENANT_AUTHORITIES.has(tenantId.toLowerCase())) {
           logger.warn('Startup self-test skipped: MS365_MCP_TENANT_ID is not a tenant id');
         } else {
           this.credentialCheck = await checkClientCredentials(

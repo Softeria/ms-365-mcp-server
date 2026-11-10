@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import {
   describeShape,
+  describeText,
   describeUrl,
   describeError,
   describeStack,
   serializedSize,
+  summarizeError,
 } from '../lib/log-safe.js';
+import { dumpError } from '../crash-logging.js';
 import { GraphApiError } from '../graph-client.js';
 
 // Sentinel text that must never reach a log line, wherever it is put.
@@ -108,5 +111,61 @@ describe('log-safe', () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
     expect(serializedSize(cyclic)).toBe(-1);
+  });
+
+  it('describes free text by length', () => {
+    expect(describeText(SECRET)).toBe(`(${SECRET.length} chars)`);
+  });
+});
+
+describe('log-safe with MS365_MCP_REDACT_PII=false', () => {
+  const prev = process.env.MS365_MCP_REDACT_PII;
+  beforeEach(() => {
+    process.env.MS365_MCP_REDACT_PII = 'false';
+  });
+  afterEach(() => {
+    if (prev === undefined) delete process.env.MS365_MCP_REDACT_PII;
+    else process.env.MS365_MCP_REDACT_PII = prev;
+  });
+
+  it('logs values, URLs and free text in full', () => {
+    const params = { filter: `subject eq '${SECRET}'`, [SECRET]: 1 };
+    expect(describeShape(params)).toBe(JSON.stringify(params));
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(describeShape(cyclic)).toBe('[unserializable: TypeError]');
+    const url = `/me/drive/root:/${SECRET}.txt:/content?$search=${SECRET}`;
+    expect(describeUrl(url)).toBe(url);
+    expect(describeText(SECRET)).toBe(SECRET);
+  });
+
+  it('logs the real error name, code and message', () => {
+    const err = new GraphApiError(
+      `Insufficient privileges: ${SECRET}`,
+      403,
+      'Authorization_RequestDenied'
+    );
+    expect(describeError(err)).toBe(
+      `GraphApiError status=403 code=Authorization_RequestDenied: Insufficient privileges: ${SECRET}`
+    );
+    expect(describeError(SECRET)).toBe(JSON.stringify(SECRET));
+  });
+
+  it('keeps the self-test summary short, since /health returns it', () => {
+    const err = Object.assign(new Error(`connect ${SECRET}`), { code: 'ECONNREFUSED' });
+    expect(summarizeError(err)).toBe('Error code=ECONNREFUSED');
+  });
+
+  it('dumps a crash with message, properties and cause', () => {
+    const crash = Object.assign(new Error(`boom ${SECRET}`), {
+      response: { body: SECRET },
+      cause: new Error(`inner ${SECRET}`),
+    });
+    expect(dumpError(crash)).toMatchObject({
+      name: 'Error',
+      message: `boom ${SECRET}`,
+      properties: { response: { body: SECRET } },
+      cause: { message: `inner ${SECRET}` },
+    });
   });
 });

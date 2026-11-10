@@ -5,3 +5,7 @@
 if (typeof (globalThis as { File?: unknown }).File === 'undefined') {
   (globalThis as { File?: unknown }).File = class File {};
 }
+
+// Tests expect the default, redacted logs, even when the shell exports the
+// MS365_MCP_REDACT_PII=false opt-out. Tests that want it set it themselves.
+delete process.env.MS365_MCP_REDACT_PII;

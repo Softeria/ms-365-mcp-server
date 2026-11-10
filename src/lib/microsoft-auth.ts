@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../logger.js';
-import { describeError } from './log-safe.js';
+import { describeText, summarizeError } from './log-safe.js';
 import { getCloudEndpoints, type CloudType } from '../cloud-config.js';
 
 /**
@@ -306,7 +306,7 @@ function unwrapToken<T>(result: TokenResponse, failureMessage: string): T {
   }
 
   logger.error(
-    `${failureMessage}: HTTP ${result.status}, unparsed body (${result.raw.length} chars)`
+    `${failureMessage}: HTTP ${result.status}, unparsed body ${describeText(result.raw)}`
   );
   throw new Error(`${failureMessage}: ${result.raw}`);
 }
@@ -418,7 +418,7 @@ export async function checkClientCredentials(
       checkedAt,
       detail: timedOut
         ? `no answer within ${timeoutMs} ms`
-        : `request failed: ${describeError(error)}`,
+        : `request failed: ${summarizeError(error)}`,
     };
   } finally {
     clearTimeout(timer);
