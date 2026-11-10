@@ -740,7 +740,7 @@
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "deltaToken": true,
-    "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select. For incremental sync, pass the @odata.deltaLink from the last page as token on the next call."
+    "llmTip": "Tracks the current state of a driveItem and its children over time; the feed may return an item more than once, with its latest state, and deleted items have a deleted facet. When mirroring a drive, delete a folder locally only after syncing all changes and confirming it is empty. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select. Omit token to enumerate the current hierarchy; pass token='latest' to get an empty response and a starting deltaLink, or pass the @odata.deltaLink from the final page as token on a later sync."
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
