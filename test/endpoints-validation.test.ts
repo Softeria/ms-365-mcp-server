@@ -74,6 +74,19 @@ describe('endpoints.json validation', () => {
     expect(violations).toEqual([]);
   });
 
+  it('should describe application access for shared-mailbox reads that allow appScopes', () => {
+    const sharedMailboxReads = endpoints.filter((e) =>
+      ['get-shared-mailbox-message', 'get-shared-mailbox-message-mime'].includes(e.toolName)
+    );
+
+    expect(sharedMailboxReads).toHaveLength(2);
+    for (const endpoint of sharedMailboxReads) {
+      expect(endpoint.appScopes).toBeDefined();
+      expect(endpoint.descriptionOverride).toMatch(/delegated.*or.*application permission/i);
+      expect(endpoint.descriptionOverride).not.toMatch(/delegated access .* required/i);
+    }
+  });
+
   it('should have well-formed scope groups (flat string[] or nested string[][])', () => {
     const isStringArray = (v: unknown): boolean =>
       Array.isArray(v) && v.every((s) => typeof s === 'string');
