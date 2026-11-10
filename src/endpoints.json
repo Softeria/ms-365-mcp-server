@@ -60,7 +60,7 @@
     "toolName": "delete-mail-folder",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+    "llmTip": "Deletes the specified mail folder. This is distinct from the separate permanentDelete action, which permanently removes a folder and its items; retention and recovery follow Exchange deleted-item retention. Use list-mail-folders to verify the folder ID."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
