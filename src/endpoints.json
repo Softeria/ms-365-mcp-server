@@ -1259,7 +1259,13 @@
     "method": "get",
     "toolName": "get-onenote-page-content",
     "presets": ["onenote", "personal"],
-    "scopes": ["Notes.Read"]
+    "scopes": ["Notes.Read"],
+    "extraQueryParams": {
+      "includeIDs": {
+        "type": "boolean",
+        "description": "Add each element's generated id, for use as an update target."
+      }
+    }
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
@@ -1276,7 +1282,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+            "description": "Element to change: #<data-id>, a generated id (no #), or 'body' or 'title'. Most replace actions need the generated id: read the page content with includeIDs=true, and again after each update, as ids can change."
           },
           "action": {
             "type": "string",
@@ -1343,7 +1349,13 @@
     "method": "get",
     "toolName": "get-sharepoint-site-onenote-page-content",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read.All"]
+    "workScopes": ["Notes.Read.All"],
+    "extraQueryParams": {
+      "includeIDs": {
+        "type": "boolean",
+        "description": "Add each element's generated id, for use as an update target."
+      }
+    }
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks",
@@ -1390,7 +1402,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+            "description": "Element to change: #<data-id>, a generated id (no #), or 'body' or 'title'. Most replace actions need the generated id: read the page content with includeIDs=true, and again after each update, as ids can change."
           },
           "action": {
             "type": "string",

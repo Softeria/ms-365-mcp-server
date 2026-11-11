@@ -25,6 +25,7 @@ interface Endpoint {
   returnDownloadUrl?: boolean;
   llmTip?: string;
   queryParams?: string[];
+  extraQueryParams?: Record<string, Record<string, unknown>>;
   maxTop?: number;
   nameFilter?: boolean;
   mentionShorthand?: boolean;
@@ -276,6 +277,32 @@ describe('endpoints.json validation', () => {
         expect(new Set(listed).size, `${e.toolName} queryParams has duplicates`).toBe(
           listed.length
         );
+      }
+    });
+
+    // The generator adds these to the operation. hack.ts strips $ and _ from param names,
+    // so a name with either would reach Graph renamed, and a queryParams list that leaves
+    // one out hides it. Path params go by camelCase at runtime ({site-id} is siteId).
+    it('declares extraQueryParams the generator adds as plain optional query params', () => {
+      for (const e of endpoints.filter((x) => x.extraQueryParams)) {
+        expect(e.fixedBody, `${e.toolName} extraQueryParams on a fixedBody entry`).toBeUndefined();
+        const pathParams = [...e.pathPattern.matchAll(/\{([^}]+)\}/g)].map((m) =>
+          m[1].replace(/-/g, '').toLowerCase()
+        );
+        for (const [name, schema] of Object.entries(e.extraQueryParams!)) {
+          const label = `${e.toolName} extraQueryParams.${name}`;
+          expect(name, label).toMatch(/^[A-Za-z][A-Za-z0-9]*$/);
+          expect(pathParams, label).not.toContain(name.toLowerCase());
+          expect(typeof schema.type, `${label} type`).toBe('string');
+          expect(typeof schema.description, `${label} description`).toBe('string');
+          expect(queryNames(e.toolName), `${label} not generated`).toContain(name.toLowerCase());
+          if (e.queryParams) {
+            expect(
+              e.queryParams.map((p) => p.toLowerCase()),
+              label
+            ).toContain(name.toLowerCase());
+          }
+        }
       }
     });
 
