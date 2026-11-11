@@ -2783,6 +2783,16 @@
     "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
   },
   {
+    "pathPattern": "/places/graph.room",
+    "method": "get",
+    "toolName": "list-rooms",
+    "descriptionOverride": "List the meeting rooms in the tenant: displayName, emailAddress (to book the room), capacity, building, floorNumber and address. An empty list does not prove there are no rooms: Microsoft Places may not be set up in the tenant.",
+    "presets": ["calendar", "work"],
+    "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
+    "queryParams": ["select", "top", "skip", "filter", "skiptoken"]
+  },
+  {
     "pathPattern": "/places/{place-id}/graph.room",
     "method": "get",
     "toolName": "get-room",
@@ -2808,7 +2818,7 @@
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
     "appScopes": ["Place.Read.All"],
-    "llmTip": "The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
+    "llmTip": "The place-id must be the room list's email address (from get-room-list), not its ID. Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
   },
   {
     "pathPattern": "/places/{place-id}/graph.roomList/rooms/{room-id}",
@@ -2818,7 +2828,7 @@
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
     "appScopes": ["Place.Read.All"],
-    "llmTip": "The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
+    "llmTip": "The place-id is the room list's email address (as for list-room-list-rooms), and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
   },
   {
     "pathPattern": "/places/{place-id}",

@@ -10,8 +10,8 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>180 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
-| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   47<br>22 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 371<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
+| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
 | `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   26<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
@@ -25,13 +25,13 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                             |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>110 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 191<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all` full
 
 All available tools
 
-Tools (370):
+Tools (371):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -290,6 +290,7 @@ Tools (370):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-sensitivity-labels`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
@@ -476,7 +477,7 @@ Scopes (65):
 
 All available tools
 
-Tools (180):
+Tools (181):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -618,6 +619,7 @@ Tools (180):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-sensitivity-labels`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
@@ -704,7 +706,7 @@ Scopes (38):
 
 Calendar and event management
 
-Tools (47):
+Tools (48):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -742,6 +744,7 @@ Tools (47):
 - `list-my-calendar-permissions`
 - `list-outlook-categories`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-specific-calendar-events`
 - `list-supported-languages`
 - `list-supported-time-zones`
@@ -768,7 +771,7 @@ Scopes (7):
 
 Calendar and event management
 
-Tools (22):
+Tools (23):
 
 - `download-bytes`
 - `download-bytes-to-file`
@@ -789,6 +792,7 @@ Tools (22):
 - `list-my-calendar-permissions`
 - `list-outlook-categories`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-specific-calendar-events`
 - `list-supported-languages`
 - `list-supported-time-zones`
@@ -2093,7 +2097,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (190):
+Tools (191):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2217,6 +2221,7 @@ Tools (190):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
 - `list-shared-mailbox-child-folders`
@@ -2350,7 +2355,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (110):
+Tools (111):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -2434,6 +2439,7 @@ Tools (110):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
 - `list-shared-mailbox-child-folders`
