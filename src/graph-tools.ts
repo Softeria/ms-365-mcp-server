@@ -153,6 +153,10 @@ interface EndpointConfig {
   // to synthesize a typed requestBody (instead of a generic object), so the generated client
   // exposes a validated `body` param. Ignored for endpoints already present in the spec.
   requestBodySchema?: Record<string, unknown>;
+  // Optional query params the spec leaves out, as name -> JSON Schema with a description
+  // (includeIDs on OneNote page content). Added to the operation at generate time by
+  // bin/modules/simplified-openapi.mjs, so the runtime sees them as generated params.
+  extraQueryParams?: Record<string, Record<string, unknown>>;
   // The query parameters Graph really accepts here, when that is fewer than the generic OData
   // options the spec lists. Unset keeps every generated one. Keep skiptoken where the tool pages.
   queryParams?: string[];
@@ -3524,7 +3528,8 @@ async function executeGraphTool(
 
     const isProbablyMediaContent =
       tool.errors?.some((error) => error.description === 'Retrieved media content') ||
-      path.endsWith('/content');
+      // path already carries the query string, e.g. ?includeIDs=true on OneNote page content
+      path.split('?')[0].endsWith('/content');
 
     if (config?.returnDownloadUrl && path.endsWith('/content')) {
       path = path.replace(/\/content$/, '');
