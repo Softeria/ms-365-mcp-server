@@ -1,6 +1,7 @@
 import type { AccountInfo, Configuration, ICachePlugin, TokenCacheContext } from '@azure/msal-node';
 import { AuthError, PublicClientApplication } from '@azure/msal-node';
 import logger from './logger.js';
+import { describeText } from './lib/log-safe.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -1514,7 +1515,9 @@ class AuthManager {
           };
         } else {
           const errorText = await response.text();
-          logger.error(`Graph API user data fetch failed: ${response.status} - ${errorText}`);
+          logger.error(
+            `Graph API user data fetch failed: ${response.status} ${describeText(errorText)}`
+          );
           return {
             success: false,
             message: `Login successful but Graph API access failed: ${response.status}`,
