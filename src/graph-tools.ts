@@ -1676,13 +1676,31 @@ async function mintDownloadUrl(
     };
   }
 
+  // A server-account ticket is redeemed with this same lookup, so one that fails now (an
+  // unknown account, several accounts and no default) fails then too, as a 502 the agent
+  // can't explain. Refuse with the reason while the agent can still act on it.
+  let accountToken: string | undefined;
+  if (!requestToken && authManager) {
+    try {
+      accountToken = await authManager.getTokenForAccount(accountParam);
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `No download URL was made: ${(error as Error).message}`,
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   // After the plain-path check, so a target whose checked and fetched paths diverge is
-  // refused before Graph is asked about it. Only with the identity the ticket fetches as:
-  // given no token, makeRequest falls back to the default account, which can answer 404 for
-  // another mailbox's ids.
-  const probeToken = probeWith
-    ? (requestToken ?? (await authManager?.getTokenForAccount(accountParam).catch(() => undefined)))
-    : undefined;
+  // refused before Graph is asked about it, and with the token the ticket fetches with.
+  const probeToken = requestToken ?? accountToken;
   const probed = known
     ? known
     : probeWith && probeToken

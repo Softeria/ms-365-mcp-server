@@ -204,20 +204,47 @@ describe('signed attachment download keeps the attachment content type and name'
     expect(reply).not.toHaveProperty('contentType');
   });
 
-  it('skips the check when there is no token for the account, rather than ask as another', async () => {
-    const { reply, makeRequest } = await mint({ name: 'wrong.pdf' }, MAIL, {
+  it('checks the attachment as the account the URL fetches as', async () => {
+    const getTokenForAccount = vi.fn(async (account?: string) =>
+      account === 'other@example.com' ? 'OTHER_TOKEN' : 'SERVER_TOKEN'
+    );
+    const { reply, makeRequest } = await mint({ name: 'report.pdf' }, MAIL, {
+      auth: { ...authManager, getTokenForAccount },
+      account: 'other@example.com',
+    });
+    expect(getTokenForAccount).toHaveBeenCalledWith('other@example.com');
+    expect(makeRequest).toHaveBeenCalledWith(META, { accessToken: 'OTHER_TOKEN' });
+    expect(reply).toMatchObject({ name: 'report.pdf' });
+    const id = new URL(reply.downloadUrl).searchParams.get(TICKET_PARAM)!;
+    expect(store.redeem(id)).toMatchObject({
+      kind: 'server-account',
+      accountName: 'other@example.com',
+    });
+  });
+
+  // The redemption would make the same lookup and fail, so there is no URL to give, and
+  // Graph is not asked as some other account instead.
+  it.each([
+    ['a mail attachment', MAIL],
+    ['any other byte target', '/me/photo/$value'],
+  ])('refuses %s when there is no token for the account', async (_, target) => {
+    const { result, reply, makeRequest } = await mint({ name: 'wrong.pdf' }, target, {
       auth: {
         ...authManager,
         getTokenForAccount: async () => {
-          throw new Error("No cached account matches 'other@example.com'");
+          throw new Error(
+            "Account 'other@example.com' not found. Available accounts: me@example.com"
+          );
         },
       },
       account: 'other@example.com',
     });
+    expect(result.isError).toBe(true);
+    expect(reply.error).toBe(
+      "No download URL was made: Account 'other@example.com' not found. Available accounts: me@example.com"
+    );
     expect(makeRequest).not.toHaveBeenCalled();
-    expect(reply).toHaveProperty('downloadUrl');
-    expect(reply).not.toHaveProperty('name');
-    expect(store.size()).toBe(1);
+    expect(store.size()).toBe(0);
   });
 
   describe('refuses to mint when Graph says the attachment cannot be read (#830)', () => {
