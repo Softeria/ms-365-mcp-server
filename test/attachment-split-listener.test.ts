@@ -118,8 +118,14 @@ describe('--attachment-port (split attachment listener)', () => {
     delete process.env.MS365_MCP_ATTACHMENT_HOST;
     delete process.env.MS365_MCP_ATTACHMENT_URL_KEY_FILE;
     process.env.MS365_MCP_ATTACHMENT_URL_KEY = 'shared-hmac-key';
-    // Graph is never dialled; every case either redeems a ticket against this
-    // stub or never gets as far as the handler.
+    // Graph is never dialled; every case either redeems a ticket against these
+    // stubs or never gets as far as the handler. makeRequest answers the check
+    // get-download-url makes on a mail attachment before it mints.
+    vi.spyOn(GraphClient.prototype, 'makeRequest').mockImplementation(async () => ({
+      name: 'report.pdf',
+      contentType: 'application/pdf',
+      size: ATTACHMENT_BODY.length,
+    }));
     vi.spyOn(GraphClient.prototype, 'downloadStream').mockImplementation(async () => ({
       // A fresh stream per call: a ReadableStream is consumable once, and two
       // of these tests redeem twice.

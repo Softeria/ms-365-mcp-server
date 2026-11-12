@@ -20,6 +20,7 @@ import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
 import GraphClient, {
   getBlobMaxBytes,
+  GraphApiError,
   isBlobOutputEnabled,
   type AcceptFallback,
 } from './graph-client.js';
@@ -1518,28 +1519,80 @@ async function mintUploadUrl(
 const MAIL_EVENT_ATTACHMENT_VALUE =
   /^(?:\/me|\/users\/[^/]+|\/groups\/[^/]+)\/(?:messages|events)\/[^/]+\/attachments\/[^/]+\/\$value$/;
 
+// Graph's answers that mean this token can't fetch the attachment: a mangled id (400), no
+// access (403), or no such attachment (404). A URL minted anyway only fails later, as an empty
+// file the agent can't explain (#830).
+const UNFETCHABLE_ATTACHMENT_STATUSES = new Set([400, 403, 404]);
+
+// Graph's codes for ids that name no attachment, mangled or just wrong. Other 400s and 404s,
+// such as a mailbox that isn't enabled for the API, aren't fixed by copying the ids again.
+function isWrongIdCode(code: string | undefined): boolean {
+  return code !== undefined && (code.startsWith('ErrorInvalidId') || code === 'ErrorItemNotFound');
+}
+
+type AttachmentProbe =
+  | { probe: DownloadProbe; fields: Record<string, unknown> }
+  | { refusal: CallToolResult };
+
 /**
  * Graph answers an attachment's /$value with application/octet-stream, so read the real name
- * and type from the attachment resource for the redemption route to serve. Any failure is
- * swallowed: the mint carries on exactly as it did without a probe.
+ * and type from the attachment resource for the redemption route to serve, and name, size and
+ * type for the caller to check. When Graph says the attachment can't be read, refuse instead of
+ * minting. Any other failure is swallowed: the mint carries on as it did without a probe.
  */
 async function probeAttachment(
   target: string,
   graphClient: Pick<GraphClient, 'makeRequest'>,
-  accessToken: string | undefined
-): Promise<DownloadProbe> {
-  if (!MAIL_EVENT_ATTACHMENT_VALUE.test(target)) return {};
+  accessToken: string,
+  // True when the ticket keeps this same token: the redemption sends it again, so a 401 now
+  // is a 401 then. A ticket that fetches a fresh token at redemption can still get through.
+  ticketKeepsToken: boolean
+): Promise<AttachmentProbe> {
+  if (!MAIL_EVENT_ATTACHMENT_VALUE.test(target)) return { probe: {}, fields: {} };
   try {
     const meta = (await graphClient.makeRequest(
-      `${target.slice(0, -'/$value'.length)}?$select=name,contentType`,
+      `${target.slice(0, -'/$value'.length)}?$select=name,contentType,size`,
       { accessToken }
-    )) as { name?: unknown; contentType?: unknown } | null;
+    )) as { name?: unknown; contentType?: unknown; size?: unknown } | null;
     return {
-      ...(typeof meta?.contentType === 'string' && { probedContentType: meta.contentType }),
-      ...(typeof meta?.name === 'string' && { probedName: meta.name }),
+      probe: {
+        ...(typeof meta?.contentType === 'string' && { probedContentType: meta.contentType }),
+        ...(typeof meta?.name === 'string' && { probedName: meta.name }),
+      },
+      fields: {
+        ...(typeof meta?.name === 'string' && { name: meta.name }),
+        ...(typeof meta?.size === 'number' && { size: meta.size }),
+        ...(typeof meta?.contentType === 'string' && { contentType: meta.contentType }),
+      },
     };
-  } catch {
-    return {};
+  } catch (error) {
+    if (
+      error instanceof GraphApiError &&
+      (UNFETCHABLE_ATTACHMENT_STATUSES.has(error.httpStatus) ||
+        (error.httpStatus === 401 && ticketKeepsToken))
+    ) {
+      const idHint = isWrongIdCode(error.graphErrorCode)
+        ? ' Check the ids in the target: copy them exactly as Graph returned them, including any trailing "=".'
+        : '';
+      return {
+        refusal: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `No download URL was made: ${error.message}${idHint}`,
+              }),
+            },
+          ],
+          isError: true,
+          _meta: {
+            http_status: error.httpStatus,
+            ...(error.graphErrorCode ? { error_code: error.graphErrorCode } : {}),
+          },
+        },
+      };
+    }
+    return { probe: {}, fields: {} };
   }
 }
 
@@ -1547,7 +1600,8 @@ async function mintDownloadUrl(
   target: string,
   accountParam: string | undefined,
   authManager: AuthManager | undefined,
-  // Given only for mail and event attachments: the client the content type is probed with.
+  // Given only for mail and event attachments: the client that checks the attachment and
+  // reads its name and type.
   probeWith?: Pick<GraphClient, 'makeRequest'>,
   // Given for drive items, whose metadata the caller already read: the name and type for
   // the redemption route, and the fields to return next to the URL.
@@ -1622,18 +1676,38 @@ async function mintDownloadUrl(
     };
   }
 
+  // A server-account ticket is redeemed with this same lookup, so one that fails now (an
+  // unknown account, several accounts and no default) fails then too, as a 502 the agent
+  // can't explain. Refuse with the reason while the agent can still act on it.
+  let accountToken: string | undefined;
+  if (!requestToken && authManager) {
+    try {
+      accountToken = await authManager.getTokenForAccount(accountParam);
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `No download URL was made: ${(error as Error).message}`,
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   // After the plain-path check, so a target whose checked and fetched paths diverge is
-  // refused before Graph is asked about it.
-  const probe = known
-    ? known.probe
-    : probeWith
-      ? await probeAttachment(
-          target,
-          probeWith,
-          requestToken ??
-            (await authManager?.getTokenForAccount(accountParam).catch(() => undefined))
-        )
-      : {};
+  // refused before Graph is asked about it, and with the token the ticket fetches with.
+  const probeToken = requestToken ?? accountToken;
+  const probed = known
+    ? known
+    : probeWith && probeToken
+      ? await probeAttachment(target, probeWith, probeToken, Boolean(requestToken))
+      : undefined;
+  if (probed && 'refusal' in probed) return probed.refusal;
+  const probe = probed?.probe ?? {};
   let ticket: { id: string; expiresAtMs: number };
   try {
     ticket = requestToken
@@ -1655,7 +1729,7 @@ async function mintDownloadUrl(
         type: 'text',
         text: JSON.stringify({
           downloadUrl: buildAttachmentUrl(minting.config, ticket.id),
-          ...known?.fields,
+          ...probed?.fields,
           expiresAt: new Date(ticket.expiresAtMs).toISOString(),
           singleUse: true,
           note: 'Served by this server, not by Microsoft Graph. Valid for one fetch until it expires.',

@@ -9,6 +9,7 @@ import {
   resetAttachmentMinting,
 } from '../src/lib/attachment-minting.js';
 import { createAttachmentHandler } from '../src/attachment-route.js';
+import { GraphApiError } from '../src/graph-client.js';
 
 /**
  * Graph answers a mail attachment's /$value with application/octet-stream, so the signed
@@ -18,7 +19,7 @@ import { createAttachmentHandler } from '../src/attachment-route.js';
 describe('signed attachment download keeps the attachment content type and name', () => {
   const tool = UTILITY_TOOLS.find((t) => t.name === 'get-download-url')!;
   const MAIL = '/me/messages/AAA/attachments/BBB/$value';
-  const META = '/me/messages/AAA/attachments/BBB?$select=name,contentType';
+  const META = '/me/messages/AAA/attachments/BBB?$select=name,contentType,size';
   const authManager = {
     isOAuthModeEnabled: () => false,
     isMultiAccount: async () => false,
@@ -36,25 +37,44 @@ describe('signed attachment download keeps the attachment content type and name'
   });
   afterEach(() => resetAttachmentMinting());
 
-  /** Mint through the tool with a stub metadata answer, then redeem against a stub stream. */
-  async function roundTrip(
+  /**
+   * Mint through the tool with a stub metadata answer, or a stub error when meta is one.
+   * callerToken runs it with the identity from the request, as in OAuth, bearer or OBO mode.
+   */
+  async function mint(
     meta: unknown,
-    stream: { contentType: string; contentDisposition: string | null },
-    target = MAIL
+    target = MAIL,
+    {
+      callerToken,
+      auth = authManager,
+      account,
+    }: { callerToken?: string; auth?: object; account?: string } = {}
   ) {
     const makeRequest = vi.fn(async () => {
       if (meta instanceof Error) throw meta;
       return meta;
     });
-    const minted = await tool.execute({ target }, {
-      graphClient: { makeRequest } as never,
-      authManager: authManager as never,
-      multiAccount: false,
-      accountNames: [],
-    } as never);
-    const id = new URL(JSON.parse(minted.content[0].text).downloadUrl).searchParams.get(
-      TICKET_PARAM
-    )!;
+    const run = () =>
+      tool.execute({ target, ...(account && { account }) }, {
+        graphClient: { makeRequest } as never,
+        authManager: auth as never,
+        multiAccount: false,
+        accountNames: [],
+      } as never);
+    const result = callerToken
+      ? await requestContext.run({ accessToken: callerToken } as never, run)
+      : await run();
+    return { result, reply: JSON.parse(result.content[0].text), makeRequest };
+  }
+
+  /** Mint, then redeem against a stub stream. */
+  async function roundTrip(
+    meta: unknown,
+    stream: { contentType: string; contentDisposition: string | null },
+    target = MAIL
+  ) {
+    const { reply, makeRequest } = await mint(meta, target);
+    const id = new URL(reply.downloadUrl).searchParams.get(TICKET_PARAM)!;
 
     const headers: Record<string, string> = {};
     const res = new Writable({ write: (_c, _e, cb) => cb() }) as Writable & Record<string, unknown>;
@@ -84,7 +104,7 @@ describe('signed attachment download keeps the attachment content type and name'
       authManager: authManager as never,
     });
     await handler({ method: 'GET', query: { t: id } } as never, res as never, (() => {}) as never);
-    return { headers, makeRequest };
+    return { headers, makeRequest, reply };
   }
 
   const GENERIC = { contentType: 'application/octet-stream', contentDisposition: null };
@@ -144,16 +164,155 @@ describe('signed attachment download keeps the attachment content type and name'
     expect(headers['content-type']).toBe('application/octet-stream');
   });
 
-  it('falls back to the old behaviour when the metadata call fails', async () => {
-    const { headers } = await roundTrip(new Error('403'), GENERIC);
+  it('returns the name, size and type next to the URL', async () => {
+    const { reply } = await mint({
+      name: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 52344,
+    });
+    expect(reply.downloadUrl).toMatch(/^http:\/\/m365:3000\//);
+    expect(reply).toMatchObject({
+      name: 'report.pdf',
+      size: 52344,
+      contentType: 'application/pdf',
+    });
+  });
+
+  // Throttling or an outage can be over by the time the URL is fetched, and here the
+  // redemption gets a fresh token for the account, so even a 401 can pass by then.
+  it.each([
+    ['a 401', new GraphApiError('Microsoft Graph API error: 401 Unauthorized', 401)],
+    ['a 429', new GraphApiError('Microsoft Graph API error: 429 Too Many Requests', 429)],
+    ['a 503', new GraphApiError('Microsoft Graph API error: 503 Service Unavailable', 503)],
+    ['an error not from Graph', new Error('No access token available')],
+  ])('falls back to the old behaviour when the metadata call fails with %s', async (_, error) => {
+    const { headers, reply } = await roundTrip(error, GENERIC);
+    expect(reply).toHaveProperty('downloadUrl');
     expect(headers['content-type']).toBe('application/octet-stream');
     expect(headers['content-disposition']).toBe('attachment');
   });
 
-  it('falls back when Graph reports no contentType or name', async () => {
-    const { headers } = await roundTrip({ name: null, contentType: null }, GENERIC);
+  it('falls back when Graph reports no usable name, type or size', async () => {
+    const { headers, reply } = await roundTrip(
+      { name: null, contentType: null, size: '52344' },
+      GENERIC
+    );
     expect(headers['content-type']).toBe('application/octet-stream');
     expect(headers['content-disposition']).toBe('attachment');
+    expect(reply).not.toHaveProperty('name');
+    expect(reply).not.toHaveProperty('size');
+    expect(reply).not.toHaveProperty('contentType');
+  });
+
+  it('checks the attachment as the account the URL fetches as', async () => {
+    const getTokenForAccount = vi.fn(async (account?: string) =>
+      account === 'other@example.com' ? 'OTHER_TOKEN' : 'SERVER_TOKEN'
+    );
+    const { reply, makeRequest } = await mint({ name: 'report.pdf' }, MAIL, {
+      auth: { ...authManager, getTokenForAccount },
+      account: 'other@example.com',
+    });
+    expect(getTokenForAccount).toHaveBeenCalledWith('other@example.com');
+    expect(makeRequest).toHaveBeenCalledWith(META, { accessToken: 'OTHER_TOKEN' });
+    expect(reply).toMatchObject({ name: 'report.pdf' });
+    const id = new URL(reply.downloadUrl).searchParams.get(TICKET_PARAM)!;
+    expect(store.redeem(id)).toMatchObject({
+      kind: 'server-account',
+      accountName: 'other@example.com',
+    });
+  });
+
+  // The redemption would make the same lookup and fail, so there is no URL to give, and
+  // Graph is not asked as some other account instead.
+  it.each([
+    ['a mail attachment', MAIL],
+    ['any other byte target', '/me/photo/$value'],
+  ])('refuses %s when there is no token for the account', async (_, target) => {
+    const { result, reply, makeRequest } = await mint({ name: 'wrong.pdf' }, target, {
+      auth: {
+        ...authManager,
+        getTokenForAccount: async () => {
+          throw new Error(
+            "Account 'other@example.com' not found. Available accounts: me@example.com"
+          );
+        },
+      },
+      account: 'other@example.com',
+    });
+    expect(result.isError).toBe(true);
+    expect(reply.error).toBe(
+      "No download URL was made: Account 'other@example.com' not found. Available accounts: me@example.com"
+    );
+    expect(makeRequest).not.toHaveBeenCalled();
+    expect(store.size()).toBe(0);
+  });
+
+  describe('refuses to mint when Graph says the attachment cannot be read (#830)', () => {
+    it.each([
+      [400, 'ErrorInvalidIdMalformed'],
+      [404, 'ErrorItemNotFound'],
+    ])('a %i (%s) points the caller at the ids', async (status, code) => {
+      const { result, reply } = await mint(
+        new GraphApiError(
+          `Microsoft Graph API error: ${status} - {"error":{"code":"${code}"}}`,
+          status,
+          code
+        )
+      );
+      expect(result.isError).toBe(true);
+      expect(reply.error).toMatch(/^No download URL was made: Microsoft Graph API error: /);
+      expect(reply.error).toContain('including any trailing "="');
+      expect(result._meta).toEqual({ http_status: status, error_code: code });
+      expect(store.size()).toBe(0);
+    });
+
+    it('a 403 is about access, so it gets no id hint', async () => {
+      const { result, reply } = await mint(
+        new GraphApiError('Microsoft Graph API error: 403 Forbidden', 403, 'ErrorAccessDenied')
+      );
+      expect(result.isError).toBe(true);
+      expect(reply.error).not.toContain('trailing');
+      expect(result._meta).toEqual({ http_status: 403, error_code: 'ErrorAccessDenied' });
+      expect(store.size()).toBe(0);
+    });
+
+    it.each([['MailboxNotEnabledForRESTAPI'], [undefined]])(
+      'a 404 that is not about the ids (%s) gets no id hint',
+      async (code) => {
+        const { result, reply } = await mint(
+          new GraphApiError('Microsoft Graph API error: 404 Not Found', 404, code)
+        );
+        expect(result.isError).toBe(true);
+        expect(reply.error).not.toContain('trailing');
+        expect(result._meta).toEqual({ http_status: 404, ...(code && { error_code: code }) });
+        expect(store.size()).toBe(0);
+      }
+    );
+
+    // The ticket would keep this same token, so the redemption would get the same answer.
+    it.each([401, 404])('a %i refuses when the ticket keeps the caller token', async (status) => {
+      const { result, makeRequest } = await mint(
+        new GraphApiError(`Microsoft Graph API error: ${status}`, status),
+        MAIL,
+        { callerToken: 'CALLER_TOKEN' }
+      );
+      expect(makeRequest).toHaveBeenCalledWith(META, { accessToken: 'CALLER_TOKEN' });
+      expect(result.isError).toBe(true);
+      expect(store.size()).toBe(0);
+    });
+
+    it('checks an event attachment in another mailbox too', async () => {
+      const { result, makeRequest } = await mint(
+        new GraphApiError('Microsoft Graph API error: 404 Not Found', 404, 'ErrorItemNotFound'),
+        '/users/u/events/AAA/attachments/BBB/$value'
+      );
+      expect(makeRequest).toHaveBeenCalledWith(
+        '/users/u/events/AAA/attachments/BBB?$select=name,contentType,size',
+        { accessToken: 'SERVER_TOKEN' }
+      );
+      expect(result.isError).toBe(true);
+      expect(store.size()).toBe(0);
+    });
   });
 
   it('does not probe anything that is not a mail or event attachment', async () => {

@@ -954,7 +954,11 @@ SharePoint files get a minted URL too, instead of Graph's own: that one is about
 characters, too long for an agent that has to type it into a command, such as `curl` in a
 sandbox that cannot see tool results. A minted URL only
 works if the preset's scopes cover the resource: a contacts, tasks or excel preset has no Mail
-scopes, so a URL minted for a mail attachment fails when fetched.
+scopes, so it cannot read a mail attachment. For a mail or calendar attachment addressed by
+its message or event id (such as `/me/messages/{id}/attachments/{id}/$value`),
+`get-download-url` asks Graph about the attachment first. When Graph rejects the ids, finds no
+such attachment or denies access, it returns Graph's error instead of a URL; otherwise the URL
+comes with the attachment's `name`, `size` and `contentType`, when Graph reports them.
 
 The minted URL looks like:
 
@@ -986,7 +990,7 @@ URL handoff only:
 {"tool":"list-mail-attachments","arguments":{"messageId":"example-message","select":"id,name,contentType,size,isInline"}}
 {"value":[{"id":"example-attachment","name":"example.pdf","contentType":"application/pdf","size":75000,"isInline":false}]}
 {"tool":"get-download-url","arguments":{"target":"/me/messages/example-message/attachments/example-attachment/$value"}}
-{"downloadUrl":"<fresh single-use URL>"}
+{"downloadUrl":"<fresh single-use URL>","name":"example.pdf","size":75000,"contentType":"application/pdf"}
 ```
 
 The client gives the returned URL to any external downloader or document-processing MCP
