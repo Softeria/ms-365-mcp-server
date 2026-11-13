@@ -30,6 +30,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import MicrosoftGraphServer, {
@@ -455,6 +456,68 @@ describe('--attachment-port (split attachment listener)', () => {
       const response = await fetch(`http://127.0.0.1:${mcpPort}/attachment`);
       expect(response.status).toBe(404);
       expect(await response.text()).not.toBe('Not found');
+    });
+
+    // The upload body is the raw file whatever Content-Type the client sends. curl
+    // --data-binary sends the form type unless told otherwise, and the MCP app's own
+    // JSON and form parsers used to drain or reject those bodies before the handler (#832).
+    describe('PUT', () => {
+      const DRAFT_ATTACHMENTS = '/me/messages/AAA/attachments';
+      let port: number;
+
+      beforeEach(async () => {
+        [port] = await reserveFreePorts(1);
+        process.env.MS365_MCP_ATTACHMENT_URL_BASE = `http://127.0.0.1:${port}`;
+        await start({
+          http: `127.0.0.1:${port}`,
+          trustProxyAuth: true,
+          enableAttachmentUrls: true,
+        });
+      });
+
+      async function upload(path: string, contentType: string, body: Buffer): Promise<Response> {
+        const { id } = getAttachmentMinting()!.store.mintUpload(DRAFT_ATTACHMENTS, undefined, {
+          name: 'probe.bin',
+          contentType: 'application/octet-stream',
+        });
+        return fetch(`http://127.0.0.1:${port}${path}?t=${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'content-type': contentType },
+          body,
+        });
+      }
+
+      /** The bytes the server attached, from its inline POST to Graph. */
+      function attachedBytes(): Buffer {
+        const post = vi
+          .mocked(GraphClient.prototype.makeRequest)
+          .mock.calls.find(
+            ([path, options]) => path === DRAFT_ATTACHMENTS && options?.method === 'POST'
+          );
+        expect(post).toBeDefined();
+        return Buffer.from(JSON.parse(String(post![1]!.body)).contentBytes, 'base64');
+      }
+
+      it.each([
+        ['bytes sent as a form body', 'application/x-www-form-urlencoded', randomBytes(2000)],
+        ['a JSON file', 'application/json', Buffer.from(JSON.stringify({ hello: 'world' }))],
+        ['bytes sent as JSON', 'application/json', randomBytes(2000)],
+        ['a form body over 100 KiB', 'application/x-www-form-urlencoded', randomBytes(200 * 1024)],
+      ])('attaches %s byte for byte', async (_what, contentType, body) => {
+        const response = await upload('/attachment', contentType, body);
+
+        expect(response.status).toBe(201);
+        expect(await response.json()).toMatchObject({ ok: true, size: body.length });
+        expect(attachedBytes().equals(body)).toBe(true);
+      });
+
+      it('does the same on /Attachment/, which Express routes to the same handler', async () => {
+        const body = randomBytes(2000);
+        const response = await upload('/Attachment/', 'application/x-www-form-urlencoded', body);
+
+        expect(response.status).toBe(201);
+        expect(attachedBytes().equals(body)).toBe(true);
+      });
     });
   });
 
