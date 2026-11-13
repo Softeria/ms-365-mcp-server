@@ -646,8 +646,17 @@ class MicrosoftGraphServer {
         })
       );
 
-      app.use(express.json({ limit: MAX_REQUEST_BODY_BYTES }));
-      app.use(express.urlencoded({ extended: true }));
+      // Skipped on the attachment route: its PUT body is the raw file, which the
+      // handler reads itself, and these would drain a JSON or form body first (#832).
+      // Matched the way Express routes it: case-insensitive, optional trailing slash.
+      const unlessAttachmentRoute =
+        (parser: Handler): Handler =>
+        (req, res, next) =>
+          req.path.toLowerCase().replace(/\/$/, '') === ATTACHMENT_ROUTE
+            ? next()
+            : parser(req, res, next);
+      app.use(unlessAttachmentRoute(express.json({ limit: MAX_REQUEST_BODY_BYTES })));
+      app.use(unlessAttachmentRoute(express.urlencoded({ extended: true })));
 
       // Add CORS headers for all routes
       const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || 'http://localhost:3000';
@@ -1280,7 +1289,7 @@ class MicrosoftGraphServer {
         // sentence is enforceable.
         //
         // The dedicated app is deliberately bare: no JSON or urlencoded body
-        // parsers (the route is a GET whose only input is a query parameter),
+        // parsers (the GET reads only its query, the PUT its raw body),
         // no CORS (nothing fetches this from a browser origin), no OAuth
         // router, no /mcp, not even the health check. Everything not mounted
         // 404s by Express's own default, so the isolation is a property of what
