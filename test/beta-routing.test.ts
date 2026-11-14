@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import type { GraphClient } from '../src/graph-client.js';
 import { registerGraphTools } from '../src/graph-tools.js';
 
@@ -6,9 +7,8 @@ vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
-// A v1.0 tool (get-current-user → /me) and a beta tool (get-my-profile → /me/profile).
-// Both have real entries in endpoints.json; the beta one declares "apiVersion": "beta",
-// so registration should thread that version into the graphRequest options.
+// v1.0 and beta tools use real entries in endpoints.json; beta entries declare
+// "apiVersion": "beta", so registration must pass that version to graphRequest.
 vi.mock('../src/generated/client.js', () => ({
   api: {
     endpoints: [
@@ -25,6 +25,17 @@ vi.mock('../src/generated/client-beta.js', () => ({
         path: '/me/profile',
         description: 'My profile.',
         parameters: [],
+      },
+      {
+        alias: 'list-calendar-events-delta',
+        method: 'get',
+        path: '/me/events/delta()',
+        description: 'Calendar event delta.',
+        parameters: [
+          { name: 'startDateTime', type: 'Query', schema: z.string() },
+          { name: '$top', type: 'Query', schema: z.number().optional() },
+          { name: '$skip', type: 'Query', schema: z.number().optional() },
+        ],
       },
     ],
   },
@@ -81,6 +92,15 @@ describe('beta endpoint routing (dual-generator)', () => {
     const handler = getToolHandler('get-my-profile');
     await handler({});
     expect(optionsFor().apiVersion).toBe('beta');
+  });
+
+  it('routes calendar event delta through the beta API surface', async () => {
+    const handler = getToolHandler('list-calendar-events-delta');
+    await handler({ startDateTime: '2026-11-01T00:00:00Z' });
+    expect(mockGraphClient.graphRequest).toHaveBeenCalledWith(
+      expect.stringContaining('/me/events/delta()?startDateTime=2026-11-01T00%3A00%3A00Z'),
+      expect.objectContaining({ apiVersion: 'beta' })
+    );
   });
 
   it('leaves a v1.0 endpoint without an apiVersion override (defaults to v1.0)', async () => {
