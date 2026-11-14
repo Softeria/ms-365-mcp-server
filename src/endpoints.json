@@ -1470,7 +1470,8 @@
     "toolName": "list-todo-task-lists-delta",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "queryParams": ["select", "skiptoken"]
+    "queryParams": ["select", "skiptoken"],
+    "deltaToken": true
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
