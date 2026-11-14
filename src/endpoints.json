@@ -881,7 +881,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
+    "llmTip": "Lists the retained versions of a file. Version creation and retention depend on service and admin settings; history may be disabled and older versions may expire. Results are newest to oldest; $orderby is unsupported. Use available fields such as id, lastModifiedDateTime, lastModifiedBy, and size; OneDrive may not preserve complete metadata for older versions. To download a previous version, GET /drives/{drive-id}/items/{driveItem-id}/versions/{version-id}/content. This version-content API does not support the current version; use /drives/{drive-id}/items/{driveItem-id}/content for current bytes."
   },
   {
     "pathPattern": "/drives/{drive-id}/search(q='{q}')",
