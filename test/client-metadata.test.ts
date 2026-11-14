@@ -92,6 +92,10 @@ describe('isPublicAddress', () => {
     '0:0:0:0:0:ffff:127.0.0.1',
     '::0:ffff:169.254.169.254',
     '::ffff:0:101:101',
+    '5f00::1',
+    '3fff::1',
+    '100:0:0:1::1',
+    '4000::1',
     'not-an-ip',
   ])('blocks %s', (ip) => {
     expect(isPublicAddress(ip)).toBe(false);

@@ -107,23 +107,18 @@ for (const [prefix, bits] of [
   blockedV4.addSubnet(prefix, bits, 'ipv4');
 }
 
+// Global unicast is only ever allocated from 2000::/3; everything outside it
+// (loopback, ULA, link-local, multicast, SRv6 5f00::/16, ...) is refused.
+const globalV6 = new net.BlockList();
+globalV6.addSubnet('2000::', 3, 'ipv6');
+
+// The special-purpose blocks inside 2000::/3.
 const blockedV6 = new net.BlockList();
 for (const [prefix, bits] of [
-  ['::', 128],
-  ['::1', 128],
-  ['::', 96], // IPv4-compatible (deprecated)
-  ['::ffff:0:0', 96], // IPv4-mapped; public ones are let through above, before this list
-  ['::ffff:0:0:0', 96], // IPv4-translated (SIIT)
-  ['64:ff9b::', 96], // NAT64; public ones are let through above, before this list
-  ['64:ff9b:1::', 48],
-  ['100::', 64],
   ['2001::', 23],
   ['2001:db8::', 32],
   ['2002::', 16], // 6to4
-  ['fc00::', 7],
-  ['fe80::', 10],
-  ['fec0::', 10],
-  ['ff00::', 8],
+  ['3fff::', 20], // documentation
 ] as const) {
   blockedV6.addSubnet(prefix, bits, 'ipv6');
 }
@@ -145,7 +140,7 @@ export function isPublicAddress(address: string): boolean {
     const lo = parseInt(mapped[2], 16);
     return isPublicAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
   }
-  return !blockedV6.check(canonical, 'ipv6');
+  return globalV6.check(canonical, 'ipv6') && !blockedV6.check(canonical, 'ipv6');
 }
 
 /**

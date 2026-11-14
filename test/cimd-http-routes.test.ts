@@ -84,10 +84,16 @@ describe('OAuth routes with CIMD', () => {
       redirect: 'manual',
     });
 
-  it('advertises CIMD and the registration endpoint', async () => {
+  it('advertises CIMD but no registration endpoint while DCR is off', async () => {
     await start();
     const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
     expect(meta.client_id_metadata_document_supported).toBe(true);
+    expect(meta.registration_endpoint).toBeUndefined();
+  });
+
+  it('advertises the registration endpoint when DCR is on', async () => {
+    await start({ enableDynamicRegistration: true });
+    const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
     expect(meta.registration_endpoint).toBe(`${base}/register`);
   });
 
@@ -143,6 +149,7 @@ describe('OAuth routes with CIMD', () => {
     await start({ clientMetadataDocuments: false, enableDynamicRegistration: true });
     const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
     expect(meta.client_id_metadata_document_supported).toBeUndefined();
+    expect(meta.registration_endpoint).toBe(`${base}/register`);
     const res = await authorize({
       client_id: CLAUDE_CODE,
       redirect_uri: 'http://localhost:4567/elsewhere',

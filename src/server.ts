@@ -764,11 +764,12 @@ class MicrosoftGraphServer {
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
           scopes_supported: scopes,
-          // Advertised even with DCR off, so a client that can only do DCR
-          // reaches /register and shows its error, which says how to turn it on.
-          // CIMD clients pick CIMD first and never call it.
-          registration_endpoint: `${browserBase}/register`,
         };
+        // Only while DCR is on: a client that finds no registration endpoint
+        // can still fall back to asking the user for a client ID.
+        if (this.options.enableDynamicRegistration) {
+          metadata.registration_endpoint = `${browserBase}/register`;
+        }
         if (cimdEnabled) metadata.client_id_metadata_document_supported = true;
 
         res.json(metadata);
