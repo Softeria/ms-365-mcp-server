@@ -108,7 +108,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "get",
     "toolName": "get-shared-mailbox-message",
-    "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address. Access can be delegated for that mailbox or provided through an applicable application permission.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": [["Mail.Read"], ["Mail.ReadBasic.All"]]
@@ -1038,7 +1038,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/$value",
     "method": "get",
     "toolName": "get-shared-mailbox-message-mime",
-    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address. Access can be delegated for that mailbox or provided through an applicable application permission.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": ["Mail.Read"],
