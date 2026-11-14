@@ -106,7 +106,7 @@ for (const [prefix, bits] of [
   ['::', 96], // IPv4-compatible (deprecated)
   ['::ffff:0:0', 96], // IPv4-mapped; public ones are let through above, before this list
   ['::ffff:0:0:0', 96], // IPv4-translated (SIIT)
-  ['64:ff9b::', 96], // NAT64
+  ['64:ff9b::', 96], // NAT64; public ones are let through above, before this list
   ['64:ff9b:1::', 48],
   ['100::', 64],
   ['2001::', 23],
@@ -129,8 +129,9 @@ export function isPublicAddress(address: string): boolean {
   // The URL parser writes IPv6 in one canonical form (compressed, mapped IPv4
   // in hex), so spelling variants can't slip past the checks below.
   const canonical = new URL(`http://[${ip}]/`).hostname.slice(1, -1);
-  // IPv4-mapped is judged as the IPv4 it carries.
-  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical);
+  // IPv4-mapped and NAT64 (what DNS64 hands out on IPv6-only networks) are
+  // judged as the IPv4 they carry.
+  const mapped = /^(?:::ffff|64:ff9b:):([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical);
   if (mapped) {
     const hi = parseInt(mapped[1], 16);
     const lo = parseInt(mapped[2], 16);
@@ -336,6 +337,9 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+/** How long past its expiry a cached document may stand in when a refetch can't be done. */
+export const CIMD_MAX_STALE_MS = 24 * 60 * 60_000;
+
 export interface ClientMetadataResolverOptions {
   fetcher?: DocumentFetcher;
   now?: () => number;
@@ -355,18 +359,29 @@ export class ClientMetadataResolver {
   async resolve(clientId: string): Promise<ClientMetadata> {
     const url = parseCimdClientId(clientId);
     const cached = this.cache.get(clientId);
-    if (cached && cached.expiresAt > this.now()) return cached.metadata;
-    if (cached) this.cache.delete(clientId);
-
-    const pending = this.inFlight.get(clientId);
-    if (pending) return pending;
-    if (this.inFlight.size >= CIMD_MAX_IN_FLIGHT) {
-      throw new ClientMetadataError('too many client metadata lookups in progress, try again');
+    if (cached) {
+      // Least recently used goes first when the cache is full, so a client
+      // people actually log in with is not pushed out by one-off ids.
+      this.cache.delete(clientId);
+      this.cache.set(clientId, cached);
+      if (cached.expiresAt > this.now()) return cached.metadata;
     }
+    // stale-if-error (RFC 5861): an expired document beats locking the client
+    // out because its host is slow or the lookup slots are busy.
+    const stale =
+      cached && cached.expiresAt + CIMD_MAX_STALE_MS > this.now() ? cached.metadata : undefined;
 
-    const load = this.load(url, clientId).finally(() => this.inFlight.delete(clientId));
-    this.inFlight.set(clientId, load);
-    return load;
+    let pending = this.inFlight.get(clientId);
+    if (!pending) {
+      if (this.inFlight.size >= CIMD_MAX_IN_FLIGHT) {
+        if (stale) return stale;
+        throw new ClientMetadataError('too many client metadata lookups in progress, try again');
+      }
+      pending = this.load(url, clientId).finally(() => this.inFlight.delete(clientId));
+      this.inFlight.set(clientId, pending);
+    }
+    if (!stale) return pending;
+    return pending.catch(() => stale);
   }
 
   private async load(url: URL, clientId: string): Promise<ClientMetadata> {
@@ -391,6 +406,7 @@ export class ClientMetadataResolver {
     const metadata = validateClientMetadata(raw, clientId);
 
     const ttl = cacheTtlMs(fetched.cacheControl);
+    this.cache.delete(clientId);
     if (ttl > 0) {
       while (this.cache.size >= CIMD_MAX_CACHE_ENTRIES) {
         const oldest = this.cache.keys().next().value;

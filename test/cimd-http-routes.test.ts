@@ -139,6 +139,18 @@ describe('OAuth routes with CIMD', () => {
     expect((await res.json()).error).toBe('invalid_request');
   });
 
+  it('neither advertises nor checks CIMD when turned off', async () => {
+    await start({ clientMetadataDocuments: false, enableDynamicRegistration: true });
+    const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
+    expect(meta.client_id_metadata_document_supported).toBeUndefined();
+    const res = await authorize({
+      client_id: CLAUDE_CODE,
+      redirect_uri: 'http://localhost:4567/elsewhere',
+    });
+    expect(res.status).toBe(302);
+    expect(ClientMetadataResolver.prototype.resolve).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['off', false],
     ['on', true],

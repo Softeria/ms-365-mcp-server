@@ -111,11 +111,15 @@ program
   )
   .option(
     '--enable-dynamic-registration',
-    'Turn on OAuth Dynamic Client Registration in HTTP mode (off by default; the MCP spec deprecated it in favour of Client ID Metadata Documents, which are always on). Needed by clients that only support DCR, such as Open WebUI. Equivalent env var: MS365_MCP_ENABLE_DCR=true.'
+    'Turn on OAuth Dynamic Client Registration in HTTP mode (off by default; the MCP spec deprecated it in favour of Client ID Metadata Documents). Needed by clients that only support DCR, such as Open WebUI. Equivalent env var: MS365_MCP_ENABLE_DCR=true.'
   )
   .option(
     '--no-dynamic-registration',
     'Keep OAuth Dynamic Client Registration off, even when --enable-dynamic-registration or MS365_MCP_ENABLE_DCR is set. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
+  )
+  .option(
+    '--no-client-metadata-documents',
+    "Turn off OAuth Client ID Metadata Documents in HTTP mode: they are no longer advertised, and https client_ids are passed through like any other. For servers that cannot reach the client's host directly (proxy-only or allowlisted egress); Claude then falls back to Dynamic Client Registration, so turn that on too. Equivalent env var: MS365_MCP_DISABLE_CIMD=true."
   )
   .option(
     '--auth-browser',
@@ -200,6 +204,8 @@ export interface CommandOptions {
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
+  /** False turns Client ID Metadata Documents off; anything else leaves them on. */
+  clientMetadataDocuments?: boolean;
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
@@ -450,6 +456,7 @@ export function parseArgs(): CommandOptions {
     const forcedOff = options.dynamicRegistration === false || envFlag('MS365_MCP_DISABLE_DCR');
     const turnedOn = options.enableDynamicRegistration === true || envFlag('MS365_MCP_ENABLE_DCR');
     options.enableDynamicRegistration = turnedOn && !forcedOff;
+    if (envFlag('MS365_MCP_DISABLE_CIMD')) options.clientMetadataDocuments = false;
   }
 
   if (process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1') {

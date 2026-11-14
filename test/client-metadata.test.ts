@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import dns from 'node:dns';
 import {
   CIMD_DEFAULT_TTL_MS,
+  CIMD_MAX_CACHE_ENTRIES,
+  CIMD_MAX_IN_FLIGHT,
+  CIMD_MAX_STALE_MS,
   CIMD_MAX_TTL_MS,
   CIMD_MIN_TTL_MS,
   ClientMetadataError,
@@ -77,6 +80,9 @@ describe('isPublicAddress', () => {
     '::ffff:7f00:1',
     '::ffff:169.254.169.254',
     '64:ff9b::a00:1',
+    '64:ff9b::7f00:1',
+    '64:ff9b::1',
+    '64:ff9b:1::a04f:680a',
     '2002:a00:1::1',
     '0:0:0:0:0:ffff:7f00:1',
     '0:0:0:0:0:ffff:127.0.0.1',
@@ -87,7 +93,14 @@ describe('isPublicAddress', () => {
     expect(isPublicAddress(ip)).toBe(false);
   });
 
-  it.each(['1.1.1.1', '160.79.104.10', '2606:4700::1111', '::ffff:1.1.1.1'])('allows %s', (ip) => {
+  it.each([
+    '1.1.1.1',
+    '160.79.104.10',
+    '2606:4700::1111',
+    '::ffff:1.1.1.1',
+    '64:ff9b::a04f:680a', // DNS64 for 160.79.104.10
+    '64:ff9b:0:0:0:0:a04f:680a',
+  ])('allows %s', (ip) => {
     expect(isPublicAddress(ip)).toBe(true);
   });
 });
@@ -236,6 +249,58 @@ describe('ClientMetadataResolver', () => {
     now += 121_000;
     await resolver.resolve(CLAUDE_CODE);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses an expired document when the refetch fails', async () => {
+    let now = 1_000_000;
+    const fetcher = vi
+      .fn<() => Promise<FetchedDocument>>()
+      .mockResolvedValueOnce(ok(CLAUDE_CODE_DOC, 'max-age=120'))
+      .mockRejectedValue(new Error('ETIMEDOUT'));
+    const resolver = new ClientMetadataResolver({ fetcher, now: () => now });
+    await resolver.resolve(CLAUDE_CODE);
+
+    now += 121_000;
+    expect((await resolver.resolve(CLAUDE_CODE)).client_name).toBe('Claude Code');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    now += CIMD_MAX_STALE_MS;
+    await expect(resolver.resolve(CLAUDE_CODE)).rejects.toThrow(/could not be fetched/);
+  });
+
+  it('uses an expired document while every lookup slot is busy', async () => {
+    let now = 1_000_000;
+    let hang = false;
+    const fetcher = vi.fn(async (url: URL) => {
+      if (hang && url.hostname !== 'claude.ai') return new Promise<FetchedDocument>(() => {});
+      return ok(CLAUDE_CODE_DOC, 'max-age=120');
+    });
+    const resolver = new ClientMetadataResolver({ fetcher, now: () => now });
+    await resolver.resolve(CLAUDE_CODE);
+
+    hang = true;
+    for (let i = 0; i < CIMD_MAX_IN_FLIGHT; i++) void resolver.resolve(`https://h${i}.example/c`);
+    now += 121_000;
+    expect((await resolver.resolve(CLAUDE_CODE)).client_name).toBe('Claude Code');
+    await expect(resolver.resolve('https://other.example/c')).rejects.toThrow(/too many/);
+  });
+
+  it('evicts the least recently used document when full', async () => {
+    const doc = (url: URL) => ok({ ...CLAUDE_CODE_DOC, client_id: url.href }, 'max-age=600');
+    const fetcher = vi.fn(async (url: URL) => doc(url));
+    const resolver = new ClientMetadataResolver({ fetcher });
+    await resolver.resolve(CLAUDE_CODE);
+    for (let i = 0; i < CIMD_MAX_CACHE_ENTRIES - 1; i++) {
+      await resolver.resolve(`https://h${i}.example/c`);
+    }
+    await resolver.resolve(CLAUDE_CODE); // a hit makes it the newest
+    await resolver.resolve('https://new.example/c'); // evicts h0, not Claude Code
+    fetcher.mockClear();
+
+    await resolver.resolve(CLAUDE_CODE);
+    expect(fetcher).not.toHaveBeenCalled();
+    await resolver.resolve('https://h0.example/c');
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('shares one fetch between concurrent requests', async () => {

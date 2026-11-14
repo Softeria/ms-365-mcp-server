@@ -43,6 +43,7 @@ import {
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
 import {
+  type AuthorizeClientCheck,
   checkAuthorizeClient,
   clientIdHost,
   ClientMetadataResolver,
@@ -738,6 +739,7 @@ class MicrosoftGraphServer {
         process.env.MS365_MCP_BASE_URL ||
         null;
       const publicBase = publicUrlRaw ? new URL(publicUrlRaw).href.replace(/\/$/, '') : null;
+      const cimdEnabled = this.options.clientMetadataDocuments !== false;
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
@@ -762,12 +764,12 @@ class MicrosoftGraphServer {
           token_endpoint_auth_methods_supported: ['none'],
           code_challenge_methods_supported: ['S256'],
           scopes_supported: scopes,
-          client_id_metadata_document_supported: true,
           // Advertised even with DCR off, so a client that can only do DCR
           // reaches /register and shows its error, which says how to turn it on.
           // CIMD clients pick CIMD first and never call it.
           registration_endpoint: `${browserBase}/register`,
         };
+        if (cimdEnabled) metadata.client_id_metadata_document_supported = true;
 
         res.json(metadata);
       });
@@ -869,11 +871,13 @@ class MicrosoftGraphServer {
         }
 
         const requestedClientId = url.searchParams.get('client_id');
-        const clientCheck = await checkAuthorizeClient({
-          clientId: requestedClientId,
-          redirectUri: redirectUriParam,
-          resolver: clientMetadataResolver,
-        });
+        const clientCheck: AuthorizeClientCheck = cimdEnabled
+          ? await checkAuthorizeClient({
+              clientId: requestedClientId,
+              redirectUri: redirectUriParam,
+              resolver: clientMetadataResolver,
+            })
+          : { ok: true };
         if (!clientCheck.ok) {
           logger.warn('Rejected /authorize request for CIMD client', {
             client_id_host: requestedClientId ? clientIdHost(requestedClientId) : undefined,

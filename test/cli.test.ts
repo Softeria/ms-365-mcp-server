@@ -517,6 +517,23 @@ describe('CLI Module', () => {
       process.env.MS365_MCP_ENABLE_DCR = 'true';
       expect(dcrWith({})).toBeUndefined();
     });
+
+    it.each(['true', '1'])('turns CIMD off when MS365_MCP_DISABLE_CIMD=%s', (value) => {
+      const prevCimd = process.env.MS365_MCP_DISABLE_CIMD;
+      process.env.MS365_MCP_DISABLE_CIMD = value;
+      try {
+        commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+        expect(parseArgs().clientMetadataDocuments).toBe(false);
+      } finally {
+        if (prevCimd === undefined) delete process.env.MS365_MCP_DISABLE_CIMD;
+        else process.env.MS365_MCP_DISABLE_CIMD = prevCimd;
+      }
+    });
+
+    it('leaves CIMD on by default', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({ http: '3000' });
+      expect(parseArgs().clientMetadataDocuments).toBeUndefined();
+    });
   });
 
   describe('--preset with --enable-attachment-urls', () => {

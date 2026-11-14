@@ -425,7 +425,7 @@ Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
 3. Click **Register Client**.
 
-> **Note**: In HTTP mode clients identify themselves with [Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#client-id-metadata-documents), which is always on. Dynamic Client Registration is deprecated by the MCP spec and off by default; turn it on with `--enable-dynamic-registration` (or `MS365_MCP_ENABLE_DCR=true`) for clients that only support DCR, such as Open WebUI. If using a custom Azure Entra app, the platform type for your redirect URI depends on whether the app has a client secret: with a secret use "Web", without one use "Mobile and desktop applications" (never "Single-page application").
+> **Note**: In HTTP mode clients identify themselves with [Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#client-id-metadata-documents), which is on by default (`--no-client-metadata-documents` turns it off for servers without direct outbound HTTPS). Dynamic Client Registration is deprecated by the MCP spec and off by default; turn it on with `--enable-dynamic-registration` (or `MS365_MCP_ENABLE_DCR=true`) for clients that only support DCR, such as Open WebUI. If using a custom Azure Entra app, the platform type for your redirect URI depends on whether the app has a client secret: with a secret use "Web", without one use "Mobile and desktop applications" (never "Single-page application").
 
 **Quick test setup** using the default Azure app (ID `ms-365` and `localhost:8080` are pre-configured):
 
@@ -836,6 +836,9 @@ When running as an MCP server, the following options can be used:
                   DCR-only clients such as Open WebUI). Equivalent env var: MS365_MCP_ENABLE_DCR=true
 --no-dynamic-registration Keep Dynamic Client Registration off even if it is turned on elsewhere.
                   Equivalent env var: MS365_MCP_DISABLE_DCR=true
+--no-client-metadata-documents Turn off Client ID Metadata Documents in HTTP mode, for servers that cannot
+                  reach the client's host directly; turn on DCR too so Claude can fall back to it.
+                  Equivalent env var: MS365_MCP_DISABLE_CIMD=true
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --enabled-tools-file <path> Filter tools using a file with one regex per line (same as --enabled-tools;
                   blank lines and whole-line # comments ignored). Overrides --enabled-tools;
