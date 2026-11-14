@@ -2951,7 +2951,7 @@
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
     "appScopes": ["Group.ReadWrite.All"],
-    "llmTip": "Permanently deletes a group and all its associated resources (conversations, files, calendar, planner). This action is irreversible. Use get-group to verify the group before deleting."
+    "llmTip": "Deletes a group. Microsoft 365 and security groups move to deletedItems and can be restored within 30 days; after that they are permanently deleted. Distribution groups are permanently deleted immediately. Use get-group to verify the group before deleting."
   },
   {
     "pathPattern": "/groups/{group-id}/members/$ref",
