@@ -782,7 +782,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "llmTip": "For large file uploads, up to the drive service's maximum file size (not unlimited); unlike the Outlook attachment upload session, there is no minimum size. Returns a pre-authenticated uploadUrl; the caller uploads sequential byte ranges directly to it without an Authorization header (each request must be under 60 MiB, and when chunked, each range must be a multiple of 320 KiB). This server only creates the session; it does not upload the bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
