@@ -32,7 +32,15 @@ export interface ClientMetadata {
   redirect_uris: string[];
 }
 
-export class ClientMetadataError extends Error {}
+/** `transient` marks a failure worth retrying later (timeout, network, 5xx, 429), not a final answer. */
+export class ClientMetadataError extends Error {
+  constructor(
+    message: string,
+    readonly transient = false
+  ) {
+    super(message);
+  }
+}
 
 /** Host of a client_id URL for logging, or undefined when it does not parse. */
 export function clientIdHost(clientId: string): string | undefined {
@@ -225,15 +233,23 @@ export const fetchDocument: DocumentFetcher = (url) =>
         }
         const chunks: Buffer[] = [];
         let size = 0;
+        let tooLarge = false;
         res.on('data', (chunk: Buffer) => {
+          if (tooLarge) return;
           size += chunk.length;
           if (size > CIMD_MAX_BYTES) {
-            req.destroy(new ClientMetadataError('client metadata document is too large'));
+            // Reject here: when the rest of the body came in the same read,
+            // 'end' still fires after destroy and would resolve the prefix.
+            tooLarge = true;
+            clearTimeout(deadline);
+            reject(new ClientMetadataError('client metadata document is too large'));
+            req.destroy();
             return;
           }
           chunks.push(chunk);
         });
         res.on('end', () => {
+          if (tooLarge) return;
           clearTimeout(deadline);
           resolve({
             status: res.statusCode ?? 0,
@@ -249,11 +265,11 @@ export const fetchDocument: DocumentFetcher = (url) =>
     );
     // `timeout` above only fires on an idle socket; this caps the whole fetch.
     const deadline = setTimeout(
-      () => req.destroy(new ClientMetadataError('client metadata fetch timed out')),
+      () => req.destroy(new ClientMetadataError('client metadata fetch timed out', true)),
       CIMD_TIMEOUT_MS
     );
     req.on('timeout', () =>
-      req.destroy(new ClientMetadataError('client metadata fetch timed out'))
+      req.destroy(new ClientMetadataError('client metadata fetch timed out', true))
     );
     req.on('error', (err) => {
       clearTimeout(deadline);
@@ -367,7 +383,8 @@ export class ClientMetadataResolver {
       if (cached.expiresAt > this.now()) return cached.metadata;
     }
     // stale-if-error (RFC 5861): an expired document beats locking the client
-    // out because its host is slow or the lookup slots are busy.
+    // out because its host is slow or the lookup slots are busy. A final
+    // answer (404, a now-invalid document) drops it instead, see load().
     const stale =
       cached && cached.expiresAt + CIMD_MAX_STALE_MS > this.now() ? cached.metadata : undefined;
 
@@ -381,20 +398,33 @@ export class ClientMetadataResolver {
       this.inFlight.set(clientId, pending);
     }
     if (!stale) return pending;
-    return pending.catch(() => stale);
+    return pending.catch((err) => {
+      if (err instanceof ClientMetadataError && err.transient) return stale;
+      throw err;
+    });
   }
 
   private async load(url: URL, clientId: string): Promise<ClientMetadata> {
+    try {
+      return await this.fetchAndCache(url, clientId);
+    } catch (err) {
+      if (!(err instanceof ClientMetadataError && err.transient)) this.cache.delete(clientId);
+      throw err;
+    }
+  }
+
+  private async fetchAndCache(url: URL, clientId: string): Promise<ClientMetadata> {
     let fetched: FetchedDocument;
     try {
       fetched = await this.fetcher(url);
     } catch (err) {
       if (err instanceof ClientMetadataError) throw err;
-      throw new ClientMetadataError('client metadata document could not be fetched');
+      throw new ClientMetadataError('client metadata document could not be fetched', true);
     }
     if (fetched.status !== 200) {
       throw new ClientMetadataError(
-        'client metadata document could not be fetched (it must answer 200; redirects are not followed)'
+        'client metadata document could not be fetched (it must answer 200; redirects are not followed)',
+        fetched.status >= 500 || fetched.status === 429
       );
     }
     let raw: unknown;

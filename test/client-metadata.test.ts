@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import dns from 'node:dns';
+import http from 'node:http';
+import https from 'node:https';
+import net from 'node:net';
 import {
   CIMD_DEFAULT_TTL_MS,
   CIMD_MAX_CACHE_ENTRIES,
@@ -7,6 +10,7 @@ import {
   CIMD_MAX_STALE_MS,
   CIMD_MAX_TTL_MS,
   CIMD_MIN_TTL_MS,
+  CIMD_TIMEOUT_MS,
   ClientMetadataError,
   ClientMetadataResolver,
   cacheTtlMs,
@@ -162,6 +166,57 @@ describe('fetchDocument', () => {
       await expect(fetchDocument(new URL(url))).rejects.toThrow(/public address/);
     }
   );
+
+  it('rejects a document over the size cap even when the whole body arrives in one read', async () => {
+    // Valid JSON first, then padding past the cap, all in a single write: 'end'
+    // fires after the destroy, and must not hand back the valid prefix.
+    const doc = JSON.stringify(CLAUDE_CODE_DOC);
+    const pad = ' '.repeat(6000);
+    const chunk = (s: string) => `${s.length.toString(16)}\r\n${s}\r\n`;
+    const raw =
+      'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n' +
+      chunk(doc) +
+      chunk(pad) +
+      '0\r\n\r\n';
+    const server = net.createServer((socket) => socket.once('data', () => socket.end(raw)));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as net.AddressInfo;
+    // Plain http to the local socket: the real lookup would refuse 127.0.0.1.
+    vi.spyOn(https, 'get').mockImplementation(((url: URL, _opts: unknown, cb: never) =>
+      http.get(`http://127.0.0.1:${port}${url.pathname}`, { agent: false }, cb)) as never);
+    try {
+      await expect(fetchDocument(new URL('https://example.com/c.json'))).rejects.toThrow(
+        /too large/
+      );
+    } finally {
+      vi.restoreAllMocks();
+      server.close();
+    }
+  });
+
+  it('marks a fetch that runs past the deadline as transient', async () => {
+    // Accepts the request and never answers.
+    const sockets: net.Socket[] = [];
+    const server = net.createServer((socket) => sockets.push(socket));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as net.AddressInfo;
+    vi.spyOn(https, 'get').mockImplementation(((url: URL, _opts: unknown, cb: never) =>
+      http.get(`http://127.0.0.1:${port}${url.pathname}`, { agent: false }, cb)) as never);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const fetching = fetchDocument(new URL('https://example.com/c.json')).catch((e) => e);
+      await vi.advanceTimersByTimeAsync(CIMD_TIMEOUT_MS);
+      const err = await fetching;
+      expect(err).toBeInstanceOf(ClientMetadataError);
+      expect(err.message).toMatch(/timed out/);
+      expect(err.transient).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      sockets.forEach((socket) => socket.destroy());
+      server.close();
+    }
+  });
 });
 
 describe('validateClientMetadata', () => {
@@ -265,6 +320,49 @@ describe('ClientMetadataResolver', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
 
     now += CIMD_MAX_STALE_MS;
+    await expect(resolver.resolve(CLAUDE_CODE)).rejects.toThrow(/could not be fetched/);
+  });
+
+  // What the refetch does: answer with a status, or fail the way fetchDocument does.
+  type Refetch = FetchedDocument | ClientMetadataError;
+  const refetching = (answer: Refetch) => {
+    const fetcher = vi
+      .fn<() => Promise<FetchedDocument>>()
+      .mockResolvedValueOnce(ok(CLAUDE_CODE_DOC, 'max-age=120'));
+    if (answer instanceof ClientMetadataError) fetcher.mockRejectedValueOnce(answer);
+    else fetcher.mockResolvedValueOnce(answer);
+    return fetcher.mockRejectedValue(new Error('ETIMEDOUT'));
+  };
+
+  it.each<[string, Refetch]>([
+    ['a server error', { status: 503, body: '' }],
+    ['429', { status: 429, body: '' }],
+    ['a timeout', new ClientMetadataError('client metadata fetch timed out', true)],
+  ])('keeps an expired document when its host answers with %s', async (_, answer) => {
+    let now = 1_000_000;
+    const resolver = new ClientMetadataResolver({ fetcher: refetching(answer), now: () => now });
+    await resolver.resolve(CLAUDE_CODE);
+
+    now += 121_000;
+    expect((await resolver.resolve(CLAUDE_CODE)).client_name).toBe('Claude Code');
+  });
+
+  it.each<[string, Refetch]>([
+    ['a 404', { status: 404, body: '' }],
+    ['a document that no longer validates', ok({ ...CLAUDE_CODE_DOC, redirect_uris: [] })],
+    ['a document that is not JSON', { status: 200, body: '<html>' }],
+    [
+      'a private address',
+      new ClientMetadataError('client_id host does not resolve to a public address'),
+    ],
+  ])('drops an expired document when its host answers with %s', async (_, answer) => {
+    let now = 1_000_000;
+    const resolver = new ClientMetadataResolver({ fetcher: refetching(answer), now: () => now });
+    await resolver.resolve(CLAUDE_CODE);
+
+    now += 121_000;
+    await expect(resolver.resolve(CLAUDE_CODE)).rejects.toThrow(ClientMetadataError);
+    // Gone for good: a later timeout has no stale copy to fall back on.
     await expect(resolver.resolve(CLAUDE_CODE)).rejects.toThrow(/could not be fetched/);
   });
 
