@@ -818,7 +818,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Graph invite roles are 'read' or 'write'. Set requireSignIn to true to require authentication; sendInvitation=false grants access without sending a notification."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
@@ -827,7 +827,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. The 'embed' type is only for files in OneDrive personal; 'organization' scope is only for OneDrive for Business and SharePoint. Anonymous links may be disabled by an administrator. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
