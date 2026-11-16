@@ -20,6 +20,7 @@ import { api as betaApi } from './generated/client-beta.js';
 import { api } from './generated/client.js';
 import GraphClient, {
   getBlobMaxBytes,
+  GraphApiError,
   isBlobOutputEnabled,
   type AcceptFallback,
 } from './graph-client.js';
@@ -99,6 +100,13 @@ import {
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
 import logger from './logger.js';
+import {
+  describeError,
+  describeShape,
+  describeText,
+  describeUrl,
+  serializedSize,
+} from './lib/log-safe.js';
 import { getRequestTokens } from './request-context.js';
 import { TOOL_CATEGORIES } from './tool-categories.js';
 
@@ -146,6 +154,10 @@ interface EndpointConfig {
   // to synthesize a typed requestBody (instead of a generic object), so the generated client
   // exposes a validated `body` param. Ignored for endpoints already present in the spec.
   requestBodySchema?: Record<string, unknown>;
+  // Optional query params the spec leaves out, as name -> JSON Schema with a description
+  // (includeIDs on OneNote page content). Added to the operation at generate time by
+  // bin/modules/simplified-openapi.mjs, so the runtime sees them as generated params.
+  extraQueryParams?: Record<string, Record<string, unknown>>;
   // The query parameters Graph really accepts here, when that is fewer than the generic OData
   // options the spec lists. Unset keeps every generated one. Keep skiptoken where the tool pages.
   queryParams?: string[];
@@ -513,7 +525,9 @@ function normalizeSearchQueryParam(
   if (inner === '') return noSearchableText();
   const normalized = `"${inner}"`;
   if (normalized !== raw) {
-    logger.info(`Auto-corrected parameter '$search': normalized KQL quoting to ${normalized}`);
+    logger.info(
+      `Auto-corrected parameter '$search': normalized KQL quoting ${describeText(normalized)}`
+    );
     queryParams['$search'] = normalized;
   }
 }
@@ -1505,28 +1519,80 @@ async function mintUploadUrl(
 const MAIL_EVENT_ATTACHMENT_VALUE =
   /^(?:\/me|\/users\/[^/]+|\/groups\/[^/]+)\/(?:messages|events)\/[^/]+\/attachments\/[^/]+\/\$value$/;
 
+// Graph's answers that mean this token can't fetch the attachment: a mangled id (400), no
+// access (403), or no such attachment (404). A URL minted anyway only fails later, as an empty
+// file the agent can't explain (#830).
+const UNFETCHABLE_ATTACHMENT_STATUSES = new Set([400, 403, 404]);
+
+// Graph's codes for ids that name no attachment, mangled or just wrong. Other 400s and 404s,
+// such as a mailbox that isn't enabled for the API, aren't fixed by copying the ids again.
+function isWrongIdCode(code: string | undefined): boolean {
+  return code !== undefined && (code.startsWith('ErrorInvalidId') || code === 'ErrorItemNotFound');
+}
+
+type AttachmentProbe =
+  | { probe: DownloadProbe; fields: Record<string, unknown> }
+  | { refusal: CallToolResult };
+
 /**
  * Graph answers an attachment's /$value with application/octet-stream, so read the real name
- * and type from the attachment resource for the redemption route to serve. Any failure is
- * swallowed: the mint carries on exactly as it did without a probe.
+ * and type from the attachment resource for the redemption route to serve, and name, size and
+ * type for the caller to check. When Graph says the attachment can't be read, refuse instead of
+ * minting. Any other failure is swallowed: the mint carries on as it did without a probe.
  */
 async function probeAttachment(
   target: string,
   graphClient: Pick<GraphClient, 'makeRequest'>,
-  accessToken: string | undefined
-): Promise<DownloadProbe> {
-  if (!MAIL_EVENT_ATTACHMENT_VALUE.test(target)) return {};
+  accessToken: string,
+  // True when the ticket keeps this same token: the redemption sends it again, so a 401 now
+  // is a 401 then. A ticket that fetches a fresh token at redemption can still get through.
+  ticketKeepsToken: boolean
+): Promise<AttachmentProbe> {
+  if (!MAIL_EVENT_ATTACHMENT_VALUE.test(target)) return { probe: {}, fields: {} };
   try {
     const meta = (await graphClient.makeRequest(
-      `${target.slice(0, -'/$value'.length)}?$select=name,contentType`,
+      `${target.slice(0, -'/$value'.length)}?$select=name,contentType,size`,
       { accessToken }
-    )) as { name?: unknown; contentType?: unknown } | null;
+    )) as { name?: unknown; contentType?: unknown; size?: unknown } | null;
     return {
-      ...(typeof meta?.contentType === 'string' && { probedContentType: meta.contentType }),
-      ...(typeof meta?.name === 'string' && { probedName: meta.name }),
+      probe: {
+        ...(typeof meta?.contentType === 'string' && { probedContentType: meta.contentType }),
+        ...(typeof meta?.name === 'string' && { probedName: meta.name }),
+      },
+      fields: {
+        ...(typeof meta?.name === 'string' && { name: meta.name }),
+        ...(typeof meta?.size === 'number' && { size: meta.size }),
+        ...(typeof meta?.contentType === 'string' && { contentType: meta.contentType }),
+      },
     };
-  } catch {
-    return {};
+  } catch (error) {
+    if (
+      error instanceof GraphApiError &&
+      (UNFETCHABLE_ATTACHMENT_STATUSES.has(error.httpStatus) ||
+        (error.httpStatus === 401 && ticketKeepsToken))
+    ) {
+      const idHint = isWrongIdCode(error.graphErrorCode)
+        ? ' Check the ids in the target: copy them exactly as Graph returned them, including any trailing "=".'
+        : '';
+      return {
+        refusal: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: `No download URL was made: ${error.message}${idHint}`,
+              }),
+            },
+          ],
+          isError: true,
+          _meta: {
+            http_status: error.httpStatus,
+            ...(error.graphErrorCode ? { error_code: error.graphErrorCode } : {}),
+          },
+        },
+      };
+    }
+    return { probe: {}, fields: {} };
   }
 }
 
@@ -1534,7 +1600,8 @@ async function mintDownloadUrl(
   target: string,
   accountParam: string | undefined,
   authManager: AuthManager | undefined,
-  // Given only for mail and event attachments: the client the content type is probed with.
+  // Given only for mail and event attachments: the client that checks the attachment and
+  // reads its name and type.
   probeWith?: Pick<GraphClient, 'makeRequest'>,
   // Given for drive items, whose metadata the caller already read: the name and type for
   // the redemption route, and the fields to return next to the URL.
@@ -1609,18 +1676,38 @@ async function mintDownloadUrl(
     };
   }
 
+  // A server-account ticket is redeemed with this same lookup, so one that fails now (an
+  // unknown account, several accounts and no default) fails then too, as a 502 the agent
+  // can't explain. Refuse with the reason while the agent can still act on it.
+  let accountToken: string | undefined;
+  if (!requestToken && authManager) {
+    try {
+      accountToken = await authManager.getTokenForAccount(accountParam);
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: `No download URL was made: ${(error as Error).message}`,
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   // After the plain-path check, so a target whose checked and fetched paths diverge is
-  // refused before Graph is asked about it.
-  const probe = known
-    ? known.probe
-    : probeWith
-      ? await probeAttachment(
-          target,
-          probeWith,
-          requestToken ??
-            (await authManager?.getTokenForAccount(accountParam).catch(() => undefined))
-        )
-      : {};
+  // refused before Graph is asked about it, and with the token the ticket fetches with.
+  const probeToken = requestToken ?? accountToken;
+  const probed = known
+    ? known
+    : probeWith && probeToken
+      ? await probeAttachment(target, probeWith, probeToken, Boolean(requestToken))
+      : undefined;
+  if (probed && 'refusal' in probed) return probed.refusal;
+  const probe = probed?.probe ?? {};
   let ticket: { id: string; expiresAtMs: number };
   try {
     ticket = requestToken
@@ -1642,7 +1729,7 @@ async function mintDownloadUrl(
         type: 'text',
         text: JSON.stringify({
           downloadUrl: buildAttachmentUrl(minting.config, ticket.id),
-          ...known?.fields,
+          ...probed?.fields,
           expiresAt: new Date(ticket.expiresAtMs).toISOString(),
           singleUse: true,
           note: 'Served by this server, not by Microsoft Graph. Valid for one fetch until it expires.',
@@ -2906,11 +2993,8 @@ function hasOwn(obj: Record<string, unknown>, key: string): boolean {
 // escapes executeGraphTool entirely: the caller gets a protocol error instead of a tool
 // error, and no audit record is written at all. Nesting depth is caller-controlled.
 function describeParamsForLog(params: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(params);
-  } catch (error) {
-    return `[unserializable: ${error instanceof Error ? error.name : 'unknown error'}]`;
-  }
+  // Shape only: parameter values carry the user's search text, filters and message bodies.
+  return describeShape(params);
 }
 
 // A quote inside an OData string literal is doubled, e.g. TimeZoneStandard='{TimeZoneStandard}'
@@ -3198,7 +3282,7 @@ async function executeGraphTool(
         }
       } else if (paramName === 'body') {
         body = paramValue;
-        logger.info(`Set body param: ${JSON.stringify(body)}`);
+        logger.info(`Set body param: ${describeShape(body)} (${serializedSize(body)} bytes)`);
       } else if (
         path.includes(`:${paramName}`) ||
         path.includes(`{${paramName}}`) ||
@@ -3231,7 +3315,9 @@ async function executeGraphTool(
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
         queryParams[fixedParamName] = `${paramValue}`;
-        logger.info(`OData param fallback: forwarded ${fixedParamName}=${paramValue}`);
+        logger.info(
+          `OData param fallback: forwarded ${fixedParamName} ${describeText(String(paramValue))}`
+        );
       } else if (
         bodyShape &&
         (hasOwn(bodyShape, paramName) || hasOwn(bodyShape, camelCaseParamName)) &&
@@ -3246,7 +3332,9 @@ async function executeGraphTool(
           `Body field fallback: merging top-level param '${fieldName}' into request body`
         );
       } else {
-        logger.warn(`Dropping unrecognized parameter '${paramName}' for tool ${tool.alias}`);
+        logger.warn(
+          `Dropping unrecognized parameter ${describeText(paramName)} for tool ${tool.alias}`
+        );
       }
     }
 
@@ -3514,7 +3602,8 @@ async function executeGraphTool(
 
     const isProbablyMediaContent =
       tool.errors?.some((error) => error.description === 'Retrieved media content') ||
-      path.endsWith('/content');
+      // path already carries the query string, e.g. ?includeIDs=true on OneNote page content
+      path.split('?')[0].endsWith('/content');
 
     if (config?.returnDownloadUrl && path.endsWith('/content')) {
       path = path.replace(/\/content$/, '');
@@ -3545,10 +3634,11 @@ async function executeGraphTool(
       params,
     });
 
-    // Redact accessToken from log output to prevent credential leakage
+    // Path without its query string (where $search and $filter text lives); options by
+    // shape only. The per-request token is left out and marked.
     const { accessToken: _redacted, ...safeOptions } = options;
     logger.info(
-      `Making graph request to ${path} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+      `Making graph request to ${describeUrl(path)} [${options.method || 'GET'}] with options: ${describeShape(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
     );
 
     const fetchAllPages = params.fetchAllPages === true;
@@ -3644,7 +3734,7 @@ async function executeGraphTool(
           let deltaLink = combinedResponse['@odata.deltaLink'];
 
           while (nextLink && pageCount < maxPages && allItems.length < maxItems) {
-            logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
+            logger.info(`Fetching page ${pageCount + 1} from: ${describeUrl(nextLink)}`);
 
             // Extract path + query string from the nextLink URL.
             // Pass the full path (with query string) as the endpoint so that
@@ -3734,7 +3824,7 @@ async function executeGraphTool(
           }
         }
       } catch (e) {
-        logger.error(`Error during pagination: ${e}`);
+        logger.error(`Error during pagination: ${describeError(e)}`);
       }
 
       // Re-encode once in the configured format. Runs whenever page one parsed
@@ -3800,7 +3890,9 @@ async function executeGraphTool(
           logger.info(`Response contains ${jsonResponse.value.length} items`);
         }
         if (jsonResponse['@odata.nextLink']) {
-          logger.info(`Response has pagination nextLink: ${jsonResponse['@odata.nextLink']}`);
+          logger.info(
+            `Response has pagination nextLink: ${describeUrl(jsonResponse['@odata.nextLink'])}`
+          );
         }
       } catch {
         // Non-JSON response
@@ -3834,7 +3926,7 @@ async function executeGraphTool(
     };
   } catch (error) {
     const err = error as { name?: string; code?: string | number; status?: string | number };
-    logger.error(`Error in tool ${tool.alias}: ${(error as Error).message}`);
+    logger.error(`Error in tool ${tool.alias}: ${describeError(error)}`);
     auditLog({
       event: 'tool.call',
       request_id: requestId,

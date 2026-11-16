@@ -288,7 +288,7 @@ it('keeps native processor continuation and coverage through real single-use URL
     expect(
       graph.makeRequest.mock.calls.every(
         ([path, options]) =>
-          path === target.replace('/$value', '?$select=name,contentType') &&
+          path === target.replace('/$value', '?$select=name,contentType,size') &&
           options.accessToken === token
       )
     ).toBe(true);

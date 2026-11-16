@@ -155,6 +155,9 @@ export function createAndSaveSimplifiedOpenAPI(
               return param;
             });
           }
+          if (eo.extraQueryParams) {
+            operation.parameters = applyExtraQueryParams(operation.parameters, eo);
+          }
         } else {
           delete value[method];
         }
@@ -181,6 +184,32 @@ export function createAndSaveSimplifiedOpenAPI(
   pruneUnusedSchemas(openApiSpec, usedSchemas);
 
   fs.writeFileSync(openapiTrimmedFile, yaml.dump(openApiSpec));
+}
+
+// Adds the optional query params an endpoint declares in extraQueryParams (name -> JSON
+// Schema), for options Microsoft's spec leaves out. A same-named spec param is replaced, not
+// kept beside ours: the spec is downloaded fresh, so the build must survive Microsoft adding it.
+export function applyExtraQueryParams(parameters, endpoint, warn = console.warn) {
+  const extras = Object.entries(endpoint.extraQueryParams ?? {});
+  if (extras.length === 0) return parameters;
+
+  const bare = (name) => String(name).replace(/^\$/, '').toLowerCase();
+  const declared = new Set(extras.map(([name]) => bare(name)));
+  const kept = (parameters ?? []).filter((param) => {
+    if (param.in !== 'query' || !declared.has(bare(param.name))) return true;
+    warn(
+      `${endpoint.toolName}: the spec now has query param ${param.name}; using extraQueryParams`
+    );
+    return false;
+  });
+  const added = extras.map(([name, { description, ...schema }]) => ({
+    name,
+    in: 'query',
+    required: false,
+    ...(description === undefined ? {} : { description }),
+    schema,
+  }));
+  return [...kept, ...added];
 }
 
 // Microsoft's spec is generated from CSDL, so operations that are plain CRUD over a

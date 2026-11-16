@@ -412,10 +412,10 @@ integration method.
 
 Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
-1. Start the server with HTTP mode:
+1. Start the server with HTTP mode and Dynamic Client Registration on (Open WebUI needs it):
 
    ```bash
-   npx @softeria/ms-365-mcp-server --http
+   npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
    ```
 
 2. In Open WebUI, go to **Admin Settings → Tools** (`/admin/settings/tools`) → **Add Connection**:
@@ -425,7 +425,7 @@ Open WebUI supports MCP servers via HTTP transport with OAuth 2.1.
 
 3. Click **Register Client**.
 
-> **Note**: Dynamic client registration is enabled by default in HTTP mode. Use `--no-dynamic-registration` (or set `MS365_MCP_DISABLE_DCR=true`) to disable it. If using a custom Azure Entra app, the platform type for your redirect URI depends on whether the app has a client secret: with a secret use "Web", without one use "Mobile and desktop applications" (never "Single-page application").
+> **Note**: In HTTP mode clients identify themselves with [Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#client-id-metadata-documents), which is on by default (`--no-client-metadata-documents` turns it off for servers without direct outbound HTTPS). Dynamic Client Registration is deprecated by the MCP spec and off by default; turn it on with `--enable-dynamic-registration` (or `MS365_MCP_ENABLE_DCR=true`) for clients that only support DCR, such as Open WebUI. If using a custom Azure Entra app, the platform type for your redirect URI depends on whether the app has a client secret: with a secret use "Web", without one use "Mobile and desktop applications" (never "Single-page application").
 
 **Quick test setup** using the default Azure app (ID `ms-365` and `localhost:8080` are pre-configured):
 
@@ -435,7 +435,7 @@ docker run -d -p 8080:8080 \
   -e OPENAI_API_KEY \
   ghcr.io/open-webui/open-webui:main
 
-npx @softeria/ms-365-mcp-server --http
+npx @softeria/ms-365-mcp-server --http --enable-dynamic-registration
 ```
 
 Then add connection with URL `http://localhost:3000/mcp` and ID `ms-365`.
@@ -832,7 +832,13 @@ When running as an MCP server, the following options can be used:
                   --http bound, which with a wildcard --http leaves BOTH ports on every
                   interface and so isolates nothing — set this to make the split real
                   (requires --attachment-port; see "Splitting the attachment listener")
---no-dynamic-registration Disable OAuth Dynamic Client Registration (enabled by default in HTTP mode)
+--enable-dynamic-registration Turn on OAuth Dynamic Client Registration in HTTP mode (off by default; needed by
+                  DCR-only clients such as Open WebUI). Equivalent env var: MS365_MCP_ENABLE_DCR=true
+--no-dynamic-registration Keep Dynamic Client Registration off even if it is turned on elsewhere.
+                  Equivalent env var: MS365_MCP_DISABLE_DCR=true
+--no-client-metadata-documents Turn off Client ID Metadata Documents in HTTP mode, for servers that cannot
+                  reach the client's host directly; turn on DCR too so Claude can fall back to it.
+                  Equivalent env var: MS365_MCP_DISABLE_CIMD=true
 --enabled-tools <pattern> Filter tools using regex pattern (e.g., "excel|contact" to enable Excel and Contact tools)
 --enabled-tools-file <path> Filter tools using a file with one regex per line (same as --enabled-tools;
                   blank lines and whole-line # comments ignored). Overrides --enabled-tools;
@@ -883,7 +889,7 @@ Environment variables:
 - `MS365_MCP_GRAPH_BASE_URL=<url>`: Send Graph API requests to this base URL instead of the cloud's `graph.microsoft.com` (e.g. `http://127.0.0.1:10255/tenant-a/graph` for an egress proxy that originates TLS itself). Absolute http(s) URL without query or fragment; a path prefix is kept, so requests go to `<url>/v1.0/...`. The login authority and the On-Behalf-Of token resource are unchanged. Two things bypass it: `get-download-url` returns Graph's pre-authenticated SharePoint URL, and the `302` from `/content` points straight at SharePoint, so whoever follows either connects to SharePoint directly; if you control egress, allow those SharePoint hosts or disable those tools. Not read from `.env`
 - `LOG_LEVEL`: Set logging level (default: 'info')
 - `SILENT=true|1`: Disable console output
-- `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.
+- `MS365_MCP_REDACT_PII=false|0`: Disable scrubbing of JWTs, Bearer headers, OAuth token fields, and email addresses from log messages, and log tool parameters, request bodies, URLs, error messages and crash dumps in full instead of by shape only (default: enabled). The server handles live Graph bearer tokens, so redaction is on unless you opt out for fully verbose local debugging.
 - `MS365_MCP_CLIENT_ID`: Custom Azure app client ID (defaults to built-in app)
 - `MS365_MCP_TENANT_ID`: Custom tenant ID (defaults to 'common' for multi-tenant). **Personal Microsoft accounts should set this to `consumers`** - as of June 2026, refresh tokens issued via the default 'common' authority are rejected at the first refresh, so sessions die roughly an hour after login
 - `MS365_MCP_OAUTH_TOKEN`: Pre-existing OAuth token for Microsoft Graph API (BYOT method)
@@ -954,7 +960,11 @@ SharePoint files get a minted URL too, instead of Graph's own: that one is about
 characters, too long for an agent that has to type it into a command, such as `curl` in a
 sandbox that cannot see tool results. A minted URL only
 works if the preset's scopes cover the resource: a contacts, tasks or excel preset has no Mail
-scopes, so a URL minted for a mail attachment fails when fetched.
+scopes, so it cannot read a mail attachment. For a mail or calendar attachment addressed by
+its message or event id (such as `/me/messages/{id}/attachments/{id}/$value`),
+`get-download-url` asks Graph about the attachment first. When Graph rejects the ids, finds no
+such attachment or denies access, it returns Graph's error instead of a URL; otherwise the URL
+comes with the attachment's `name`, `size` and `contentType`, when Graph reports them.
 
 The minted URL looks like:
 
@@ -986,7 +996,7 @@ URL handoff only:
 {"tool":"list-mail-attachments","arguments":{"messageId":"example-message","select":"id,name,contentType,size,isInline"}}
 {"value":[{"id":"example-attachment","name":"example.pdf","contentType":"application/pdf","size":75000,"isInline":false}]}
 {"tool":"get-download-url","arguments":{"target":"/me/messages/example-message/attachments/example-attachment/$value"}}
-{"downloadUrl":"<fresh single-use URL>"}
+{"downloadUrl":"<fresh single-use URL>","name":"example.pdf","size":75000,"contentType":"application/pdf"}
 ```
 
 The client gives the returned URL to any external downloader or document-processing MCP

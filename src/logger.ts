@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import { redactionEnabled, redactSensitive } from './lib/log-redactor.js';
+import { LOG_MAX_BYTES, LOG_MAX_FILES } from './lib/log-limits.js';
+import { BoundedFileTransport } from './lib/bounded-file-transport.js';
 
 // PII/secret redaction (MS365_MCP_REDACT_PII), on by default. Runs before
 // the printf so both file and console transports emit scrubbed messages.
@@ -66,14 +68,19 @@ const logger = winston.createLogger({
     })
   ),
   transports: [
-    new winston.transports.File({
+    // Bounded files: each rotates at LOG_MAX_BYTES, LOG_MAX_FILES kept (see log-limits).
+    new BoundedFileTransport({
       filename: errorLogPath,
       level: 'error',
-      options: { flags: 'a', mode: FILE_MODE },
+      maxBytes: LOG_MAX_BYTES,
+      maxFiles: LOG_MAX_FILES,
+      mode: FILE_MODE,
     }),
-    new winston.transports.File({
+    new BoundedFileTransport({
       filename: serverLogPath,
-      options: { flags: 'a', mode: FILE_MODE },
+      maxBytes: LOG_MAX_BYTES,
+      maxFiles: LOG_MAX_FILES,
+      mode: FILE_MODE,
     }),
   ],
 });

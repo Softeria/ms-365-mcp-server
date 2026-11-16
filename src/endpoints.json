@@ -60,7 +60,7 @@
     "toolName": "delete-mail-folder",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+    "llmTip": "Deletes the specified mail folder. This is distinct from the separate permanentDelete action, which permanently removes a folder and its items; retention and recovery follow Exchange deleted-item retention. Use list-mail-folders to verify the folder ID."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
@@ -740,7 +740,7 @@
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "deltaToken": true,
-    "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select. For incremental sync, pass the @odata.deltaLink from the last page as token on the next call."
+    "llmTip": "Tracks the current state of a driveItem and its children over time; the feed may return an item more than once, with its latest state, and deleted items have a deleted facet. When mirroring a drive, delete a folder locally only after syncing all changes and confirming it is empty. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select. Omit token to enumerate the current hierarchy; pass token='latest' to get an empty response and a starting deltaLink, or pass the @odata.deltaLink from the final page as token on a later sync."
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
@@ -782,7 +782,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "llmTip": "For large file uploads, up to the drive service's maximum file size (not unlimited); unlike the Outlook attachment upload session, there is no minimum size. Returns a pre-authenticated uploadUrl; the caller uploads sequential byte ranges directly to it without an Authorization header (each request must be under 60 MiB, and when chunked, each range must be a multiple of 320 KiB). This server only creates the session; it does not upload the bytes. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -818,7 +818,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Graph invite roles are 'read' or 'write'. Set requireSignIn to true to require authentication; sendInvitation=false grants access without sending a notification."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
@@ -827,7 +827,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. The 'embed' type is only for files in OneDrive personal; 'organization' scope is only for OneDrive for Business and SharePoint. Anonymous links may be disabled by an administrator. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
@@ -863,7 +863,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
+    "llmTip": "Lists the effective sharing permissions Graph exposes to this caller, including direct and inherited grants. The item owner receives all permissions; a non-owner only receives permissions that apply to them, so this may not be a complete access inventory. Check inheritedFrom to identify inherited entries. Prefer grantedToV2 over deprecated grantedTo. Secret fields such as shareId and link.webUrl may be omitted unless the caller can create that sharing permission."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions/{permission-id}",
@@ -881,7 +881,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
+    "llmTip": "Lists the retained versions of a file. Version creation and retention depend on service and admin settings; history may be disabled and older versions may expire. Results are newest to oldest; $orderby is unsupported. Use available fields such as id, lastModifiedDateTime, lastModifiedBy, and size; OneDrive may not preserve complete metadata for older versions. To download a previous version, GET /drives/{drive-id}/items/{driveItem-id}/versions/{version-id}/content. This version-content API does not support the current version; use /drives/{drive-id}/items/{driveItem-id}/content for current bytes."
   },
   {
     "pathPattern": "/drives/{drive-id}/search(q='{q}')",
@@ -1259,7 +1259,13 @@
     "method": "get",
     "toolName": "get-onenote-page-content",
     "presets": ["onenote", "personal"],
-    "scopes": ["Notes.Read"]
+    "scopes": ["Notes.Read"],
+    "extraQueryParams": {
+      "includeIDs": {
+        "type": "boolean",
+        "description": "Add each element's generated id, for use as an update target."
+      }
+    }
   },
   {
     "pathPattern": "/me/onenote/pages/{onenotePage-id}/content",
@@ -1276,7 +1282,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+            "description": "Element to change: #<data-id>, a generated id (no #), or 'body' or 'title'. Most replace actions need the generated id: read the page content with includeIDs=true, and again after each update, as ids can change."
           },
           "action": {
             "type": "string",
@@ -1343,7 +1349,13 @@
     "method": "get",
     "toolName": "get-sharepoint-site-onenote-page-content",
     "presets": ["onenote", "work"],
-    "workScopes": ["Notes.Read.All"]
+    "workScopes": ["Notes.Read.All"],
+    "extraQueryParams": {
+      "includeIDs": {
+        "type": "boolean",
+        "description": "Add each element's generated id, for use as an update target."
+      }
+    }
   },
   {
     "pathPattern": "/sites/{site-id}/onenote/notebooks",
@@ -1390,7 +1402,7 @@
         "properties": {
           "target": {
             "type": "string",
-            "description": "Element to change: a data-id, the generated id, or a known name like 'body' or 'title'."
+            "description": "Element to change: #<data-id>, a generated id (no #), or 'body' or 'title'. Most replace actions need the generated id: read the page content with includeIDs=true, and again after each update, as ids can change."
           },
           "action": {
             "type": "string",
@@ -1458,7 +1470,8 @@
     "toolName": "list-todo-task-lists-delta",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "queryParams": ["select", "skiptoken"]
+    "queryParams": ["select", "skiptoken"],
+    "deltaToken": true
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -1712,7 +1725,7 @@
     "toolName": "create-planner-task-message",
     "scopes": ["Tasks.ReadWrite"],
     "apiVersion": "beta",
-    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Microsoft is retiring the classic task comments experience and hiding it from the task (Planner 2026 update), so task chat is the current supported way to post per-task updates teammates will see, with @mentions. Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Task chat is currently available for basic plans; Premium plans use Teams conversations for task discussions. Existing legacy comments remain accessible through their Outlook conversation thread, while new messages use task chat. Only explicitly mentioned users receive notifications. Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/messages/{plannerTaskChatMessage-id}",
@@ -1728,7 +1741,7 @@
     "toolName": "list-outlook-contacts",
     "presets": ["contacts", "outlook", "personal"],
     "scopes": ["Contacts.Read"],
-    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching."
+    "llmTip": "To match an exact email address, use $filter=emailAddresses/any(a:a/address eq 'name@example.com'). For emailAddresses, only eq on the address sub-property is supported; contains(), startswith(), and other operators are not."
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
@@ -2783,6 +2796,16 @@
     "llmTip": "Lists sessions for a webinar. Each session has startDateTime, endDateTime, joinWebUrl, subject, and is essentially an online meeting associated with the webinar."
   },
   {
+    "pathPattern": "/places/graph.room",
+    "method": "get",
+    "toolName": "list-rooms",
+    "descriptionOverride": "List the meeting rooms in the tenant: displayName, emailAddress (to book the room), capacity, building, floorNumber and address. An empty list does not prove there are no rooms: Microsoft Places may not be set up in the tenant.",
+    "presets": ["calendar", "work"],
+    "workScopes": ["Place.Read.All"],
+    "appScopes": ["Place.Read.All"],
+    "queryParams": ["select", "top", "skip", "filter", "skiptoken"]
+  },
+  {
     "pathPattern": "/places/{place-id}/graph.room",
     "method": "get",
     "toolName": "get-room",
@@ -2808,7 +2831,7 @@
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
     "appScopes": ["Place.Read.All"],
-    "llmTip": "The place-id is the ID or email address of the room list (from get-room-list). Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
+    "llmTip": "The place-id must be the room list's email address (from get-room-list), not its ID. Returns rooms with displayName, emailAddress, capacity, building, floorNumber, floorLabel, and AV equipment details. Combine with find-meeting-times to find available rooms for booking."
   },
   {
     "pathPattern": "/places/{place-id}/graph.roomList/rooms/{room-id}",
@@ -2818,7 +2841,7 @@
     "presets": ["calendar", "work"],
     "workScopes": ["Place.Read.All"],
     "appScopes": ["Place.Read.All"],
-    "llmTip": "The place-id is the room list ID or email, and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
+    "llmTip": "The place-id is the room list's email address (as for list-room-list-rooms), and room-id is the specific room ID. Returns full room details including capacity, building, floor, and AV equipment."
   },
   {
     "pathPattern": "/places/{place-id}",
@@ -2889,10 +2912,11 @@
     "pathPattern": "/me/events/delta()",
     "method": "get",
     "toolName": "list-calendar-events-delta",
+    "apiVersion": "beta",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
     "queryParams": ["startDateTime", "skiptoken"],
-    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+    "llmTip": "Incremental sync of events across the default calendar. This is a Microsoft Graph beta API and may change. On the first call, optionally set startDateTime to include only events starting on or after that time; do not set endDateTime. Follow @odata.nextLink until the response includes @odata.deltaLink, then use the returned link for later changes. The response is optimized and may include a limited property set; use get-calendar-event to fetch full details. For a time-bounded view with expanded recurring instances, use list-calendar-view-delta instead."
   },
   {
     "pathPattern": "/me/calendarView/delta()",
@@ -2929,7 +2953,7 @@
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
     "appScopes": ["Group.ReadWrite.All"],
-    "llmTip": "Permanently deletes a group and all its associated resources (conversations, files, calendar, planner). This action is irreversible. Use get-group to verify the group before deleting."
+    "llmTip": "Deletes a group. Microsoft 365 and security groups move to deletedItems and can be restored within 30 days; after that they are permanently deleted. Distribution groups are permanently deleted immediately. Use get-group to verify the group before deleting."
   },
   {
     "pathPattern": "/groups/{group-id}/members/$ref",
@@ -3392,6 +3416,6 @@
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["TeamsActivity.Send"],
     "contentType": "application/json",
-    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Microsoft Graph URL to a teamsAppInstallation or teamsCatalogApp when source='entityUrl'; plain text when source='text'>, webUrl: <required for source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
   }
 ]

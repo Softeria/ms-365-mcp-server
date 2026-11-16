@@ -111,11 +111,15 @@ program
   )
   .option(
     '--enable-dynamic-registration',
-    'Enable OAuth Dynamic Client Registration endpoint (kept for backwards compatibility, now enabled by default in HTTP mode)'
+    'Turn on OAuth Dynamic Client Registration in HTTP mode (off by default; the MCP spec deprecated it in favour of Client ID Metadata Documents). Needed by clients that only support DCR, such as Open WebUI. Equivalent env var: MS365_MCP_ENABLE_DCR=true.'
   )
   .option(
     '--no-dynamic-registration',
-    'Disable OAuth Dynamic Client Registration endpoint in HTTP mode. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
+    'Keep OAuth Dynamic Client Registration off, even when --enable-dynamic-registration or MS365_MCP_ENABLE_DCR is set. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
+  )
+  .option(
+    '--no-client-metadata-documents',
+    "Turn off OAuth Client ID Metadata Documents in HTTP mode: they are no longer advertised, and https client_ids are passed through like any other. For servers that cannot reach the client's host directly (proxy-only or allowlisted egress); Claude then falls back to Dynamic Client Registration, so turn that on too. Equivalent env var: MS365_MCP_DISABLE_CIMD=true."
   )
   .option(
     '--auth-browser',
@@ -200,6 +204,8 @@ export interface CommandOptions {
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
+  /** False turns Client ID Metadata Documents off; anything else leaves them on. */
+  clientMetadataDocuments?: boolean;
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
@@ -441,19 +447,16 @@ export function parseArgs(): CommandOptions {
     options.toon = true;
   }
 
-  // Dynamic registration defaults to true in HTTP mode.
-  // CLI flags `--enable-dynamic-registration` / `--no-dynamic-registration` take
-  // precedence; otherwise `MS365_MCP_DISABLE_DCR=true|1` opts the deployment out
-  // (allows env-var-only configuration in container platforms without modifying
-  // process args).
+  // Dynamic Client Registration is off by default in HTTP mode; Client ID
+  // Metadata Documents replace it. `--enable-dynamic-registration` or
+  // MS365_MCP_ENABLE_DCR turn it on, and `--no-dynamic-registration` or
+  // MS365_MCP_DISABLE_DCR keep it off whatever else is set.
   if (options.http) {
-    const dcrDisabledByEnv =
-      process.env.MS365_MCP_DISABLE_DCR === 'true' || process.env.MS365_MCP_DISABLE_DCR === '1';
-    if (options.dynamicRegistration === false || dcrDisabledByEnv) {
-      options.enableDynamicRegistration = false;
-    } else {
-      options.enableDynamicRegistration = true;
-    }
+    const envFlag = (name: string) => process.env[name] === 'true' || process.env[name] === '1';
+    const forcedOff = options.dynamicRegistration === false || envFlag('MS365_MCP_DISABLE_DCR');
+    const turnedOn = options.enableDynamicRegistration === true || envFlag('MS365_MCP_ENABLE_DCR');
+    options.enableDynamicRegistration = turnedOn && !forcedOff;
+    if (envFlag('MS365_MCP_DISABLE_CIMD')) options.clientMetadataDocuments = false;
   }
 
   if (process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1') {
