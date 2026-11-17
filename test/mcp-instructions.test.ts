@@ -23,6 +23,19 @@ describe('buildMcpServerInstructions', () => {
     expect(s).toContain('read-only');
   });
 
+  it.each([false, true])(
+    'says the mail reply/forward comment is HTML, except when read-only (discovery=%s)',
+    (discovery) => {
+      const s = buildMcpServerInstructions({ ...baseCtx, discovery });
+      expect(s).toContain('(including their drafts and shared mailboxes)');
+      expect(s).toContain('Graph puts comment into an HTML body');
+      expect(s).toContain('use <br> for line breaks');
+
+      const readOnly = buildMcpServerInstructions({ ...baseCtx, discovery, readOnly: true });
+      expect(readOnly).not.toContain('Graph puts comment into an HTML body');
+    }
+  );
+
   it('does not suggest account switching when multiAccount is false', () => {
     const s = buildMcpServerInstructions({ ...baseCtx, discovery: false, multiAccount: false });
     expect(s).not.toContain('Multiple accounts');

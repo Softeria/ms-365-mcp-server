@@ -26,6 +26,10 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
       'App mode: there is no signed-in user, so /me paths do not work. Name the user in /users/{user-id} paths with a UPN or object id.'
     );
   if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
+  else
+    parts.push(
+      'Mail reply, reply-all and forward tools (including their drafts and shared mailboxes): Graph puts comment into an HTML body, so plain-text line breaks are usually lost; use <br> for line breaks or <p> for paragraphs.'
+    );
   if (opts.multiAccount)
     parts.push('Multiple accounts: pass the account parameter when required (see list-accounts).');
   if (!opts.orgMode)

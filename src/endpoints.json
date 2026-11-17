@@ -183,7 +183,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/createReplyAll",
@@ -192,7 +192,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/createForward",
@@ -396,7 +396,7 @@
     "toolName": "create-reply-draft",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
@@ -404,7 +404,7 @@
     "toolName": "create-reply-all-draft",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "For HTML replies pass Message.body.contentType: 'html' with Message.body.content as HTML. Note: supplying Message.body replaces the whole draft body, so the original quoted history is not included. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
