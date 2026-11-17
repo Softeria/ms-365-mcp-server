@@ -1769,6 +1769,80 @@ function invalidAcceptResult(accept: unknown): CallToolResult | undefined {
   };
 }
 
+// Most entries one get-download-url or get-upload-url call takes. Every minted link holds a
+// ticket slot until it is redeemed or expires, so one call stays well under MAX_LIVE_TICKETS.
+const MAX_TRANSFER_ENTRIES = 20;
+
+/**
+ * Accept a list of entries under `listKey` in place of a single one, so an agent that moves
+ * many files gets every link from one call instead of one call per file (#750). Each entry
+ * runs through the single-entry execute unchanged, one after another, so every check applies
+ * per entry. The result holds one item per entry: its link, or its error.
+ */
+function withTransferList(
+  listKey: string,
+  entryParams: (entry: unknown) => Record<string, unknown>,
+  single: UtilityTool['execute']
+): UtilityTool['execute'] {
+  const listError = (message: string): CallToolResult => ({
+    content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+    isError: true,
+  });
+  return async (params, ctx) => {
+    const list = params[listKey];
+    if (list == null) return single(params, ctx);
+    if (!Array.isArray(list) || list.length === 0 || list.length > MAX_TRANSFER_ENTRIES) {
+      return listError(`${listKey} must be a list of 1 to ${MAX_TRANSFER_ENTRIES} entries.`);
+    }
+    // Clients send '' or null for an optional field they leave empty.
+    const mixed = Object.keys(params).filter(
+      (key) => key !== listKey && key !== 'account' && params[key] != null && params[key] !== ''
+    );
+    if (mixed.length > 0) {
+      return listError(
+        `With ${listKey}, give every other field inside its entries, not next to it (got ${mixed.join(', ')}).`
+      );
+    }
+    const results: Record<string, unknown>[] = [];
+    let failed = 0;
+    for (const entry of list) {
+      const entryInput = entryParams(entry);
+      const result = await single({ ...entryInput, account: params.account }, ctx);
+      if (result.isError) failed++;
+      const text = result.content?.[0]?.type === 'text' ? result.content[0].text : '';
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { error: text || 'No result.' };
+      }
+      results.push({
+        target: entryInput.target,
+        ...(entryInput.name !== undefined && { name: entryInput.name }),
+        ...body,
+      });
+    }
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ results }) }],
+      ...(failed === list.length && { isError: true }),
+    };
+  };
+}
+
+// A files entry carries the fields of one upload and nothing else, so it cannot set account.
+function uploadEntryParams(entry: unknown): Record<string, unknown> {
+  if (typeof entry !== 'object' || entry === null) return {};
+  const { target, name, contentType, contentId, conflictBehavior } = entry as Record<
+    string,
+    unknown
+  >;
+  return { target, name, contentType, contentId, conflictBehavior };
+}
+
+function downloadEntryParams(entry: unknown): Record<string, unknown> {
+  return { target: entry };
+}
+
 export const UTILITY_TOOLS: readonly UtilityTool[] = [
   {
     name: 'get-upload-url',
@@ -1777,11 +1851,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url upload onedrive file upload sharepoint file',
     description:
-      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, or as a file in a OneDrive/SharePoint folder, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments; or a drive folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the upload. Up to 150 MB. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. For a drive folder, conflictBehavior says what happens when the name is taken (default fail; contentId does not apply). Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes, conflictBehavior? }.',
+      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, or as a file in a OneDrive/SharePoint folder, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments; or a drive folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the upload. Up to 150 MB. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. For a drive folder, conflictBehavior says what happens when the name is taken (default fail; contentId does not apply). Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes, conflictBehavior? }. For several files, pass files (up to 20 entries of target, name and the optional fields) instead: one call returns { results: [...] }, one item per entry with its uploadUrl or its error.',
     readOnlyHint: false,
     openWorldHint: true,
     buildSchema: (ctx) => {
-      const schema: Record<string, z.ZodTypeAny> = {
+      const entry = {
         target: z
           .string()
           .describe(
@@ -1806,6 +1880,20 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
             'Drive folder targets only: what happens when the folder already has a file with this name. fail (default), replace, or rename.'
           ),
       };
+      const schema: Record<string, z.ZodTypeAny> = {
+        ...entry,
+        // Optional so that files can stand in for them; execute still requires one form.
+        target: entry.target.optional(),
+        name: entry.name.optional(),
+        files: z
+          .array(z.object(entry))
+          .min(1)
+          .max(MAX_TRANSFER_ENTRIES)
+          .optional()
+          .describe(
+            `Several files at once, instead of target and name: up to ${MAX_TRANSFER_ENTRIES} entries, each with the fields of a single upload.`
+          ),
+      };
       if (ctx.multiAccount) {
         schema['account'] = z
           .string()
@@ -1816,7 +1904,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       }
       return schema;
     },
-    execute: async (params, { authManager }) => {
+    execute: withTransferList('files', uploadEntryParams, async (params, { authManager }) => {
       const target = params.target;
       const name = params.name;
       if (typeof target !== 'string' || target.length === 0) {
@@ -1838,7 +1926,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
         optionalContentId(params.contentId),
         params.conflictBehavior === '' ? undefined : params.conflictBehavior
       );
-    },
+    }),
   },
   {
     name: 'upload-attachment-from-file',
@@ -2493,18 +2581,28 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'download file download drive file download onedrive file sharepoint file download large drive file large sharepoint file large file out-of-band download pre-authenticated url',
     description:
-      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes. With --enable-attachment-urls, drive files get a short single-use URL from this server as well, instead of the long one from Graph.',
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes. With --enable-attachment-urls, drive files get a short single-use URL from this server as well, instead of the long one from Graph. For several files, pass targets (up to 20) instead of target: one call returns { results: [...] }, one item per target with its downloadUrl or its error.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
       const schema: Record<string, z.ZodTypeAny> = {
+        // Optional so that targets can stand in for it; execute still requires one form.
         target: z
           .string()
+          .optional()
           .describe(
             'Relative Microsoft Graph path starting with "/". Either a driveItem content path or the item path itself, e.g. ' +
               '/drives/{drive-id}/items/{driveItem-id}/content, /me/drive/items/{driveItem-id}/content, ' +
               'or /sites/{site-id}/drive/items/{driveItem-id}. ' +
               'A trailing /content is optional and is stripped automatically for drive items. Mail attachment $value paths and meeting recordings are accepted on a server running with --enable-attachment-urls.'
+          ),
+        targets: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_TRANSFER_ENTRIES)
+          .optional()
+          .describe(
+            `Several files at once, instead of target: up to ${MAX_TRANSFER_ENTRIES} paths, each of the form target takes.`
           ),
       };
       if (ctx.multiAccount) {
@@ -2517,7 +2615,8 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
       }
       return schema;
     },
-    execute: async (params, { graphClient, authManager, userFields }) => {
+    execute: withTransferList('targets', downloadEntryParams, async (params, context) => {
+      const { graphClient, authManager, userFields } = context;
       const target = params.target;
       const accountParam = params.account as string | undefined;
       if (typeof target !== 'string' || target.length === 0) {
@@ -2810,7 +2909,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
           ...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
         };
       }
-    },
+    }),
   },
 ];
 

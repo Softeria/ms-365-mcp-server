@@ -1044,6 +1044,18 @@ whatever the outcome, and the upload is attached as the identity that minted it,
 downloads are fetched. An upload ticket presented to `GET` (or a download ticket to `PUT`)
 is refused with the same 404 as any other bad ticket.
 
+### Several files in one call
+
+An agent that moves many files would otherwise spend one tool call per file. Both tools
+take a list instead of a single entry: `get-download-url` takes `targets`, up to 20 paths of
+the form `target` takes, and `get-upload-url` takes `files`, up to 20 entries with the
+fields of a single upload (`target`, `name`, and the optional `contentType`, `contentId`
+and `conflictBehavior`). Each entry is checked and minted exactly as a single call would be.
+The result is `{ "results": [...] }`, one item per entry in the order given, naming its
+`target` (and `name`) next to its URL or its `error`; the call is an error only when every
+entry failed. Every URL keeps its own single use and TTL, so mint a list right before the
+transfer that uses it.
+
 ### Attaching a local file in stdio mode
 
 In stdio mode the server and the files are on the same machine, so no URL is needed.
