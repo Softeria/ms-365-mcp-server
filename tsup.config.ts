@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/**/*.ts', 'src/endpoints.json'],
+  entry: ['src/**/*.ts', 'src/endpoints.json', 'src/apps/*.html'],
   format: ['esm'],
   target: 'es2020',
   outDir: 'dist',
@@ -14,6 +14,7 @@ export default defineConfig({
   onSuccess: process.platform === 'win32' ? undefined : 'chmod +x dist/index.js',
   loader: {
     '.json': 'copy',
+    '.html': 'copy',
   },
   noExternal: [],
   external: [

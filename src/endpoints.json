@@ -756,7 +756,8 @@
     "toolName": "list-folder-files",
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
-    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]]
+    "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
+    "mcpApp": "file-browser"
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
