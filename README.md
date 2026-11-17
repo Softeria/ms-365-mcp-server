@@ -781,6 +781,22 @@ Select a small set: exposing many generated Graph schemas can consume substantia
 model context. This option does not shrink individual schemas. Without
 `--eager-tools`, discovery and normal registration behave as before.
 
+## MCP Apps (experimental)
+
+With `--enable-mcp-apps` (or `MS365_MCP_ENABLE_MCP_APPS=true`), tools that have an
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) view show it in hosts that
+support MCP Apps, such as Claude, ChatGPT and VS Code. Other hosts ignore it and get the
+same tool results as before.
+
+The first view is a OneDrive/SharePoint file browser for `list-folder-files`: open
+folders, go back through the folder path, load more items and open files in the browser.
+The view gets its data through the host, which calls `list-folder-files` on this server
+again, so it needs no network access of its own.
+
+- It has no effect with `--toon`, since the view reads JSON results.
+- With `--discovery`, only tools published directly with `--eager-tools` show a view,
+  e.g. `--discovery --eager-tools list-folder-files`.
+
 ## CLI Options
 
 The following options can be used when running ms-365-mcp-server directly from the command line:
@@ -849,6 +865,8 @@ When running as an MCP server, the following options can be used:
 --blob-output     File download tools answer an MCP EmbeddedResource with the file instead of
                   base64 JSON in a text block (see MS365_MCP_BLOB_OUTPUT below)
 --discovery       Dynamic tool discovery: loads tools on demand to reduce initial token usage (see "Dynamic Tool Discovery" above)
+--enable-mcp-apps (experimental) Show the interactive MCP Apps views, starting with a OneDrive/SharePoint
+                  file browser, in hosts that support them (see "MCP Apps" above)
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
@@ -866,6 +884,7 @@ Environment variables:
 - `MS365_MCP_FEDERATED_TOKEN_FILE=<path>`: Federated token (workload identity federation), used instead of a secret or certificate in app mode
 - `MS365_MCP_MANAGED_IDENTITY=system|<client id>`: Use the host's managed identity in app mode, instead of an app registration
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
+- `MS365_MCP_ENABLE_MCP_APPS=true|1`: Show the MCP Apps views (alternative to --enable-mcp-apps; see "MCP Apps" above)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops after a whole page reaches this count, so the result can exceed the cap.

@@ -100,6 +100,7 @@ import {
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
 import logger from './logger.js';
+import { mcpAppToolMeta } from './mcp-apps.js';
 import {
   describeError,
   describeShape,
@@ -166,6 +167,9 @@ interface EndpointConfig {
   // Adds a `token` param: Graph pages and resumes this delta query with token=, not $skiptoken
   deltaToken?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
+  // MCP Apps view (src/apps/<name>.html) that hosts render for this tool's results under
+  // --enable-mcp-apps. The view calls this same tool to page and navigate.
+  mcpApp?: string;
   // A second tool on a Graph operation that already has one, always sending this body.
   // It is a copy of the generated operation for pathPattern + method without the body
   // param, so the method, path, confirm gate and read-only handling stay the operation's
@@ -3973,6 +3977,8 @@ export interface GraphToolRegistrationOptions {
   allowedScopes?: string;
   httpMode?: boolean;
   userFields?: string;
+  /** Point tools that have an endpoints.json mcpApp at their MCP Apps view. */
+  mcpApps?: boolean;
 }
 
 /** What registerGraphTools passes to fit each tool into the connector definition budget. */
@@ -4144,6 +4150,11 @@ function registerGraphToolWithMcp(
       )
     : undefined;
 
+  const appMeta =
+    options.mcpApps && endpointConfig?.mcpApp
+      ? mcpAppToolMeta(server, endpointConfig.mcpApp, tool.alias)
+      : undefined;
+
   // .loose() object, not a raw shape - the SDK wraps raw shapes in z.object()
   // and strips unknown keys before the handler runs, which is exactly how #569's
   // flattened subject/toRecipients got lost
@@ -4159,6 +4170,7 @@ function registerGraphToolWithMcp(
         destructiveHint: destructive,
         openWorldHint: true, // All tools call Microsoft Graph API
       },
+      ...(appMeta ? { _meta: appMeta } : {}),
     },
     async (params: Record<string, unknown>) =>
       executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
