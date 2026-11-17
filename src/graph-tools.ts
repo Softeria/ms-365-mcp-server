@@ -99,6 +99,7 @@ import {
   targetsUserProfile,
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
+import { bodyParamSchemas, buildFixedBody, type BodyParamConfig } from './lib/body-params.js';
 import logger from './logger.js';
 import {
   mcpAppResultWithoutBody,
@@ -183,6 +184,9 @@ interface EndpointConfig {
   // own. The generator skips these entries, so the spec keeps one operation per path and
   // method. delete-mail-message is move-mail-message with { destinationId: 'deleteditems' }.
   fixedBody?: Record<string, unknown>;
+  // The leaves of fixedBody the caller fills, served as params of the tool. The caller fills no
+  // other part of the body.
+  bodyParams?: Record<string, BodyParamConfig>;
   disabled?: boolean; // Left out of the generated clients, so never registered
 }
 
@@ -3149,6 +3153,12 @@ async function executeGraphTool(
       if (paramName === 'fileName' && config?.blobOutput) continue;
       if (paramName === 'name' && config?.nameFilter) continue;
       if (paramName === 'token' && config?.deltaToken) continue;
+      if (
+        config?.bodyParams &&
+        Object.prototype.hasOwnProperty.call(config.bodyParams, paramName)
+      ) {
+        continue;
+      }
       // Skip control parameters - not part of the Microsoft Graph API
       if (
         [
@@ -3576,7 +3586,14 @@ async function executeGraphTool(
 
     // A fixedBody tool has no body param of its own, so this is the whole body
     if (config?.fixedBody) {
-      body = { ...config.fixedBody };
+      const built = buildFixedBody(config.fixedBody, config.bodyParams ?? {}, params);
+      if ('error' in built) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: built.error }) }],
+          isError: true,
+        };
+      }
+      body = built.body;
     }
 
     if (config?.blobOutput && isBlobOutputEnabled()) {
@@ -4028,6 +4045,10 @@ function registerGraphToolWithMcp(
         paramSchema[param.name] = param.schema || z.any();
       }
     }
+  }
+
+  if (endpointConfig?.bodyParams) {
+    Object.assign(paramSchema, bodyParamSchemas(endpointConfig.bodyParams));
   }
 
   // Extract path parameters from the path pattern (e.g., :todoTaskListId from /me/todo/lists/:todoTaskListId/tasks)
