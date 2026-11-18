@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/**/*.ts', 'src/endpoints.json', 'src/apps/*.html'],
+  entry: ['src/**/*.ts', 'src/endpoints.json', 'src/apps/*.html', 'src/apps/*.js'],
   format: ['esm'],
   target: 'es2020',
   outDir: 'dist',
@@ -15,6 +15,8 @@ export default defineConfig({
   loader: {
     '.json': 'copy',
     '.html': 'copy',
+    // Only the MCP Apps view scripts: the server inlines them into their pages as they are
+    '.js': 'copy',
   },
   noExternal: [],
   external: [

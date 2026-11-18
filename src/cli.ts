@@ -151,7 +151,7 @@ program
   )
   .option(
     '--enable-mcp-apps',
-    '(experimental) Show an interactive MCP Apps view for the tools that have one, starting with a OneDrive/SharePoint file browser for folder listings, in hosts that support MCP Apps. Other hosts ignore it. No effect with --toon. Equivalent env var: MS365_MCP_ENABLE_MCP_APPS=true.'
+    '(experimental) Show an interactive MCP Apps view for the tools that have one, in hosts that support MCP Apps: a OneDrive/SharePoint file browser for folder listings, and a mail draft view with a Send button for the draft tools. Other hosts ignore it. No effect with --toon. Equivalent env var: MS365_MCP_ENABLE_MCP_APPS=true.'
   )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
