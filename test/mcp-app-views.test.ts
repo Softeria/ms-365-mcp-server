@@ -218,6 +218,8 @@ describe('MCP Apps bridge', () => {
 });
 
 describe('mail draft view', () => {
+  // The result of the call that opened the view: Graph answers a POST with the draft as it
+  // stores it, HTML body and all
   const draft = {
     id: 'AAMkDraft=',
     changeKey: 'CQAAABYAAAA1',
@@ -226,19 +228,30 @@ describe('mail draft view', () => {
     toRecipients: [{ emailAddress: { name: 'Bob Builder', address: 'bob@example.com' } }],
     ccRecipients: [{ emailAddress: { name: 'carol@example.com', address: 'carol@example.com' } }],
     bccRecipients: [],
+    replyTo: [],
     body: {
       contentType: 'html',
       content:
         '<html><head><style>p{color:red}</style></head><body><p>Hi&nbsp;Bob,</p><div>See &lt;attached&gt; &amp; reply</div>' +
         '<script>parent.postMessage({ method: "tools/call" }, "*")</script><img src="x" onerror="alert(1)"></body></html>',
     },
+    bodyPreview: 'Hi Bob, See <attached> & reply',
     webLink: 'https://outlook.office365.com/owa/?ItemID=AAMkDraft%3D',
     hasAttachments: false,
+  };
+  // The same draft as the view's own read gets it: this server asks Graph for text bodies
+  const read = {
+    ...draft,
+    body: {
+      contentType: 'text',
+      content: 'Hi Bob,\n\nSee <attached> & reply\n[https://example.com/logo.png]',
+    },
   };
   const everything = { serverTools: {}, openLinks: {}, updateModelContext: { text: {} } };
   let mePage: string;
   let sendOnlyPage: string;
   let draftsOnlyPage: string;
+  let getOnlyPage: string;
   let sharedPage: string;
 
   beforeAll(async () => {
@@ -253,6 +266,11 @@ describe('mail draft view', () => {
       '^(create-draft-email|send-draft-message)$'
     );
     draftsOnlyPage = await servedPage('mail-draft', 'create-draft-email', '^create-draft-email$');
+    getOnlyPage = await servedPage(
+      'mail-draft',
+      'create-draft-email',
+      '^(create-draft-email|get-mail-message)$'
+    );
     sharedPage = await servedPage(
       'mail-draft',
       'create-shared-mailbox-draft',
@@ -261,11 +279,16 @@ describe('mail draft view', () => {
     );
   });
 
+  const calls = (host: ViewHost) => host.requests('tools/call').map((m) => m.params);
+  const names = (host: ViewHost) => calls(host).map((c) => c.name);
+
+  /** Opens the view on a tool result, then answers its own read of the draft with current */
   async function open(
     page: string,
     message: unknown = draft,
     input: Record<string, unknown> = { messageId: 'AAMkOriginal=', comment: 'Hi Bob' },
-    capabilities: Record<string, unknown> = everything
+    capabilities: Record<string, unknown> = everything,
+    current: unknown = read
   ) {
     const host = runPage(page);
     host.initialize(capabilities);
@@ -273,69 +296,142 @@ describe('mail draft view', () => {
     host.notify('ui/notifications/tool-input', { arguments: input });
     host.notify('ui/notifications/tool-result', text(message));
     await host.flush();
+    // null leaves the read unanswered; a view that cannot read makes no call
+    if (current !== null && calls(host).length > 0) {
+      host.answer('tools/call', text(current));
+      await host.flush();
+    }
     return host;
   }
 
-  const calls = (host: ViewHost) => host.requests('tools/call').map((m) => m.params);
-
   /** Clicks Send and answers the view's fresh read of the draft */
-  async function clickSend(host: ViewHost, current: unknown = draft) {
+  async function clickSend(host: ViewHost, current: unknown = read) {
     el(host, 'send').click();
     host.answer('tools/call', text(current));
     await host.flush();
   }
 
-  it('shows the draft with every address written out and the body as text only', async () => {
+  it('shows the draft as it reads it itself, with every address written out', async () => {
     const host = await open(mePage);
+    expect(calls(host)).toEqual([
+      {
+        name: 'get-mail-message',
+        arguments: { messageId: 'AAMkDraft=' },
+        _meta: { progressToken: expect.any(Number) },
+      },
+    ]);
     expect(el(host, 'subject').textContent).toBe('Quarterly numbers');
     expect(el(host, 'fields').textContent).toBe(
       'ToBob Builder <bob@example.com>Cccarol@example.com'
     );
-    expect(el(host, 'body').textContent).toBe('Hi Bob,\n\nSee <attached> & reply');
+    expect(el(host, 'body').textContent).toBe(
+      'Hi Bob,\n\nSee <attached> & reply\n[https://example.com/logo.png]'
+    );
+    expect(el(host, 'status').textContent).toBe('');
     expect(el(host, 'send').hidden).toBe(false);
     expect(el(host, 'send').disabled).toBe(false);
     expect(el(host, 'open').hidden).toBe(false);
-    expect(calls(host)).toEqual([]);
   });
 
-  it('keeps an Outlook body’s lines: a <div> per line, <div><br></div> for a blank one', async () => {
-    const content =
-      '<html>\r\n<body>\r\n<div>Hi Bob,</div>\r\n<div><br>\r\n</div>\r\n<div>Numbers   attached.</div>\r\n' +
-      '<hr>\r\n<div><b>From:</b> Carol &lt;carol@example.com&gt;</div>\r\n</body>\r\n</html>';
-    const host = await open(mePage, { ...draft, body: { contentType: 'html', content } });
-    expect(el(host, 'body').textContent).toBe(
-      'Hi Bob,\n\nNumbers attached.\nFrom: Carol <carol@example.com>'
+  it('never parses the HTML body: until its own read it shows only Graph’s preview', async () => {
+    const host = await open(mePage, draft, undefined, everything, null);
+    expect(el(host, 'body').textContent).toBe('Hi Bob, See <attached> & reply');
+    expect(el(host, 'status').textContent).toBe('Reading the draft...');
+    expect(el(host, 'send').disabled).toBe(true);
+    host.answer('tools/call', text(read));
+    await host.flush();
+    expect(el(host, 'body').textContent).toBe(read.body.content);
+    expect(el(host, 'send').disabled).toBe(false);
+  });
+
+  it('shows the draft as it reads it, not the result that opened it, which a select can trim', async () => {
+    // The model's select left the Bcc and the body out of the result that opened the view
+    const { id, changeKey, subject, toRecipients } = draft;
+    const whole = { ...read, bccRecipients: [{ emailAddress: { address: 'eve@evil.example' } }] };
+    const host = await open(
+      mePage,
+      { id, changeKey, subject, toRecipients },
+      undefined,
+      everything,
+      whole
+    );
+    expect(el(host, 'fields').textContent).toContain('Bcceve@evil.example');
+    expect(el(host, 'body').textContent).toBe(read.body.content);
+    await clickSend(host, whole);
+    expect(names(host)).toEqual(['get-mail-message', 'get-mail-message', 'send-draft-message']);
+  });
+
+  it('shows only Graph’s preview, and no Send, when this server gives HTML bodies', async () => {
+    // MS365_MCP_BODY_FORMAT=html: the view's own read gets HTML, which it does not turn into text
+    const host = await open(mePage, draft, undefined, everything, draft);
+    expect(el(host, 'body').textContent).toBe(draft.bodyPreview);
+    expect(el(host, 'send').hidden).toBe(true);
+    expect(el(host, 'status').textContent).toBe(
+      'To send it, open it in Outlook or ask in the chat.'
     );
   });
 
-  it('keeps the text a browser would show: a "<" before a space, table cells, typography', async () => {
-    const content =
-      '<table><tr><td>Name</td><td>Value</td></tr></table>' +
-      '<p>Price < 100 &amp; qty > 5 &mdash; that&rsquo;s it&hellip;</p>';
-    const host = await open(mePage, { ...draft, body: { contentType: 'html', content } });
-    expect(el(host, 'body').textContent).toBe('Name Value\nPrice < 100 & qty > 5 — that’s it…');
+  it('reads the draft once the host is ready when the result came first', async () => {
+    const host = runPage(mePage);
+    host.notify('ui/notifications/tool-input', { arguments: { messageId: 'AAMkOriginal=' } });
+    host.notify('ui/notifications/tool-result', text(draft));
+    await host.flush();
+    expect(calls(host)).toEqual([]);
+    host.initialize(everything);
+    await host.flush();
+    expect(names(host)).toEqual(['get-mail-message']);
+    host.answer('tools/call', text(read));
+    await host.flush();
+    expect(el(host, 'body').textContent).toBe(read.body.content);
+    expect(names(host)).toEqual(['get-mail-message']);
   });
 
-  it('turns a huge body into text without stalling on long runs of spaces', async () => {
-    const content =
-      '<div>' + '<span> </span>'.repeat(50_000) + 'end</div>' + '&nbsp;'.repeat(50_000);
-    const host = await open(mePage, { ...draft, body: { contentType: 'html', content } });
-    expect(el(host, 'body').textContent).toBe('end');
+  it('shows nothing it read for another message', async () => {
+    const host = await open(mePage, draft, undefined, everything, { ...read, id: 'AAMkOther=' });
+    expect(el(host, 'status').textContent).toBe('This result is not the draft.');
+    expect(el(host, 'body').textContent).toBe(draft.bodyPreview);
   });
 
-  it('shows a text body as it is', async () => {
-    const content = 'Hi Bob,\n\n  <b>not bold</b>';
-    const host = await open(mePage, { ...draft, body: { contentType: 'text', content } });
-    expect(el(host, 'body').textContent).toBe('Hi Bob,\n\n  <b>not bold</b>');
+  it('shows where answers go when the draft sends them to someone else', async () => {
+    const host = await open(mePage, draft, undefined, everything, {
+      ...read,
+      replyTo: [{ emailAddress: { name: 'Bob Builder', address: 'attacker@evil.example' } }],
+    });
+    expect(el(host, 'fields').textContent).toBe(
+      'ToBob Builder <bob@example.com>Cccarol@example.comReply toBob Builder <attacker@evil.example>'
+    );
+  });
+
+  it('shows Graph’s text of the body as it is, without bidi controls that turn text around', async () => {
+    const rlo = String.fromCodePoint(0x202e);
+    const rlm = String.fromCodePoint(0x200f);
+    const arabicMark = String.fromCodePoint(0x061c);
+    // An RLM before digit groups shows them in reverse order
+    const content =
+      `Pay here${rlo} https://evil.example/moc.knab//:sptth\n` +
+      `Account: NO93 ${rlm}8601 1117 947${arabicMark}\n\n  <b>not bold</b>`;
+    const host = await open(mePage, draft, undefined, everything, {
+      ...read,
+      body: { contentType: 'text', content },
+    });
+    expect(el(host, 'body').textContent).toBe(
+      'Pay here https://evil.example/moc.knab//:sptth\nAccount: NO93 8601 1117 947\n\n  <b>not bold</b>'
+    );
   });
 
   it('drops bidi controls that would make one address read like another', async () => {
     const rlo = String.fromCodePoint(0x202e);
     const isolate = String.fromCodePoint(0x2066);
-    const host = await open(mePage, {
-      ...draft,
+    const arabicMark = String.fromCodePoint(0x061c);
+    const host = await open(mePage, draft, undefined, everything, {
+      ...read,
       toRecipients: [
-        { emailAddress: { name: `Boss ${rlo}moc.ssob`, address: `${isolate}evil@example.net` } },
+        {
+          emailAddress: {
+            name: `Boss ${rlo}moc.ssob`,
+            address: `${isolate}evil@${arabicMark}example.net`,
+          },
+        },
       ],
       ccRecipients: [],
     });
@@ -348,14 +444,16 @@ describe('mail draft view', () => {
       comment: 'Hi Bob',
       account: 'me@example.com',
     });
-    expect(calls(host)).toEqual([]);
+    const get = {
+      name: 'get-mail-message',
+      arguments: { messageId: 'AAMkDraft=', account: 'me@example.com' },
+      _meta: { progressToken: expect.any(Number) },
+    };
+    expect(calls(host)).toEqual([get]);
     await clickSend(host);
     expect(calls(host)).toEqual([
-      {
-        name: 'get-mail-message',
-        arguments: { messageId: 'AAMkDraft=', account: 'me@example.com' },
-        _meta: { progressToken: expect.any(Number) },
-      },
+      get,
+      get,
       {
         name: 'send-draft-message',
         arguments: { messageId: 'AAMkDraft=', confirm: true, account: 'me@example.com' },
@@ -365,30 +463,29 @@ describe('mail draft view', () => {
     expect(el(host, 'status').textContent).toBe('Sending...');
     expect(el(host, 'send').disabled).toBe(true);
     el(host, 'send').click();
-    expect(calls(host)).toHaveLength(2);
+    expect(calls(host)).toHaveLength(3);
   });
 
   it('reads and sends a shared mailbox’s draft in that mailbox', async () => {
     const host = await open(sharedPage, draft, { userId: 'shared@example.com', body: {} });
     await clickSend(host);
+    const inMailbox = { messageId: 'AAMkDraft=', userId: 'shared@example.com' };
     expect(calls(host).map((c) => [c.name, c.arguments])).toEqual([
-      ['get-shared-mailbox-message', { messageId: 'AAMkDraft=', userId: 'shared@example.com' }],
-      [
-        'send-shared-mailbox-draft',
-        { messageId: 'AAMkDraft=', confirm: true, userId: 'shared@example.com' },
-      ],
+      ['get-shared-mailbox-message', inMailbox],
+      ['get-shared-mailbox-message', inMailbox],
+      ['send-shared-mailbox-draft', { ...inMailbox, confirm: true }],
     ]);
   });
 
   it('shows a draft that changed since it was shown, and sends only on the next click', async () => {
     const host = await open(mePage);
     const changed = {
-      ...draft,
+      ...read,
       changeKey: 'CQAAABYAAAA2',
       toRecipients: [{ emailAddress: { name: 'Bob', address: 'attacker@evil.example' } }],
     };
     await clickSend(host, changed);
-    expect(calls(host).map((c) => c.name)).toEqual(['get-mail-message']);
+    expect(names(host)).toEqual(['get-mail-message', 'get-mail-message']);
     expect(el(host, 'fields').textContent).toContain('Bob <attacker@evil.example>');
     expect(el(host, 'status').textContent).toBe(
       'The draft changed since it was shown. Check it and press Send again.'
@@ -396,7 +493,30 @@ describe('mail draft view', () => {
     expect(el(host, 'send').disabled).toBe(false);
 
     await clickSend(host, changed);
-    expect(calls(host).map((c) => c.name)).toEqual([
+    expect(names(host)).toEqual([
+      'get-mail-message',
+      'get-mail-message',
+      'get-mail-message',
+      'send-draft-message',
+    ]);
+  });
+
+  it('reads the draft on a click when its first read failed, and sends only after showing it', async () => {
+    const host = await open(mePage, draft, undefined, everything, null);
+    host.answer('tools/call', { ...text({ error: 'Graph is busy' }), isError: true });
+    await host.flush();
+    expect(el(host, 'status').textContent).toBe('Graph is busy');
+    expect(el(host, 'body').textContent).toBe(draft.bodyPreview);
+
+    await clickSend(host);
+    expect(names(host)).toEqual(['get-mail-message', 'get-mail-message']);
+    expect(el(host, 'body').textContent).toBe(read.body.content);
+    expect(el(host, 'status').textContent).toBe(
+      'Here is the whole draft. Check it and press Send again.'
+    );
+    await clickSend(host);
+    expect(names(host)).toEqual([
+      'get-mail-message',
       'get-mail-message',
       'get-mail-message',
       'send-draft-message',
@@ -412,12 +532,16 @@ describe('mail draft view', () => {
     });
     await gone.flush();
     expect(el(gone, 'status').textContent).toContain('ErrorItemNotFound');
-    expect(calls(gone).map((c) => c.name)).toEqual(['get-mail-message']);
+    expect(names(gone)).toEqual(['get-mail-message', 'get-mail-message']);
 
     const sent = await open(mePage);
-    await clickSend(sent, { ...draft, isDraft: false });
+    await clickSend(sent, { ...read, isDraft: false });
     expect(el(sent, 'status').textContent).toBe('This draft has already been sent.');
-    expect(calls(sent).map((c) => c.name)).toEqual(['get-mail-message']);
+    expect(names(sent)).toEqual(['get-mail-message', 'get-mail-message']);
+
+    // An old view shown again finds out on its own first read
+    const old = await open(mePage, draft, undefined, everything, { ...read, isDraft: false });
+    expect(el(old, 'status').textContent).toBe('This draft has already been sent.');
   });
 
   it('says Sent, drops both buttons and tells the model, without the subject', async () => {
@@ -458,7 +582,7 @@ describe('mail draft view', () => {
     expect(el(host, 'status').classList.contains('error')).toBe(true);
     expect(el(host, 'send').disabled).toBe(false);
     el(host, 'send').click();
-    expect(calls(host)).toHaveLength(3);
+    expect(calls(host)).toHaveLength(4);
   });
 
   it('waits out a slow approval instead of reporting a failed send', async () => {
@@ -489,8 +613,20 @@ describe('mail draft view', () => {
     expect(el(host, 'send').disabled).toBe(false);
   });
 
-  it('offers no Send when this server does not register the send tool', async () => {
+  it('offers no Send, and shows only Graph’s preview, without the tools to read and send', async () => {
     const host = await open(draftsOnlyPage);
+    expect(calls(host)).toEqual([]);
+    expect(el(host, 'body').textContent).toBe(draft.bodyPreview);
+    expect(el(host, 'send').hidden).toBe(true);
+    expect(el(host, 'status').textContent).toBe(
+      'To send it, open it in Outlook or ask in the chat.'
+    );
+  });
+
+  it('reads and shows the whole draft, without Send, when this server registers no send tool', async () => {
+    const host = await open(getOnlyPage);
+    expect(names(host)).toEqual(['get-mail-message']);
+    expect(el(host, 'body').textContent).toBe(read.body.content);
     expect(el(host, 'send').hidden).toBe(true);
     expect(el(host, 'status').textContent).toBe(
       'To send it, open it in Outlook or ask in the chat.'
@@ -499,23 +635,45 @@ describe('mail draft view', () => {
 
   it('offers no Send without the tool that reads the draft again', async () => {
     const host = await open(sendOnlyPage);
+    expect(calls(host)).toEqual([]);
     expect(el(host, 'send').hidden).toBe(true);
   });
 
   it('offers no Send when the host cannot call tools', async () => {
     const host = await open(mePage, draft, {}, {});
+    expect(calls(host)).toEqual([]);
     expect(el(host, 'send').hidden).toBe(true);
     expect(el(host, 'open').hidden).toBe(true);
     expect(el(host, 'status').textContent).toBe('Ask in the chat to send it.');
   });
 
-  it('keeps Send disabled while the draft has no recipients', async () => {
-    const host = await open(mePage, { ...draft, toRecipients: [], ccRecipients: [] });
-    expect(el(host, 'send').disabled).toBe(true);
+  it('reads a draft with no recipients again on a click, and sends it once it has some', async () => {
+    const empty = { ...read, toRecipients: [], ccRecipients: [] };
+    const host = await open(mePage, draft, undefined, everything, empty);
     expect(el(host, 'fields').textContent).toBe('ToNobody yet');
     expect(el(host, 'status').textContent).toBe('This draft has no recipients yet.');
-    el(host, 'send').click();
-    expect(calls(host)).toEqual([]);
+    expect(el(host, 'send').disabled).toBe(false);
+
+    // Still nobody to send to: the click only read it again
+    await clickSend(host, empty);
+    expect(names(host)).toEqual(['get-mail-message', 'get-mail-message']);
+    expect(el(host, 'status').textContent).toBe('This draft has no recipients yet.');
+
+    // The model has added Bob since
+    const withBob = { ...read, changeKey: 'CQAAABYAAAA2' };
+    await clickSend(host, withBob);
+    expect(el(host, 'fields').textContent).toContain('Bob Builder <bob@example.com>');
+    expect(el(host, 'status').textContent).toBe(
+      'The draft changed since it was shown. Check it and press Send again.'
+    );
+    await clickSend(host, withBob);
+    expect(names(host)).toEqual([
+      'get-mail-message',
+      'get-mail-message',
+      'get-mail-message',
+      'get-mail-message',
+      'send-draft-message',
+    ]);
   });
 
   it('shows the error when the draft could not be created', async () => {
@@ -529,6 +687,7 @@ describe('mail draft view', () => {
     await host.flush();
     expect(el(host, 'status').textContent).toBe('Invalid recipient');
     expect(el(host, 'send').hidden).toBe(true);
+    expect(calls(host)).toEqual([]);
   });
 
   it('shows the draft when the model left it out of its own result', async () => {
@@ -541,7 +700,10 @@ describe('mail draft view', () => {
       structuredContent: draft,
     });
     await host.flush();
+    host.answer('tools/call', text(read));
+    await host.flush();
     expect(el(host, 'subject').textContent).toBe('Quarterly numbers');
+    expect(el(host, 'body').textContent).toBe(read.body.content);
     expect(el(host, 'send').hidden).toBe(false);
   });
 

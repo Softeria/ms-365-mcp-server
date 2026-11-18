@@ -62,9 +62,15 @@ function loadPage(view: string): string | Error {
 }
 
 function script(file: string): string {
-  const source = readFileSync(mcpAppPath(file), 'utf8');
-  // It goes inside a <script> element, which the first </script would end
+  return checkMcpAppScript(file, readFileSync(mcpAppPath(file), 'utf8'));
+}
+
+/** A view script's source, refused when it can't go inside the page's <script> element */
+export function checkMcpAppScript(file: string, source: string): string {
+  // The first </script would end the element. After a <!--, a <script can keep that
+  // </script from ending it at all.
   if (/<\/script/i.test(source)) throw new Error(`${file} contains </script`);
+  if (source.includes('<!--')) throw new Error(`${file} contains <!--`);
   if (source.includes('__MCP_APP_')) throw new Error(`${file} contains a placeholder`);
   return source;
 }

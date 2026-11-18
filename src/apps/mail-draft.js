@@ -5,31 +5,9 @@
 
   // Long enough for an approval prompt in the host; each progress notification starts it over
   const CALL_TIMEOUT_MS = 10 * 60 * 1000;
-  const ENTITIES = new Map([
-    ['amp', '&'],
-    ['lt', '<'],
-    ['gt', '>'],
-    ['quot', '"'],
-    ['apos', "'"],
-    ['nbsp', ' '],
-    ['shy', ''],
-    ['ndash', '–'],
-    ['mdash', '—'],
-    ['lsquo', '‘'],
-    ['rsquo', '’'],
-    ['ldquo', '“'],
-    ['rdquo', '”'],
-    ['hellip', '…'],
-    ['bull', '•'],
-    ['middot', '·'],
-    ['laquo', '«'],
-    ['raquo', '»'],
-    ['copy', '©'],
-    ['reg', '®'],
-    ['trade', '™'],
-    ['euro', '€'],
-    ['pound', '£'],
-  ]);
+  // Bidi controls and marks can make text read in another order than it is sent: one
+  // address like another, or the digit groups of an account number swapped
+  const BIDI = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 
   let config = {};
   try {
@@ -53,6 +31,9 @@
     // Arguments of the tool call that created the draft
     input: undefined,
     draft: undefined,
+    // Whether the draft shown is one the view read itself
+    read: false,
+    reading: false,
     sending: false,
     sent: false,
     error: undefined,
@@ -75,12 +56,16 @@
         state.error = error.message;
       }
       render();
+      readOnOpen();
     },
     onToolCancelled() {
       state.error = 'Creating the draft was cancelled.';
       render();
     },
-    onReady: render,
+    onReady() {
+      render();
+      readOnOpen();
+    },
     onInitError(error) {
       state.error = 'Could not connect to the host: ' + error.message;
       render();
@@ -90,6 +75,24 @@
   els.send.addEventListener('click', send);
   els.open.addEventListener('click', openInOutlook);
 
+  // The view shows the draft as it reads it itself, not the result that opened it: a select in
+  // the model's call can leave fields out of that, and only a read gets Graph's text of the body
+  async function readOnOpen() {
+    if (!state.draft || state.read || state.reading || !canRead()) return;
+    state.reading = true;
+    render();
+    try {
+      const current = await readDraft();
+      if (current.isDraft === false) throw new Error('This draft has already been sent.');
+      state.draft = current;
+      state.read = true;
+    } catch (error) {
+      state.error = (error && error.message) || String(error);
+    }
+    state.reading = false;
+    render();
+  }
+
   async function send() {
     if (!canSend()) return;
     state.sending = true;
@@ -98,14 +101,21 @@
     render();
     try {
       // The click approves what the user saw, so the draft is read again first. When it
-      // changed since (the model edited it, or an old view is shown again), the new version
-      // is shown instead and sending takes another click.
-      const current = await readDraftAgain();
+      // changed since (the model edited it, or an old view is shown again), or the view had
+      // not read it yet, that version is shown instead and sending takes another click.
+      const current = await readDraft();
       if (current.isDraft === false) throw new Error('This draft has already been sent.');
-      if (!str(state.draft.changeKey) || current.changeKey !== state.draft.changeKey) {
+      if (
+        !state.read ||
+        !str(state.draft.changeKey) ||
+        current.changeKey !== state.draft.changeKey
+      ) {
+        state.notice = state.read
+          ? 'The draft changed since it was shown. Check it and press Send again.'
+          : 'Here is the whole draft. Check it and press Send again.';
         state.draft = current;
-        state.notice = 'The draft changed since it was shown. Check it and press Send again.';
-      } else {
+        state.read = true;
+      } else if (hasRecipients(current)) {
         // confirm is the click itself, the user's approval that the confirm gate asks for
         const result = await bridge.callTool(tools.send, mailboxArgs({ confirm: true }), {
           timeout: CALL_TIMEOUT_MS,
@@ -125,7 +135,7 @@
     render();
   }
 
-  async function readDraftAgain() {
+  async function readDraft() {
     const result = await bridge.callTool(tools.get, mailboxArgs({}), {
       timeout: CALL_TIMEOUT_MS,
     });
@@ -181,17 +191,16 @@
       els.body.textContent = body;
       els.body.hidden = !body;
     }
-    const sendable = Boolean(draft && !state.sent && canCall());
     const openable = Boolean(draft && !state.sent && webLink(draft) && canOpenLinks());
-    els.send.hidden = !sendable;
+    els.send.hidden = !sendable();
     els.send.disabled = !canSend();
     els.open.hidden = !openable;
     if (state.error) setStatus(state.error, true);
     else if (!draft) setStatus('Loading...', false);
     else if (state.sent) setStatus('Sent.', false);
     else if (state.sending) setStatus('Sending...', false);
-    else if (state.notice) setStatus(state.notice, false);
-    else if (!sendable) {
+    else if (state.reading) setStatus('Reading the draft...', false);
+    else if (!sendable()) {
       setStatus(
         openable
           ? 'To send it, open it in Outlook or ask in the chat.'
@@ -199,6 +208,7 @@
         false
       );
     } else if (!hasRecipients(draft)) setStatus('This draft has no recipients yet.', false);
+    else if (state.notice) setStatus(state.notice, false);
     else setStatus('', false);
   }
 
@@ -211,6 +221,9 @@
     if (cc) rows.push(...field('Cc', cc));
     const bcc = recipientsText(draft.bccRecipients);
     if (bcc) rows.push(...field('Bcc', bcc));
+    // A draft can send the answers to someone else
+    const replyTo = recipientsText(draft.replyTo);
+    if (replyTo) rows.push(...field('Reply to', replyTo));
     if (draft.hasAttachments === true) rows.push(...field('Attachments', 'Yes'));
     return rows;
   }
@@ -247,76 +260,48 @@
 
   // Bidi controls can make one address read like another, so they never reach the view
   function clean(value) {
-    const text =
-      str(value) && value.replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').trim();
+    const text = str(value) && value.replace(BIDI, '').trim();
     return text || undefined;
   }
 
-  function bodyText(draft) {
+  // This server asks Graph for text bodies, so the view's own read has the whole body as text,
+  // which in practice writes out link and image addresses. The view never turns HTML into text
+  // itself: before its read, or when the server gives HTML (MS365_MCP_BODY_FORMAT=html), it
+  // shows only Graph's preview of the first 255 characters.
+  function wholeBody(draft) {
     const body = isObject(draft.body) ? draft.body : {};
-    const content = typeof body.content === 'string' ? body.content : '';
-    const text = String(body.contentType).toLowerCase() === 'html' ? htmlToText(content) : content;
-    return text.trim() || (typeof draft.bodyPreview === 'string' ? draft.bodyPreview.trim() : '');
+    return String(body.contentType).toLowerCase() === 'text' && typeof body.content === 'string';
   }
 
-  // Never parsed as HTML: the body comes from the model or from the mail it answers, and
-  // a script running in this view could press Send itself. U+E000 and U+E001 mark block
-  // edges along the way.
-  function htmlToText(html) {
-    const text = decodeEntities(
-      html
-        .replace(/[\uE000\uE001]/g, '')
-        .replace(/<!--[\s\S]*?-->/g, '')
-        .replace(/<(head|script|style|title)\b[\s\S]*?<\/\1\s*>/gi, '')
-        // Source line breaks are spaces in HTML; only tags break lines
-        .replace(/\s+/g, ' ')
-        .replace(/<br\b[^>]*>/gi, '\n')
-        .replace(/<\/t[dh]\s*>/gi, ' ')
-        .replace(/<\/p\s*>/gi, '\uE001')
-        .replace(/<\/?(p|div|li|tr|h[1-6]|blockquote|table|ul|ol|hr)\b[^>]*>/gi, '\uE000')
-        // A tag starts with a letter, / ! or ?: like in a browser, "< 100" is text
-        .replace(/<[a-z/!?][^>]*>/gi, '')
-        // Adjacent inline elements leave runs of spaces; one keeps the next pattern linear
-        .replace(/ {2,}/g, ' ')
-        // A run of block edges is one line break (Outlook writes a <div> per line), or a
-        // blank line where a paragraph ends
-        .replace(/[\uE000\uE001 ]*[\uE000\uE001][\uE000\uE001 ]*/g, (edges) =>
-          edges.includes('\uE001') ? '\n\n' : '\n'
-        )
-    );
-    // Split rather than a regex: decoded &nbsp; can bring back long runs of spaces
-    return text
-      .split('\n')
-      .map((line) => line.trim())
-      .join('\n')
-      .replace(/\n{3,}/g, '\n\n');
-  }
-
-  function decodeEntities(text) {
-    return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (match, code) => {
-      if (code[0] === '#') {
-        const hex = code[1] === 'x' || code[1] === 'X';
-        const point = parseInt(code.slice(hex ? 2 : 1), hex ? 16 : 10);
-        return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;
-      }
-      const named = ENTITIES.get(code.toLowerCase());
-      return named === undefined ? match : named;
-    });
+  // Without bidi controls and marks, the body reads in the order it is sent
+  function bodyText(draft) {
+    const text = wholeBody(draft) ? draft.body.content : str(draft.bodyPreview) || '';
+    return text.replace(BIDI, '').trim();
   }
 
   function webLink(draft) {
     return draft ? httpsUrl(draft.webLink) : undefined;
   }
 
-  function canSend() {
+  // Send needs both tools, and once the view has read the draft, all of its body as text
+  function sendable() {
     return Boolean(
-      state.draft && !state.sent && !state.sending && canCall() && hasRecipients(state.draft)
+      state.draft && !state.sent && canCall() && (!state.read || wholeBody(state.draft))
     );
+  }
+
+  // Without recipients a click still reads the draft again: the model may add them later
+  function canSend() {
+    return sendable() && !state.sending && !state.reading;
+  }
+
+  function canRead() {
+    return Boolean(bridge.capabilities.serverTools && str(tools.get));
   }
 
   // Sending needs both: the draft is read again right before it is sent
   function canCall() {
-    return Boolean(bridge.capabilities.serverTools && str(tools.get) && str(tools.send));
+    return canRead() && Boolean(str(tools.send));
   }
 
   function canOpenLinks() {

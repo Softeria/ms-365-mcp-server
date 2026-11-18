@@ -14,6 +14,7 @@ import {
 } from '../src/graph-tools.js';
 import logger from '../src/logger.js';
 import {
+  checkMcpAppScript,
   MCP_APP_MIME_TYPE,
   mcpAppPath,
   mcpAppToolMeta,
@@ -195,6 +196,15 @@ describe('MCP Apps', () => {
     expect(client.getServerCapabilities()?.resources).toBeUndefined();
   });
 
+  it('refuses a view script that would break out of its <script> element', () => {
+    expect(() => checkMcpAppScript('a.js', 'x = "</SCRIPT>";')).toThrow('a.js contains </script');
+    expect(() => checkMcpAppScript('a.js', 'x = /<!--/;')).toThrow('a.js contains <!--');
+    expect(() => checkMcpAppScript('a.js', 'x = "__MCP_APP_CONFIG__";')).toThrow(
+      'a.js contains a placeholder'
+    );
+    expect(checkMcpAppScript('a.js', 'x = /<!-{2}/;')).toBe('x = /<!-{2}/;');
+  });
+
   it('registers the views again on every new server', async () => {
     for (let i = 0; i < 2; i++) {
       const client = await connectTools({ mcpApps: true, enabledTools: onlyBrowser });
@@ -289,6 +299,29 @@ describe('MCP Apps', () => {
       view: undefined,
       failed: undefined,
     });
+  });
+
+  it('reads the mail draft as text by default, the only body the view shows in full', async () => {
+    const graph = {
+      graphRequest: vi.fn(async () => ({
+        content: [{ type: 'text', text: JSON.stringify({ id: 'AAMk=' }) }],
+      })),
+    } as unknown as GraphClient;
+    const server = new McpServer({ name: 'apps-test', version: '1' });
+    registerGraphTools(server, graph, { mcpApps: true, enabledTools: '^get-mail-message$' });
+    const client = await connect(server);
+    const prefer = async () => {
+      await client.callTool({ name: 'get-mail-message', arguments: { messageId: 'AAMk=' } });
+      const [, options] = vi.mocked(graph.graphRequest).mock.calls.at(-1)!;
+      return (options as { headers?: Record<string, string> }).headers?.Prefer ?? '';
+    };
+    expect(await prefer()).toContain('outlook.body-content-type="text"');
+    try {
+      vi.stubEnv('MS365_MCP_BODY_FORMAT', 'html');
+      expect(await prefer()).not.toContain('body-content-type');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('keeps the arguments the views send in the tool schemas', async () => {

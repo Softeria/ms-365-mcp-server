@@ -786,25 +786,34 @@ model context. This option does not shrink individual schemas. Without
 With `--enable-mcp-apps` (or `MS365_MCP_ENABLE_MCP_APPS=true`), tools that have an
 [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) view show it in hosts that
 support MCP Apps, such as Claude, ChatGPT and VS Code. Other hosts ignore it and get the
-same tool results as before.
+same tool results as before, except with `excludeResponse` (see below).
 
 - **File browser**, for `list-folder-files`: open folders, go back through the folder
   path, load more items and open files in the browser.
 - **Mail draft**, for `create-draft-email`, the reply, reply-all and forward drafts, and
   their shared mailbox versions: the draft's subject, its recipients with every address
-  written out, and its body as plain text, with a Send button and a link to edit it in
-  Outlook. Ask for a draft to review a mail before it goes out; `send-mail` still sends
-  straight away.
+  written out, and its body as the plain text Graph gives for it, which in practice writes
+  out link and image addresses. It has a Send button and a link to edit it in Outlook.
+  Ask for a draft to review a mail before it goes out; `send-mail` still sends straight away.
 
 The views get their data through the host, which calls this server's tools again, so they
 need no network access of their own. A click on Send is the user's confirmation, so the
-view sends with `confirm: true`. Before it sends, it reads the draft again: if the draft
-changed since it was shown, the view shows the new version and waits for another click.
+view sends with `confirm: true`. The mail draft reads the draft itself when it opens, so it
+shows the draft as Graph has it rather than what the model's call returned. Before it sends,
+it reads the draft again: if the draft changed since it was shown, the view shows the new
+version and waits for another click. With `MS365_MCP_BODY_FORMAT=html` the view shows only
+Graph's 255-character preview of the body, and has no Send button.
+
+When the model passes `excludeResponse`, the tool's text answer is only `{"success":true}`,
+and the draft goes along as `structuredContent` for the view. The MCP Apps spec keeps
+`structuredContent` out of the model's context, but ChatGPT, and clients without MCP Apps
+that read it, give it to the model as well.
 
 A view only offers what this server registers. The Send button needs both
 `get-mail-message` and `send-draft-message` (for a shared mailbox,
 `get-shared-mailbox-message` and `send-shared-mailbox-draft`); when `--enabled-tools` or the
-allowed scopes leave one out, the mail draft has no Send button.
+allowed scopes leave one out, the mail draft has no Send button, and without the read tool
+it shows only the start of the body.
 
 - It has no effect with `--toon`, since the views read JSON results.
 - With `--discovery`, only tools published directly with `--eager-tools` show a view, and
