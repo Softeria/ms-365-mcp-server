@@ -128,7 +128,11 @@
     "toolName": "create-shared-mailbox-draft",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
-    "appScopes": ["Mail.ReadWrite"]
+    "appScopes": ["Mail.ReadWrite"],
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/move",
@@ -183,7 +187,11 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/createReplyAll",
@@ -192,7 +200,11 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox."
+    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/createForward",
@@ -201,7 +213,11 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out. Requires delegated access to the shared mailbox."
+    "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out. Requires delegated access to the shared mailbox.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
+    }
   },
   {
     "pathPattern": "/users/{user-id}/messages/{message-id}/send",
@@ -292,7 +308,11 @@
     "toolName": "create-draft-email",
     "descriptionOverride": "Create a draft Outlook email message in the signed-in user's Drafts folder. Set subject, body, toRecipients, ccRecipients, and importance. The draft is saved, not sent — use send-mail to send a message directly, or send the draft afterwards.",
     "presets": ["mail", "outlook", "personal"],
-    "scopes": ["Mail.ReadWrite"]
+    "scopes": ["Mail.ReadWrite"],
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-mail-message", "send": "send-draft-message" }
+    }
   },
   {
     "pathPattern": "/me/messages/{message-id}/move",
@@ -388,7 +408,11 @@
     "toolName": "create-forward-draft",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending."
+    "llmTip": "Create a forward draft (does not send). Useful when user wants to review before sending.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-mail-message", "send": "send-draft-message" }
+    }
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReply",
@@ -396,7 +420,11 @@
     "toolName": "create-reply-draft",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-mail-message", "send": "send-draft-message" }
+    }
   },
   {
     "pathPattern": "/me/messages/{message-id}/createReplyAll",
@@ -404,7 +432,11 @@
     "toolName": "create-reply-all-draft",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph."
+    "llmTip": "Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Signatures are added by the Outlook client only, not via Graph.",
+    "mcpApp": {
+      "view": "mail-draft",
+      "tools": { "get": "get-mail-message", "send": "send-draft-message" }
+    }
   },
   {
     "pathPattern": "/me/messages/{message-id}/send",
@@ -757,7 +789,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "mcpApp": "file-browser"
+    "mcpApp": { "view": "file-browser" }
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",

@@ -788,14 +788,28 @@ With `--enable-mcp-apps` (or `MS365_MCP_ENABLE_MCP_APPS=true`), tools that have 
 support MCP Apps, such as Claude, ChatGPT and VS Code. Other hosts ignore it and get the
 same tool results as before.
 
-The first view is a OneDrive/SharePoint file browser for `list-folder-files`: open
-folders, go back through the folder path, load more items and open files in the browser.
-The view gets its data through the host, which calls `list-folder-files` on this server
-again, so it needs no network access of its own.
+- **File browser**, for `list-folder-files`: open folders, go back through the folder
+  path, load more items and open files in the browser.
+- **Mail draft**, for `create-draft-email`, the reply, reply-all and forward drafts, and
+  their shared mailbox versions: the draft's subject, its recipients with every address
+  written out, and its body as plain text, with a Send button and a link to edit it in
+  Outlook. Ask for a draft to review a mail before it goes out; `send-mail` still sends
+  straight away.
 
-- It has no effect with `--toon`, since the view reads JSON results.
-- With `--discovery`, only tools published directly with `--eager-tools` show a view,
-  e.g. `--discovery --eager-tools list-folder-files`.
+The views get their data through the host, which calls this server's tools again, so they
+need no network access of their own. A click on Send is the user's confirmation, so the
+view sends with `confirm: true`. Before it sends, it reads the draft again: if the draft
+changed since it was shown, the view shows the new version and waits for another click.
+
+A view only offers what this server registers. The Send button needs both
+`get-mail-message` and `send-draft-message` (for a shared mailbox,
+`get-shared-mailbox-message` and `send-shared-mailbox-draft`); when `--enabled-tools` or the
+allowed scopes leave one out, the mail draft has no Send button.
+
+- It has no effect with `--toon`, since the views read JSON results.
+- With `--discovery`, only tools published directly with `--eager-tools` show a view, and
+  the Send button needs its tools published too, e.g.
+  `--discovery --eager-tools create-draft-email,get-mail-message,send-draft-message`.
 
 ## CLI Options
 
@@ -865,8 +879,8 @@ When running as an MCP server, the following options can be used:
 --blob-output     File download tools answer an MCP EmbeddedResource with the file instead of
                   base64 JSON in a text block (see MS365_MCP_BLOB_OUTPUT below)
 --discovery       Dynamic tool discovery: loads tools on demand to reduce initial token usage (see "Dynamic Tool Discovery" above)
---enable-mcp-apps (experimental) Show the interactive MCP Apps views, starting with a OneDrive/SharePoint
-                  file browser, in hosts that support them (see "MCP Apps" above)
+--enable-mcp-apps (experimental) Show the interactive MCP Apps views, a OneDrive/SharePoint file browser
+                  and a mail draft view with a Send button, in hosts that support them (see "MCP Apps" above)
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 

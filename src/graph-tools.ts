@@ -100,7 +100,13 @@ import {
   userFieldEnforcement,
 } from './lib/user-field-policy.js';
 import logger from './logger.js';
-import { mcpAppToolMeta } from './mcp-apps.js';
+import {
+  mcpAppResultWithoutBody,
+  mcpAppToolMeta,
+  noteMcpAppTool,
+  registerMcpAppViews,
+  type McpAppBinding,
+} from './mcp-apps.js';
 import {
   describeError,
   describeShape,
@@ -167,9 +173,10 @@ interface EndpointConfig {
   // Adds a `token` param: Graph pages and resumes this delta query with token=, not $skiptoken
   deltaToken?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
-  // MCP Apps view (src/apps/<name>.html) that hosts render for this tool's results under
-  // --enable-mcp-apps. The view calls this same tool to page and navigate.
-  mcpApp?: string;
+  // MCP Apps view (src/apps/<view>.html and .js) that hosts render for this tool's results
+  // under --enable-mcp-apps. tools names the tools the view may call, by role; a role
+  // reaches the view only when its tool is registered too.
+  mcpApp?: McpAppBinding;
   // A second tool on a Graph operation that already has one, always sending this body.
   // It is a copy of the generated operation for pathPattern + method without the body
   // param, so the method, path, confirm gate and read-only handling stay the operation's
@@ -4150,10 +4157,8 @@ function registerGraphToolWithMcp(
       )
     : undefined;
 
-  const appMeta =
-    options.mcpApps && endpointConfig?.mcpApp
-      ? mcpAppToolMeta(server, endpointConfig.mcpApp, tool.alias)
-      : undefined;
+  const appBinding = options.mcpApps ? endpointConfig?.mcpApp : undefined;
+  const appMeta = appBinding ? mcpAppToolMeta(appBinding, tool.alias) : undefined;
 
   // .loose() object, not a raw shape - the SDK wraps raw shapes in z.object()
   // and strips unknown keys before the handler runs, which is exactly how #569's
@@ -4172,9 +4177,24 @@ function registerGraphToolWithMcp(
       },
       ...(appMeta ? { _meta: appMeta } : {}),
     },
-    async (params: Record<string, unknown>) =>
-      executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields)
+    async (params: Record<string, unknown>) => {
+      if (appMeta && params.excludeResponse === true) {
+        const viewParams = { ...params, excludeResponse: false };
+        return mcpAppResultWithoutBody(
+          await executeGraphTool(
+            tool,
+            endpointConfig,
+            graphClient,
+            viewParams,
+            authManager,
+            userFields
+          )
+        );
+      }
+      return executeGraphTool(tool, endpointConfig, graphClient, params, authManager, userFields);
+    }
   );
+  if (options.mcpApps) noteMcpAppTool(server, tool.alias, appMeta ? appBinding : undefined);
   return fit;
 }
 
@@ -4362,6 +4382,7 @@ export function registerGraphTools(
   logger.info(
     `Tool registration complete: ${registeredCount} registered, ${skippedCount} skipped, ${failedCount} failed`
   );
+  if (options.mcpApps) registerMcpAppViews(server);
   installDeniedToolAuditHandler(server, deniedTools);
   return registeredCount;
 }
@@ -4679,6 +4700,8 @@ export function registerDiscoveryTools(
       logger.error(`Failed to register eager tool ${name}: ${(error as Error).message}`);
     }
   }
+  // Only eager tools are registered directly, so only they get views and fill their roles
+  if (options.mcpApps) registerMcpAppViews(server);
   const searchIndex = buildDiscoverySearchIndex(toolsRegistry, utilityTools);
   const totalCount = toolsRegistry.size + utilityTools.length;
   logger.info(
