@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Files</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: var(--font-sans, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+        font-size: var(--font-text-sm-size, 14px);
+        line-height: var(--font-text-sm-line-height, 1.4);
+        color: var(--color-text-primary, CanvasText);
+        background: var(--color-background-primary, transparent);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      nav {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2px;
+        font-weight: var(--font-weight-semibold, 600);
+      }
+      .crumb {
+        border: 0;
+        background: none;
+        padding: 2px 4px;
+        border-radius: var(--border-radius-sm, 4px);
+        cursor: pointer;
+        color: var(--color-text-info, LinkText);
+      }
+      .crumb:disabled {
+        cursor: default;
+        color: inherit;
+      }
+      .sep {
+        color: var(--color-text-tertiary, GrayText);
+      }
+      .tool {
+        flex: none;
+        border: 1px solid var(--color-border-secondary, rgba(127, 127, 127, 0.4));
+        background: none;
+        padding: 4px 10px;
+        border-radius: var(--border-radius-sm, 4px);
+        cursor: pointer;
+      }
+      .tool:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 420px;
+        overflow-y: auto;
+        border-top: 1px solid var(--color-border-tertiary, rgba(127, 127, 127, 0.25));
+      }
+      li {
+        border-bottom: 1px solid var(--color-border-tertiary, rgba(127, 127, 127, 0.25));
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 6px;
+        border: 0;
+        background: none;
+        text-align: left;
+        cursor: pointer;
+      }
+      .row:hover:not(:disabled),
+      .row:focus-visible {
+        background: var(--color-background-secondary, rgba(127, 127, 127, 0.12));
+      }
+      .row:disabled {
+        cursor: default;
+      }
+      .icon {
+        flex: none;
+        width: 20px;
+        height: 20px;
+      }
+      .icon.folder path {
+        fill: var(--color-text-warning, #d9a21b);
+      }
+      .icon.file path {
+        fill: none;
+        stroke: var(--color-text-secondary, GrayText);
+        stroke-width: 1.3;
+        stroke-linejoin: round;
+      }
+      .name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .meta {
+        flex: none;
+        color: var(--color-text-secondary, GrayText);
+        font-size: var(--font-text-xs-size, 12px);
+      }
+      #more {
+        margin-top: 8px;
+      }
+      #status {
+        margin: 8px 0 0;
+        color: var(--color-text-secondary, GrayText);
+      }
+      #status.error {
+        color: var(--color-text-danger, #c62828);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav id="crumbs" aria-label="Folder path"></nav>
+      <button id="refresh" class="tool" type="button" disabled>Refresh</button>
+    </header>
+    <ul id="items" hidden></ul>
+    <button id="more" class="tool" type="button" hidden>Load more</button>
+    <p id="status" role="status">Loading...</p>
+    <script type="application/json" id="mcp-app-config">
+      __MCP_APP_CONFIG__
+    </script>
+    <script>
+      __MCP_APP_BRIDGE__
+    </script>
+    <script>
+      __MCP_APP_SCRIPT__
+    </script>
+  </body>
+</html>

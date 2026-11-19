@@ -72,6 +72,7 @@ describe('CLI Module', () => {
     delete process.env.MS365_MCP_EXPECTED_HOME_ACCOUNT_ID;
     delete process.env.MS365_MCP_AUTH_CACHE_COMMAND;
     delete process.env.MS365_MCP_HTTP_LOCAL_FILE_TOOLS;
+    delete process.env.MS365_MCP_ENABLE_MCP_APPS;
     delete process.env.MS365_MCP_BLOB_OUTPUT;
     delete process.env.ENABLED_TOOLS;
     delete process.env.ENABLED_TOOLS_FILE;
@@ -194,6 +195,22 @@ describe('CLI Module', () => {
       commanderMocks.mockCommand.opts.mockReturnValue({});
 
       expect(parseArgs().httpLocalFileTools).toBeUndefined();
+    });
+
+    it.each(['true', '1'])(
+      'should enable --enable-mcp-apps from MS365_MCP_ENABLE_MCP_APPS=%s',
+      (value) => {
+        process.env.MS365_MCP_ENABLE_MCP_APPS = value;
+        commanderMocks.mockCommand.opts.mockReturnValue({});
+
+        expect(parseArgs().enableMcpApps).toBe(true);
+      }
+    );
+
+    it('should leave --enable-mcp-apps off by default', () => {
+      commanderMocks.mockCommand.opts.mockReturnValue({});
+
+      expect(parseArgs().enableMcpApps).toBeUndefined();
     });
 
     it('should fold --blob-output into MS365_MCP_BLOB_OUTPUT', () => {

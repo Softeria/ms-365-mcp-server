@@ -31,6 +31,14 @@ export default [
     },
   },
   {
+    // MCP Apps views: classic scripts the server inlines into pages in the host's iframe
+    files: ['src/apps/**/*.js'],
+    languageOptions: {
+      parserOptions: { sourceType: 'script' },
+      globals: globals.browser,
+    },
+  },
+  {
     ignores: [
       'node_modules/**',
       'dist/**',

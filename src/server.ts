@@ -424,6 +424,8 @@ class MicrosoftGraphServer {
       allowedScopes: this.options.allowedScopes,
       httpMode: this.hidesStdioOnlyTools(),
       userFields: this.options.userFields,
+      // The views parse the tool results as JSON
+      mcpApps: Boolean(this.options.enableMcpApps && !this.options.toon),
     };
 
     if (this.options.discovery) {
@@ -505,6 +507,12 @@ class MicrosoftGraphServer {
     } else if (this.options.httpLocalFileTools) {
       logger.warn(
         '--http-local-file-tools has no effect in stdio mode, where the local file tools need no flag.'
+      );
+    }
+
+    if (this.options.enableMcpApps && this.options.toon) {
+      logger.warn(
+        '--enable-mcp-apps has no effect with --toon: the MCP Apps views read JSON tool results.'
       );
     }
 
