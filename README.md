@@ -1095,8 +1095,10 @@ fields of a single upload (`target`, `name`, and the optional `contentType`, `co
 and `conflictBehavior`). Each entry is checked and minted exactly as a single call would be.
 The result is `{ "results": [...] }`, one item per entry in the order given, naming its
 `target` (and `name`) next to its URL or its `error`; the call is an error only when every
-entry failed. Every URL keeps its own single use and TTL, so mint a list right before the
-transfer that uses it.
+entry failed. Every URL this server mints keeps its own single use and TTL (two minutes by
+default), and a transfer has to start before its URL expires, so mint a list right before
+the transfers and start them all at once, in parallel or in one command, rather than one
+after another.
 
 ### Attaching a local file in stdio mode
 

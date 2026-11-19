@@ -398,6 +398,62 @@ describe('several files in one call', () => {
     expect(results.slice(1).every((r: { error?: string }) => r.error)).toBe(true);
     expect(store.size()).toBe(1);
   });
+
+  it('tells the audit log how many links it handed out', async () => {
+    const client = {
+      graphRequest: vi.fn(async (path: string) =>
+        path.endsWith('/GONE')
+          ? { content: [{ type: 'text', text: 'Bad gateway' }], isError: true }
+          : driveClient.graphRequest(path)
+      ),
+    };
+    const result = await download.execute(
+      { targets: ['/drives/D1/items/A', '/drives/D1/items/GONE', '/drives/D1/items/B'] },
+      ctx(client)
+    );
+    expect(result.isError).toBeFalsy();
+    expect(result._meta).toEqual({ result_count: 2 });
+    expect(parse(result).results[1]).toEqual({
+      target: '/drives/D1/items/GONE',
+      error: 'Bad gateway',
+    });
+  });
+
+  it('turns a throwing entry into its own error and goes on with the rest', async () => {
+    const original = store.mintUpload.bind(store);
+    vi.spyOn(store, 'mintUpload')
+      .mockImplementationOnce(() => {
+        throw new Error('boom');
+      })
+      .mockImplementationOnce(() => {
+        throw null;
+      })
+      .mockImplementation(original);
+    const result = await upload.execute(
+      {
+        files: [
+          { target: FOLDER, name: 'a.txt' },
+          { target: FOLDER, name: 'b.txt' },
+          { target: FOLDER, name: 'c.txt' },
+        ],
+      },
+      ctx()
+    );
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results[0]).toEqual({ target: FOLDER, name: 'a.txt', error: 'boom' });
+    expect(results[1]).toEqual({ target: FOLDER, name: 'b.txt', error: 'null' });
+    expect(results[2].uploadUrl).toBeDefined();
+    expect(result._meta).toEqual({ result_count: 1 });
+  });
+
+  it('names each upload as it will be stored, alone or in a list', async () => {
+    const target = '/me/messages/M1/attachments';
+    const single = await upload.execute({ target, name: '  report.pdf ' }, ctx());
+    expect(parse(single).name).toBe('report.pdf');
+    const list = await upload.execute({ files: [{ target, name: '  report.pdf ' }] }, ctx());
+    expect(parse(list).results[0].name).toBe('report.pdf');
+  });
 });
 
 describe('PUT /attachment with a drive upload ticket', () => {

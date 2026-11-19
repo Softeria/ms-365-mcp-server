@@ -1518,6 +1518,7 @@ async function mintUploadUrl(
           expiresAt: new Date(ticket.expiresAtMs).toISOString(),
           singleUse: true,
           maxBytes: MAX_UPLOAD_BYTES,
+          name: cleanName,
           ...(drive && { conflictBehavior: drive.conflictBehavior }),
           note: 'PUT the raw file bytes with a Content-Length (e.g. curl -T <file> "<uploadUrl>"). Served by this server; valid for one upload until it expires.',
         }),
@@ -1818,23 +1819,40 @@ function withTransferList(
     let failed = 0;
     for (const entry of list) {
       const entryInput = entryParams(entry);
-      const result = await single({ ...entryInput, account: params.account }, ctx);
-      if (result.isError) failed++;
+      let result: CallToolResult;
+      try {
+        result = await single({ ...entryInput, account: params.account }, ctx);
+      } catch (error) {
+        // A throw would lose the links already minted for the entries before it
+        const message = error instanceof Error ? error.message : String(error);
+        result = {
+          content: [{ type: 'text', text: JSON.stringify({ error: message || 'Failed.' }) }],
+          isError: true,
+        };
+      }
       const text = result.content?.[0]?.type === 'text' ? result.content[0].text : '';
-      let body: Record<string, unknown>;
+      let body: unknown;
       try {
         body = JSON.parse(text);
       } catch {
-        body = { error: text || 'No result.' };
+        body = undefined;
       }
+      let entryFailed = result.isError === true;
+      if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        body = { error: text || 'No result.' };
+        entryFailed = true;
+      }
+      if (entryFailed) failed++;
       results.push({
         target: entryInput.target,
         ...(entryInput.name !== undefined && { name: entryInput.name }),
-        ...body,
+        ...(body as Record<string, unknown>),
       });
     }
     return {
       content: [{ type: 'text', text: JSON.stringify({ results }) }],
+      // For the audit log: how many links this call handed out
+      _meta: { result_count: list.length - failed },
       ...(failed === list.length && { isError: true }),
     };
   };
@@ -1862,7 +1880,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'upload attachment attach file draft email attach file event large attachment send file out-of-band upload url upload onedrive file upload sharepoint file',
     description:
-      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, or as a file in a OneDrive/SharePoint folder, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments; or a drive folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the upload. Up to 150 MB. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. For a drive folder, conflictBehavior says what happens when the name is taken (default fail; contentId does not apply). Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes, conflictBehavior? }. For several files, pass files (up to 20 entries of target, name and the optional fields) instead: one call returns { results: [...] }, one item per entry with its uploadUrl or its error.',
+      'Mint a short-lived, single-use URL that this server serves for uploading a file as an attachment to a draft message or an event, or as a file in a OneDrive/SharePoint folder, so the bytes go straight from the caller to Microsoft Graph instead of passing as base64 through the agent context. target is the attachments collection of the item: /me/messages/{message-id}/attachments (a draft; create it first) or /me/events/{event-id}/attachments; or a drive folder: /me/drive/root, /me/drive/items/{folder-id}, /drives/{drive-id}/items/{folder-id}, /sites/{site-id}/drive/items/{folder-id}. PUT the raw file bytes to the returned uploadUrl with a Content-Length (e.g. curl -T file "<uploadUrl>"); the response confirms the upload. Up to 150 MB. Pass contentId to attach inline, e.g. a signature picture the HTML body shows with <img src="cid:<contentId>">. For a drive folder, conflictBehavior says what happens when the name is taken (default fail; contentId does not apply). Requires --enable-attachment-urls. Returns { uploadUrl, method, expiresAt, singleUse, maxBytes, name, conflictBehavior? }. For several files, pass files (up to 20 entries of target, name and the optional fields) instead: one call returns { results: [...] }, one item per entry with its uploadUrl or its error. The links expire minutes after minting, so start every upload right away, in parallel or in one command.',
     readOnlyHint: false,
     openWorldHint: true,
     buildSchema: (ctx) => {
@@ -2592,7 +2610,7 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     searchKeywords:
       'download file download drive file download onedrive file sharepoint file download large drive file large sharepoint file large file out-of-band download pre-authenticated url',
     description:
-      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes. With --enable-attachment-urls, drive files get a short single-use URL from this server as well, instead of the long one from Graph. For several files, pass targets (up to 20) instead of target: one call returns { results: [...] }, one item per target with its downloadUrl or its error.',
+      'Resolve a short-lived, pre-authenticated download URL for Microsoft Graph binary content that exposes one (drive/SharePoint file content). The returned URL streams the bytes with NO Authorization header, so the client can fetch it straight to disk (e.g. curl) without round-tripping base64 through the agent context. Prefer this over download-bytes for any file above a few KB or any bulk download. Returns { downloadUrl, name?, size?, contentType? }. Mail file attachments (/messages/{id}/attachments/{id}/$value), meeting recordings and other $value byte endpoints have no pre-authenticated URL from Graph itself, but call this tool for them anyway: a server running with --enable-attachment-urls mints its own single-use URL for them, and one without it answers with the reason and points at download-bytes. With --enable-attachment-urls, drive files get a short single-use URL from this server as well, instead of the long one from Graph. For several files, pass targets (up to 20) instead of target: one call returns { results: [...] }, one item per target with its downloadUrl or its error. Server-minted links expire minutes after minting, so start every download right away, in parallel or in one command.',
     readOnlyHint: true,
     openWorldHint: true,
     buildSchema: (ctx) => {
