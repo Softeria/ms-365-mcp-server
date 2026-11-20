@@ -781,6 +781,45 @@ Select a small set: exposing many generated Graph schemas can consume substantia
 model context. This option does not shrink individual schemas. Without
 `--eager-tools`, discovery and normal registration behave as before.
 
+## MCP Apps (experimental)
+
+With `--enable-mcp-apps` (or `MS365_MCP_ENABLE_MCP_APPS=true`), tools that have an
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) view show it in hosts that
+support MCP Apps, such as Claude, ChatGPT and VS Code. Other hosts ignore it and get the
+same tool results as before, except with `excludeResponse` (see below).
+
+- **File browser**, for `list-folder-files`: open folders, go back through the folder
+  path, load more items and open files in the browser.
+- **Mail draft**, for `create-draft-email`, the reply, reply-all and forward drafts, and
+  their shared mailbox versions: the draft's subject, its recipients with every address
+  written out, and its body as the plain text Graph gives for it, which in practice writes
+  out link and image addresses. It has a Send button and a link to edit it in Outlook.
+  Ask for a draft to review a mail before it goes out; `send-mail` still sends straight away.
+
+The views get their data through the host, which calls this server's tools again, so they
+need no network access of their own. A click on Send is the user's confirmation, so the
+view sends with `confirm: true`. The mail draft reads the draft itself when it opens, so it
+shows the draft as Graph has it rather than what the model's call returned. Before it sends,
+it reads the draft again: if the draft changed since it was shown, the view shows the new
+version and waits for another click. With `MS365_MCP_BODY_FORMAT=html` the view shows only
+Graph's 255-character preview of the body, and has no Send button.
+
+When the model passes `excludeResponse`, the tool's text answer is only `{"success":true}`,
+and the draft goes along as `structuredContent` for the view. The MCP Apps spec keeps
+`structuredContent` out of the model's context, but ChatGPT, and clients without MCP Apps
+that read it, give it to the model as well.
+
+A view only offers what this server registers. The Send button needs both
+`get-mail-message` and `send-draft-message` (for a shared mailbox,
+`get-shared-mailbox-message` and `send-shared-mailbox-draft`); when `--enabled-tools` or the
+allowed scopes leave one out, the mail draft has no Send button, and without the read tool
+it shows only the start of the body.
+
+- It has no effect with `--toon`, since the views read JSON results.
+- With `--discovery`, only tools published directly with `--eager-tools` show a view, and
+  the Send button needs its tools published too, e.g.
+  `--discovery --eager-tools create-draft-email,get-mail-message,send-draft-message`.
+
 ## CLI Options
 
 The following options can be used when running ms-365-mcp-server directly from the command line:
@@ -849,6 +888,8 @@ When running as an MCP server, the following options can be used:
 --blob-output     File download tools answer an MCP EmbeddedResource with the file instead of
                   base64 JSON in a text block (see MS365_MCP_BLOB_OUTPUT below)
 --discovery       Dynamic tool discovery: loads tools on demand to reduce initial token usage (see "Dynamic Tool Discovery" above)
+--enable-mcp-apps (experimental) Show the interactive MCP Apps views, a OneDrive/SharePoint file browser
+                  and a mail draft view with a Send button, in hosts that support them (see "MCP Apps" above)
 --public-url <url> Public base URL for OAuth when behind a reverse proxy (see Open WebUI section and docs/deployment.md)
 ```
 
@@ -866,6 +907,7 @@ Environment variables:
 - `MS365_MCP_FEDERATED_TOKEN_FILE=<path>`: Federated token (workload identity federation), used instead of a secret or certificate in app mode
 - `MS365_MCP_MANAGED_IDENTITY=system|<client id>`: Use the host's managed identity in app mode, instead of an app registration
 - `MS365_MCP_OUTPUT_FORMAT=toon`: Enable TOON output format (alternative to --toon flag)
+- `MS365_MCP_ENABLE_MCP_APPS=true|1`: Show the MCP Apps views (alternative to --enable-mcp-apps; see "MCP Apps" above)
 - `MS365_MCP_MAX_TOP=<n>`: Hard cap for Graph `$top` / `top` on list requests (positive integer). When the model passes a larger value, the server clamps it to `n` so responses stay smaller. Example: `MS365_MCP_MAX_TOP=15`
 - `MS365_MCP_MAX_PAGES=<n>`: Maximum number of pages followed when a tool is called with `fetchAllPages: true` (positive integer, default `100`). Bounds memory and latency for large result sets.
 - `MS365_MCP_MAX_ITEMS=<n>`: Maximum number of items accumulated when `fetchAllPages: true` (positive integer, default `10000`). Pagination stops after a whole page reaches this count, so the result can exceed the cap.

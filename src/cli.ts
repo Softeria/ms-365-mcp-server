@@ -149,6 +149,10 @@ program
     '--allow-unauthenticated-discovery',
     'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
   )
+  .option(
+    '--enable-mcp-apps',
+    '(experimental) Show an interactive MCP Apps view for the tools that have one, in hosts that support MCP Apps: a OneDrive/SharePoint file browser for folder listings, and a mail draft view with a Send button for the draft tools. Other hosts ignore it. No effect with --toon. Equivalent env var: MS365_MCP_ENABLE_MCP_APPS=true.'
+  )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
     // MS365_MCP_BASE_URL do not crash at startup. Use --public-url /
@@ -212,6 +216,7 @@ export interface CommandOptions {
   httpLocalFileTools?: boolean;
   blobOutput?: boolean;
   allowUnauthenticatedDiscovery?: boolean;
+  enableMcpApps?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
@@ -482,6 +487,13 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_ALLOW_UNAUTHENTICATED_DISCOVERY === '1'
   ) {
     options.allowUnauthenticatedDiscovery = true;
+  }
+
+  if (
+    process.env.MS365_MCP_ENABLE_MCP_APPS === 'true' ||
+    process.env.MS365_MCP_ENABLE_MCP_APPS === '1'
+  ) {
+    options.enableMcpApps = true;
   }
 
   // Handle cloud type - CLI option takes precedence over environment variable
