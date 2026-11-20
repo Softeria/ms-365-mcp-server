@@ -140,6 +140,7 @@ interface EndpointConfig {
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
   llmTip?: string;
+  rejectWildcardSearch?: boolean;
   // Replaces the Microsoft-supplied base description everywhere it is surfaced (tool
   // registration, BM25 discovery index, search-tools, get-tool-schema). Use when the
   // generated description leads with the wrong Graph operation. llmTip is still appended after.
@@ -3458,7 +3459,7 @@ async function executeGraphTool(
       if (deltaTokenError) return deltaTokenError;
     }
 
-    if (tool.alias === 'search-sharepoint-sites' && queryParams['$search']?.trim() === '*') {
+    if (config?.rejectWildcardSearch && queryParams['$search']?.trim() === '*') {
       return {
         content: [
           {
