@@ -17,7 +17,8 @@
 //
 // Recursive Graph schemas (OneNote sections, mail and contact folder trees) can't be
 // inlined at all, so those keep their refs and stay broken for #638. Same when the
-// expansion would more than double the schema - not worth the bytes.
+// expansion would more than double the schema - not worth the bytes. Scalar and enum
+// defs get inlined either way, so a flag like `confirm` still shows its type (#793).
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -367,30 +368,42 @@ function findCyclicDefs(defs: Record<string, unknown>): Set<string> {
   return cyclic;
 }
 
-// Swap every `#/$defs/` ref to an inlinable def for that def's expansion. Pinned defs,
+// A scalar or enum def, cheap to inline even where the rest of the schema keeps its refs
+function isLeafDef(value: unknown): boolean {
+  if (!isPlainObject(value)) return false;
+  const type = value.type;
+  return (
+    (typeof type === 'string' &&
+      ['boolean', 'integer', 'number', 'string', 'null'].includes(type)) ||
+    Array.isArray(value.enum) ||
+    'const' in value
+  );
+}
+
+// Swap every `#/$defs/` ref to an inlinable def for that def's expansion. Defs in `keep`,
 // and defs we didn't hoist ourselves, are left alone.
 function inlineDefRefs(
   node: unknown,
   defs: Record<string, unknown>,
-  pinned: Set<string>,
+  keep: Set<string>,
   expand: (name: string) => unknown
 ): unknown {
   if (!node || typeof node !== 'object') return node;
-  if (Array.isArray(node)) return node.map((item) => inlineDefRefs(item, defs, pinned, expand));
+  if (Array.isArray(node)) return node.map((item) => inlineDefRefs(item, defs, keep, expand));
 
   const record = node as Record<string, unknown>;
   const name = defRefName(record.$ref);
-  if (name !== null && hasDef(defs, name) && !pinned.has(name)) {
+  if (name !== null && hasDef(defs, name) && !keep.has(name)) {
     const siblings: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
-      if (key !== '$ref') siblings[key] = inlineDefRefs(value, defs, pinned, expand);
+      if (key !== '$ref') siblings[key] = inlineDefRefs(value, defs, keep, expand);
     }
     return { ...(structuredClone(expand(name)) as Record<string, unknown>), ...siblings };
   }
 
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
-    out[key] = inlineDefRefs(value, defs, pinned, expand);
+    out[key] = inlineDefRefs(value, defs, keep, expand);
   }
   return out;
 }
@@ -472,8 +485,7 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   const existingDefs = (clone.$defs as Record<string, unknown> | undefined) ?? {};
   delete clone.$defs;
 
-  // A cycle keeps a ref no matter what we do, so the schema is broken for #638 either
-  // way - expanding the rest of its defs would just cost bytes for nothing.
+  // A cycle keeps its ref no matter what we do, as does a def referenced with siblings
   const pinned = findCyclicDefs(defs);
   collectSiblingRefNames(clone, pinned);
   for (const value of Object.values(defs)) collectSiblingRefNames(value, pinned);
@@ -483,39 +495,48 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   for (const name of [...pinned]) {
     if (!hasDef(defs, name)) pinned.delete(name);
   }
-  if (pinned.size > 0) {
-    clone.$defs = { ...existingDefs, ...defs };
-    return clone as T;
-  }
 
-  const memo = new Map<string, unknown>();
-  const expand = (name: string): unknown => {
-    if (memo.has(name)) return memo.get(name);
-    const value = inlineDefRefs(defs[name], defs, pinned, expand);
-    memo.set(name, value);
-    return value;
-  };
-
-  // inlineDefRefs rebuilds rather than mutates, so `clone` can still be the fallback
-  const inlined = inlineDefRefs(clone, defs, pinned, expand) as JsonSchema;
-  // A kept def can still point at one we hoisted, and `defs` doesn't come along here -
-  // so inline those out too rather than hand back a ref to a def that isn't there.
-  if (Object.keys(existingDefs).length > 0) {
-    inlined.$defs = Object.fromEntries(
-      Object.entries(existingDefs).map(([name, value]) => [
-        name,
-        inlineDefRefs(value, defs, pinned, expand),
-      ])
+  // Inline every def not in `keep`. Rebuilds rather than mutates, so `clone` stays intact.
+  const inlineExcept = (keep: Set<string>): JsonSchema => {
+    const memo = new Map<string, unknown>();
+    const expand = (name: string): unknown => {
+      if (memo.has(name)) return memo.get(name);
+      const value = inlineDefRefs(defs[name], defs, keep, expand);
+      memo.set(name, value);
+      return value;
+    };
+    const inlined = inlineDefRefs(clone, defs, keep, expand) as JsonSchema;
+    // A kept def can still point at one we inline, and only the kept ones come along -
+    // so inline those out too rather than hand back a ref to a def that isn't there.
+    // fromEntries, since a plain assignment would hit the prototype setter on `__proto__`
+    const keptDefs = Object.fromEntries(
+      [
+        ...Object.entries(existingDefs),
+        ...[...keep].map((name) => [name, defs[name]] as const),
+      ].map(([name, value]) => [name, inlineDefRefs(value, defs, keep, expand)])
     );
-  }
-  clone.$defs = { ...existingDefs, ...defs };
+    if (Object.keys(keptDefs).length > 0) inlined.$defs = keptDefs;
+    return inlined;
+  };
 
   // Some schemas lean on their refs hard - create-sharepoint-list-item hangs 181 ref
   // sites off 59 defs, so expanding it all blows the tool up ~6x. Past a doubling the
   // bytes aren't worth the reach.
-  const grewTooMuch =
-    JSON.stringify(inlined).length > JSON.stringify(clone).length * MAX_INLINE_GROWTH;
-  return (grewTooMuch ? clone : inlined) as T;
+  const hoisted = { ...clone, $defs: { ...existingDefs, ...defs } };
+  const limit = JSON.stringify(hoisted).length * MAX_INLINE_GROWTH;
+  if (pinned.size === 0) {
+    const full = inlineExcept(pinned);
+    if (JSON.stringify(full).length <= limit) return full as T;
+  }
+
+  // Leaves (`confirm: boolean`, enums) are still worth inlining when the rest isn't, so
+  // a client that can't follow refs sees their type (#793)
+  const leavesOnly = new Set(pinned);
+  for (const [name, value] of Object.entries(defs)) {
+    if (!isLeafDef(value)) leavesOnly.add(name);
+  }
+  const inlined = inlineExcept(leavesOnly);
+  return (JSON.stringify(inlined).length <= limit ? inlined : hoisted) as T;
 }
 
 // Decorate the SDK's tools/list handler so every emitted inputSchema is passed through
