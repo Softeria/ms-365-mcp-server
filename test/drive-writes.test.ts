@@ -140,6 +140,7 @@ describe('drive-file-upload', () => {
     [{ name: 'a/b.txt', contentBytes: 'YQ==' }, /not a valid file\/folder name/],
     [{ name: 'report.', contentBytes: 'YQ==' }, /not a valid/],
     [{ name: 'a.txt', contentBytes: 'not base64!' }, /base64/],
+    [{ name: 'a.txt', contentBytes: 'YWJjZ' }, /base64/],
     [
       { name: 'a.txt', contentBytes: Buffer.alloc(MAX_UPLOAD_BYTES + 1).toString('base64') },
       /limit/,
@@ -167,6 +168,29 @@ describe('drive-file-upload', () => {
     expect(text).toMatch(/precondition failed/i);
     expect(writes(fetchMock)).toHaveLength(0);
   });
+
+  it('accepts unpadded base64 that round-trips (no trailing "=")', async () => {
+    const fetchMock = stubGraph({}, newItem);
+    const { result } = await run('drive-file-upload', {
+      'parent-id': 'p1',
+      name: 'a.txt',
+      contentBytes: 'YQ',
+    });
+    expect(result.isError).toBeFalsy();
+    expect(writes(fetchMock).length).toBeGreaterThan(0);
+  });
+
+  it('reports a committed upload whose response lacks the item as an error, without discarding it', async () => {
+    const fetchMock = stubGraph({}, { notAnItem: true });
+    const { result, text } = await run('drive-file-upload', {
+      'parent-id': 'p1',
+      name: 'a.txt',
+      contentBytes: 'YQ==',
+    });
+    expect(result.isError).toBe(true);
+    expect(text).toMatch(/file was written/);
+    expect(writes(fetchMock).some(([, init]) => init.method === 'DELETE')).toBe(false);
+  });
 });
 
 describe('drive-file-update', () => {
@@ -177,6 +201,14 @@ describe('drive-file-update', () => {
     expect(url).toBe('https://graph.microsoft.com/v1.0/me/drive/items/f1/createUploadSession');
     expect(init.headers['If-Match']).toBe('"{f1},4"');
     expect(writes(fetchMock)[1][0]).toBe(UPLOAD_URL);
+  });
+
+  it('asks Graph to replace the same item, so its own name is not a conflict', async () => {
+    const fetchMock = stubGraph({ f1: file('f1') }, newItem);
+    await run('drive-file-update', { 'item-id': 'f1', eTag: '"{f1},4"', contentBytes: 'YQ==' });
+    expect(JSON.parse(writes(fetchMock)[0][1].body)).toEqual({
+      item: { '@microsoft.graph.conflictBehavior': 'replace' },
+    });
   });
 
   it('an edit after the check makes Graph refuse the session (412); no bytes are sent', async () => {
@@ -277,6 +309,24 @@ describe('drive-item-move / drive-item-copy stay inside one drive', () => {
     expect(JSON.parse(text)).toMatchObject({ accepted: true });
   });
 
+  it('drive-item-copy refuses a folder source; drive-item-move allows one', async () => {
+    let fetchMock = stubGraph({ src: folder('src'), dest: folder('dest') });
+    const { result, text } = await run('drive-item-copy', {
+      'item-id': 'src',
+      'destination-folder-id': 'dest',
+    });
+    expect(result.isError).toBe(true);
+    expect(text).toMatch(/single files only/);
+    expect(writes(fetchMock)).toHaveLength(0);
+
+    fetchMock = stubGraph({ src: folder('src'), dest: folder('dest') }, newItem);
+    const moved = await run('drive-item-move', {
+      'item-id': 'src',
+      'destination-folder-id': 'dest',
+    });
+    expect(moved.result.isError).toBeFalsy();
+  });
+
   it.each(['drive-item-move', 'drive-item-copy'])(
     '%s refuses a destination in another drive',
     async (tool) => {
@@ -308,7 +358,7 @@ describe('drive-item-move / drive-item-copy stay inside one drive', () => {
       const fetchMock = stubGraph(
         {
           f1: file('f1'),
-          root: { id: 'ROOT-ID', root: {}, folder: {}, parentReference: { driveId: 'D1' } },
+          root: { id: 'ROOT-ID', root: {}, folder: {} },
         },
         new Response(null, { status: 202 })
       );

@@ -90,7 +90,7 @@ export interface Tool {
   name: string;
   /** LLM-facing description. Keep concise; put long guidance in `llmTip`. */
   description: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /**
    * Graph path with `{param-name}` placeholders. Resolved at request time
    * against the path params from {@link Tool.params}.

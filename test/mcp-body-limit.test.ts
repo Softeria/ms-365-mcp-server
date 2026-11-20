@@ -11,7 +11,7 @@ vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-function buildApp() {
+function buildApp(session: unknown = null) {
   // In-memory client-registry DB, so the test never writes data/sessions.db.
   process.env.MS365_MCP_SESSION_DB_PATH = ':memory:';
   const server = new MicrosoftGraphServer({
@@ -19,7 +19,7 @@ function buildApp() {
     secrets: { clientId: 'c', tenantId: 't', clientSecret: 's' },
     sessionManager: {
       createSession: vi.fn(),
-      getValidSession: vi.fn().mockResolvedValue(null),
+      getValidSession: vi.fn().mockResolvedValue(session),
     } as unknown as ConstructorParameters<typeof MicrosoftGraphServer>[0]['sessionManager'],
     policy: {} as never,
     policyAdmins: new Set<string>(),
@@ -45,6 +45,32 @@ describe('/mcp JSON body limit', () => {
       .set('Authorization', 'Bearer unknown')
       .send(toolCall(3 * 1024 * 1024));
     expect(res.status).toBe(401);
+  });
+
+  it('authenticates before reading the body: an anonymous 9 MB call gets 401, not 413', async () => {
+    for (const path of ['/mcp', '/mcp/', '/MCP']) {
+      const res = await request(buildApp())
+        .post(path)
+        .set('Authorization', 'Bearer unknown')
+        .send(toolCall(9 * 1024 * 1024));
+      expect(res.status, path).toBe(401);
+    }
+  });
+
+  it('parses an authenticated 3 MB body (8 MB parser runs after auth, not a 413)', async () => {
+    const session = {
+      sessionId: 's1',
+      tenantId: 't',
+      userOid: 'u1',
+      userPrincipalName: 'u@test.com',
+      createdAt: Date.now(),
+      tokens: { access_token: 'a', refresh_token: 'r', expires_at: Date.now() + 1000, scopes: '' },
+    };
+    const res = await request(buildApp(session))
+      .post('/mcp')
+      .set('Authorization', 'Bearer valid')
+      .send(toolCall(3 * 1024 * 1024));
+    expect(res.status).not.toBe(413);
   });
 
   it('keeps the default limit on other routes', async () => {

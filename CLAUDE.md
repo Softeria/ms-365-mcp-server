@@ -34,9 +34,9 @@ npm run format      # prettier --write; CI fails on format drift
 ## Invariants — do not weaken
 
 - **Tool descriptions are not a security control.** Anything that must hold is a
-  `Tool.precondition` or a server-built body in `Tool.execute` (`src/tools/types.ts`), run by
-  `src/tool-runtime.ts`; a throw refuses the call. The README's _Server-enforced invariants_
-  tables list them.
+  `Tool.precondition`, a server-built body in `Tool.execute`, or a `ToolRefusal` thrown by a guard
+  inside `Tool.execute` (`src/tools/types.ts`), run by `src/tool-runtime.ts`; a throw refuses the
+  call. The README's _Server-enforced invariants_ tables list them.
 - **Never forward raw Graph responses.** Every tool sets `projection`, `shape`, or builds its own
   result in `execute`: ids on every item, the main summary, links — nothing else. Delete/send
   tools that return no body are the only exception. README _Response shaping_ has the contract.
