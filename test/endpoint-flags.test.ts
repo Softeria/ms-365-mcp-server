@@ -75,6 +75,42 @@ describe('per-tool behavior on the real tool surface', () => {
     expect(withName).toEqual(['list-chat-members', 'list-team-members']);
   });
 
+  const DELTA_TOKEN_TOOLS = [
+    'get-drive-delta',
+    'get-sharepoint-sites-delta',
+    'list-sharepoint-site-list-items-delta',
+  ];
+
+  it('offers the delta token param on exactly the delta tools that page with token=', () => {
+    const withToken = server.registerTool.mock.calls
+      .filter(
+        (c: unknown[]) => 'token' in (c[1] as { inputSchema: { shape: object } }).inputSchema.shape
+      )
+      .map((c: unknown[]) => c[0])
+      .sort();
+    expect(withToken).toEqual(DELTA_TOKEN_TOOLS);
+  });
+
+  it('shows the delta token param in discovery mode too', () => {
+    const withToken = [...buildToolsRegistry(false, true)]
+      .filter(([, entry]) =>
+        describeToolSchema(entry.tool, entry.config).parameters.some((p) => p.name === 'token')
+      )
+      .map(([name]) => name)
+      .sort();
+    expect(withToken).toEqual(DELTA_TOKEN_TOOLS);
+  });
+
+  it('resumes list-sharepoint-site-list-items-delta from a deltaLink with token=', async () => {
+    await registered('list-sharepoint-site-list-items-delta').handler({
+      siteId: 's1',
+      listId: 'l1',
+      token: 'https://graph.microsoft.com/v1.0/sites/s1/lists/l1/items/delta?token=tok1',
+    });
+    const [path] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(path).toContain('/sites/s1/lists/l1/items/delta()?token=tok1');
+  });
+
   it.each([
     ['send-channel-message', { teamId: 't1', channelId: 'c1' }],
     ['reply-to-channel-message', { teamId: 't1', channelId: 'c1', chatMessageId: 'm0' }],

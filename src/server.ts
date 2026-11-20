@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { isIP, isIPv6 } from 'node:net';
+import { NON_TENANT_AUTHORITIES } from './app-mode.js';
 import { createAttachmentHandler, createAttachmentUploadHandler } from './attachment-route.js';
 import { registerAuthTools } from './auth-tools.js';
 import AuthManager, {
@@ -36,9 +37,20 @@ import {
   OAuthUpstreamError,
   refreshAccessToken,
   toOAuthErrorResponse,
+  checkClientCredentials,
+  credentialCheckMessage,
+  type ClientCredentialCheck,
 } from './lib/microsoft-auth.js';
 import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validation.js';
+import {
+  type AuthorizeClientCheck,
+  checkAuthorizeClient,
+  clientIdHost,
+  ClientMetadataResolver,
+  DCR_DISABLED_HINT,
+} from './lib/client-metadata.js';
 import logger, { enableConsoleLogging } from './logger.js';
+import { version } from './version.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
 import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
 import { MicrosoftOAuthProvider } from './oauth-provider.js';
@@ -46,6 +58,25 @@ import OboClient from './obo-client.js';
 import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './lib/obo-access.js';
 import { requestContext } from './request-context.js';
 import { getSecrets, type AppSecrets } from './secrets.js';
+
+/**
+ * Ceiling on array elements plus object keys in one tool call's arguments,
+ * checked by the SDK before Zod validates them. Validation work grows with
+ * the element count, so this bounds it per call
+ * (GHSA-46jr-4wx8-v453). The SDK leaves it off by default. The largest
+ * legitimate inputs are Excel range writes: a 2D `values` array costs
+ * rows × (cols + 1), so 100×100 `values` plus `numberFormat` is about
+ * 20 200. 50 000 keeps two of those in one `graph-batch`; a batch of 20
+ * writes fits when each stays near 2 400 cells. File uploads travel as one
+ * string.
+ */
+export const MAX_TOOL_INPUT_ELEMENTS = 50_000;
+
+/**
+ * Largest MCP request body, for express.json() and the SDK transport alike
+ * (GHSA-46jr-4wx8-v453). 100 KiB is express.json()'s default.
+ */
+const MAX_REQUEST_BODY_BYTES = 100 * 1024;
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -264,6 +295,31 @@ type PkceEntry = {
   serverCodeVerifier: string;
   createdAt: number;
 };
+
+// Stateless two-leg PKCE (MS365_MCP_PKCE_SECRET), based on #672 by cbjerg.
+// pkceStore ties /authorize and /token to one process, so a second replica or a
+// restart between the two legs has no mapping and Entra answers AADSTS501481.
+// With the secret, the server verifier is HMAC(secret, client challenge): any
+// instance holding the secret recomputes it at /token, and nothing is stored.
+// Seeing the challenge in the redirect is not enough to get the verifier.
+export const PKCE_SECRET_MIN_LENGTH = 32;
+
+export function deriveServerCodeVerifier(secret: string, clientCodeChallenge: string): string {
+  return crypto.createHmac('sha256', secret).update(clientCodeChallenge).digest('base64url');
+}
+
+export function statelessPkceSecret(env: typeof process.env = process.env): string | undefined {
+  const secret = env.MS365_MCP_PKCE_SECRET;
+  if (secret === undefined || secret === '') return undefined;
+  if (secret.length < PKCE_SECRET_MIN_LENGTH) {
+    throw new Error(
+      `MS365_MCP_PKCE_SECRET must be at least ${PKCE_SECRET_MIN_LENGTH} characters; ` +
+        'a short secret makes the derived PKCE verifier guessable.'
+    );
+  }
+  return secret;
+}
+
 class MicrosoftGraphServer {
   private authManager: AuthManager;
   private options: CommandOptions;
@@ -271,6 +327,7 @@ class MicrosoftGraphServer {
   private server: McpServer | null;
   private secrets: AppSecrets | null;
   private oboClient: OboClient | null;
+  private credentialCheck: ClientCredentialCheck | null = null;
   private version: string = '0.0.0';
   private multiAccount: boolean = false;
   private accountNames: string[] = [];
@@ -287,6 +344,8 @@ class MicrosoftGraphServer {
 
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
   private pkceStore: Map<string, PkceEntry> = new Map();
+  // Set in start() for HTTP mode; replaces pkceStore when present.
+  private pkceSecret: string | undefined;
   private reportedUnavailableEagerTools = new Set<string>();
 
   private reportUnavailableEagerTool = (name: string): void => {
@@ -333,7 +392,9 @@ class MicrosoftGraphServer {
           appMode: Boolean(this.options.appMode),
           readOnly: Boolean(this.options.readOnly),
           multiAccount: this.multiAccount,
+          attachmentUrlsEnabled: Boolean(this.options.http && this.options.enableAttachmentUrls),
         }),
+        maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       }
     );
 
@@ -341,7 +402,13 @@ class MicrosoftGraphServer {
     const shouldRegisterAuthTools =
       !this.options.appMode && (!this.options.http || this.options.enableAuthTools);
     if (shouldRegisterAuthTools) {
-      registerAuthTools(server, this.authManager);
+      registerAuthTools(server, this.authManager, {
+        enabledTools: this.options.enabledTools,
+        // With MS365_MCP_OAUTH_TOKEN the token comes from outside, so there is
+        // nothing to log in to or switch between. verify-login still checks the
+        // token, and list-accounts says cached accounts can't be used (#512).
+        readOnly: this.options.readOnly || Boolean(process.env.MS365_MCP_OAUTH_TOKEN),
+      });
     }
 
     const registrationOptions = {
@@ -357,6 +424,8 @@ class MicrosoftGraphServer {
       allowedScopes: this.options.allowedScopes,
       httpMode: this.hidesStdioOnlyTools(),
       userFields: this.options.userFields,
+      // The views parse the tool results as JSON
+      mcpApps: Boolean(this.options.enableMcpApps && !this.options.toon),
     };
 
     if (this.options.discovery) {
@@ -441,6 +510,12 @@ class MicrosoftGraphServer {
       );
     }
 
+    if (this.options.enableMcpApps && this.options.toon) {
+      logger.warn(
+        '--enable-mcp-apps has no effect with --toon: the MCP Apps views read JSON tool results.'
+      );
+    }
+
     if (this.options.obo) {
       if (!this.options.http) {
         throw new Error('--obo requires --http (On-Behalf-Of flow only works in HTTP mode).');
@@ -460,7 +535,9 @@ class MicrosoftGraphServer {
     }
 
     const outputFormat = this.options.toon ? 'toon' : 'json';
-    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat);
+    this.graphClient = new GraphClient(this.authManager, this.secrets, outputFormat, {
+      orgMode: Boolean(this.options.orgMode),
+    });
 
     if (!this.options.http) {
       this.server = this.createMcpServer();
@@ -547,6 +624,11 @@ class MicrosoftGraphServer {
     if (this.options.http) {
       const { host, port } = parseHttpOption(this.options.http);
 
+      this.pkceSecret = statelessPkceSecret();
+      if (this.pkceSecret) {
+        logger.info('Two-leg PKCE is stateless (MS365_MCP_PKCE_SECRET set)');
+      }
+
       const app = express();
 
       if (this.isLoopbackOnlyHttp()) {
@@ -579,8 +661,17 @@ class MicrosoftGraphServer {
         })
       );
 
-      app.use(express.json());
-      app.use(express.urlencoded({ extended: true }));
+      // Skipped on the attachment route: its PUT body is the raw file, which the
+      // handler reads itself, and these would drain a JSON or form body first (#832).
+      // Matched the way Express routes it: case-insensitive, optional trailing slash.
+      const unlessAttachmentRoute =
+        (parser: Handler): Handler =>
+        (req, res, next) =>
+          req.path.toLowerCase().replace(/\/$/, '') === ATTACHMENT_ROUTE
+            ? next()
+            : parser(req, res, next);
+      app.use(unlessAttachmentRoute(express.json({ limit: MAX_REQUEST_BODY_BYTES })));
+      app.use(unlessAttachmentRoute(express.urlencoded({ extended: true })));
 
       // Add CORS headers for all routes
       const corsOrigin = process.env.MS365_MCP_CORS_ORIGIN || 'http://localhost:3000';
@@ -656,6 +747,7 @@ class MicrosoftGraphServer {
         process.env.MS365_MCP_BASE_URL ||
         null;
       const publicBase = publicUrlRaw ? new URL(publicUrlRaw).href.replace(/\/$/, '') : null;
+      const cimdEnabled = this.options.clientMetadataDocuments !== false;
 
       // OAuth Authorization Server Discovery
       app.get('/.well-known/oauth-authorization-server', async (req, res) => {
@@ -681,10 +773,12 @@ class MicrosoftGraphServer {
           code_challenge_methods_supported: ['S256'],
           scopes_supported: scopes,
         };
-
+        // Only while DCR is on: a client that finds no registration endpoint
+        // can still fall back to asking the user for a client ID.
         if (this.options.enableDynamicRegistration) {
           metadata.registration_endpoint = `${browserBase}/register`;
         }
+        if (cimdEnabled) metadata.client_id_metadata_document_supported = true;
 
         res.json(metadata);
       });
@@ -715,24 +809,35 @@ class MicrosoftGraphServer {
       app.get('/.well-known/oauth-protected-resource', protectedResourcesHandler);
       app.get('/.well-known/oauth-protected-resource/*path', protectedResourcesHandler);
 
-      if (this.options.enableDynamicRegistration) {
-        app.post('/register', async (req, res) => {
-          const body = req.body;
-          logger.info('Client registration request', { body });
-
-          const clientId = `mcp-client-${Date.now()}`;
-
-          res.status(201).json({
-            client_id: clientId,
-            client_id_issued_at: Math.floor(Date.now() / 1000),
-            redirect_uris: body.redirect_uris || [],
-            grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
-            response_types: body.response_types || ['code'],
-            token_endpoint_auth_method: body.token_endpoint_auth_method || 'none',
-            client_name: body.client_name || 'MCP Client',
+      app.post('/register', async (req, res) => {
+        if (!this.options.enableDynamicRegistration) {
+          logger.warn(
+            `Client tried Dynamic Client Registration while it is off. ${DCR_DISABLED_HINT}`
+          );
+          res.status(400).json({
+            error: 'invalid_client_metadata',
+            error_description: DCR_DISABLED_HINT,
           });
+          return;
+        }
+
+        const body = req.body ?? {};
+        logger.info('Client registration request', { keys: Object.keys(body) });
+
+        const clientId = `mcp-client-${Date.now()}`;
+
+        res.status(201).json({
+          client_id: clientId,
+          client_id_issued_at: Math.floor(Date.now() / 1000),
+          redirect_uris: body.redirect_uris || [],
+          grant_types: body.grant_types || ['authorization_code', 'refresh_token'],
+          response_types: body.response_types || ['code'],
+          token_endpoint_auth_method: body.token_endpoint_auth_method || 'none',
+          client_name: body.client_name || 'MCP Client',
         });
-      }
+      });
+
+      const clientMetadataResolver = new ClientMetadataResolver();
 
       // Authorization endpoint - redirects to Microsoft
       // Implements two-leg PKCE: client↔server and server↔Microsoft are independent
@@ -774,6 +879,32 @@ class MicrosoftGraphServer {
           }
         }
 
+        const requestedClientId = url.searchParams.get('client_id');
+        const clientCheck: AuthorizeClientCheck = cimdEnabled
+          ? await checkAuthorizeClient({
+              clientId: requestedClientId,
+              redirectUri: redirectUriParam,
+              resolver: clientMetadataResolver,
+            })
+          : { ok: true };
+        if (!clientCheck.ok) {
+          logger.warn('Rejected /authorize request for CIMD client', {
+            client_id_host: requestedClientId ? clientIdHost(requestedClientId) : undefined,
+            error: clientCheck.error,
+            reason: clientCheck.description,
+          });
+          res.status(400).json({
+            error: clientCheck.error,
+            error_description: clientCheck.description,
+          });
+          return;
+        }
+        if (clientCheck.clientName) {
+          logger.info('Authorize for CIMD client', {
+            client_name: clientCheck.clientName.slice(0, 100),
+          });
+        }
+
         // Forward parameters that Microsoft OAuth 2.0 v2.0 supports,
         // but NOT code_challenge/code_challenge_method — we generate our own for Microsoft
         const allowedParams = [
@@ -799,7 +930,7 @@ class MicrosoftGraphServer {
         // same challenge. /token sees the code but never the state, so it cannot
         // tell two flows sharing a verifier apart; keeping only the newest is a
         // bet, and it loses if two are genuinely in flight and the user finishes
-        // the older one. The stateless path below needs this too, since it sends
+        // the older one. The no-state forwarding path below needs this too, since it sends
         // the client's own challenge upstream and a leftover mapping would answer
         // that with our server verifier.
         if (clientCodeChallenge) {
@@ -816,7 +947,26 @@ class MicrosoftGraphServer {
 
         // Two-leg PKCE: if the client sent a code_challenge, store it and generate
         // a separate PKCE pair for the server↔Microsoft leg
-        if (clientCodeChallenge && state) {
+        if (clientCodeChallenge && this.pkceSecret) {
+          // /token can only recompute from sha256(verifier), so plain (also the
+          // default when the method is missing) can never match. Discovery only
+          // advertises S256.
+          if (clientCodeChallengeMethod !== 'S256') {
+            res.status(400).json({
+              error: 'invalid_request',
+              error_description: 'code_challenge_method must be S256',
+            });
+            return;
+          }
+          const serverCodeVerifier = deriveServerCodeVerifier(this.pkceSecret, clientCodeChallenge);
+          const serverCodeChallenge = crypto
+            .createHash('sha256')
+            .update(serverCodeVerifier)
+            .digest('base64url');
+          microsoftAuthUrl.searchParams.set('code_challenge', serverCodeChallenge);
+          microsoftAuthUrl.searchParams.set('code_challenge_method', 'S256');
+          logger.info('Two-leg PKCE (stateless): derived server challenge');
+        } else if (clientCodeChallenge && state) {
           const serverCodeVerifier = crypto.randomBytes(32).toString('base64url');
           const serverCodeChallenge = crypto
             .createHash('sha256')
@@ -935,7 +1085,7 @@ class MicrosoftGraphServer {
           }
 
           if (!body.grant_type) {
-            logger.error('Token endpoint: grant_type is missing', { body });
+            logger.error('Token endpoint: grant_type is missing', { keys: Object.keys(body) });
             res.status(400).json({
               error: 'invalid_request',
               error_description: 'grant_type parameter is required',
@@ -963,8 +1113,16 @@ class MicrosoftGraphServer {
             // code_verifier against all stored challenges and use the server's verifier
             let matchedPkceState: string | undefined;
             let matchedPkceEntry: PkceEntry | undefined;
+            let derivedServerVerifier: string | undefined;
 
-            if (body.code_verifier) {
+            if (body.code_verifier && this.pkceSecret) {
+              const clientChallenge = crypto
+                .createHash('sha256')
+                .update(body.code_verifier as string)
+                .digest('base64url');
+              derivedServerVerifier = deriveServerCodeVerifier(this.pkceSecret, clientChallenge);
+              logger.info('Two-leg PKCE (stateless): derived server verifier');
+            } else if (body.code_verifier) {
               // Look through pkceStore for a matching client code_challenge
               const clientVerifier = body.code_verifier as string;
               const clientChallengeComputed = crypto
@@ -996,7 +1154,9 @@ class MicrosoftGraphServer {
               clientId,
               clientSecret,
               tenantId,
-              matchedPkceEntry?.serverCodeVerifier || (body.code_verifier as string | undefined),
+              derivedServerVerifier ||
+                matchedPkceEntry?.serverCodeVerifier ||
+                (body.code_verifier as string | undefined),
               this.secrets!.cloudType,
               this.oboRedemptionScope()
             );
@@ -1098,6 +1258,7 @@ class MicrosoftGraphServer {
             const transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
               enableJsonResponse: true, // Reply to POSTs with plain JSON, not one-shot SSE
+              maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
             });
 
             res.on('close', () => {
@@ -1183,7 +1344,7 @@ class MicrosoftGraphServer {
         // sentence is enforceable.
         //
         // The dedicated app is deliberately bare: no JSON or urlencoded body
-        // parsers (the route is a GET whose only input is a query parameter),
+        // parsers (the GET reads only its query, the PUT its raw body),
         // no CORS (nothing fetches this from a browser origin), no OAuth
         // router, no /mcp, not even the health check. Everything not mounted
         // 404s by Express's own default, so the isolation is a property of what
@@ -1264,6 +1425,16 @@ class MicrosoftGraphServer {
       app.get('/', (req, res) => {
         res.send('Microsoft 365 MCP Server is running');
       });
+      // Machine-readable health, including the startup credential self-test (OBO mode).
+      app.get('/health', (req, res) => {
+        res.json({
+          status: 'ok',
+          version,
+          // Startup app-credential check: did Microsoft accept the client id and secret.
+          // Not a test of user sign-in, On-Behalf-Of exchange, Graph access or Claude.
+          credentialCheck: this.credentialCheck ?? { ok: null, verdict: 'not run' },
+        });
+      });
 
       // Every line below is written from the address the kernel actually
       // handed back, not from the option that asked for it. On this pair of
@@ -1277,6 +1448,31 @@ class MicrosoftGraphServer {
       logger.info(
         `  - OAuth discovery: http://${mcp.authority}/.well-known/oauth-authorization-server`
       );
+
+      // Startup self-test: in OBO mode the server holds a client id, secret and tenant,
+      // so it can ask Microsoft once whether they are accepted, before any user tries.
+      // The result goes to the console whether or not -v is set: a deployment whose
+      // secret is wrong should say so in the first lines it prints.
+      // Skipped under vitest: tests start real servers and must not call Microsoft.
+      if (this.oboClient && this.secrets?.clientSecret && process.env.VITEST !== 'true') {
+        const tenantId = this.secrets.tenantId;
+        if (!tenantId || NON_TENANT_AUTHORITIES.has(tenantId.toLowerCase())) {
+          logger.warn('Startup self-test skipped: MS365_MCP_TENANT_ID is not a tenant id');
+        } else {
+          this.credentialCheck = await checkClientCredentials(
+            this.secrets.clientId,
+            this.secrets.clientSecret,
+            this.secrets.tenantId,
+            this.secrets.cloudType
+          );
+          const c = this.credentialCheck;
+          const line = credentialCheckMessage(c, this.secrets.tenantId);
+          if (c.verdict === 'accepted') logger.info(line);
+          else if (c.verdict === 'rejected') logger.error(line);
+          else logger.warn(line);
+          console.error(`[ms365-mcp] ${line}`);
+        }
+      }
 
       if (attachmentApp && attachmentPort !== null) {
         // Inherits the MCP listener's host unless --attachment-host overrides it.

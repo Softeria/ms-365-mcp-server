@@ -19,13 +19,16 @@ afterEach(async () => {
 function requestSurface(owner: MicrosoftGraphServer): McpServer {
   return (owner as unknown as { createMcpServer(): McpServer }).createMcpServer();
 }
-async function listSurface(server: McpServer) {
+async function connectSurface(server: McpServer) {
   const [a, b] = InMemoryTransport.createLinkedPair();
   await server.connect(a);
   const client = new Client({ name: 'startup-test', version: '1' });
   await client.connect(b);
   clients.push(client);
-  return (await client.listTools()).tools.map((tool) => tool.name);
+  return client;
+}
+async function listSurface(server: McpServer) {
+  return (await (await connectSurface(server)).listTools()).tools.map((tool) => tool.name);
 }
 
 describe('hybrid startup and HTTP diagnostics', () => {
@@ -59,4 +62,31 @@ describe('hybrid startup and HTTP diagnostics', () => {
     await listSurface(requestSurface(new MicrosoftGraphServer({} as AuthManager, options)));
     expect(count()).toBe(2);
   });
+});
+
+describe('attachment URL initialization guidance', () => {
+  it.each([
+    [undefined, false, false],
+    [undefined, true, false],
+    ['127.0.0.1:3000', false, false],
+    ['127.0.0.1:3000', true, true],
+  ] as const)(
+    'reflects effective capability (http=%s, enabled=%s)',
+    async (http, enableAttachmentUrls, enabled) => {
+      for (const discovery of [false, true]) {
+        const owner = new MicrosoftGraphServer({} as AuthManager, {
+          http,
+          enableAttachmentUrls,
+          discovery,
+          enabledTools: '^list-mail-attachments$',
+        });
+        const client = await connectSurface(requestSurface(owner));
+        expect(client.getInstructions()?.includes('Attachment URLs are enabled')).toBe(enabled);
+        expect(client.getInstructions()?.includes('DISCOVERY MODE ADD-ON')).toBe(discovery);
+        expect(client.getInstructions()).toContain(
+          'In stdio mode (or HTTP with --http-local-file-tools)'
+        );
+      }
+    }
+  );
 });

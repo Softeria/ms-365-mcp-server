@@ -27,6 +27,30 @@ export const ENV_FILE_ALLOWLIST = [
   'MS365_MCP_CLOUD_TYPE',
 ];
 
+/**
+ * Variables the server reads that do not carry the MS365_MCP_ prefix (README,
+ * "Environment variables"). Refused from .env like the rest - LOG_LEVEL=debug from
+ * a stray file would log user content - but named in the warning, so an operator who
+ * put them there learns they had no effect.
+ */
+export const UNPREFIXED_SERVER_VARIABLES = [
+  'READ_ONLY',
+  'ENABLED_TOOLS',
+  'ENABLED_TOOLS_FILE',
+  'LOG_LEVEL',
+  'SILENT',
+];
+
+/** Of those, the ones that restrict which tools the server offers. */
+const RESTRICTING_VARIABLES = ['READ_ONLY', 'ENABLED_TOOLS', 'ENABLED_TOOLS_FILE'];
+
+/** 'A', 'A and B', 'A, B and C'. */
+function joinNames(names: string[]): string {
+  return names.length < 2
+    ? names.join('')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 export interface LoadEnvFileResult {
   /** Allowlisted keys taken from the file. */
   applied: string[];
@@ -68,15 +92,24 @@ export function loadEnvFile(options: { path?: string } = {}): LoadEnvFileResult 
   // Only our own variables: the advice below does not apply to a DATABASE_URL
   // that happens to share the file, and naming unrelated secrets on every
   // startup helps nobody.
-  const ignoredOwn = ignored.filter((key) => key.startsWith('MS365_MCP_'));
+  const ignoredOwn = ignored.filter(
+    (key) => key.startsWith('MS365_MCP_') || UNPREFIXED_SERVER_VARIABLES.includes(key)
+  );
   if (ignoredOwn.length > 0) {
+    // Spell out that a tool setting refused from .env restricts nothing. That is
+    // all we can say: the environment or a CLI flag may set the same thing, and the
+    // flags are only parsed after this runs.
+    const restricting = ignoredOwn.filter((key) => RESTRICTING_VARIABLES.includes(key));
     // Key names only, never values: a .env is exactly where secrets live.
     // stderr because stdout is the MCP transport, and the file logger is
     // invisible in stdio mode.
     console.error(
       `[ms365-mcp] Ignored ${ignoredOwn.length} variable(s) from .env: ${[...ignoredOwn].sort().join(', ')}. ` +
         `Only ${ENV_FILE_ALLOWLIST.join(', ')} are read from .env - ` +
-        `set anything else in your shell or MCP client config.`
+        `set anything else in your shell or MCP client config.` +
+        (restricting.length === 0
+          ? ''
+          : ` ${joinNames(restricting.sort())} from .env ${restricting.length === 1 ? 'does' : 'do'} not restrict the tools.`)
     );
   }
 

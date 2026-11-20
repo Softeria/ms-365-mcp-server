@@ -4,32 +4,34 @@
 
 Tool and scope lists assume `--org-mode`; without it, personal accounts get fewer tools and scopes.
 
+Every preset also includes the account tools (`login`, `logout`, `verify-login`, `list-accounts`, `select-account`, `remove-account`; only `verify-login` and `list-accounts` under `--read-only`). They are not listed or counted below.
+
 ## Summary
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 369<br>180 | 63<br>37 | -<br>-               | All available tools                                                                                                               |
-| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   47<br>22 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 371<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
+| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
-| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   25<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
-| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   49<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
-| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   23<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   3<br>1 | -<br>-               | OneNote notebook operations                                                                                                       |
-| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   96<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
-| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  177<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
+| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   26<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
+| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
+| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   24<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
+| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                       |
+| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
+| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
 | `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     7<br>7 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
 | `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                          |
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                             |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>110 | 56<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 191<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all` full
 
 All available tools
 
-Tools (369):
+Tools (371):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -116,6 +118,7 @@ Tools (369):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-onedrive-file`
@@ -287,6 +290,7 @@ Tools (369):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-sensitivity-labels`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
@@ -301,10 +305,10 @@ Tools (369):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-specific-calendar-events`
@@ -401,7 +405,7 @@ Tools (369):
 - `upload-file-content`
 - `upload-my-profile-photo`
 
-Scopes (63):
+Scopes (65):
 
 - `Calendars.Read.Shared`
 - `Calendars.ReadWrite`
@@ -436,7 +440,9 @@ Scopes (63):
 - `MailboxSettings.ReadWrite`
 - `Notes.Create`
 - `Notes.Read`
+- `Notes.Read.All`
 - `Notes.ReadWrite`
+- `Notes.ReadWrite.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -471,7 +477,7 @@ Scopes (63):
 
 All available tools
 
-Tools (180):
+Tools (181):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -613,6 +619,7 @@ Tools (180):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-sensitivity-labels`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
@@ -627,10 +634,10 @@ Tools (180):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-specific-calendar-events`
@@ -654,7 +661,7 @@ Tools (180):
 - `search-query`
 - `search-sharepoint-sites`
 
-Scopes (37):
+Scopes (38):
 
 - `Calendars.Read`
 - `Calendars.Read.Shared`
@@ -674,6 +681,7 @@ Scopes (37):
 - `Mail.Read.Shared`
 - `MailboxSettings.Read`
 - `Notes.Read`
+- `Notes.Read.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -698,7 +706,7 @@ Scopes (37):
 
 Calendar and event management
 
-Tools (47):
+Tools (48):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -736,6 +744,7 @@ Tools (47):
 - `list-my-calendar-permissions`
 - `list-outlook-categories`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-specific-calendar-events`
 - `list-supported-languages`
 - `list-supported-time-zones`
@@ -762,7 +771,7 @@ Scopes (7):
 
 Calendar and event management
 
-Tools (22):
+Tools (23):
 
 - `download-bytes`
 - `download-bytes-to-file`
@@ -783,6 +792,7 @@ Tools (22):
 - `list-my-calendar-permissions`
 - `list-outlook-categories`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-specific-calendar-events`
 - `list-supported-languages`
 - `list-supported-time-zones`
@@ -899,7 +909,7 @@ Scopes (1):
 
 OneDrive file and folder operations
 
-Tools (25):
+Tools (26):
 
 - `copy-drive-item`
 - `create-drive-item-preview`
@@ -916,6 +926,7 @@ Tools (25):
 - `get-drive-item`
 - `get-drive-root-item`
 - `get-sensitivity-label`
+- `get-upload-url`
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`
@@ -963,7 +974,7 @@ Scopes (2):
 
 Email operations (read, send, manage folders, attachments)
 
-Tools (49):
+Tools (50):
 
 - `add-mail-attachment`
 - `copy-mail-message`
@@ -981,6 +992,7 @@ Tools (49):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `download-bytes`
 - `download-bytes-to-file`
@@ -1059,7 +1071,7 @@ Scopes (3):
 
 OneDrive app only: drive and file operations, excluding Excel
 
-Tools (23):
+Tools (24):
 
 - `copy-drive-item`
 - `create-drive-item-preview`
@@ -1075,6 +1087,7 @@ Tools (23):
 - `get-drive-delta`
 - `get-drive-item`
 - `get-drive-root-item`
+- `get-upload-url`
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`
@@ -1140,20 +1153,22 @@ Tools (29):
 - `list-onenote-pages`
 - `list-onenote-section-groups`
 - `list-onenote-section-pages`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `update-onenote-page-content`
 - `update-sharepoint-site-onenote-page-content`
 
-Scopes (3):
+Scopes (5):
 
 - `Notes.Create`
 - `Notes.Read`
+- `Notes.Read.All`
 - `Notes.ReadWrite`
+- `Notes.ReadWrite.All`
 
 ## `onenote` read only
 
@@ -1172,22 +1187,23 @@ Tools (17):
 - `list-onenote-pages`
 - `list-onenote-section-groups`
 - `list-onenote-section-pages`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 
-Scopes (1):
+Scopes (2):
 
 - `Notes.Read`
+- `Notes.Read.All`
 
 ## `outlook` full
 
 Outlook app only: mail, calendar and contacts
 
-Tools (96):
+Tools (97):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -1221,6 +1237,7 @@ Tools (96):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-outlook-contact`
@@ -1354,7 +1371,7 @@ Scopes (6):
 
 Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)
 
-Tools (177):
+Tools (178):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -1408,6 +1425,7 @@ Tools (177):
 - `delete-mail-attachment`
 - `delete-mail-folder`
 - `delete-mail-message`
+- `delete-mail-message-skip-deleted-items`
 - `delete-mail-rule`
 - `delete-my-calendar-permission`
 - `delete-onedrive-file`
@@ -2079,7 +2097,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (190):
+Tools (191):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2203,6 +2221,7 @@ Tools (190):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
 - `list-shared-mailbox-child-folders`
@@ -2216,10 +2235,10 @@ Tools (190):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-team-channels`
@@ -2272,7 +2291,7 @@ Tools (190):
 - `update-team-channel`
 - `upload-attachment-from-file`
 
-Scopes (56):
+Scopes (55):
 
 - `Calendars.Read`
 - `Calendars.Read.Shared`
@@ -2300,9 +2319,8 @@ Scopes (56):
 - `Mail.Read.Shared`
 - `Mail.ReadWrite.Shared`
 - `Mail.Send.Shared`
-- `Notes.Create`
-- `Notes.Read`
-- `Notes.ReadWrite`
+- `Notes.Read.All`
+- `Notes.ReadWrite.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`
@@ -2337,7 +2355,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (110):
+Tools (111):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -2421,6 +2439,7 @@ Tools (110):
 - `list-planner-tasks`
 - `list-relevant-people`
 - `list-room-list-rooms`
+- `list-rooms`
 - `list-shared-calendar-events`
 - `list-shared-mailbox-attachments`
 - `list-shared-mailbox-child-folders`
@@ -2434,10 +2453,10 @@ Tools (110):
 - `list-sharepoint-site-list-items`
 - `list-sharepoint-site-list-items-delta`
 - `list-sharepoint-site-lists`
+- `list-sharepoint-site-onenote-child-section-groups`
 - `list-sharepoint-site-onenote-notebook-section-groups`
 - `list-sharepoint-site-onenote-notebook-sections`
 - `list-sharepoint-site-onenote-notebooks`
-- `list-sharepoint-site-onenote-section-group-section-groups`
 - `list-sharepoint-site-onenote-section-group-sections`
 - `list-sharepoint-site-onenote-section-pages`
 - `list-team-channels`
@@ -2466,7 +2485,7 @@ Scopes (33):
 - `GroupMember.Read.All`
 - `Mail.Read`
 - `Mail.Read.Shared`
-- `Notes.Read`
+- `Notes.Read.All`
 - `OnlineMeetingArtifact.Read.All`
 - `OnlineMeetingRecording.Read.All`
 - `OnlineMeetings.Read`

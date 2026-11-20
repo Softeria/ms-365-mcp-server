@@ -53,7 +53,7 @@ program
   )
   .option(
     '--enable-attachment-urls',
-    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints). Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
+    'HTTP mode only. Let get-download-url mint a short-TTL, single-use URL served by this server for Graph byte resources that expose no pre-authenticated URL of their own (mail and event attachments, meeting recordings, other $value endpoints), and a short one for OneDrive/SharePoint files too; get-upload-url then also takes drive folders. Also adds get-download-url to any --preset that lacks it (except teams-write). Requires MS365_MCP_ATTACHMENT_URL_BASE; MS365_MCP_ATTACHMENT_URL_KEY (or _KEY_FILE) is optional and adds an HMAC signature for fetchers that verify one'
   )
   .option(
     '--attachment-port <port>',
@@ -111,11 +111,15 @@ program
   )
   .option(
     '--enable-dynamic-registration',
-    'Enable OAuth Dynamic Client Registration endpoint (kept for backwards compatibility, now enabled by default in HTTP mode)'
+    'Turn on OAuth Dynamic Client Registration in HTTP mode (off by default; the MCP spec deprecated it in favour of Client ID Metadata Documents). Needed by clients that only support DCR, such as Open WebUI. Equivalent env var: MS365_MCP_ENABLE_DCR=true.'
   )
   .option(
     '--no-dynamic-registration',
-    'Disable OAuth Dynamic Client Registration endpoint in HTTP mode. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
+    'Keep OAuth Dynamic Client Registration off, even when --enable-dynamic-registration or MS365_MCP_ENABLE_DCR is set. Equivalent env var: MS365_MCP_DISABLE_DCR=true.'
+  )
+  .option(
+    '--no-client-metadata-documents',
+    "Turn off OAuth Client ID Metadata Documents in HTTP mode: they are no longer advertised, and https client_ids are passed through like any other. For servers that cannot reach the client's host directly (proxy-only or allowlisted egress); Claude then falls back to Dynamic Client Registration, so turn that on too. Equivalent env var: MS365_MCP_DISABLE_CIMD=true."
   )
   .option(
     '--auth-browser',
@@ -144,6 +148,10 @@ program
   .option(
     '--allow-unauthenticated-discovery',
     'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
+  )
+  .option(
+    '--enable-mcp-apps',
+    '(experimental) Show an interactive MCP Apps view for the tools that have one, in hosts that support MCP Apps: a OneDrive/SharePoint file browser for folder listings, and a mail draft view with a Send button for the draft tools. Other hosts ignore it. No effect with --toon. Equivalent env var: MS365_MCP_ENABLE_MCP_APPS=true.'
   )
   .addOption(
     // DEPRECATED: kept only so existing deployments that set --base-url or
@@ -200,12 +208,15 @@ export interface CommandOptions {
   cloud?: string;
   enableDynamicRegistration?: boolean;
   dynamicRegistration?: boolean;
+  /** False turns Client ID Metadata Documents off; anything else leaves them on. */
+  clientMetadataDocuments?: boolean;
   authBrowser?: boolean;
   obo?: boolean;
   trustProxyAuth?: boolean;
   httpLocalFileTools?: boolean;
   blobOutput?: boolean;
   allowUnauthenticatedDiscovery?: boolean;
+  enableMcpApps?: boolean;
   publicUrl?: string;
   /** @deprecated use publicUrl */
   baseUrl?: string;
@@ -441,19 +452,16 @@ export function parseArgs(): CommandOptions {
     options.toon = true;
   }
 
-  // Dynamic registration defaults to true in HTTP mode.
-  // CLI flags `--enable-dynamic-registration` / `--no-dynamic-registration` take
-  // precedence; otherwise `MS365_MCP_DISABLE_DCR=true|1` opts the deployment out
-  // (allows env-var-only configuration in container platforms without modifying
-  // process args).
+  // Dynamic Client Registration is off by default in HTTP mode; Client ID
+  // Metadata Documents replace it. `--enable-dynamic-registration` or
+  // MS365_MCP_ENABLE_DCR turn it on, and `--no-dynamic-registration` or
+  // MS365_MCP_DISABLE_DCR keep it off whatever else is set.
   if (options.http) {
-    const dcrDisabledByEnv =
-      process.env.MS365_MCP_DISABLE_DCR === 'true' || process.env.MS365_MCP_DISABLE_DCR === '1';
-    if (options.dynamicRegistration === false || dcrDisabledByEnv) {
-      options.enableDynamicRegistration = false;
-    } else {
-      options.enableDynamicRegistration = true;
-    }
+    const envFlag = (name: string) => process.env[name] === 'true' || process.env[name] === '1';
+    const forcedOff = options.dynamicRegistration === false || envFlag('MS365_MCP_DISABLE_DCR');
+    const turnedOn = options.enableDynamicRegistration === true || envFlag('MS365_MCP_ENABLE_DCR');
+    options.enableDynamicRegistration = turnedOn && !forcedOff;
+    if (envFlag('MS365_MCP_DISABLE_CIMD')) options.clientMetadataDocuments = false;
   }
 
   if (process.env.MS365_MCP_OBO === 'true' || process.env.MS365_MCP_OBO === '1') {
@@ -479,6 +487,13 @@ export function parseArgs(): CommandOptions {
     process.env.MS365_MCP_ALLOW_UNAUTHENTICATED_DISCOVERY === '1'
   ) {
     options.allowUnauthenticatedDiscovery = true;
+  }
+
+  if (
+    process.env.MS365_MCP_ENABLE_MCP_APPS === 'true' ||
+    process.env.MS365_MCP_ENABLE_MCP_APPS === '1'
+  ) {
+    options.enableMcpApps = true;
   }
 
   // Handle cloud type - CLI option takes precedence over environment variable
