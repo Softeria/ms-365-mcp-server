@@ -33,8 +33,9 @@ npm run format      # prettier --write; CI fails on format drift
 ## Invariants — do not weaken
 
 - **Tool descriptions are not a security control.** Anything that must hold is a
-  `Tool.precondition` (`src/tools/types.ts`), run by `src/tool-runtime.ts` before the Graph
-  call; a throw refuses the call. The README's _Server-enforced invariants_ table lists them.
+  `Tool.precondition` or a server-built body in `Tool.execute` (`src/tools/types.ts`), run by
+  `src/tool-runtime.ts`; a throw refuses the call. The README's _Server-enforced invariants_
+  tables list them.
 - **Same-domain send.** `mail-draft-send` and `mail-send` refuse unless the sender and every
   recipient share one domain (and it is on `mailSend.allowedDomains` if set):
   `src/tools/mail.ts::assertSendWithinDomain` / `::assertDirectSendWithinDomain` →
@@ -42,6 +43,9 @@ npm run format      # prettier --write; CI fails on format drift
   (`DEFAULT_MAIL_SEND_CONFIG`).
 - **Draft-only mail writes, organizer-only calendar writes** — `assertIsDraft`,
   `assertIsOrganizer`. `Mail.ReadWrite` / `Calendars.ReadWrite` are broader than we expose.
+  One deliberate exception: `mail-message-categories-modify` / `mail-thread-categories-modify`
+  tag any message, and their handlers PATCH `{ categories }` only. Probes read Graph via
+  `graphClient.makeRequest` (raw object), never `graphRequest` (MCP envelope).
 - **Policy fails closed.** `user.deny > user.allow > defaults.allow > deny`. Every write tool
   stays off `defaults.allow`. Policy keys on `tool.name`, so renaming a tool is a policy break.
 - **Delegated permissions only.** No app-only Graph tokens.

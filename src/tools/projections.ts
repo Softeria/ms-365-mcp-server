@@ -12,13 +12,14 @@
  * obtain an id for a follow-up call. Full bodies / extended properties are an
  * opt-in (`detailed` or an explicit `$select`/`$expand`).
  */
-export type ResourceKind = 'mail' | 'event' | 'driveItem' | 'user' | 'contact';
+export type ResourceKind = 'mail' | 'event' | 'driveItem' | 'user' | 'contact' | 'person';
 
 export const MINIMAL_SELECT: Record<ResourceKind, string> = {
   mail: 'id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments',
   event: 'id,subject,start,end,organizer,attendees,isAllDay,onlineMeeting',
   driveItem: 'id,name,size,folder,file,webUrl,lastModifiedDateTime',
   user: 'id,displayName,userPrincipalName,mail,jobTitle,department',
+  person: 'id,displayName,scoredEmailAddresses,jobTitle,companyName,personType',
   // categories is a business-classification tag, useful at list time; personalNotes is
   // a private free-text annotation omitted from the default compact listing — not an
   // authorization boundary: an explicit $select=personalNotes, or response_format:

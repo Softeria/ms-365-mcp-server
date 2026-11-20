@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import type GraphClient from '../graph-client.js';
 import { OData, type Tool, type ToolPrecondition } from './types.js';
+import { isSafePathSegment, requireSafePathSegment } from './graph-path.js';
 import { DEFAULT_MAIL_SEND_CONFIG, evaluateMailSend } from '../policy/index.js';
+import { resolveTrustedNextLink } from './contacts-cursor.js';
+import { getCloudEndpoints } from '../cloud-config.js';
 
 /**
  * Server-side guard: refuses the tool call unless the referenced message is a
@@ -267,6 +270,182 @@ const attachmentWriteSchema = z
   })
   .passthrough();
 
+/** createReply / createReplyAll / createForward, keyed by the tool's `kind` param. */
+const REPLY_ACTIONS = {
+  reply: 'createReply',
+  replyAll: 'createReplyAll',
+  forward: 'createForward',
+} as const;
+
+/** Graph body for createReply/createReplyAll/createForward: an optional comment plus message overrides. */
+const replyDraftBodySchema = z
+  .object({
+    comment: z
+      .string()
+      .optional()
+      .describe('Text placed above the quoted original. Use this OR message.body, not both.'),
+    message: messageWriteSchema
+      .optional()
+      .describe(
+        'Overrides on the new draft. Forward needs message.toRecipients; reply/replyAll may add cc/bcc.'
+      ),
+  })
+  .strict();
+
+const categoryNamesSchema = z.array(z.string().trim().min(1).max(255));
+
+/** add/remove lists shared by the two category-modify tools. */
+const categoryChangeParams: Tool['params'] = [
+  {
+    name: 'add',
+    location: 'body',
+    schema: categoryNamesSchema
+      .optional()
+      .describe(
+        'Category names to add (see mail-category-list; unknown names still apply, uncolored).'
+      ),
+  },
+  {
+    name: 'remove',
+    location: 'body',
+    schema: categoryNamesSchema.optional().describe('Category names to remove.'),
+  },
+];
+
+interface CategoryChange {
+  add: string[];
+  remove: string[];
+}
+
+function readCategoryChange(params: Record<string, unknown>): CategoryChange {
+  const add = Array.isArray(params['add']) ? params['add'].map(String) : [];
+  const remove = Array.isArray(params['remove']) ? params['remove'].map(String) : [];
+  if (add.length === 0 && remove.length === 0) {
+    throw new Error('pass at least one category name in add or remove.');
+  }
+  return { add, remove };
+}
+
+/**
+ * Apply add/remove to a message's categories. Outlook category names compare
+ * case-insensitively; existing entries keep their original casing and order.
+ */
+function applyCategoryChange(current: string[], change: CategoryChange): string[] {
+  const removed = new Set(change.remove.map((c) => c.toLowerCase()));
+  const next = current.filter((c) => !removed.has(c.toLowerCase()));
+  for (const name of change.add) {
+    if (!next.some((c) => c.toLowerCase() === name.toLowerCase())) next.push(name);
+  }
+  return next;
+}
+
+interface MessageCategories {
+  id: string;
+  categories?: string[];
+}
+
+/**
+ * Received-mail exception to the draft-only rule: these handlers PATCH a body
+ * the server builds from validated names — `{ categories }` and nothing else —
+ * so a caller cannot reach isRead, flag, folder, or content through them.
+ */
+const modifyMessageCategories: NonNullable<Tool['execute']> = async (graphClient, params) => {
+  const messageId = String(params['message-id'] ?? '');
+  const path = `/me/messages/${requireSafePathSegment(messageId, 'message-id')}`;
+  const change = readCategoryChange(params);
+  const msg = (await graphClient.makeRequest(`${path}?$select=categories`, {
+    method: 'GET',
+  })) as MessageCategories | null;
+  const before = msg?.categories ?? [];
+  const after = applyCategoryChange(before, change);
+  if (after.join('\u0000') === before.join('\u0000')) {
+    return { id: messageId, categories: before, changed: false };
+  }
+  await graphClient.makeRequest(path, {
+    method: 'PATCH',
+    body: JSON.stringify({ categories: after }),
+  });
+  return { id: messageId, categories: after, changed: true };
+};
+
+/** Refuse threads larger than this rather than half-label them. */
+const MAX_THREAD_MESSAGES = 100;
+
+const modifyThreadCategories: NonNullable<Tool['execute']> = async (graphClient, params) => {
+  const conversationId = String(params['conversation-id'] ?? '');
+  if (conversationId === '') throw new Error('conversation-id is required.');
+  const change = readCategoryChange(params);
+
+  // Collect the whole thread before writing anything, so an oversized or
+  // unreadable thread fails without partial changes.
+  const filter = `conversationId eq '${conversationId.replace(/'/g, "''")}'`;
+  let next: string | null =
+    `/me/messages?$filter=${encodeURIComponent(filter)}&$select=id,categories&$top=50`;
+  const messages: MessageCategories[] = [];
+  while (next) {
+    const page = (await graphClient.makeRequest(next, { method: 'GET' })) as {
+      value?: MessageCategories[];
+      '@odata.nextLink'?: string;
+    } | null;
+    messages.push(...(page?.value ?? []));
+    if (messages.length > MAX_THREAD_MESSAGES) {
+      throw new Error(
+        `conversation has more than ${MAX_THREAD_MESSAGES} messages; refusing to bulk-categorize it. ` +
+          'Use mail-message-categories-modify on the specific messages instead.'
+      );
+    }
+    const nextLink = page?.['@odata.nextLink'];
+    if (!nextLink) break;
+    next = resolveTrustedNextLink(nextLink, getCloudEndpoints().graphApi, '/me/messages');
+    if (!next) throw new Error('Graph returned an unexpected nextLink; refusing to follow it.');
+  }
+  if (messages.length === 0) {
+    throw new Error(`no messages found for conversation-id '${conversationId}'.`);
+  }
+
+  const updated: MessageCategories[] = [];
+  const failed: { id: string; error: string }[] = [];
+  let unchanged = 0;
+  for (const msg of messages) {
+    const before = msg.categories ?? [];
+    const after = applyCategoryChange(before, change);
+    if (after.join('\u0000') === before.join('\u0000')) {
+      unchanged++;
+      continue;
+    }
+    try {
+      await graphClient.makeRequest(`/me/messages/${requireSafePathSegment(msg.id, 'id')}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ categories: after }),
+      });
+      updated.push({ id: msg.id, categories: after });
+    } catch (err) {
+      failed.push({ id: msg.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  if (failed.length > 0 && updated.length === 0) {
+    throw new Error(`every update failed: ${JSON.stringify(failed)}`);
+  }
+  return { conversationId, matched: messages.length, unchanged, updated, failed };
+};
+
+const categoryIdParam = {
+  name: 'category-id',
+  location: 'path' as const,
+  schema: z
+    .string()
+    .refine(isSafePathSegment, { message: "must be a single opaque id, not '.'/'..' or with '/'" })
+    .describe('Category id from mail-category-list'),
+};
+
+const categoryColorSchema = z
+  .enum(['none', ...Array.from({ length: 25 }, (_, i) => `preset${i}`)] as [string, ...string[]])
+  .describe(
+    'Preset color: preset0 red, 1 orange, 2 brown, 3 yellow, 4 green, 5 teal, 6 olive, 7 blue, ' +
+      '8 purple, 9 cranberry, 10 steel, 11 dark steel, 12 gray, 13 dark gray, 14 black, ' +
+      '15–24 dark red/orange/brown/yellow/green/teal/olive/blue/purple/cranberry; none = no color.'
+  );
+
 export const mailTools: readonly Tool[] = [
   {
     name: 'mail-message-list',
@@ -366,6 +545,40 @@ export const mailTools: readonly Tool[] = [
       'Resolve recipient addresses with user-search (or a known contact) before drafting; do not invent SMTP addresses. ' +
       'For HTML bodies set body.contentType to "html"; otherwise "text". ' +
       'After creating the draft, tell the human it is waiting in their Drafts folder for review — the model cannot send it.',
+  },
+  {
+    name: 'mail-draft-reply-create',
+    description:
+      'Create a reply, reply-all, or forward DRAFT of an existing message (kind = reply | replyAll | forward). ' +
+      'Graph threads it correctly and quotes the original. Returns the new draft including its id; ' +
+      'edit it with mail-message-update and send it with mail-draft-send (same-domain rule applies) ' +
+      'or leave it in Drafts for the human.',
+    method: 'POST',
+    path: '/me/messages/{message-id}/createReply',
+    scopes: ['Mail.ReadWrite'],
+    resolverParams: ['message-id', 'kind'],
+    pathResolver: (p) => {
+      const kind = String(p['kind']);
+      if (!Object.prototype.hasOwnProperty.call(REPLY_ACTIONS, kind)) {
+        throw new Error('kind must be reply, replyAll, or forward.');
+      }
+      const action = REPLY_ACTIONS[kind as keyof typeof REPLY_ACTIONS];
+      const id = requireSafePathSegment(String(p['message-id'] ?? ''), 'message-id');
+      return `/me/messages/${id}/${action}`;
+    },
+    params: [
+      {
+        name: 'message-id',
+        location: 'path',
+        schema: z.string().describe('Id of the message being replied to or forwarded'),
+      },
+      {
+        name: 'kind',
+        location: 'path',
+        schema: z.enum(['reply', 'replyAll', 'forward']).describe('reply, replyAll, or forward'),
+      },
+      { name: 'body', location: 'body', schema: replyDraftBodySchema.optional() },
+    ],
   },
   {
     name: 'mail-message-update',
@@ -477,5 +690,99 @@ export const mailTools: readonly Tool[] = [
       'invent SMTP addresses. For HTML bodies set body.message.body.contentType to "html"; otherwise "text". ' +
       'If the send is refused for a cross-domain recipient, do NOT retry by rewriting recipients — the ' +
       'human must send externally from Outlook. On success Graph returns 202 with no body.',
+  },
+
+  // ---------- Categories (Outlook's labels) ----------
+
+  {
+    name: 'mail-category-list',
+    description:
+      "List the signed-in user's Outlook categories (the master list: name + color). Messages carry " +
+      'categories by name in their `categories` field.',
+    method: 'GET',
+    path: '/me/outlook/masterCategories',
+    scopes: ['MailboxSettings.Read'],
+    params: [OData.filter, OData.select],
+  },
+  {
+    name: 'mail-category-create',
+    description:
+      'Add a category to the master list. displayName must be unique and cannot be renamed later; ' +
+      'only the color can change (mail-category-update).',
+    method: 'POST',
+    path: '/me/outlook/masterCategories',
+    scopes: ['MailboxSettings.ReadWrite'],
+    params: [
+      {
+        name: 'body',
+        location: 'body',
+        schema: z
+          .object({
+            displayName: z.string().trim().min(1).max(255).describe('Category name'),
+            color: categoryColorSchema.optional(),
+          })
+          .strict(),
+      },
+    ],
+  },
+  {
+    name: 'mail-category-update',
+    description:
+      "Change a category's color. Graph does not allow renaming — to rename, create the new " +
+      'category, move messages to it, then delete the old one.',
+    method: 'PATCH',
+    path: '/me/outlook/masterCategories/{category-id}',
+    scopes: ['MailboxSettings.ReadWrite'],
+    params: [
+      categoryIdParam,
+      {
+        name: 'body',
+        location: 'body',
+        schema: z.object({ color: categoryColorSchema }).strict(),
+      },
+    ],
+  },
+  {
+    name: 'mail-category-delete',
+    description:
+      'Delete a category from the master list. Messages already tagged keep the name, uncolored; ' +
+      'remove it from them with mail-message-categories-modify / mail-thread-categories-modify.',
+    method: 'DELETE',
+    path: '/me/outlook/masterCategories/{category-id}',
+    scopes: ['MailboxSettings.ReadWrite'],
+    params: [categoryIdParam],
+  },
+  {
+    name: 'mail-message-categories-modify',
+    description:
+      'Add and/or remove categories on ONE message — received, sent, or draft. Changes only the ' +
+      'categories; nothing else on the message. Returns the resulting category list.',
+    method: 'PATCH',
+    path: '/me/messages/{message-id}',
+    scopes: ['Mail.ReadWrite'],
+    execute: modifyMessageCategories,
+    params: [
+      { name: 'message-id', location: 'path', schema: z.string().describe('Mail message id') },
+      ...categoryChangeParams,
+    ],
+  },
+  {
+    name: 'mail-thread-categories-modify',
+    description:
+      `Add and/or remove categories on EVERY message in a conversation (up to ${MAX_THREAD_MESSAGES} ` +
+      'messages; larger threads are refused untouched). Changes only the categories. Get the ' +
+      'conversationId from mail-message-get / mail-message-list. Returns per-message results.',
+    method: 'PATCH',
+    path: '/me/messages',
+    scopes: ['Mail.ReadWrite'],
+    execute: modifyThreadCategories,
+    params: [
+      {
+        name: 'conversation-id',
+        location: 'query',
+        schema: z.string().min(1).describe('conversationId of the thread'),
+      },
+      ...categoryChangeParams,
+    ],
   },
 ];

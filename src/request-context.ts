@@ -13,6 +13,8 @@ export interface RequestContext {
   tenantId?: string;
   /** Set by sessionAuth middleware. May be null when Entra returns no UPN claim. */
   userPrincipalName?: string | null;
+  /** Space-separated delegated scopes Microsoft granted this session's token. Set by the /mcp handler. */
+  grantedScopes?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();

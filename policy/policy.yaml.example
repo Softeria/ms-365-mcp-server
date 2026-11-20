@@ -29,10 +29,14 @@ defaults:
     - mail-message-get
     - mail-folder-list
     - mail-attachment-list
+    - mail-category-list
 
     # Calendar (read)
     - calendar-event-get
     - calendar-view
+    - calendar-event-search
+    - calendar-schedule-get
+    - calendar-meeting-times-find
 
     # Files / OneDrive (read)
     - drive-children-list
@@ -44,6 +48,7 @@ defaults:
     # Users (directory lookup)
     - user-search
     - user-get
+    - people-search
 
     # Contacts (read) — contact-list's default compact fields include
     # categories but omit personalNotes; personalNotes is a default
@@ -61,6 +66,7 @@ defaults:
     - sharepoint-drive-item-get
     - sharepoint-list-list
     - sharepoint-list-item-list
+    - sharepoint-search
 
     # Teams (read)
     - teams-chat-list
@@ -78,6 +84,7 @@ defaults:
     # Utilities
     - download-bytes
     - parse-teams-url
+    - identity-granted-scopes-get
 
 # Same-domain send guard for the mail send tools.
 #
@@ -106,9 +113,17 @@ mailSend:
 #     allow:
 #       # Mail drafts.
 #       - mail-draft-create
+#       - mail-draft-reply-create
 #       - mail-message-update
 #       - mail-attachment-add
 #       - mail-message-delete
+#       # Categories. The *-categories-modify tools are the only writes that
+#       # touch received mail, and they change nothing but `categories`.
+#       - mail-category-create
+#       - mail-category-update
+#       - mail-category-delete
+#       - mail-message-categories-modify
+#       - mail-thread-categories-modify
 #       # Mail send (review-in-Outlook draft send, and direct one-step send).
 #       # Even with these allows, the mailSend same-domain guard above still
 #       # applies: the sender + every recipient must be in an allowed domain or
@@ -120,6 +135,7 @@ mailSend:
 #       - calendar-event-update
 #       - calendar-event-delete
 #       # Teams writes
+#       - teams-chat-create
 #       - teams-chat-message-send
 #       - teams-channel-message-send
 #       - teams-channel-message-reply-send

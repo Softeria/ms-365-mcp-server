@@ -58,10 +58,9 @@ describe('Calendar tools', () => {
     it('GET Graph tools get fetchAllPages unless they use cursor pagination', () => {
       registerTools(mockServer as never, mockGraphClient);
       for (const call of mockServer.tool.mock.calls) {
-        const toolName = call[0] as string;
-        const hints = call[3] as { readOnlyHint?: boolean };
-        if (toolName === 'parse-teams-url' || toolName === 'download-bytes') continue;
-        if (hints?.readOnlyHint !== true || findTool(toolName)?.cursorPagination) continue;
+        const tool = findTool(call[0] as string) as Tool | undefined;
+        // Utility tools and read-only POSTs (Microsoft Search) have no Graph pages to merge.
+        if (!tool || tool.method !== 'GET' || tool.cursorPagination) continue;
         expect(call[2]).toHaveProperty('fetchAllPages');
       }
     });

@@ -659,6 +659,7 @@ class MicrosoftGraphServer {
               userOid: session.userOid,
               tenantId: session.tenantId,
               userPrincipalName: session.userPrincipalName,
+              grantedScopes: session.tokens.scopes,
             },
             handler
           );
