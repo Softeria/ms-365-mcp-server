@@ -276,6 +276,186 @@ describe('get-upload-url for drive folders', () => {
   });
 });
 
+describe('several files in one call', () => {
+  const download = UTILITY_TOOLS.find((t) => t.name === 'get-download-url')!;
+  const upload = UTILITY_TOOLS.find((t) => t.name === 'get-upload-url')!;
+
+  // Answers each item path with a file named after its id, or a folder for /items/FOLDER.
+  const driveClient = {
+    graphRequest: vi.fn(async (path: string) => {
+      const id = path.split('/').pop()!;
+      const item = id === 'FOLDER' ? { name: 'Docs', folder: {} } : { name: `${id}.pdf`, size: 1 };
+      return { content: [{ type: 'text', text: JSON.stringify(item) }] };
+    }),
+  };
+
+  it('mints one download link per target, in order, each naming its target', async () => {
+    const targets = ['/drives/D1/items/A/content', '/drives/D1/items/B', '/me/drive/items/C'];
+    const result = await download.execute({ targets }, ctx(driveClient));
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results.map((r: { target: string }) => r.target)).toEqual(targets);
+    expect(results.map((r: { name: string }) => r.name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf']);
+    expect(store.redeem(ticketIdOf(results[1].downloadUrl))).toMatchObject({
+      purpose: 'download',
+      target: '/drives/D1/items/B/content',
+    });
+    expect(store.size()).toBe(2);
+  });
+
+  it('fails only the entry that fails, and the call only when every entry fails', async () => {
+    const result = await download.execute(
+      { targets: ['/drives/D1/items/A', '/me/drive/items/FOLDER', '/drives/D1/items/../A'] },
+      ctx(driveClient)
+    );
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results[0].downloadUrl).toBeDefined();
+    expect(results[1].error).toMatch(/folder/);
+    expect(results[2].error).toBeDefined();
+    expect(store.size()).toBe(1);
+
+    const allFailed = await download.execute(
+      { targets: ['/me/drive/items/FOLDER', 'no-slash'] },
+      ctx(driveClient)
+    );
+    expect(allFailed.isError).toBe(true);
+    expect(parse(allFailed).results).toHaveLength(2);
+  });
+
+  it('refuses an empty or too long list, and a list next to single-entry fields', async () => {
+    const tooLong = Array.from({ length: 21 }, (_, i) => `/drives/D1/items/I${i}`);
+    for (const params of [
+      { targets: [] },
+      { targets: tooLong },
+      { targets: '/drives/D1/items/A' },
+      { targets: ['/drives/D1/items/A'], target: '/drives/D1/items/B' },
+    ]) {
+      const result = await download.execute(params, ctx(driveClient));
+      expect(result.isError, JSON.stringify(params).slice(0, 80)).toBe(true);
+    }
+    for (const params of [
+      { files: [{ target: FOLDER, name: 'a.txt' }], name: 'b.txt' },
+      { files: [{ target: FOLDER, name: 'a.txt' }], conflictBehavior: 'replace' },
+    ]) {
+      expect((await upload.execute(params, ctx())).isError).toBe(true);
+    }
+    expect(store.size()).toBe(0);
+  });
+
+  it('treats an empty list field as absent', async () => {
+    const result = await download.execute(
+      { target: '/drives/D1/items/A', targets: null },
+      ctx(driveClient)
+    );
+    expect(parse(result).downloadUrl).toBeDefined();
+  });
+
+  it('mints one upload ticket per file with its own name and conflictBehavior', async () => {
+    const result = await upload.execute(
+      {
+        files: [
+          { target: FOLDER, name: 'a.md', conflictBehavior: 'replace' },
+          { target: '/drives/D1/items/F2', name: 'b.png' },
+        ],
+        conflictBehavior: '',
+      },
+      ctx()
+    );
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results).toMatchObject([
+      { target: FOLDER, name: 'a.md', conflictBehavior: 'replace' },
+      { target: '/drives/D1/items/F2', name: 'b.png', conflictBehavior: 'fail' },
+    ]);
+    expect(store.redeem(ticketIdOf(results[0].uploadUrl))).toMatchObject({
+      target: FOLDER,
+      name: 'a.md',
+      drive: { conflictBehavior: 'replace' },
+    });
+    expect(store.redeem(ticketIdOf(results[1].uploadUrl))).toMatchObject({
+      target: '/drives/D1/items/F2',
+      name: 'b.png',
+      drive: { conflictBehavior: 'fail' },
+    });
+  });
+
+  it('checks every upload entry on its own', async () => {
+    const result = await upload.execute(
+      {
+        files: [
+          { target: FOLDER, name: 'ok.txt' },
+          { target: FOLDER, name: 'a/b.txt' },
+          { target: '/me/drive/root:/Docs:', name: 'c.txt' },
+          'not an entry',
+        ],
+      },
+      ctx()
+    );
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results[0].uploadUrl).toBeDefined();
+    expect(results.slice(1).every((r: { error?: string }) => r.error)).toBe(true);
+    expect(store.size()).toBe(1);
+  });
+
+  it('tells the audit log how many links it handed out', async () => {
+    const client = {
+      graphRequest: vi.fn(async (path: string) =>
+        path.endsWith('/GONE')
+          ? { content: [{ type: 'text', text: 'Bad gateway' }], isError: true }
+          : driveClient.graphRequest(path)
+      ),
+    };
+    const result = await download.execute(
+      { targets: ['/drives/D1/items/A', '/drives/D1/items/GONE', '/drives/D1/items/B'] },
+      ctx(client)
+    );
+    expect(result.isError).toBeFalsy();
+    expect(result._meta).toEqual({ result_count: 2 });
+    expect(parse(result).results[1]).toEqual({
+      target: '/drives/D1/items/GONE',
+      error: 'Bad gateway',
+    });
+  });
+
+  it('turns a throwing entry into its own error and goes on with the rest', async () => {
+    const original = store.mintUpload.bind(store);
+    vi.spyOn(store, 'mintUpload')
+      .mockImplementationOnce(() => {
+        throw new Error('boom');
+      })
+      .mockImplementationOnce(() => {
+        throw null;
+      })
+      .mockImplementation(original);
+    const result = await upload.execute(
+      {
+        files: [
+          { target: FOLDER, name: 'a.txt' },
+          { target: FOLDER, name: 'b.txt' },
+          { target: FOLDER, name: 'c.txt' },
+        ],
+      },
+      ctx()
+    );
+    expect(result.isError).toBeFalsy();
+    const { results } = parse(result);
+    expect(results[0]).toEqual({ target: FOLDER, name: 'a.txt', error: 'boom' });
+    expect(results[1]).toEqual({ target: FOLDER, name: 'b.txt', error: 'null' });
+    expect(results[2].uploadUrl).toBeDefined();
+    expect(result._meta).toEqual({ result_count: 1 });
+  });
+
+  it('names each upload as it will be stored, alone or in a list', async () => {
+    const target = '/me/messages/M1/attachments';
+    const single = await upload.execute({ target, name: '  report.pdf ' }, ctx());
+    expect(parse(single).name).toBe('report.pdf');
+    const list = await upload.execute({ files: [{ target, name: '  report.pdf ' }] }, ctx());
+    expect(parse(list).results[0].name).toBe('report.pdf');
+  });
+});
+
 describe('PUT /attachment with a drive upload ticket', () => {
   const graphClient = { makeRequest: vi.fn() };
   const deps = () => ({
