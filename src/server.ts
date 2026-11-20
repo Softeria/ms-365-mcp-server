@@ -146,11 +146,15 @@ class MicrosoftGraphServer {
     const app = express();
     app.set('trust proxy', true);
     // MCP tool calls carry base64 file content (drive-file-upload/-update,
-    // mail-attachment-add: up to 4 MB raw ≈ 5.4 MB encoded). Express's default
-    // 100 KB limit would 413 them before policy runs. Other routes keep it;
-    // body-parser skips the second parser once /mcp's body is read.
-    app.use('/mcp', express.json({ limit: '8mb' }));
-    app.use(express.json());
+    // mail-attachment-add: up to 4 MB raw ≈ 5.4 MB encoded). The default 100
+    // KB JSON limit would 413 them before auth ever runs, so /mcp's larger
+    // (8 MB) parser is wired in below, AFTER mcpAuth, and skipped here.
+    const defaultJson = express.json();
+    // Match the route the way Express does (non-strict and case-insensitive:
+    // `/mcp/` and `/MCP` route here too).
+    app.use((req, res, next) =>
+      req.path.replace(/\/+$/, '').toLowerCase() === '/mcp' ? next() : defaultJson(req, res, next)
+    );
     app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
 
@@ -680,8 +684,8 @@ class MicrosoftGraphServer {
         }
       };
 
-    app.get('/mcp', mcpAuth, mcpHandlerFactory(false));
-    app.post('/mcp', mcpAuth, mcpHandlerFactory(true));
+    app.get('/mcp', mcpAuth, express.json({ limit: '8mb' }), mcpHandlerFactory(false));
+    app.post('/mcp', mcpAuth, express.json({ limit: '8mb' }), mcpHandlerFactory(true));
 
     app.get('/', (_req, res) => {
       res.send('Areté Microsoft 365 MCP Server is running');

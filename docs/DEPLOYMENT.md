@@ -248,6 +248,17 @@ only the first two leaves every already-connected agent unable to use the new to
    includes the new scope; until then its calls to the new tool fail with a Graph permission error
    even though steps 1–2 are both done.
 
+**This release** adds the delegated `Files.ReadWrite.All` scope (drive-\* writes) on top of
+#63's `MailboxSettings.Read`/`MailboxSettings.ReadWrite`, `Calendars.Read.Shared`,
+`People.Read`, and `Chat.Create`. All of these are requested by the Entra app registration
+itself (`apps/m365_mcp/main.tf`), so every deployment gets them regardless of
+`MS365_MCP_TOOLSETS` — the toolset only gates which tools register, not which scopes the app
+asks for. Apply the Entra Terraform change
+([Lumist-Labs/microsoft-entra-terraform-infrastructure#208](https://github.com/Lumist-Labs/microsoft-entra-terraform-infrastructure/pull/208))
+and grant tenant admin consent in each environment **before** deploying this server version,
+then have users reconnect per step 3 above — otherwise sign-in itself can fail once the server
+requests a scope the app registration doesn't have yet.
+
 A day-one shape for a power user:
 
 ```yaml

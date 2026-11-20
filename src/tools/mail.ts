@@ -435,7 +435,9 @@ const categoryIdParam = {
   location: 'path' as const,
   schema: z
     .string()
-    .refine(isSafePathSegment, { message: "must be a single opaque id, not '.'/'..' or with '/'" })
+    .refine(isSafePathSegment, {
+      message: "must be a single opaque id — not '.'/'..', and without '/', '\\', or ':'",
+    })
     .describe('Category id from mail-category-list'),
 };
 

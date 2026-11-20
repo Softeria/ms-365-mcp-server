@@ -17,13 +17,18 @@ import { driveItemDetail } from './shapes.js';
  * - content overwrites require the eTag the agent read. The server compares
  *   it first (early refusal, not atomic) and sends it as `If-Match` on
  *   createUploadSession, which Graph documents as a 412 when the eTag
- *   differs. Graph checks it when the session is created; the docs do not say
- *   whether an edit between session creation and the (single-range) commit is
- *   caught — that window must be verified live;
- * - move and copy stay inside the source item's drive (both ends checked;
- *   shortcuts to other drives are refused). This bounds these tools only — an
- *   agent with download-bytes and drive-file-upload can still re-upload
- *   content it can read into any drive it can write;
+ *   differs. The eTag must match when the call starts, and Graph re-checks
+ *   it when the session is created; an edit made during the upload itself
+ *   (between session creation and the single-range commit) is not
+ *   guaranteed to be caught;
+ * - rename and move refuse a name clash at the destination
+ *   (`conflictBehavior=fail`); move stays inside the source item's drive
+ *   (both ends checked; shortcuts to other drives are refused) and allows
+ *   folders. Copy also stays inside one drive but is file-only — Graph
+ *   copies folders recursively, which a single-item-per-call tool cannot
+ *   allow. The same-drive rule bounds these tools only — an agent with
+ *   download-bytes and drive-file-upload can still re-upload content it can
+ *   read into any drive it can write;
  * - delete removes single files only — never folders, notebooks, or the root;
  * - no sharing-link or permission tools exist.
  *
@@ -61,6 +66,10 @@ function requireContent(params: Record<string, unknown>): Buffer {
   if (bytes.length === 0) throw new ToolRefusal('contentBytes is empty.');
   if (bytes.length > MAX_UPLOAD_BYTES) {
     throw new ToolRefusal(`file is ${bytes.length} bytes; the limit is ${MAX_UPLOAD_BYTES}.`);
+  }
+  const stripped = base64.replace(/=+$/, '');
+  if (bytes.toString('base64').replace(/=+$/, '') !== stripped) {
+    throw new ToolRefusal('contentBytes must be base64.');
   }
   return bytes;
 }
@@ -116,7 +125,7 @@ const isPlainFile = (item: ItemProbe) =>
 async function assertSameDriveFolder(
   graphClient: GraphClient,
   params: Record<string, unknown>
-): Promise<{ driveId: string; destinationId: string }> {
+): Promise<{ driveId: string; destinationId: string; source: ItemProbe }> {
   const source = await probe(graphClient, itemPath(params, 'item-id'));
   const destination = await probe(graphClient, itemPath(params, 'destination-folder-id'));
   if (source.root) throw new ToolRefusal('the drive root cannot be moved or copied.');
@@ -129,14 +138,14 @@ async function assertSameDriveFolder(
     throw new ToolRefusal(`destination ${destination.id ?? ''} is not a folder.`);
   }
   const sourceDrive = source.parentReference?.driveId;
-  const destinationDrive = destination.parentReference?.driveId;
+  const destinationDrive = destination.root ? sourceDrive : destination.parentReference?.driveId;
   if (!sourceDrive || sourceDrive !== destinationDrive) {
     throw new ToolRefusal(
       'source and destination must be in the same drive (document library or OneDrive); ' +
         'moving or copying across drives is not allowed.'
     );
   }
-  return { driveId: sourceDrive, destinationId: destination.id };
+  return { driveId: sourceDrive, destinationId: destination.id, source };
 }
 
 /**
@@ -169,8 +178,9 @@ async function assertNameFree(graphClient: GraphClient, parent: string, name: st
  *   eTag differs (checked when the session is created).
  *
  * The bytes go in one range to the pre-authenticated `uploadUrl`, WITHOUT the
- * bearer token (Microsoft: sending Authorization there can 401). A failed
- * upload deletes the session so no partial content lingers.
+ * bearer token (Microsoft: sending Authorization there can 401). If the
+ * upload fails or times out the session is deleted; once Graph commits
+ * (200/201) the file exists, so a bad response is reported, never discarded.
  */
 async function uploadViaSession(
   graphClient: GraphClient,
@@ -187,20 +197,43 @@ async function uploadViaSession(
   if (!uploadUrl || !uploadUrl.startsWith('https://')) {
     throw new Error('Graph did not return an https upload URL for the session.');
   }
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Length': String(bytes.length),
-      'Content-Range': `bytes 0-${bytes.length - 1}/${bytes.length}`,
-    },
-    body: new Uint8Array(bytes),
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    await fetch(uploadUrl, { method: 'DELETE' }).catch(() => undefined);
+  const discard = async () => {
+    await fetch(uploadUrl, { method: 'DELETE', signal: AbortSignal.timeout(15_000) }).catch(
+      () => undefined
+    );
+  };
+  let res: Response;
+  try {
+    res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Range': `bytes 0-${bytes.length - 1}/${bytes.length}` },
+      // A view over the Buffer's memory (no copy); BodyInit wants an ArrayBuffer-backed view.
+      body: new Uint8Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.length),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch (err) {
+    await discard();
+    throw err;
+  }
+  if (res.status !== 200 && res.status !== 201) {
+    const detail = await res.text().catch(() => '');
+    await discard();
     throw new Error(`upload failed: ${res.status} ${res.statusText} - ${detail}`);
   }
-  return res.json();
+  // 200/201 means the file is committed: from here on, report — never discard.
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = undefined;
+  }
+  if (!body || typeof body !== 'object' || !('id' in body) || !body.id) {
+    throw new Error(
+      `the file was written (HTTP ${res.status}) but Graph's response did not include it; ` +
+        're-read the folder or item before retrying.'
+    );
+  }
+  return body;
 }
 
 const driveIdParam = {
@@ -274,9 +307,11 @@ export const driveWriteTools: readonly Tool[] = [
     name: 'drive-file-update',
     description:
       `Replace an existing file's content (up to ${MAX_UPLOAD_BYTES / 1024 / 1024} MB). Requires the eTag from your ` +
-      'most recent read of the item (drive-item-get / sharepoint-drive-item-get): if the file changed ' +
-      'since, the call is refused and nothing is overwritten — re-read and retry. Libraries with ' +
-      'versioning (the default) keep the previous version.',
+      'most recent read of the item (drive-item-get / sharepoint-drive-item-get): the eTag must match ' +
+      "the item's current eTag when the call starts, and Graph re-checks it when the upload session is " +
+      'created, refusing the call if the file changed since — re-read and retry. An edit made during the ' +
+      'upload itself is not guaranteed to be caught. Libraries with versioning (the default) keep the ' +
+      'previous version.',
     method: 'POST',
     path: '/drives/{drive-id}/items/{item-id}/createUploadSession',
     scopes: WRITE_SCOPES,
@@ -300,7 +335,12 @@ export const driveWriteTools: readonly Tool[] = [
         await uploadViaSession(
           graphClient,
           `${path}/createUploadSession`,
-          { headers: { 'If-Match': eTag }, body: {} },
+          // Same item, same name: `replace` keeps the documented default (`fail`)
+          // from tripping on the item's own name; If-Match is the guard.
+          {
+            headers: { 'If-Match': eTag },
+            body: { item: { '@microsoft.graph.conflictBehavior': 'replace' } },
+          },
           bytes
         )
       );
@@ -310,7 +350,7 @@ export const driveWriteTools: readonly Tool[] = [
       itemIdParam,
       {
         name: 'eTag',
-        location: 'header',
+        location: 'body',
         schema: z.string().min(1).describe('eTag from your latest read of this item'),
       },
       {
@@ -349,7 +389,8 @@ export const driveWriteTools: readonly Tool[] = [
   {
     name: 'drive-item-rename',
     description:
-      'Rename a file or folder in place (same folder, same drive). Fails if the new name is taken. Returns the item.',
+      'Rename a file or folder in place (same folder, same drive). If the name is taken, Graph ' +
+      'refuses by default (nameAlreadyExists); this tool adds no stronger check. Returns the item.',
     method: 'PATCH',
     path: '/drives/{drive-id}/items/{item-id}',
     scopes: WRITE_SCOPES,
@@ -376,7 +417,8 @@ export const driveWriteTools: readonly Tool[] = [
     name: 'drive-item-move',
     description:
       'Move a file or folder into another folder in the SAME drive (document library or OneDrive). ' +
-      'Moves across drives are refused. To rename in place, use drive-item-rename. Returns the moved item.',
+      'Moves across drives are refused. A name clash in the destination is left to Graph (refused ' +
+      'by default). To rename in place, use drive-item-rename. Returns the moved item.',
     method: 'PATCH',
     path: '/drives/{drive-id}/items/{item-id}',
     scopes: WRITE_SCOPES,
@@ -411,15 +453,21 @@ export const driveWriteTools: readonly Tool[] = [
   {
     name: 'drive-item-copy',
     description:
-      'Copy a file or folder into a folder in the SAME drive. Copies across drives are refused. ' +
-      'Graph copies asynchronously and a name clash fails the copy silently: the result is ' +
-      '{ accepted: true }, so confirm the copy with drive-children-list / ' +
+      'Copy a FILE into a folder in the SAME drive. Folders, OneNote notebooks, and shortcuts are ' +
+      'refused (Graph copies a folder recursively, which this tool does not allow). Copies across ' +
+      'drives are refused. Graph copies asynchronously and a name clash fails the copy silently: the ' +
+      'result is { accepted: true }, so confirm the copy with drive-children-list / ' +
       'sharepoint-drive-children-list on the destination after a moment.',
     method: 'POST',
     path: '/drives/{drive-id}/items/{item-id}/copy',
     scopes: WRITE_SCOPES,
     execute: async (graphClient, params) => {
-      const { driveId, destinationId } = await assertSameDriveFolder(graphClient, params);
+      const { driveId, destinationId, source } = await assertSameDriveFolder(graphClient, params);
+      if (!isPlainFile(source)) {
+        throw new ToolRefusal(
+          `'${source.name ?? source.id ?? ''}' is a folder, notebook, or shortcut; this tool copies single files only.`
+        );
+      }
       const newName = params['name'] === undefined ? undefined : requireName(params['name']);
       await graphClient.makeRequest(
         `${itemPath(params, 'item-id')}/copy?@microsoft.graph.conflictBehavior=fail`,
