@@ -5,6 +5,7 @@ import { isSafePathSegment, requireSafePathSegment } from './graph-path.js';
 import { DEFAULT_MAIL_SEND_CONFIG, evaluateMailSend } from '../policy/index.js';
 import { resolveTrustedNextLink } from './contacts-cursor.js';
 import { getCloudEndpoints } from '../cloud-config.js';
+import { addresses, compact, listShape, person } from './shapes.js';
 
 /**
  * Server-side guard: refuses the tool call unless the referenced message is a
@@ -438,16 +439,65 @@ const categoryIdParam = {
     .describe('Category id from mail-category-list'),
 };
 
-/** Recipient list → bare SMTP addresses. */
-function addresses(list: GraphRecipient[] | undefined): string[] {
-  return (list ?? []).map((r) => r.emailAddress?.address).filter((a): a is string => !!a);
+/**
+ * Full message for mail-message-get: headers the agent reasons about, ids for
+ * follow-ups (conversationId → mail-thread-categories-modify, id → reply), and
+ * the body (plain text unless MS365_MCP_BODY_FORMAT=html). Attachments appear
+ * only when expanded; otherwise hasAttachments says whether to list them.
+ */
+function shapeMessage(raw: unknown) {
+  const m = (raw ?? {}) as DraftSendProbe & {
+    id?: string;
+    subject?: string;
+    from?: GraphRecipient & { emailAddress?: { name?: string } };
+    receivedDateTime?: string;
+    sentDateTime?: string;
+    isRead?: boolean;
+    isDraft?: boolean;
+    importance?: string;
+    hasAttachments?: boolean;
+    categories?: string[];
+    conversationId?: string;
+    webLink?: string;
+    body?: { content?: string };
+    attachments?: { id?: string; name?: string; contentType?: string; size?: number }[];
+  };
+  return compact({
+    id: m.id,
+    subject: m.subject,
+    from: person(m.from),
+    to: (m.toRecipients ?? []).map(person),
+    cc: (m.ccRecipients ?? []).map(person),
+    bcc: (m.bccRecipients ?? []).map(person),
+    receivedDateTime: m.receivedDateTime,
+    isRead: m.isRead,
+    isDraft: m.isDraft || undefined,
+    importance: m.importance === 'normal' ? undefined : m.importance,
+    hasAttachments: m.hasAttachments,
+    attachments: m.attachments?.map((a) => ({
+      id: a.id,
+      name: a.name,
+      contentType: a.contentType,
+      size: a.size,
+    })),
+    categories: m.categories,
+    conversationId: m.conversationId,
+    webLink: m.webLink,
+    body: m.body?.content,
+  });
+}
+
+/** Attachment echo → metadata only (Graph echoes the uploaded base64 back). */
+function shapeAttachment(raw: unknown) {
+  const a = (raw ?? {}) as { id?: string; name?: string; contentType?: string; size?: number };
+  return { id: a.id, name: a.name, contentType: a.contentType, size: a.size };
 }
 
 /**
- * New reply/forward draft → what the agent needs next: the id (for
- * mail-message-update / mail-draft-send), the recipients Graph filled in (to
- * check before sending), and webLink for the human. The quoted body is
- * omitted; read it with mail-message-get if needed.
+ * Draft (new, updated, reply/forward) → what the agent needs next: the id (for
+ * mail-message-update / mail-draft-send / mail-attachment-add), the recipients
+ * (to check before sending), and webLink for the human. The body is omitted;
+ * read it with mail-message-get if needed.
  */
 function shapeDraft(raw: unknown) {
   const m = (raw ?? {}) as DraftSendProbe & { id?: string; subject?: string; webLink?: string };
@@ -467,6 +517,32 @@ function shapeCategory(raw: unknown) {
   return { id: c.id, displayName: c.displayName, color: c.color };
 }
 
+/** mail-message-list item: id, who/when, a preview, and conversationId for thread tools. */
+const shapeMessageList = listShape((raw) => {
+  const m = raw as {
+    id?: string;
+    subject?: string;
+    from?: { emailAddress?: { name?: string; address?: string } };
+    toRecipients?: { emailAddress?: { name?: string; address?: string } }[];
+    receivedDateTime?: string;
+    bodyPreview?: string;
+    isRead?: boolean;
+    hasAttachments?: boolean;
+    conversationId?: string;
+  };
+  return compact({
+    id: m.id,
+    subject: m.subject,
+    from: person(m.from),
+    to: m.toRecipients?.map(person),
+    receivedDateTime: m.receivedDateTime,
+    preview: m.bodyPreview,
+    isRead: m.isRead,
+    hasAttachments: m.hasAttachments || undefined,
+    conversationId: m.conversationId,
+  });
+});
+
 const categoryColorSchema = z
   .enum(['none', ...Array.from({ length: 25 }, (_, i) => `preset${i}`)] as [string, ...string[]])
   .describe(
@@ -484,6 +560,7 @@ export const mailTools: readonly Tool[] = [
     path: '/me/messages',
     scopes: ['Mail.Read'],
     projection: 'mail',
+    shape: shapeMessageList,
     resolverParams: ['folder-id'],
     pathResolver: (p) =>
       typeof p['folder-id'] === 'string' && p['folder-id'].length > 0
@@ -513,10 +590,12 @@ export const mailTools: readonly Tool[] = [
   },
   {
     name: 'mail-message-get',
-    description: 'Get a mail message by id, including the full body.',
+    description:
+      'Get a mail message by id: sender, recipients, dates, flags, conversationId, webLink, and the full body.',
     method: 'GET',
     path: '/me/messages/{message-id}',
     scopes: ['Mail.Read'],
+    shape: shapeMessage,
     params: [
       {
         name: 'message-id',
@@ -533,15 +612,17 @@ export const mailTools: readonly Tool[] = [
     method: 'GET',
     path: '/me/mailFolders',
     scopes: ['Mail.Read'],
+    projection: 'mailFolder',
     params: [OData.filter, OData.select, OData.orderby, OData.top, OData.skip, OData.count],
   },
   {
     name: 'mail-attachment-list',
     description:
-      'List attachments on a mail message. Use download-bytes with the attachment $value path to fetch bytes.',
+      'List attachments on a mail message (id, name, contentType, size — never the bytes). Fetch bytes with download-bytes at /me/messages/{message-id}/attachments/{attachment-id}/$value.',
     method: 'GET',
     path: '/me/messages/{message-id}/attachments',
     scopes: ['Mail.Read'],
+    projection: 'attachment',
     params: [
       {
         name: 'message-id',
@@ -559,10 +640,11 @@ export const mailTools: readonly Tool[] = [
   {
     name: 'mail-draft-create',
     description:
-      "Create a draft email in the signed-in user's Drafts folder. Returns the new message including its id. The draft stays in Drafts until it is either sent with mail-draft-send (allowed only when the sender and every recipient share the same domain) or reviewed and sent by the human in Outlook.",
+      "Create a draft email in the signed-in user's Drafts folder. Returns { id, subject, to, cc, bcc, webLink }. The draft stays in Drafts until it is either sent with mail-draft-send (allowed only when the sender and every recipient share the same domain) or reviewed and sent by the human in Outlook.",
     method: 'POST',
     path: '/me/messages',
     scopes: ['Mail.ReadWrite'],
+    shape: shapeDraft,
     params: [
       {
         name: 'body',
@@ -617,6 +699,7 @@ export const mailTools: readonly Tool[] = [
     method: 'PATCH',
     path: '/me/messages/{message-id}',
     scopes: ['Mail.ReadWrite'],
+    shape: shapeDraft,
     precondition: assertIsDraft,
     params: [
       {
@@ -638,6 +721,7 @@ export const mailTools: readonly Tool[] = [
     method: 'POST',
     path: '/me/messages/{message-id}/attachments',
     scopes: ['Mail.ReadWrite'],
+    shape: shapeAttachment,
     precondition: assertIsDraft,
     params: [
       {
@@ -732,6 +816,7 @@ export const mailTools: readonly Tool[] = [
     method: 'GET',
     path: '/me/outlook/masterCategories',
     scopes: ['MailboxSettings.Read'],
+    shape: listShape(shapeCategory),
     params: [OData.filter, OData.select],
   },
   {

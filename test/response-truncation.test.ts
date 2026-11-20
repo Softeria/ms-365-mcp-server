@@ -39,7 +39,8 @@ afterEach(() => delete process.env.MS365_MCP_MAX_RESPONSE_CHARS);
 describe('response-size ceiling', () => {
   it('truncates an over-budget list and emits a valid marked envelope', async () => {
     const gc = makeGraphClient(bigListPayload(50));
-    const result = await executeTool(findTool('mail-message-list'), gc, {});
+    // An unshaped list tool: these tests pin the generic ceiling, not a tool's shape.
+    const result = await executeTool(findTool('mail-folder-list'), gc, {});
 
     const body = JSON.parse(result.content[0].text);
     expect(body.truncated).toBe(true);
@@ -52,7 +53,7 @@ describe('response-size ceiling', () => {
 
   it('leaves an under-budget response untouched (no envelope)', async () => {
     const gc = makeGraphClient(bigListPayload(1));
-    const result = await executeTool(findTool('mail-message-list'), gc, {});
+    const result = await executeTool(findTool('mail-folder-list'), gc, {});
 
     const body = JSON.parse(result.content[0].text);
     expect(body.truncated).toBeUndefined();
@@ -65,7 +66,7 @@ describe('response-size ceiling', () => {
         '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=50',
       })
     );
-    const result = await executeTool(findTool('mail-message-list'), gc, {});
+    const result = await executeTool(findTool('mail-folder-list'), gc, {});
 
     const body = JSON.parse(result.content[0].text);
     expect(body.truncated).toBe(true);
@@ -77,7 +78,7 @@ describe('response-size ceiling', () => {
   it('keeps a single over-budget item rather than emptying the value array', async () => {
     process.env.MS365_MCP_MAX_RESPONSE_CHARS = '120';
     const gc = makeGraphClient(JSON.stringify({ value: [{ id: '1', subject: 'z'.repeat(400) }] }));
-    const result = await executeTool(findTool('mail-message-list'), gc, {});
+    const result = await executeTool(findTool('mail-folder-list'), gc, {});
 
     const body = JSON.parse(result.content[0].text);
     expect(body.truncated).toBe(true);
@@ -88,7 +89,7 @@ describe('response-size ceiling', () => {
   it('does not reshape a non-collection JSON response over the ceiling', async () => {
     const blob = JSON.stringify({ id: 'x', note: 'y'.repeat(1000) });
     const gc = makeGraphClient(blob);
-    const result = await executeTool(findTool('mail-message-get'), gc, { 'message-id': 'abc' });
+    const result = await executeTool(findTool('identity-get-me'), gc, {});
 
     const body = JSON.parse(result.content[0].text);
     expect(body.truncated).toBeUndefined();

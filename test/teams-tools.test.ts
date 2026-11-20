@@ -5,6 +5,7 @@ import { ALL_TOOLS, type Tool } from '../src/tools/index.js';
 import { resolveAuthScopes } from '../src/oauth/scopes.js';
 import { Policy } from '../src/policy/index.js';
 import { requestContext } from '../src/request-context.js';
+import { fakeGraphClient } from './fake-graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -95,7 +96,7 @@ describe('Teams-tool runtime — representative reads', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   it('teams-chat-list GETs /me/chats', async () => {
@@ -194,7 +195,7 @@ describe('Teams-tool runtime — writes', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   it('teams-chat-message-send POSTs a chatMessage JSON body to the chat', async () => {
@@ -267,7 +268,7 @@ describe('Teams-tool policy gating', () => {
     const graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    return { graphRequest } as unknown as GraphClient;
+    return fakeGraphClient(graphRequest);
   }
 
   const defaultsAllowingReads = [

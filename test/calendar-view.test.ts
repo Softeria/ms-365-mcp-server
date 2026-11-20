@@ -4,6 +4,7 @@ import GraphClient from '../src/graph-client.js';
 import { executeTool, registerTools } from '../src/tool-runtime.js';
 import type { Tool } from '../src/tools/index.js';
 import { ALL_TOOLS } from '../src/tools/index.js';
+import { fakeGraphClient } from './fake-graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -22,7 +23,7 @@ describe('Calendar tools', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   function getRegisteredSchema(toolName: string): Record<string, z.ZodTypeAny> {

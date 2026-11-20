@@ -28,10 +28,10 @@ vi.mock('../src/logger.js', () => ({
 const findTool = (name: string) => ALL_TOOLS.find((t) => t.name === name) as Tool;
 
 /**
- * Fakes both transport seams a contacts tool call can use: `graphRequest`
- * (contact-get — unaffected by cursor pagination, still the generic
- * pre-serialized-text flow) and `makeRequest` + `formatJsonResponse`
- * (contact-list/contact-folder-list — shape the raw object, then serialize).
+ * Fakes the transport seam contacts tools use: `makeRequest` + `formatJsonResponse`
+ * (contact-list/contact-folder-list shape the raw object for cursor paging;
+ * contact-get compacts it via `Tool.shape`). `graphRequest` stays for any
+ * unshaped flow.
  * `formatJsonResponse` mimics the real JSON-mode behavior closely enough for
  * these unit tests; real JSON/TOON serialization is exercised against the
  * actual `GraphClient` in test/contacts-real-graphclient.test.ts.
@@ -105,10 +105,10 @@ describe('contact projections', () => {
   });
 
   it('contact-get reads full detail by default', async () => {
-    const { gc, graphRequest } = fakeGraphClient();
+    const { gc, makeRequest } = fakeGraphClient();
     await executeTool(findTool('contact-get'), gc, { 'contact-id': 'AAMk' });
-    expect(String(graphRequest.mock.calls[0][0])).not.toContain('$select=');
-    expect(String(graphRequest.mock.calls[0][0])).toMatch(/^\/me\/contacts\/AAMk/);
+    expect(String(makeRequest.mock.calls[0][0])).not.toContain('$select=');
+    expect(String(makeRequest.mock.calls[0][0])).toMatch(/^\/me\/contacts\/AAMk/);
   });
 });
 
@@ -136,12 +136,12 @@ describe('nested contact folder coverage', () => {
   });
 
   it('reads contact detail in a nested folder', async () => {
-    const { gc, graphRequest } = fakeGraphClient();
+    const { gc, makeRequest } = fakeGraphClient();
     await executeTool(findTool('contact-get'), gc, {
       'contact-id': 'C1',
       'folder-id': 'NESTED-GRANDCHILD',
     });
-    expect(String(graphRequest.mock.calls[0][0])).toMatch(
+    expect(String(makeRequest.mock.calls[0][0])).toMatch(
       /^\/me\/contactFolders\/NESTED-GRANDCHILD\/contacts\/C1/
     );
   });
@@ -225,10 +225,9 @@ describe('ID path-segment safety (schema + runtime, before any Graph call)', () 
   });
 
   it('preserves base64 "=" padding in a valid contact id (established path encoder)', async () => {
-    const { gc, graphRequest } = fakeGraphClient();
-    graphRequest.mockResolvedValue({ content: [{ type: 'text', text: '{}' }], isError: false });
+    const { gc, makeRequest } = fakeGraphClient();
     await executeTool(findTool('contact-get'), gc, { 'contact-id': 'AAMkAGVmMDEzMTM4AAA=' });
-    const path = String(graphRequest.mock.calls[0][0]);
+    const path = String(makeRequest.mock.calls[0][0]);
     expect(path).toContain('AAMkAGVmMDEzMTM4AAA=');
     expect(path).not.toContain('%3D');
   });

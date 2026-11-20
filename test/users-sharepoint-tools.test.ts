@@ -5,6 +5,7 @@ import { ALL_TOOLS, type Tool } from '../src/tools/index.js';
 import { resolveAuthScopes } from '../src/oauth/scopes.js';
 import { Policy } from '../src/policy/index.js';
 import { requestContext } from '../src/request-context.js';
+import { fakeGraphClient } from './fake-graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -66,7 +67,7 @@ describe('Tool.requestHeaders applied by the runtime', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   it('user-search sets ConsistencyLevel: eventual unconditionally', async () => {
@@ -105,7 +106,7 @@ describe('PR 7 runtime — paths and queries', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   it('user-get with a UPN substitutes encoded path segment', async () => {
@@ -181,7 +182,7 @@ describe('PR 7 policy gating', () => {
     const graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    return { graphRequest } as unknown as GraphClient;
+    return fakeGraphClient(graphRequest);
   }
 
   it('all PR 7 tools pass through when in defaults.allow', async () => {
@@ -241,7 +242,7 @@ describe('OneDrive drive consolidation (U4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     graphRequest = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{}' }] });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   it('drive-children-list targets the OneDrive root when item-id is omitted', async () => {

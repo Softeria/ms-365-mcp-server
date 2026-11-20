@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
 import { isSafePathSegment, requireSafePathSegment } from './graph-path.js';
+import { compact } from './shapes.js';
 
 /**
  * Microsoft Graph's `user-list-contacts` doc
@@ -113,6 +114,8 @@ export const contactsTools: readonly Tool[] = [
     method: 'GET',
     path: '/me/contacts/{contact-id}',
     scopes: ['Contacts.Read'],
+    // Detail read: every populated property, minus Graph bookkeeping and empty fields.
+    shape: compact,
     resolverParams: ['folder-id', 'contact-id'],
     pathResolver: (p) => {
       if (typeof p['contact-id'] !== 'string')

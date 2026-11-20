@@ -1,6 +1,62 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
 import { flattenedSearch, searchRequestSchema } from './search.js';
+import { compact, driveItemSummary, listShape } from './shapes.js';
+
+/** SharePoint columns Graph returns on every list item that carry no content. */
+const SYSTEM_FIELDS: Record<string, true> = {
+  ContentType: true,
+  Edit: true,
+  LinkTitle: true,
+  LinkTitleNoMenu: true,
+  ItemChildCount: true,
+  FolderChildCount: true,
+  Attachments: true,
+  AuthorLookupId: true,
+  EditorLookupId: true,
+  AppAuthorLookupId: true,
+  AppEditorLookupId: true,
+  DocIcon: true,
+  ComplianceAssetId: true,
+};
+
+/** List row → id, link, modified time, and the content columns (system/internal columns dropped). */
+const shapeListItems = listShape((raw) => {
+  const item = raw as {
+    id?: string;
+    webUrl?: string;
+    lastModifiedDateTime?: string;
+    fields?: Record<string, unknown>;
+  };
+  const fields = Object.fromEntries(
+    Object.entries(item.fields ?? {}).filter(
+      ([k]) => !k.startsWith('@') && !k.startsWith('_') && !SYSTEM_FIELDS[k]
+    )
+  );
+  return compact({
+    id: item.id,
+    webUrl: item.webUrl,
+    lastModifiedDateTime: item.lastModifiedDateTime,
+    fields,
+  });
+});
+
+/** List (structured table) → id, name, link, template, and whether it is hidden. */
+const shapeLists = listShape((raw) => {
+  const l = raw as {
+    id?: string;
+    displayName?: string;
+    webUrl?: string;
+    list?: { template?: string; hidden?: boolean };
+  };
+  return compact({
+    id: l.id,
+    displayName: l.displayName,
+    webUrl: l.webUrl,
+    template: l.list?.template,
+    hidden: l.list?.hidden || undefined,
+  });
+});
 
 const SITE_ID_HINT =
   'Site id is either the GUID returned by sharepoint-site-list or the path form ' +
@@ -77,6 +133,7 @@ export const sharepointTools: readonly Tool[] = [
     method: 'GET',
     path: '/sites',
     scopes: ['Sites.Read.All'],
+    projection: 'site',
     params: [
       {
         name: 'search',
@@ -94,8 +151,7 @@ export const sharepointTools: readonly Tool[] = [
     ],
     llmTip:
       'The `search` query parameter here is a plain SharePoint search keyword (not OData $search). ' +
-      'Returns sites matching the keyword in title, URL, or content. ' +
-      'Use $select=id,name,displayName,webUrl to keep responses small.',
+      'Returns sites matching the keyword in title, URL, or content.',
   },
   {
     name: 'sharepoint-site-get',
@@ -103,6 +159,7 @@ export const sharepointTools: readonly Tool[] = [
     method: 'GET',
     path: '/sites/{site-id}',
     scopes: ['Sites.Read.All'],
+    projection: 'site',
     params: [
       {
         name: 'site-id',
@@ -123,6 +180,7 @@ export const sharepointTools: readonly Tool[] = [
     method: 'GET',
     path: '/sites/{site-id}/drives',
     scopes: ['Sites.Read.All'],
+    projection: 'drive',
     params: [
       {
         name: 'site-id',
@@ -145,6 +203,7 @@ export const sharepointTools: readonly Tool[] = [
     path: '/drives/{drive-id}/root/children',
     scopes: ['Sites.Read.All'],
     projection: 'driveItem',
+    shape: listShape(driveItemSummary),
     resolverParams: ['drive-id', 'driveItem-id'],
     pathResolver: (p) => {
       const drive = encodeURIComponent(String(p['drive-id'] ?? ''));
@@ -182,6 +241,7 @@ export const sharepointTools: readonly Tool[] = [
     path: '/drives/{drive-id}/root',
     scopes: ['Sites.Read.All'],
     projection: 'driveItem',
+    shape: (raw) => driveItemSummary((raw ?? {}) as Record<string, unknown>),
     resolverParams: ['drive-id', 'driveItem-id'],
     pathResolver: (p) => {
       const drive = encodeURIComponent(String(p['drive-id'] ?? ''));
@@ -217,6 +277,8 @@ export const sharepointTools: readonly Tool[] = [
     method: 'GET',
     path: '/sites/{site-id}/lists',
     scopes: ['Sites.Read.All'],
+    projection: 'list',
+    shape: shapeLists,
     params: [
       {
         name: 'site-id',
@@ -236,6 +298,7 @@ export const sharepointTools: readonly Tool[] = [
     method: 'GET',
     path: '/sites/{site-id}/lists/{list-id}/items',
     scopes: ['Sites.Read.All'],
+    shape: shapeListItems,
     params: [
       {
         name: 'site-id',

@@ -1,9 +1,30 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
+import { compact, listShape } from './shapes.js';
 
 const USER_SELECT_TIP =
-  'IMPORTANT: always pass $select so responses stay small. The default user resource is bloated. ' +
-  'Recommended: $select=id,displayName,userPrincipalName,mail,jobTitle,department.';
+  'Default fields: id, displayName, userPrincipalName, mail, jobTitle, department. Pass select for ' +
+  'others (e.g. officeLocation,businessPhones) or response_format: "detailed" for the full object.';
+
+/** person → id, name, addresses, role, company, and kind (OrganizationUser, PersonalContact, …). */
+const shapePeople = listShape((raw) => {
+  const p = raw as {
+    id?: string;
+    displayName?: string;
+    scoredEmailAddresses?: { address?: string }[];
+    jobTitle?: string;
+    companyName?: string;
+    personType?: { subclass?: string };
+  };
+  return compact({
+    id: p.id,
+    displayName: p.displayName,
+    emails: p.scoredEmailAddresses?.map((e) => e.address),
+    jobTitle: p.jobTitle,
+    companyName: p.companyName,
+    type: p.personType?.subclass,
+  });
+});
 
 const USER_SEARCH_TIP =
   '$search on /users uses property-scoped syntax: $search="displayName:Spencer" or ' +
@@ -41,6 +62,7 @@ export const usersTools: readonly Tool[] = [
     method: 'GET',
     path: '/users/{user-id}',
     scopes: ['User.ReadBasic.All'],
+    projection: 'user',
     params: [
       {
         name: 'user-id',
@@ -61,6 +83,7 @@ export const usersTools: readonly Tool[] = [
     path: '/me/people',
     scopes: ['People.Read'],
     projection: 'person',
+    shape: shapePeople,
     params: [
       {
         name: 'search',
@@ -79,8 +102,7 @@ export const usersTools: readonly Tool[] = [
       OData.skip,
     ],
     llmTip:
-      'Default fields: displayName, scoredEmailAddresses[].address, jobTitle, companyName, and ' +
-      'personType.class (Person or Group) / .subclass (OrganizationUser, PersonalContact, ...). ' +
-      'Omit search to get the top-ranked people overall.',
+      'Each result: id, displayName, emails, jobTitle, companyName, and type (OrganizationUser, ' +
+      'PersonalContact, ImplicitContact, ...). Omit search to get the top-ranked people overall.',
   },
 ];
