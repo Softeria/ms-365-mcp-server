@@ -815,7 +815,13 @@ async function executeTool(
 
     logger.info(`Making graph request to ${path} with options: ${JSON.stringify(requestOptions)}`);
 
-    const response = await graphClient.graphRequest(path, requestOptions);
+    // `shape` condenses the raw Graph object to what an agent needs for its
+    // next call; makeRequest throws on Graph errors, landing in the catch below.
+    const response = tool.shape
+      ? graphClient.formatJsonResponse(
+          tool.shape(await graphClient.makeRequest(path, requestOptions))
+        )
+      : await graphClient.graphRequest(path, requestOptions);
 
     const fetchAllPages = params.fetchAllPages === true;
     if (fetchAllPages && response?.content?.[0]?.text) {

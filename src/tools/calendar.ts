@@ -44,6 +44,94 @@ const assertIsOrganizer: ToolPrecondition = async (
   }
 };
 
+interface GraphDateTime {
+  dateTime?: string;
+  timeZone?: string;
+}
+
+interface GraphScheduleInfo {
+  scheduleId?: string;
+  availabilityView?: string;
+  scheduleItems?: { status?: string; start?: GraphDateTime; end?: GraphDateTime }[];
+  workingHours?: {
+    daysOfWeek?: string[];
+    startTime?: string;
+    endTime?: string;
+    timeZone?: { name?: string };
+  };
+  error?: { message?: string };
+}
+
+/**
+ * getSchedule → per person: busy blocks (status + times, no subjects) and
+ * working hours. Times are in the `timezone` param's zone (else UTC).
+ */
+function shapeSchedule(raw: unknown) {
+  const value = ((raw as { value?: GraphScheduleInfo[] } | null)?.value ?? []).map((s) => ({
+    email: s.scheduleId,
+    availabilityView: s.availabilityView,
+    busy: (s.scheduleItems ?? [])
+      .filter((item) => item.status !== 'free')
+      .map((item) => ({
+        status: item.status,
+        start: item.start?.dateTime,
+        end: item.end?.dateTime,
+      })),
+    ...(s.workingHours
+      ? {
+          workingHours: {
+            days: s.workingHours.daysOfWeek,
+            start: s.workingHours.startTime,
+            end: s.workingHours.endTime,
+            timeZone: s.workingHours.timeZone?.name,
+          },
+        }
+      : {}),
+    ...(s.error ? { error: s.error.message } : {}),
+  }));
+  return { schedules: value };
+}
+
+interface GraphMeetingTimeSuggestion {
+  confidence?: number;
+  organizerAvailability?: string;
+  suggestionReason?: string;
+  meetingTimeSlot?: { start?: GraphDateTime; end?: GraphDateTime };
+  attendeeAvailability?: {
+    attendee?: { emailAddress?: { address?: string } };
+    availability?: string;
+  }[];
+  locations?: { displayName?: string }[];
+}
+
+/** findMeetingTimes → slot times, confidence, and only the attendees who are NOT free. */
+function shapeMeetingTimes(raw: unknown) {
+  const r = raw as {
+    emptySuggestionsReason?: string;
+    meetingTimeSuggestions?: GraphMeetingTimeSuggestion[];
+  } | null;
+  const suggestions = (r?.meetingTimeSuggestions ?? []).map((s) => {
+    const notFree = (s.attendeeAvailability ?? [])
+      .filter((a) => a.availability !== 'free')
+      .map((a) => ({ email: a.attendee?.emailAddress?.address, availability: a.availability }));
+    const locations = (s.locations ?? []).map((l) => l.displayName).filter(Boolean);
+    return {
+      start: s.meetingTimeSlot?.start?.dateTime,
+      end: s.meetingTimeSlot?.end?.dateTime,
+      timeZone: s.meetingTimeSlot?.start?.timeZone,
+      confidence: s.confidence,
+      organizerAvailability: s.organizerAvailability,
+      ...(notFree.length > 0 ? { notFree } : {}),
+      ...(locations.length > 0 ? { locations } : {}),
+      ...(s.suggestionReason ? { reason: s.suggestionReason } : {}),
+    };
+  });
+  return {
+    suggestions,
+    ...(r?.emptySuggestionsReason ? { emptySuggestionsReason: r.emptySuggestionsReason } : {}),
+  };
+}
+
 const dateTimeTimeZoneSchema = z
   .object({
     dateTime: z.string().describe('Local date-time, e.g. 2026-05-22T14:30:00'),
@@ -206,14 +294,15 @@ export const calendarTools: readonly Tool[] = [
   {
     name: 'calendar-schedule-get',
     description:
-      'Free/busy for people or rooms over a time window: busy blocks per person (scheduleItems), a ' +
-      'compact availabilityView string, and their working hours. Use this to check whether specific ' +
-      'people are free; use calendar-meeting-times-find to get suggested slots.',
+      'Free/busy for people or rooms over a time window. Returns { schedules: [{ email, ' +
+      'availabilityView, busy: [{ status, start, end }], workingHours }] } — no event subjects. Use ' +
+      'this to check whether specific people are free; use calendar-meeting-times-find to get suggested slots.',
     method: 'POST',
     path: '/me/calendar/getSchedule',
     scopes: ['Calendars.Read'],
     readOnly: true,
     supportsTimezone: true,
+    shape: shapeSchedule,
     params: [
       {
         name: 'body',
@@ -246,13 +335,15 @@ export const calendarTools: readonly Tool[] = [
     name: 'calendar-meeting-times-find',
     description:
       'Suggest meeting times when the organizer (you) and the attendees are all free, within ' +
-      'working hours by default. Returns ranked meetingTimeSuggestions with per-attendee ' +
-      'availability. Does not create anything — book the chosen slot with calendar-event-create.',
+      'working hours by default. Returns { suggestions: [{ start, end, timeZone, confidence, ' +
+      'notFree? }], emptySuggestionsReason? }, where notFree lists only attendees who are not free. ' +
+      'Does not create anything — book the chosen slot with calendar-event-create.',
     method: 'POST',
     path: '/me/findMeetingTimes',
     scopes: ['Calendars.Read.Shared'],
     readOnly: true,
     supportsTimezone: true,
+    shape: shapeMeetingTimes,
     params: [
       {
         name: 'body',

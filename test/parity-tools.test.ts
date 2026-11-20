@@ -430,3 +430,170 @@ describe('download-bytes', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('condensed responses', () => {
+  const dt = (dateTime: string) => ({ dateTime, timeZone: 'Eastern Standard Time' });
+
+  it('calendar-schedule-get keeps busy times and working hours, drops subjects and free items', async () => {
+    stubGraph(() => ({
+      '@odata.context': 'x',
+      value: [
+        {
+          scheduleId: 'jane@arete.com',
+          availabilityView: '0220',
+          scheduleItems: [
+            {
+              status: 'busy',
+              subject: 'Board prep',
+              isPrivate: false,
+              start: dt('2026-11-23T09:30:00'),
+              end: dt('2026-11-23T10:30:00'),
+            },
+            {
+              status: 'free',
+              subject: 'Hold',
+              start: dt('2026-11-23T11:00:00'),
+              end: dt('2026-11-23T11:30:00'),
+            },
+          ],
+          workingHours: {
+            daysOfWeek: ['monday'],
+            startTime: '08:00:00.0000000',
+            endTime: '17:00:00.0000000',
+            timeZone: { name: 'Eastern Standard Time', bias: 300 },
+          },
+        },
+      ],
+    }));
+    const { text } = await run('calendar-schedule-get', {
+      body: {
+        schedules: ['jane@arete.com'],
+        startTime: dt('2026-11-23T09:00:00'),
+        endTime: dt('2026-11-23T11:00:00'),
+      },
+    });
+    expect(JSON.parse(text)).toEqual({
+      schedules: [
+        {
+          email: 'jane@arete.com',
+          availabilityView: '0220',
+          busy: [{ status: 'busy', start: '2026-11-23T09:30:00', end: '2026-11-23T10:30:00' }],
+          workingHours: {
+            days: ['monday'],
+            start: '08:00:00.0000000',
+            end: '17:00:00.0000000',
+            timeZone: 'Eastern Standard Time',
+          },
+        },
+      ],
+    });
+  });
+
+  it('calendar-meeting-times-find lists slots and only the attendees who are not free', async () => {
+    stubGraph(() => ({
+      emptySuggestionsReason: '',
+      meetingTimeSuggestions: [
+        {
+          confidence: 50,
+          organizerAvailability: 'free',
+          suggestionReason: 'Suggested because it is one of the nearest times.',
+          meetingTimeSlot: { start: dt('2026-11-24T10:00:00'), end: dt('2026-11-24T10:30:00') },
+          attendeeAvailability: [
+            {
+              attendee: { type: 'required', emailAddress: { address: 'a@arete.com' } },
+              availability: 'free',
+            },
+            {
+              attendee: { type: 'required', emailAddress: { address: 'b@arete.com' } },
+              availability: 'tentative',
+            },
+          ],
+          locations: [],
+        },
+      ],
+    }));
+    const { text } = await run('calendar-meeting-times-find', { body: {} });
+    expect(JSON.parse(text)).toEqual({
+      suggestions: [
+        {
+          start: '2026-11-24T10:00:00',
+          end: '2026-11-24T10:30:00',
+          timeZone: 'Eastern Standard Time',
+          confidence: 50,
+          organizerAvailability: 'free',
+          notFree: [{ email: 'b@arete.com', availability: 'tentative' }],
+          reason: 'Suggested because it is one of the nearest times.',
+        },
+      ],
+    });
+  });
+
+  it('mail-draft-reply-create returns the id and recipients, not the quoted body', async () => {
+    stubGraph(() => ({
+      '@odata.context': 'x',
+      id: 'draft-1',
+      subject: 'RE: Term sheet',
+      body: { contentType: 'html', content: '<p>quoted original</p>'.repeat(500) },
+      toRecipients: [{ emailAddress: { address: 'jane@contoso.com', name: 'Jane' } }],
+      ccRecipients: [],
+      webLink: 'https://outlook.office365.com/owa/?ItemID=draft-1',
+      conversationId: 'c1',
+      internetMessageHeaders: [],
+    }));
+    const { text } = await run('mail-draft-reply-create', { 'message-id': 'm1', kind: 'reply' });
+    expect(JSON.parse(text)).toEqual({
+      id: 'draft-1',
+      subject: 'RE: Term sheet',
+      to: ['jane@contoso.com'],
+      cc: [],
+      bcc: [],
+      webLink: 'https://outlook.office365.com/owa/?ItemID=draft-1',
+    });
+  });
+
+  it('mail-category-create returns id, name, color only', async () => {
+    stubGraph(() => ({
+      '@odata.context': 'x',
+      id: 'cat-1',
+      displayName: 'Deals',
+      color: 'preset4',
+    }));
+    const { text } = await run('mail-category-create', {
+      body: { displayName: 'Deals', color: 'preset4' },
+    });
+    expect(JSON.parse(text)).toEqual({ id: 'cat-1', displayName: 'Deals', color: 'preset4' });
+  });
+
+  it('teams-chat-create returns the chat id and link only', async () => {
+    stubGraph((url) =>
+      url.pathname.startsWith('/v1.0/users/')
+        ? { userPrincipalName: 'alice@arete.com' }
+        : {
+            '@odata.context': 'x',
+            id: 'chat-1',
+            chatType: 'oneOnOne',
+            topic: null,
+            tenantId: 't',
+            createdDateTime: 'x',
+            webUrl: 'https://teams/chat-1',
+          }
+    );
+    const { text } = await run('teams-chat-create', { chatType: 'oneOnOne', memberIds: [ALICE] });
+    expect(JSON.parse(text)).toEqual({
+      id: 'chat-1',
+      chatType: 'oneOnOne',
+      topic: null,
+      webUrl: 'https://teams/chat-1',
+    });
+  });
+
+  it('a Graph error on a shaped tool still surfaces as a tool error', async () => {
+    stubGraph(() => new Response('{"error":{"code":"ErrorItemNotFound"}}', { status: 404 }));
+    const { result, text } = await run('mail-draft-reply-create', {
+      'message-id': 'gone',
+      kind: 'reply',
+    });
+    expect(result.isError).toBe(true);
+    expect(text).toMatch(/ErrorItemNotFound/);
+  });
+});

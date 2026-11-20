@@ -70,7 +70,12 @@ const createChat: NonNullable<Tool['execute']> = async (graphClient, params, ctx
       'user@odata.bind': `${graphApi}/v1.0/users('${id}')`,
     })),
   };
-  return graphClient.makeRequest('/chats', { method: 'POST', body: JSON.stringify(body) });
+  const chat = (await graphClient.makeRequest('/chats', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })) as { id?: string; chatType?: string; topic?: string | null; webUrl?: string } | null;
+  // id → teams-chat-message-send; webUrl → for the human.
+  return { id: chat?.id, chatType: chat?.chatType, topic: chat?.topic, webUrl: chat?.webUrl };
 };
 
 /**

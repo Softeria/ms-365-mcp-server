@@ -438,6 +438,35 @@ const categoryIdParam = {
     .describe('Category id from mail-category-list'),
 };
 
+/** Recipient list → bare SMTP addresses. */
+function addresses(list: GraphRecipient[] | undefined): string[] {
+  return (list ?? []).map((r) => r.emailAddress?.address).filter((a): a is string => !!a);
+}
+
+/**
+ * New reply/forward draft → what the agent needs next: the id (for
+ * mail-message-update / mail-draft-send), the recipients Graph filled in (to
+ * check before sending), and webLink for the human. The quoted body is
+ * omitted; read it with mail-message-get if needed.
+ */
+function shapeDraft(raw: unknown) {
+  const m = (raw ?? {}) as DraftSendProbe & { id?: string; subject?: string; webLink?: string };
+  return {
+    id: m.id,
+    subject: m.subject,
+    to: addresses(m.toRecipients),
+    cc: addresses(m.ccRecipients),
+    bcc: addresses(m.bccRecipients),
+    webLink: m.webLink,
+  };
+}
+
+/** outlookCategory → id, name, color (drops @odata.context). */
+function shapeCategory(raw: unknown) {
+  const c = (raw ?? {}) as { id?: string; displayName?: string; color?: string };
+  return { id: c.id, displayName: c.displayName, color: c.color };
+}
+
 const categoryColorSchema = z
   .enum(['none', ...Array.from({ length: 25 }, (_, i) => `preset${i}`)] as [string, ...string[]])
   .describe(
@@ -550,12 +579,13 @@ export const mailTools: readonly Tool[] = [
     name: 'mail-draft-reply-create',
     description:
       'Create a reply, reply-all, or forward DRAFT of an existing message (kind = reply | replyAll | forward). ' +
-      'Graph threads it correctly and quotes the original. Returns the new draft including its id; ' +
-      'edit it with mail-message-update and send it with mail-draft-send (same-domain rule applies) ' +
-      'or leave it in Drafts for the human.',
+      'Graph threads it correctly and quotes the original. Returns { id, subject, to, cc, bcc, webLink } ' +
+      'so you can check the recipients Graph filled in; edit the draft with mail-message-update and send ' +
+      'it with mail-draft-send (same-domain rule applies), or leave it in Drafts for the human.',
     method: 'POST',
     path: '/me/messages/{message-id}/createReply',
     scopes: ['Mail.ReadWrite'],
+    shape: shapeDraft,
     resolverParams: ['message-id', 'kind'],
     pathResolver: (p) => {
       const kind = String(p['kind']);
@@ -712,6 +742,7 @@ export const mailTools: readonly Tool[] = [
     method: 'POST',
     path: '/me/outlook/masterCategories',
     scopes: ['MailboxSettings.ReadWrite'],
+    shape: shapeCategory,
     params: [
       {
         name: 'body',
@@ -733,6 +764,7 @@ export const mailTools: readonly Tool[] = [
     method: 'PATCH',
     path: '/me/outlook/masterCategories/{category-id}',
     scopes: ['MailboxSettings.ReadWrite'],
+    shape: shapeCategory,
     params: [
       categoryIdParam,
       {

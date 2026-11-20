@@ -163,6 +163,13 @@ export interface Tool {
     ctx: PreconditionContext
   ) => Promise<unknown>;
   /**
+   * Condense the raw Graph response for a non-list tool to the fields an agent
+   * needs to understand the result and make its follow-up calls (ids, links,
+   * the values it asked about) — never the whole Graph object. Runs on the
+   * single-request path; list tools use {@link Tool.projection} instead.
+   */
+  shape?: (raw: unknown) => unknown;
+  /**
    * Optional per-tool path builder. When present, the runtime uses its return
    * value as the Graph path instead of the static {@link Tool.path} template —
    * letting one tool select between path shapes by the presence of an id (e.g.
