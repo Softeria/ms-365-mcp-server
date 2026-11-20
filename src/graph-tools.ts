@@ -175,6 +175,8 @@ interface EndpointConfig {
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
   // Adds a `token` param: Graph pages and resumes this delta query with token=, not $skiptoken
   deltaToken?: boolean;
+  // Sends $search as search= (no $), the form Graph documents here. Only that form takes *
+  plainSearch?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
   // MCP Apps view (src/apps/<view>.html and .js) that hosts render for this tool's results
   // under --enable-mcp-apps. tools names the tools the view may call, by role; a role
@@ -3590,6 +3592,13 @@ async function executeGraphTool(
     if (config?.deltaToken) {
       const deltaTokenError = normalizeDeltaTokenParam(params.token, queryParams, tool.alias);
       if (deltaTokenError) return deltaTokenError;
+    }
+
+    if (config?.plainSearch && queryParams['$search'] !== undefined) {
+      const search = queryParams['$search'].trim();
+      delete queryParams['$search'];
+      // A quoted * matches nothing, and the param description asks models to quote
+      queryParams['search'] = /^"\s*\*\s*"$/.test(search) ? '*' : search;
     }
 
     clampTopQueryParam(queryParams);

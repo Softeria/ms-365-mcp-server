@@ -2347,7 +2347,8 @@
     "toolName": "search-sharepoint-sites",
     "presets": ["search", "work"],
     "workScopes": ["Sites.Read.All"],
-    "appScopes": ["Sites.Read.All"]
+    "appScopes": ["Sites.Read.All"],
+    "plainSearch": true
   },
   {
     "pathPattern": "/sites/{site-id}",
