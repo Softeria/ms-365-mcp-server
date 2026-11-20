@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
 import { flattenedSearch, searchRequestSchema } from './search.js';
-import { compact, driveItemSummary, listShape } from './shapes.js';
+import { compact, driveItemDetail, driveItemSummary, listShape } from './shapes.js';
 
 /** SharePoint columns Graph returns on every list item that carry no content. */
 const SYSTEM_FIELDS: Record<string, true> = {
@@ -241,7 +241,7 @@ export const sharepointTools: readonly Tool[] = [
     path: '/drives/{drive-id}/root',
     scopes: ['Sites.Read.All'],
     projection: 'driveItem',
-    shape: (raw) => driveItemSummary((raw ?? {}) as Record<string, unknown>),
+    shape: driveItemDetail,
     resolverParams: ['drive-id', 'driveItem-id'],
     pathResolver: (p) => {
       const drive = encodeURIComponent(String(p['drive-id'] ?? ''));

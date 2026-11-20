@@ -2,6 +2,7 @@ import type { Tool } from './types.js';
 import { mailTools } from './mail.js';
 import { calendarTools } from './calendar.js';
 import { filesTools } from './files.js';
+import { driveWriteTools } from './drive-writes.js';
 import { identityTools } from './identity.js';
 import { teamsTools } from './teams.js';
 import { usersTools } from './users.js';
@@ -35,6 +36,7 @@ export const ALL_TOOLS: readonly Tool[] = [
   ...tagToolset(mailTools, 'mail'),
   ...tagToolset(calendarTools, 'calendar'),
   ...tagToolset(filesTools, 'files'),
+  ...tagToolset(driveWriteTools, 'files'),
   ...tagToolset(identityTools, 'directory'),
   ...tagToolset(teamsTools, 'teams'),
   ...tagToolset(usersTools, 'directory'),

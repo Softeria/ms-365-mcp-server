@@ -114,3 +114,20 @@ export function driveItemSummary(raw: Raw) {
     lastModifiedDateTime: d.lastModifiedDateTime,
   });
 }
+
+/**
+ * Single driveItem (gets and writes): the summary plus what write tools need —
+ * driveId + parentId to address it, and eTag for drive-file-update's If-Match.
+ */
+export function driveItemDetail(raw: unknown) {
+  const d = (raw ?? {}) as Raw & {
+    eTag?: string;
+    parentReference?: { driveId?: string; id?: string };
+  };
+  return compact({
+    ...(driveItemSummary(d) as Raw),
+    driveId: d.parentReference?.driveId,
+    parentId: d.parentReference?.id,
+    eTag: d.eTag,
+  });
+}

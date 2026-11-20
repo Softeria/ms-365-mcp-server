@@ -38,6 +38,13 @@ export type Toolset =
   | 'contacts';
 
 /**
+ * Thrown by a {@link Tool.execute} guard to refuse a call before it writes
+ * anything. The runtime reports it exactly like a {@link ToolPrecondition}
+ * refusal (`precondition_failed`), not as a Graph error.
+ */
+export class ToolRefusal extends Error {}
+
+/**
  * Server-side guard invoked before a tool's main Graph call. Throw to refuse
  * the call with a structured error returned to the model.
  *
@@ -83,7 +90,7 @@ export interface Tool {
   name: string;
   /** LLM-facing description. Keep concise; put long guidance in `llmTip`. */
   description: string;
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /**
    * Graph path with `{param-name}` placeholders. Resolved at request time
    * against the path params from {@link Tool.params}.

@@ -145,6 +145,11 @@ class MicrosoftGraphServer {
   buildApp(): express.Express {
     const app = express();
     app.set('trust proxy', true);
+    // MCP tool calls carry base64 file content (drive-file-upload/-update,
+    // mail-attachment-add: up to 4 MB raw ≈ 5.4 MB encoded). Express's default
+    // 100 KB limit would 413 them before policy runs. Other routes keep it;
+    // body-parser skips the second parser once /mcp's body is read.
+    app.use('/mcp', express.json({ limit: '8mb' }));
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());

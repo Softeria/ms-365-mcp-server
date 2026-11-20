@@ -134,6 +134,14 @@ mailSend:
 #       - calendar-event-create
 #       - calendar-event-update
 #       - calendar-event-delete
+#       # OneDrive/SharePoint file writes (one item per call; see README invariants)
+#       - drive-file-upload
+#       - drive-file-update
+#       - drive-folder-create
+#       - drive-item-rename
+#       - drive-item-move
+#       - drive-item-copy
+#       - drive-file-delete
 #       # Teams writes
 #       - teams-chat-create
 #       - teams-chat-message-send

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
-import { driveItemSummary, listShape } from './shapes.js';
+import { driveItemDetail, driveItemSummary, listShape } from './shapes.js';
 
 const itemIdParam: Tool['params'][number] = {
   name: 'item-id',
@@ -54,7 +54,7 @@ export const filesTools: readonly Tool[] = [
     path: '/me/drive/root',
     scopes: ['Files.Read'],
     projection: 'driveItem',
-    shape: (raw) => driveItemSummary((raw ?? {}) as Record<string, unknown>),
+    shape: driveItemDetail,
     resolverParams: ['item-id'],
     pathResolver: (p) =>
       typeof p['item-id'] === 'string' && p['item-id'].length > 0

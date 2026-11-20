@@ -28,7 +28,9 @@ export type ResourceKind =
 export const MINIMAL_SELECT: Record<ResourceKind, string> = {
   mail: 'id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead,hasAttachments,conversationId',
   event: 'id,subject,start,end,location,organizer,attendees,isAllDay,isCancelled,onlineMeeting',
-  driveItem: 'id,name,size,folder,file,webUrl,lastModifiedDateTime',
+  // parentReference + eTag feed driveItemDetail (driveId/parentId/eTag for write tools);
+  // list shapes drop them.
+  driveItem: 'id,name,size,folder,file,webUrl,lastModifiedDateTime,parentReference,eTag',
   user: 'id,displayName,userPrincipalName,mail,jobTitle,department',
   person: 'id,displayName,scoredEmailAddresses,jobTitle,companyName,personType',
   mailFolder: 'id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount',
