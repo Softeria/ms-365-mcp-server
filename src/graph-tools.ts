@@ -3458,6 +3458,23 @@ async function executeGraphTool(
       if (deltaTokenError) return deltaTokenError;
     }
 
+    if (tool.alias === 'search-sharepoint-sites' && queryParams['$search']?.trim() === '*') {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: 'invalid_search',
+              tool: tool.alias,
+              message:
+                'A standalone * is not a valid SharePoint site search. Supply a specific keyword.',
+            }),
+          },
+        ],
+        isError: true,
+      };
+    }
+
     clampTopQueryParam(queryParams);
     const searchError = normalizeSearchQueryParam(queryParams, tool.path, tool.alias);
     if (searchError) return searchError;
