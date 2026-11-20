@@ -29,6 +29,7 @@ import type { Handler, Request, Response } from 'express';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import logger from './logger.js';
+import { describeError, describeUrl } from './lib/log-safe.js';
 import type GraphClient from './graph-client.js';
 import type AuthManager from './auth.js';
 import {
@@ -36,7 +37,12 @@ import {
   isPlainGraphPath,
   TICKET_PARAM,
 } from './lib/attachment-tickets.js';
-import { MAX_UPLOAD_BYTES, uploadAttachment } from './lib/attachment-upload.js';
+import {
+  DriveNameConflictError,
+  MAX_UPLOAD_BYTES,
+  uploadAttachment,
+  uploadToDrive,
+} from './lib/attachment-upload.js';
 
 export interface AttachmentRouteDeps {
   store: AttachmentTicketStore;
@@ -208,7 +214,7 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
       // what an operator needs to diagnose a failure and is not itself a capability --
       // reaching it still requires a Graph token.
       logger.error(
-        `Attachment redemption failed for ${ticket.target}: ${(error as Error).message}`
+        `Attachment redemption failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
       );
       res.status(502).type('text/plain').send('Upstream fetch failed');
       return;
@@ -249,7 +255,9 @@ export function createAttachmentHandler(deps: AttachmentRouteDeps): Handler {
       // Headers are already sent, so there is no status left to change. Destroy
       // rather than end, so the peer sees a truncated transfer instead of a
       // short body that looks complete.
-      logger.error(`Attachment stream aborted for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment stream aborted for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       res.destroy();
     }
   };
@@ -322,13 +330,46 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
           : await deps.authManager.getTokenForAccount(ticket.accountName);
       if (!accessToken) throw new Error('No access token for this ticket');
     } catch (error) {
-      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment upload failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       res.status(502).type('text/plain').send('Upstream upload failed');
       return;
     }
 
     res.setHeader('cache-control', 'no-store');
     res.setHeader('x-content-type-options', 'nosniff');
+
+    if (ticket.drive) {
+      try {
+        const item = await uploadToDrive(
+          graphClient,
+          {
+            target: ticket.target,
+            name: ticket.name,
+            size: declared,
+            conflictBehavior: ticket.drive.conflictBehavior,
+            accessToken,
+          },
+          req
+        );
+        res.status(201).json({ ok: true, name: ticket.name, size: declared, ...item });
+      } catch (error) {
+        logger.error(`Drive upload failed for ${ticket.target}: ${(error as Error).message}`);
+        if (res.headersSent) return;
+        if (error instanceof DriveNameConflictError) {
+          res
+            .status(409)
+            .type('text/plain')
+            .send(
+              'A file with that name already exists in the folder. Mint a new URL with conflictBehavior replace or rename.'
+            );
+          return;
+        }
+        res.status(502).type('text/plain').send('Upstream upload failed');
+      }
+      return;
+    }
 
     try {
       const created = await uploadAttachment(
@@ -351,7 +392,9 @@ export function createAttachmentUploadHandler(deps: AttachmentRouteDeps): Handle
         ...(ticket.contentId ? { contentId: ticket.contentId } : {}),
       });
     } catch (error) {
-      logger.error(`Attachment upload failed for ${ticket.target}: ${(error as Error).message}`);
+      logger.error(
+        `Attachment upload failed for ${describeUrl(ticket.target)}: ${describeError(error)}`
+      );
       if (!res.headersSent) res.status(502).type('text/plain').send('Upstream upload failed');
     }
   };

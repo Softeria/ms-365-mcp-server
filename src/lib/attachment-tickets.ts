@@ -129,12 +129,16 @@ export type DownloadProbe = {
   readonly probedName?: string;
 };
 
+/** What Graph does when the drive folder already has a file with the uploaded name. */
+export type DriveConflictBehavior = 'fail' | 'replace' | 'rename';
+
 /**
  * What redeeming the ticket does. A download ticket authorises one GET of
  * `target`; an upload ticket authorises one PUT of a file that becomes an
  * attachment in the `target` collection (a draft message's or an event's
- * `/attachments`). Two kinds rather than a flag so a redemption handler has to
- * pick the branch it was written for and cannot serve the other by accident.
+ * `/attachments`), or, when `drive` is set, a file in the `target` drive folder.
+ * Two kinds rather than a flag so a redemption handler has to pick the branch
+ * it was written for and cannot serve the other by accident.
  */
 export type TicketPurpose =
   | ({ readonly purpose: 'download' } & DownloadProbe)
@@ -146,6 +150,8 @@ export type TicketPurpose =
       readonly contentType: string;
       /** Content-ID that makes the attachment inline; absent for a regular attachment. */
       readonly contentId?: string;
+      /** Set when `target` is a drive folder rather than an attachments collection. */
+      readonly drive?: { readonly conflictBehavior: DriveConflictBehavior };
     };
 
 export type AttachmentTicket = TicketIdentity &
@@ -161,6 +167,7 @@ export type UploadSpec = {
   readonly name: string;
   readonly contentType: string;
   readonly contentId?: string;
+  readonly drive?: { readonly conflictBehavior: DriveConflictBehavior };
 };
 
 /**

@@ -18,7 +18,7 @@ export const APP_MODE_WARNING =
   'permissions you can, and scope mailbox access with RBAC for Applications in Exchange Online.';
 
 // Client credentials need a real tenant: these authorities mean "whoever signs in".
-const NON_TENANT_AUTHORITIES = new Set(['common', 'organizations', 'consumers']);
+export const NON_TENANT_AUTHORITIES = new Set(['common', 'organizations', 'consumers']);
 
 const LOCAL_ACCOUNT_FLAGS: Array<[keyof CommandOptions, string]> = [
   ['login', '--login'],

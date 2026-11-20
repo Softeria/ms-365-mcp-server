@@ -56,6 +56,6 @@ describe('graphRequest logging (#601)', () => {
 
     const line = loggedLines().find((l) => l.startsWith('Calling /me/todo/lists'));
     expect(line).not.toContain('REDACTED');
-    expect(line).toContain('"method":"GET"');
+    expect(line).toContain('[GET]');
   });
 });

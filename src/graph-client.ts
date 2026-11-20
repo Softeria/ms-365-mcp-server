@@ -1,4 +1,5 @@
 import logger from './logger.js';
+import { describeError, describeShape, describeUrl } from './lib/log-safe.js';
 import AuthManager from './auth.js';
 import { encode as toonEncode } from '@toon-format/toon';
 import type { AppSecrets } from './secrets.js';
@@ -82,8 +83,41 @@ interface GraphRequestOptions {
   // Answer a binary body as a short JSON text block (name, contentType, size) plus an MCP
   // EmbeddedResource with BlobResourceContents, instead of base64 JSON in text.
   blobOutput?: { fileName?: string };
+  // Retry once with another Accept header when Graph answers 403 with this code
+  // anywhere in its innerError chain — e.g. transcript content asks for the unattributed format
+  // when the tenant disables speaker attribution (SpeakerAttributionNotAllowed).
+  acceptFallback?: AcceptFallback;
 
   [key: string]: unknown;
+}
+
+export interface AcceptFallback {
+  innerErrorCode: string;
+  accept: string;
+}
+
+type GraphErrorNode = { code?: unknown; innerError?: GraphErrorNode; innererror?: GraphErrorNode };
+
+/**
+ * The innerError codes of a Graph error body, outermost first (Graph nests them,
+ * more specific codes deeper). The generic top-level error.code is left out. Empty
+ * when the body is not a Graph error. Graph documents branching on these codes,
+ * never on the message text.
+ */
+export function graphInnerErrorCodes(errorText: string): string[] {
+  let error: GraphErrorNode | undefined;
+  try {
+    error = (JSON.parse(errorText) as { error?: GraphErrorNode } | null)?.error;
+  } catch {
+    return [];
+  }
+  const codes: string[] = [];
+  let node = error?.innerError ?? error?.innererror;
+  while (node && typeof node === 'object') {
+    if (typeof node.code === 'string') codes.push(node.code);
+    node = node.innerError ?? node.innererror;
+  }
+  return codes;
 }
 
 interface ContentItem {
@@ -293,15 +327,18 @@ class GraphClient {
   private authManager: AuthManager;
   private secrets: AppSecrets;
   private readonly outputFormat: 'json' | 'toon' = 'json';
+  private readonly orgMode: boolean;
 
   constructor(
     authManager: AuthManager,
     secrets: AppSecrets,
-    outputFormat: 'json' | 'toon' = 'json'
+    outputFormat: 'json' | 'toon' = 'json',
+    options: { orgMode?: boolean } = {}
   ) {
     this.authManager = authManager;
     this.secrets = secrets;
     this.outputFormat = outputFormat;
+    this.orgMode = Boolean(options.orgMode);
   }
 
   async makeRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<unknown> {
@@ -321,10 +358,16 @@ class GraphClient {
     }
 
     try {
-      const response = await this.performRequest(endpoint, accessToken, options);
+      let response = await this.performRequest(endpoint, accessToken, options);
 
-      if (response.status === 403) {
-        throw await this.createGraphApiError(response);
+      if (response.status === 403 && options.acceptFallback) {
+        response = await this.retryWithAcceptFallback(
+          endpoint,
+          accessToken,
+          options,
+          options.acceptFallback,
+          response
+        );
       }
 
       if (!response.ok) {
@@ -406,7 +449,7 @@ class GraphClient {
 
       return { data: result, metadata };
     } catch (error) {
-      logger.error('Microsoft Graph API request failed:', error);
+      logger.error(`Microsoft Graph API request failed: ${describeError(error)}`);
       throw error;
     }
   }
@@ -490,7 +533,7 @@ class GraphClient {
   async downloadToFile(
     endpoint: string,
     destinationPath: string,
-    options: Pick<GraphRequestOptions, 'accessToken' | 'apiVersion'> = {}
+    options: Pick<GraphRequestOptions, 'accessToken' | 'apiVersion' | 'headers'> = {}
   ): Promise<GraphDownloadResult> {
     const fileHandle = await open(destinationPath, 'wx', 0o600);
     let completed = false;
@@ -533,7 +576,7 @@ class GraphClient {
         httpStatus: response.status,
       };
     } catch (error) {
-      logger.error('Microsoft Graph file download failed:', error);
+      logger.error(`Microsoft Graph file download failed: ${describeError(error)}`);
       throw error;
     } finally {
       await fileHandle.close().catch(() => undefined);
@@ -548,28 +591,70 @@ class GraphClient {
     if (this.authManager.isAppMode?.()) {
       return 'Grant one of these as an application permission to your app registration (with admin consent), or for mail and calendars through Exchange RBAC for Applications.';
     }
+    // Already in org mode: restarting with --org-mode would change nothing (#781)
+    if (this.orgMode) {
+      return 'The access token does not carry a scope this request needs. Make sure the app registration has the permission and sign in again to consent to it.';
+    }
     return 'This tool requires organization mode. Please restart with --org-mode flag.';
   }
 
   private async createGraphApiError(response: Response): Promise<GraphApiError> {
-    const errorText = await response.text();
+    return this.buildGraphApiError(response, await response.text());
+  }
+
+  // `note` names a retry in the message, so a failed fallback is not mistaken for the first call.
+  private buildGraphApiError(response: Response, errorText: string, note = ''): GraphApiError {
     const graphErrorCode = extractGraphErrorCode(errorText);
     const isPermissionOrScopeError =
       errorText.includes('scope') || errorText.includes('permission');
 
     if (response.status === 403 && isPermissionOrScopeError) {
       return new GraphApiError(
-        `Microsoft Graph API scope error: ${response.status} ${response.statusText} - ${errorText}. ${this.scopeErrorHint()}`,
+        `Microsoft Graph API scope error: ${response.status} ${response.statusText}${note} - ${errorText}. ${this.scopeErrorHint()}`,
         response.status,
         graphErrorCode
       );
     }
 
     return new GraphApiError(
-      `Microsoft Graph API error: ${response.status} ${response.statusText} - ${errorText}`,
+      `Microsoft Graph API error: ${response.status} ${response.statusText}${note} - ${errorText}`,
       response.status,
       graphErrorCode
     );
+  }
+
+  // On a 403 whose innerError chain carries the endpoint's fallback code, retry once with
+  // the fallback Accept. Returns the retry's response when it succeeds; throws otherwise.
+  private async retryWithAcceptFallback(
+    endpoint: string,
+    accessToken: string,
+    options: GraphRequestOptions,
+    fallback: AcceptFallback,
+    response: Response
+  ): Promise<Response> {
+    const errorText = await response.text();
+    if (
+      !graphInnerErrorCodes(errorText).includes(fallback.innerErrorCode) ||
+      options.headers?.['Accept']?.toLowerCase() === fallback.accept.toLowerCase()
+    ) {
+      throw this.buildGraphApiError(response, errorText);
+    }
+
+    logger.info(
+      `Graph refused the requested representation (${fallback.innerErrorCode}); retrying once with Accept: ${fallback.accept}`
+    );
+    const retry = await this.performRequest(endpoint, accessToken, {
+      ...options,
+      headers: { ...options.headers, Accept: fallback.accept },
+    });
+    if (!retry.ok) {
+      throw this.buildGraphApiError(
+        retry,
+        await retry.text(),
+        ` (after retrying with Accept: ${fallback.accept} on ${fallback.innerErrorCode})`
+      );
+    }
+    return retry;
   }
 
   private async performRequest(
@@ -580,7 +665,7 @@ class GraphClient {
     const apiVersion = options.apiVersion || 'v1.0';
     const url = `${getGraphBaseUrl(this.secrets.cloudType)}/${apiVersion}${endpoint}`;
 
-    logger.info(`[GRAPH CLIENT] Final URL being sent to Microsoft: ${url}`);
+    logger.info(`[GRAPH CLIENT] Request ${options.method || 'GET'} ${describeUrl(url)}`);
 
     const method = options.method || 'GET';
     // Signoff gate sits at the outbound chokepoint, keyed on method + path, so
@@ -634,10 +719,11 @@ class GraphClient {
 
   async graphRequest(endpoint: string, options: GraphRequestOptions = {}): Promise<McpResponse> {
     try {
-      // Redact accessToken from log output to prevent credential leakage (#601)
+      // Endpoint without its query string; options by shape only (no body text). The
+      // per-request token is left out and marked, as before (#601).
       const { accessToken: _redacted, ...safeOptions } = options;
       logger.info(
-        `Calling ${endpoint} with options: ${JSON.stringify(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
+        `Calling ${describeUrl(endpoint)} [${options.method || 'GET'}] with options: ${describeShape(safeOptions)}${_redacted ? ' [accessToken=REDACTED]' : ''}`
       );
 
       // Use new OAuth-aware request method
@@ -657,7 +743,7 @@ class GraphClient {
         metadata
       );
     } catch (error) {
-      logger.error(`Error in Graph API request: ${error}`);
+      logger.error(`Error in Graph API request: ${describeError(error)}`);
       const metadata =
         error instanceof GraphApiError
           ? definedMetadata({
