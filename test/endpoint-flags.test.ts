@@ -189,6 +189,28 @@ describe('per-tool behavior on the real tool surface', () => {
     expect(graphClient.graphRequest).toHaveBeenCalledOnce();
   });
 
+  it('rejects unsupported list-chats count without calling Graph and preserves pagination', async () => {
+    const chats = registered('list-chats');
+    expect(chats.shape).not.toHaveProperty('count');
+    const entry = buildToolsRegistry(false, true).get('list-chats')!;
+    expect(
+      describeToolSchema(entry.tool, entry.config).parameters.map((p) => p.name)
+    ).not.toContain('count');
+
+    const result = await chats.handler({ count: true });
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      error: 'invalid_query_parameter',
+      parameter: '$count',
+    });
+    expect(graphClient.graphRequest).not.toHaveBeenCalled();
+
+    await chats.handler({ top: 50, skiptoken: 'next-page' });
+    const url = vi.mocked(graphClient.graphRequest).mock.calls[0][0];
+    expect(url).toContain('$top=50');
+    expect(url).toContain('$skiptoken=next-page');
+  });
+
   it('rejects $select on list-todo-tasks before calling Graph, and still sends $orderby', async () => {
     const tasks = registered('list-todo-tasks').handler;
     const result = await tasks({ todoTaskListId: 'l1', select: 'id,title' });
