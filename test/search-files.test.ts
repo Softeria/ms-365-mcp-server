@@ -16,17 +16,17 @@ import logger from '../src/logger.js';
 import { TOOL_CATEGORIES } from '../src/tool-categories.js';
 
 // search-files is search-query (POST /search/query) with its body fixed to driveItem
-// results. The caller fills two leaves of that body, queryString and size, through the
+// results. The caller fills three leaves of that body, queryString, size and from, through the
 // entry's bodyParams; nothing else the caller sends reaches the body.
 const TOOL = 'search-files';
 
 const FIXED_BODY = {
-  requests: [{ entityTypes: ['driveItem'], query: { queryString: '' }, size: 10 }],
+  requests: [{ entityTypes: ['driveItem'], query: { queryString: '' }, from: 0, size: 10 }],
 };
 
-/** The exact body search-files has to send for this query and size. */
-function sentBody(queryString: string, size = 10) {
-  return { requests: [{ entityTypes: ['driveItem'], query: { queryString }, size }] };
+/** The exact body search-files has to send for this query, size and offset. */
+function sentBody(queryString: string, size = 10, from = 0) {
+  return { requests: [{ entityTypes: ['driveItem'], query: { queryString }, from, size }] };
 }
 
 type BodyParamConfig = {
@@ -176,7 +176,6 @@ describe.each(MODES)('search-files through %s', (mode) => {
       requests: [{ entityTypes: ['message', 'chatMessage'], query: { queryString: 'y' } }],
       entityTypes: ['message', 'chatMessage'],
       query: { queryString: 'y' },
-      from: 50,
     });
     expect(result.isError, result.content[0]?.text).not.toBe(true);
     expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
@@ -197,7 +196,30 @@ describe.each(MODES)('search-files through %s', (mode) => {
     expect(sent(graphClient)).toStrictEqual(sentBody('x', expected));
   });
 
-  it('starts every call from the configured body: size is back to 10 and the config is untouched', async () => {
+  it.each([
+    ['"25", as the number 25', '25', 25],
+    ['"0", as the number 0', '0', 0],
+    ['0, the first page', 0, 0],
+  ])('sends from %s', async (_label, from, expected) => {
+    const graphClient = mockGraphClient();
+    const result = await searchFiles(mode, graphClient)({ queryString: 'x', size: 25, from });
+    expect(result.isError, result.content[0]?.text).not.toBe(true);
+    expect(sent(graphClient)).toStrictEqual(sentBody('x', 25, expected));
+  });
+
+  it.each([{ from: -1 }, { from: '-1' }, { from: 2.5 }, { from: 'abc' }])(
+    'refuses from $from, without calling Graph',
+    async ({ from }) => {
+      const graphClient = mockGraphClient();
+      const call = await readyToCall(graphClient);
+      const refused = await call({ queryString: 'x', from });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0].text).toContain('from');
+      expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('starts every call from the configured body: size and from are back to 10 and 0, and the config is untouched', async () => {
     const config = buildToolsRegistry(false, true).get(TOOL)?.config;
     expect(config?.fixedBody, `${TOOL} config`).toStrictEqual(FIXED_BODY);
     const graphClient = mockGraphClient();
@@ -209,8 +231,8 @@ describe.each(MODES)('search-files through %s', (mode) => {
       return { content: [{ type: 'text', text: JSON.stringify({ value: [] }) }] };
     });
     const call = searchFiles(mode, graphClient);
-    await call({ queryString: 'first', size: 5 });
-    expect(sent(graphClient)).toStrictEqual(sentBody('first', 5));
+    await call({ queryString: 'first', size: 5, from: 5 });
+    expect(sent(graphClient)).toStrictEqual(sentBody('first', 5, 5));
     await call({ queryString: 'second' });
     expect(sent(graphClient)).toStrictEqual(sentBody('second', 10));
     expect(config!.fixedBody).toStrictEqual(FIXED_BODY);
@@ -278,7 +300,7 @@ describe.each(MODES)('search-files through %s', (mode) => {
     }
   );
 
-  it('reads queryString and size as its own params, not as unrecognized ones', async () => {
+  it('reads queryString, size and from as its own params, not as unrecognized ones', async () => {
     const warn = vi.spyOn(logger, 'warn');
     const dropped = () =>
       warn.mock.calls
@@ -286,7 +308,7 @@ describe.each(MODES)('search-files through %s', (mode) => {
         .filter((message) => message.includes('Dropping unrecognized parameter'));
     const graphClient = mockGraphClient();
     const call = searchFiles(mode, graphClient);
-    await call({ queryString: 'x', size: 5 });
+    await call({ queryString: 'x', size: 5, from: 5 });
     expect(graphClient.graphRequest).toHaveBeenCalledTimes(1);
     expect(dropped()).toEqual([]);
     // The spy does see a param that really is unknown
@@ -296,7 +318,7 @@ describe.each(MODES)('search-files through %s', (mode) => {
 });
 
 describe('search-files as registered for prod (no --discovery)', () => {
-  it('serves queryString as its only required param, and size as an integer of at least 1', () => {
+  it('serves queryString as its only required param, and size and from as optional integers', () => {
     const { inputSchema } = registered(mockGraphClient());
     const served = serveToolInputSchema(inputSchema.shape) as {
       required?: string[];
@@ -305,6 +327,7 @@ describe('search-files as registered for prod (no --discovery)', () => {
     expect(served.required).toEqual(['queryString']);
     expect(Object.keys(served.properties).sort()).toEqual([
       'excludeResponse',
+      'from',
       'includeHeaders',
       'queryString',
       'size',
@@ -313,14 +336,20 @@ describe('search-files as registered for prod (no --discovery)', () => {
     expect(served.properties.size.anyOf).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'integer', minimum: 1 })])
     );
+    expect(served.properties.from.anyOf).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'integer', minimum: 0 })])
+    );
     expect(served.properties.queryString.description).toMatch(/\S/);
     expect(served.properties.size.description).toMatch(/\S/);
+    expect(served.properties.from.description).toMatch(/\S/);
   });
 
   it('parses size "10" to 10 on the way in, as the SDK does with the arguments', () => {
     const { inputSchema } = registered(mockGraphClient());
     expect(inputSchema.parse({ queryString: 'x', size: '10' }).size).toBe(10);
     expect(inputSchema.parse({ queryString: 'x' }).size).toBeUndefined();
+    expect(inputSchema.parse({ queryString: 'x', from: '0' }).from).toBe(0);
+    expect(inputSchema.parse({ queryString: 'x' }).from).toBeUndefined();
   });
 
   it.each([
@@ -332,6 +361,9 @@ describe('search-files as registered for prod (no --discovery)', () => {
     { queryString: 'x', size: 0 },
     { queryString: 'x', size: 2.5 },
     { queryString: 'x', size: 'abc' },
+    { queryString: 'x', from: -1 },
+    { queryString: 'x', from: '-1' },
+    { queryString: 'x', from: 2.5 },
   ])('refuses %j before the handler runs', (args) => {
     const { inputSchema } = registered(mockGraphClient());
     expect(inputSchema.safeParse(args).success).toBe(false);
@@ -357,11 +389,11 @@ describe('search-files in discovery mode (get-tool-schema)', () => {
     return describeToolSchema(entry!.tool, entry!.config);
   }
 
-  it('lists queryString (required) and size (optional) as top-level params, and no body', () => {
+  it('lists queryString (required), size and from (optional) as top-level params, and no body', () => {
     const schema = described();
     expect(schema.method).toBe('POST');
     expect(schema.path).toBe('/search/query');
-    expect(schema.parameters.map((p) => p.name).sort()).toEqual(['queryString', 'size']);
+    expect(schema.parameters.map((p) => p.name).sort()).toEqual(['from', 'queryString', 'size']);
     const byName = Object.fromEntries(schema.parameters.map((p) => [p.name, p]));
     expect(byName.queryString).toMatchObject({
       in: 'Query',
@@ -372,12 +404,16 @@ describe('search-files in discovery mode (get-tool-schema)', () => {
     expect((byName.size.schema as { anyOf?: unknown[] }).anyOf).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'integer', minimum: 1 })])
     );
+    expect(byName.from).toMatchObject({ in: 'Query', required: false });
+    expect((byName.from.schema as { anyOf?: unknown[] }).anyOf).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'integer', minimum: 0 })])
+    );
   });
 
   it('describes each body param with the schema normal registration serves', () => {
     const parameters = described().parameters;
     const shape = registered(mockGraphClient()).inputSchema.shape;
-    for (const name of ['queryString', 'size']) {
+    for (const name of ['queryString', 'size', 'from']) {
       const schema = shape[name];
       expect(schema, `registered ${name}`).toBeDefined();
       const inner = schema instanceof z.ZodOptional ? (schema.unwrap() as z.ZodTypeAny) : schema;
@@ -527,9 +563,9 @@ describe('search-files: shipped config', () => {
     expect(e.fixedBody).toStrictEqual(FIXED_BODY);
   });
 
-  it('lets the caller fill queryString (required) and size (optional, at least 1), nothing else', () => {
+  it('lets the caller fill queryString (required), size (at least 1) and from (at least 0), nothing else', () => {
     const { bodyParams } = entry();
-    expect(Object.keys(bodyParams ?? {}).sort()).toEqual(['queryString', 'size']);
+    expect(Object.keys(bodyParams ?? {}).sort()).toEqual(['from', 'queryString', 'size']);
     expect(bodyParams!.queryString).toMatchObject({
       target: ['requests', 0, 'query', 'queryString'],
       type: 'string',
@@ -541,24 +577,18 @@ describe('search-files: shipped config', () => {
       minimum: 1,
     });
     expect(bodyParams!.size.required ?? false).toBe(false);
+    expect(bodyParams!.from).toMatchObject({
+      target: ['requests', 0, 'from'],
+      type: 'integer',
+      minimum: 0,
+    });
+    expect(bodyParams!.from.required ?? false).toBe(false);
   });
 
-  it('tells the model how to write a lexical query, and where to take a hit next', () => {
+  it('tells the model the search is KQL keywords, in the description rather than a tip', () => {
     const { llmTip, descriptionOverride } = entry();
-    expect(descriptionOverride).toMatch(/\S/);
-    for (const needle of [
-      'KQL',
-      'Contoso*',
-      ' OR ',
-      'filename:',
-      'filetype:',
-      'resource.parentReference.driveId',
-      'resource.id',
-      'get-drive-item',
-      'download-bytes',
-    ]) {
-      expect(llmTip, needle).toContain(needle);
-    }
+    expect(descriptionOverride).toContain('KQL');
+    expect(llmTip).toBeUndefined();
   });
 
   it('leaves search-query, the operation it copies, as it was', async () => {

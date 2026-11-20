@@ -185,7 +185,8 @@ interface EndpointConfig {
   // method. delete-mail-message is move-mail-message with { destinationId: 'deleteditems' }.
   fixedBody?: Record<string, unknown>;
   // The leaves of fixedBody the caller fills, served as params of the tool. The caller fills no
-  // other part of the body.
+  // other part of the body. For an alias that narrows an operation for scope or safety, such as
+  // a search locked to one entity type, not for making a body easier to write.
   bodyParams?: Record<string, BodyParamConfig>;
   disabled?: boolean; // Left out of the generated clients, so never registered
 }
