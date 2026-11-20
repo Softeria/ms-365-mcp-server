@@ -10,11 +10,16 @@ import { driveItemDetail } from './shapes.js';
  * do with it, in code:
  *
  * - one item per call — no bulk or recursive operations;
- * - new files and folders never overwrite: upload first checks the name is
- *   free, and both send `conflictBehavior=fail` for Graph to enforce too;
- * - content overwrites require the eTag the agent read: the server compares it
- *   to the item's current eTag and also sends `If-Match`, so a concurrent
- *   human edit is never silently clobbered;
+ * - new files and folders never overwrite. The pre-check GET is only a
+ *   friendly early refusal (not atomic); the guarantee is Graph's documented
+ *   `conflictBehavior=fail` — on the upload session (a name created during
+ *   the session fails the commit with 409) and on folder create;
+ * - content overwrites require the eTag the agent read. The server compares
+ *   it first (early refusal, not atomic) and sends it as `If-Match` on
+ *   createUploadSession, which Graph documents as a 412 when the eTag
+ *   differs. Graph checks it when the session is created; the docs do not say
+ *   whether an edit between session creation and the (single-range) commit is
+ *   caught — that window must be verified live;
  * - move and copy stay inside the source item's drive (both ends checked;
  *   shortcuts to other drives are refused). This bounds these tools only — an
  *   agent with download-bytes and drive-file-upload can still re-upload
@@ -58,13 +63,6 @@ function requireContent(params: Record<string, unknown>): Buffer {
     throw new ToolRefusal(`file is ${bytes.length} bytes; the limit is ${MAX_UPLOAD_BYTES}.`);
   }
   return bytes;
-}
-
-function contentTypeHeader(params: Record<string, unknown>): string {
-  const contentType = params['contentType'];
-  return typeof contentType === 'string' && contentType !== ''
-    ? contentType
-    : 'application/octet-stream';
 }
 
 /** `/drives/{drive-id}` when given, else the signed-in user's OneDrive. */
@@ -141,7 +139,11 @@ async function assertSameDriveFolder(
   return { driveId: sourceDrive, destinationId: destination.id };
 }
 
-/** Refuse unless `parentPath:/name:` does not exist yet (Graph also enforces conflictBehavior=fail). */
+/**
+ * Friendly early refusal when `parent:/name:` already exists. NOT the
+ * guarantee — a file can appear between this GET and the write; the upload
+ * session's `conflictBehavior=fail` is (see {@link uploadViaSession}).
+ */
 async function assertNameFree(graphClient: GraphClient, parent: string, name: string) {
   try {
     await graphClient.makeRequest(`${parent}:/${encodePathValue(name)}:?$select=id`, {
@@ -154,6 +156,51 @@ async function assertNameFree(graphClient: GraphClient, parent: string, name: st
   throw new ToolRefusal(
     `an item named ${JSON.stringify(name)} already exists there; use drive-file-update to change it.`
   );
+}
+
+/**
+ * Write file bytes through a Graph upload session — the flow whose
+ * conditions Microsoft documents (driveitem-createuploadsession):
+ *
+ * - create: `item.@microsoft.graph.conflictBehavior = fail`; if an item with
+ *   the same name appears during the session, the final byte range returns
+ *   409 and no file is created;
+ * - update: `If-Match` on createUploadSession returns 412 when the item's
+ *   eTag differs (checked when the session is created).
+ *
+ * The bytes go in one range to the pre-authenticated `uploadUrl`, WITHOUT the
+ * bearer token (Microsoft: sending Authorization there can 401). A failed
+ * upload deletes the session so no partial content lingers.
+ */
+async function uploadViaSession(
+  graphClient: GraphClient,
+  sessionPath: string,
+  session: { headers?: Record<string, string>; body: unknown },
+  bytes: Buffer
+): Promise<unknown> {
+  const created = (await graphClient.makeRequest(sessionPath, {
+    method: 'POST',
+    headers: session.headers,
+    body: JSON.stringify(session.body),
+  })) as { uploadUrl?: string } | null;
+  const uploadUrl = created?.uploadUrl;
+  if (!uploadUrl || !uploadUrl.startsWith('https://')) {
+    throw new Error('Graph did not return an https upload URL for the session.');
+  }
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Length': String(bytes.length),
+      'Content-Range': `bytes 0-${bytes.length - 1}/${bytes.length}`,
+    },
+    body: new Uint8Array(bytes),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    await fetch(uploadUrl, { method: 'DELETE' }).catch(() => undefined);
+    throw new Error(`upload failed: ${res.status} ${res.statusText} - ${detail}`);
+  }
+  return res.json();
 }
 
 const driveIdParam = {
@@ -188,10 +235,11 @@ export const driveWriteTools: readonly Tool[] = [
     name: 'drive-file-upload',
     description:
       `Upload a NEW file (up to ${MAX_UPLOAD_BYTES / 1024 / 1024} MB) into a OneDrive or SharePoint folder. Never ` +
-      'overwrites: if the name already exists the call is refused — use drive-file-update to change an ' +
-      'existing file. Returns the new item (id, name, driveId, eTag, webUrl).',
-    method: 'PUT',
-    path: '/drives/{drive-id}/items/{parent-id}:/{name}:/content',
+      'overwrites: if the name already exists — even if it was created moments ago — the call fails and ' +
+      'nothing is written. Use drive-file-update to change an existing file. Returns the new item ' +
+      '(id, name, driveId, eTag, webUrl). The MIME type follows the file extension.',
+    method: 'POST',
+    path: '/drives/{drive-id}/items/{parent-id}:/{name}:/createUploadSession',
     scopes: WRITE_SCOPES,
     execute: async (graphClient, params) => {
       const name = requireName(params['name']);
@@ -199,9 +247,11 @@ export const driveWriteTools: readonly Tool[] = [
       const parent = parentPath(params);
       await assertNameFree(graphClient, parent, name);
       return driveItemDetail(
-        await graphClient.makeRequest(
-          `${parent}:/${encodePathValue(name)}:/content?@microsoft.graph.conflictBehavior=fail`,
-          { method: 'PUT', headers: { 'Content-Type': contentTypeHeader(params) }, body: bytes }
+        await uploadViaSession(
+          graphClient,
+          `${parent}:/${encodePathValue(name)}:/createUploadSession`,
+          { body: { item: { '@microsoft.graph.conflictBehavior': 'fail' } } },
+          bytes
         )
       );
     },
@@ -218,11 +268,6 @@ export const driveWriteTools: readonly Tool[] = [
         location: 'body',
         schema: z.string().min(1).describe('File content, base64-encoded'),
       },
-      {
-        name: 'contentType',
-        location: 'body',
-        schema: z.string().optional().describe('MIME type, e.g. application/pdf'),
-      },
     ],
   },
   {
@@ -232,8 +277,8 @@ export const driveWriteTools: readonly Tool[] = [
       'most recent read of the item (drive-item-get / sharepoint-drive-item-get): if the file changed ' +
       'since, the call is refused and nothing is overwritten — re-read and retry. Libraries with ' +
       'versioning (the default) keep the previous version.',
-    method: 'PUT',
-    path: '/drives/{drive-id}/items/{item-id}/content',
+    method: 'POST',
+    path: '/drives/{drive-id}/items/{item-id}/createUploadSession',
     scopes: WRITE_SCOPES,
     execute: async (graphClient, params) => {
       const eTag = params['eTag'];
@@ -252,11 +297,12 @@ export const driveWriteTools: readonly Tool[] = [
         );
       }
       return driveItemDetail(
-        await graphClient.makeRequest(`${path}/content`, {
-          method: 'PUT',
-          headers: { 'Content-Type': contentTypeHeader(params), 'If-Match': eTag },
-          body: bytes,
-        })
+        await uploadViaSession(
+          graphClient,
+          `${path}/createUploadSession`,
+          { headers: { 'If-Match': eTag }, body: {} },
+          bytes
+        )
       );
     },
     params: [
@@ -271,11 +317,6 @@ export const driveWriteTools: readonly Tool[] = [
         name: 'contentBytes',
         location: 'body',
         schema: z.string().min(1).describe('New file content, base64-encoded'),
-      },
-      {
-        name: 'contentType',
-        location: 'body',
-        schema: z.string().optional().describe('MIME type, e.g. application/pdf'),
       },
     ],
   },

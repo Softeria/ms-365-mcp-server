@@ -17,15 +17,26 @@ const findTool = (name: string) => ALL_TOOLS.find((t) => t.name === name) as Too
 
 type Init = { method?: string; headers?: Record<string, string>; body?: unknown };
 
-/** Items by id; GETs return them, writes return `written` (or a Response). */
-function stubGraph(items: Record<string, unknown>, written: unknown = {}): Mock {
+const UPLOAD_URL = 'https://upload.test/session-1';
+
+/**
+ * Items by id; GETs return them. createUploadSession returns `session`
+ * (default: an upload URL); every other write returns `written`. A Response
+ * is returned as-is.
+ */
+function stubGraph(
+  items: Record<string, unknown>,
+  written: unknown = {},
+  session: unknown = { uploadUrl: UPLOAD_URL }
+): Mock {
   const fetchMock = vi.fn().mockImplementation(async (raw: string, init: Init = {}) => {
     const url = new URL(raw);
     if (!init.method || init.method === 'GET') {
       const id = decodeURIComponent(url.pathname.split('/').pop() ?? '');
       return id in items ? Response.json(items[id]) : new Response('{}', { status: 404 });
     }
-    return written instanceof Response ? written : Response.json(written);
+    const out = url.pathname.endsWith('/createUploadSession') ? session : written;
+    return out instanceof Response ? out : Response.json(out);
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -68,22 +79,26 @@ const newItem = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('drive-file-upload', () => {
-  it('PUTs the bytes as a new file that cannot overwrite, and returns the item', async () => {
+  it('creates a fail-on-conflict upload session, then sends the bytes without the bearer token', async () => {
     const fetchMock = stubGraph({}, newItem);
     const { result, text } = await run('drive-file-upload', {
       'parent-id': 'p1',
       name: 'Q3 model.xlsx',
       contentBytes: Buffer.from('abc').toString('base64'),
-      contentType: 'application/vnd.ms-excel',
     });
     expect(result.isError).toBeFalsy();
-    const [url, init] = writes(fetchMock)[0];
-    expect(url).toBe(
-      'https://graph.microsoft.com/v1.0/me/drive/items/p1:/Q3%20model.xlsx:/content?@microsoft.graph.conflictBehavior=fail'
+    const [[sessionUrl, sessionInit], [uploadUrl, uploadInit]] = writes(fetchMock);
+    expect(sessionUrl).toBe(
+      'https://graph.microsoft.com/v1.0/me/drive/items/p1:/Q3%20model.xlsx:/createUploadSession'
     );
-    expect(init.method).toBe('PUT');
-    expect(init.headers['Content-Type']).toBe('application/vnd.ms-excel');
-    expect(Buffer.from(init.body).toString()).toBe('abc');
+    expect(JSON.parse(sessionInit.body)).toEqual({
+      item: { '@microsoft.graph.conflictBehavior': 'fail' },
+    });
+    expect(uploadUrl).toBe(UPLOAD_URL);
+    expect(uploadInit.method).toBe('PUT');
+    expect(uploadInit.headers).not.toHaveProperty('Authorization');
+    expect(uploadInit.headers['Content-Range']).toBe('bytes 0-2/3');
+    expect(Buffer.from(uploadInit.body).toString()).toBe('abc');
     expect(JSON.parse(text)).toEqual({
       id: 'n1',
       name: 'Q3 model.xlsx',
@@ -100,8 +115,25 @@ describe('drive-file-upload', () => {
     const fetchMock = stubGraph({}, newItem);
     await run('drive-file-upload', { 'drive-id': 'D9', name: 'a.txt', contentBytes: 'YQ==' });
     expect(writes(fetchMock)[0][0]).toBe(
-      'https://graph.microsoft.com/v1.0/drives/D9/root:/a.txt:/content?@microsoft.graph.conflictBehavior=fail'
+      'https://graph.microsoft.com/v1.0/drives/D9/root:/a.txt:/createUploadSession'
     );
+  });
+
+  it('a name created after the check makes Graph reject the commit (409); the session is discarded', async () => {
+    const fetchMock = stubGraph(
+      {},
+      new Response('{"error":{"code":"nameAlreadyExists"}}', { status: 409 })
+    );
+    const { result, text } = await run('drive-file-upload', {
+      'parent-id': 'p1',
+      name: 'a.txt',
+      contentBytes: 'YQ==',
+    });
+    expect(result.isError).toBe(true);
+    expect(text).toMatch(/409/);
+    const last = writes(fetchMock).at(-1)!;
+    expect(last[0]).toBe(UPLOAD_URL);
+    expect(last[1].method).toBe('DELETE');
   });
 
   it.each([
@@ -138,17 +170,19 @@ describe('drive-file-upload', () => {
 });
 
 describe('drive-file-update', () => {
-  it('sends If-Match with the eTag the agent read', async () => {
+  it('sends If-Match with the eTag the agent read when creating the upload session', async () => {
     const fetchMock = stubGraph({ f1: file('f1') }, newItem);
     await run('drive-file-update', { 'item-id': 'f1', eTag: '"{f1},4"', contentBytes: 'YQ==' });
     const [url, init] = writes(fetchMock)[0];
-    expect(url).toBe('https://graph.microsoft.com/v1.0/me/drive/items/f1/content');
+    expect(url).toBe('https://graph.microsoft.com/v1.0/me/drive/items/f1/createUploadSession');
     expect(init.headers['If-Match']).toBe('"{f1},4"');
+    expect(writes(fetchMock)[1][0]).toBe(UPLOAD_URL);
   });
 
-  it('surfaces a Graph-side 412 (edit between check and write) as an error', async () => {
-    stubGraph(
+  it('an edit after the check makes Graph refuse the session (412); no bytes are sent', async () => {
+    const fetchMock = stubGraph(
       { f1: file('f1') },
+      newItem,
       new Response('{"error":{"code":"resourceModified"}}', { status: 412 })
     );
     const { result, text } = await run('drive-file-update', {
@@ -158,6 +192,7 @@ describe('drive-file-update', () => {
     });
     expect(result.isError).toBe(true);
     expect(text).toMatch(/412/);
+    expect(writes(fetchMock).some(([u]) => u === UPLOAD_URL)).toBe(false);
   });
 
   it.each([
