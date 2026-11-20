@@ -49,6 +49,10 @@ const FRAGMENTS: readonly Fragment[] = [
     toolset: 'sharepoint',
   },
   {
+    text: 'Changing a file: read it first (drive-item-get or sharepoint-drive-item-get) for its eTag, then call drive-file-update with that eTag. New files use drive-file-upload, which never overwrites.',
+    toolset: 'files',
+  },
+  {
     text: 'People outside the tenant (clients, lenders) are not in user-search; find them with people-search, which ranks everyone you correspond with.',
     toolset: 'directory',
   },
