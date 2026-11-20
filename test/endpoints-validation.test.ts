@@ -32,6 +32,7 @@ interface Endpoint {
   fixedBody?: Record<string, unknown>;
   descriptionOverride?: string;
   deltaToken?: boolean;
+  plainSearch?: boolean;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -324,6 +325,13 @@ describe('endpoints.json validation', () => {
       for (const e of endpoints.filter((x) => x.deltaToken)) {
         expect(e.method, `${e.toolName} deltaToken`).toBe('get');
         expect(e.pathPattern, `${e.toolName} deltaToken`).toMatch(/\/delta\(\)$/);
+      }
+    });
+
+    it('puts plainSearch only on GET tools', () => {
+      for (const e of endpoints.filter((x) => x.plainSearch)) {
+        expect(e.method, `${e.toolName} plainSearch`).toBe('get');
+        expect(queryNames(e.toolName), `${e.toolName} has no $search`).toContain('search');
       }
     });
 

@@ -2347,8 +2347,7 @@
     "presets": ["search", "work"],
     "workScopes": ["Sites.Read.All"],
     "appScopes": ["Sites.Read.All"],
-    "rejectWildcardSearch": true,
-    "llmTip": "Search for sites using a specific keyword. A standalone * is not a valid search query; ask for a keyword instead."
+    "plainSearch": true
   },
   {
     "pathPattern": "/sites/{site-id}",

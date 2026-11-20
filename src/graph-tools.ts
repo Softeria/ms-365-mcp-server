@@ -141,7 +141,6 @@ interface EndpointConfig {
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
   llmTip?: string;
-  rejectWildcardSearch?: boolean;
   // Replaces the Microsoft-supplied base description everywhere it is surfaced (tool
   // registration, BM25 discovery index, search-tools, get-tool-schema). Use when the
   // generated description leads with the wrong Graph operation. llmTip is still appended after.
@@ -175,6 +174,8 @@ interface EndpointConfig {
   nameFilter?: boolean; // Adds a `name` param that filters the returned members by displayName/email
   // Adds a `token` param: Graph pages and resumes this delta query with token=, not $skiptoken
   deltaToken?: boolean;
+  // Sends $search as search= (no $), the form Graph documents here. Only that form takes *
+  plainSearch?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
   // MCP Apps view (src/apps/<view>.html and .js) that hosts render for this tool's results
   // under --enable-mcp-apps. tools names the tools the view may call, by role; a role
@@ -3582,21 +3583,11 @@ async function executeGraphTool(
       if (deltaTokenError) return deltaTokenError;
     }
 
-    if (config?.rejectWildcardSearch && queryParams['$search']?.trim() === '*') {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              error: 'invalid_search',
-              tool: tool.alias,
-              message:
-                'A standalone * is not a valid SharePoint site search. Supply a specific keyword.',
-            }),
-          },
-        ],
-        isError: true,
-      };
+    if (config?.plainSearch && queryParams['$search'] !== undefined) {
+      const search = queryParams['$search'].trim();
+      delete queryParams['$search'];
+      // A quoted * matches nothing, and the param description asks models to quote
+      queryParams['search'] = /^"\s*\*\s*"$/.test(search) ? '*' : search;
     }
 
     clampTopQueryParam(queryParams);

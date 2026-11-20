@@ -231,4 +231,30 @@ describe('per-tool behavior on the real tool surface', () => {
     const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
     expect(options?.headers).toMatchObject({ 'If-Match': '"item-etag,1"' });
   });
+
+  it.each([
+    [{ search: '*' }, 'search=*'],
+    [{ search: ' " * " ' }, 'search=*'],
+    [{ search: '  *  ' }, 'search=*'],
+    [{ $search: 'marketing' }, 'search=marketing'],
+    [{ search: '"marketing team"' }, 'search="marketing team"'],
+    [
+      {
+        search: '*',
+        skiptoken: 'https://graph.microsoft.com/v1.0/sites?search=*&$skiptoken=s!abc',
+      },
+      '$skiptoken=s!abc&search=*',
+    ],
+  ])('sends the SharePoint site search as plain search: %o', async (params, query) => {
+    await registered('search-sharepoint-sites').handler(params);
+    const url = vi.mocked(graphClient.graphRequest).mock.calls[0][0];
+    expect(decodeURIComponent(url)).toBe(`/sites?${query}`);
+  });
+
+  it('keeps $search on other search tools', async () => {
+    await registered('list-users').handler({ search: '"displayName:jane"' });
+    expect(decodeURIComponent(vi.mocked(graphClient.graphRequest).mock.calls[0][0])).toContain(
+      '$search='
+    );
+  });
 });
