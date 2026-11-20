@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type GraphClient from '../graph-client.js';
 import { OData, type Tool, type ToolPrecondition } from './types.js';
 import { flattenedSearch, searchRequestSchema } from './search.js';
+import { compact, listShape, person } from './shapes.js';
 
 /**
  * Server-side guard: refuses the tool call unless the signed-in user is the
@@ -43,6 +44,76 @@ const assertIsOrganizer: ToolPrecondition = async (
     );
   }
 };
+
+interface GraphEvent {
+  id?: string;
+  subject?: string;
+  start?: { dateTime?: string; timeZone?: string };
+  end?: { dateTime?: string };
+  isAllDay?: boolean;
+  isCancelled?: boolean;
+  location?: { displayName?: string };
+  organizer?: { emailAddress?: { name?: string; address?: string } };
+  attendees?: {
+    emailAddress?: { name?: string; address?: string };
+    type?: string;
+    status?: { response?: string };
+  }[];
+  onlineMeeting?: { joinUrl?: string } | null;
+  isOrganizer?: boolean;
+  responseStatus?: { response?: string };
+  showAs?: string;
+  type?: string;
+  seriesMasterId?: string;
+  categories?: string[];
+  webLink?: string;
+  body?: { content?: string };
+}
+
+/**
+ * Event summary: id for follow-ups, when/where/who, and the Teams join link.
+ * Attendees read "Name <address> (response)"; optional attendees are marked.
+ */
+function eventSummary(e: GraphEvent) {
+  return {
+    id: e.id,
+    subject: e.subject,
+    start: e.start?.dateTime,
+    end: e.end?.dateTime,
+    timeZone: e.start?.timeZone,
+    isAllDay: e.isAllDay || undefined,
+    isCancelled: e.isCancelled || undefined,
+    location: e.location?.displayName,
+    organizer: person(e.organizer),
+    attendees: e.attendees?.map((a) => {
+      const response = a.status?.response;
+      const tags = [
+        a.type === 'optional' ? 'optional' : undefined,
+        response && response !== 'none' ? response : undefined,
+      ].filter(Boolean);
+      return tags.length > 0 ? `${person(a)} (${tags.join(', ')})` : person(a);
+    }),
+    joinUrl: e.onlineMeeting?.joinUrl,
+  };
+}
+
+/** calendar-event-get / create / update: the summary plus your role, links, and the body. */
+function shapeEvent(raw: unknown) {
+  const e = (raw ?? {}) as GraphEvent;
+  return compact({
+    ...eventSummary(e),
+    isOrganizer: e.isOrganizer,
+    myResponse: e.isOrganizer ? undefined : e.responseStatus?.response,
+    showAs: e.showAs,
+    type: e.type === 'singleInstance' ? undefined : e.type,
+    seriesMasterId: e.seriesMasterId,
+    categories: e.categories,
+    webLink: e.webLink,
+    body: e.body?.content,
+  });
+}
+
+const shapeEventList = listShape((e) => compact(eventSummary(e as GraphEvent)));
 
 interface GraphDateTime {
   dateTime?: string;
@@ -217,6 +288,7 @@ export const calendarTools: readonly Tool[] = [
     method: 'GET',
     path: '/me/events/{event-id}',
     scopes: ['Calendars.Read'],
+    shape: shapeEvent,
     supportsTimezone: true,
     supportsExpandExtendedProperties: true,
     params: [
@@ -236,6 +308,7 @@ export const calendarTools: readonly Tool[] = [
     method: 'GET',
     path: '/me/calendarView',
     scopes: ['Calendars.Read'],
+    shape: shapeEventList,
     projection: 'event',
     supportsTimezone: true,
     supportsExpandExtendedProperties: true,
@@ -408,10 +481,11 @@ export const calendarTools: readonly Tool[] = [
   {
     name: 'calendar-event-create',
     description:
-      "Create a calendar event on the signed-in user's default calendar. Returns the created event including its id. Requires subject, start, and end at minimum.",
+      "Create a calendar event on the signed-in user's default calendar. Returns the event's id, times, attendees, join link, and webLink. Requires subject, start, and end at minimum.",
     method: 'POST',
     path: '/me/events',
     scopes: ['Calendars.ReadWrite'],
+    shape: shapeEvent,
     params: [
       {
         name: 'body',
@@ -430,6 +504,7 @@ export const calendarTools: readonly Tool[] = [
     method: 'PATCH',
     path: '/me/events/{event-id}',
     scopes: ['Calendars.ReadWrite'],
+    shape: shapeEvent,
     precondition: assertIsOrganizer,
     params: [
       {

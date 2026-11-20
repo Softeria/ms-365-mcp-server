@@ -3,6 +3,7 @@ import GraphClient from '../src/graph-client.js';
 import { executeTool } from '../src/tool-runtime.js';
 import type { Tool } from '../src/tools/index.js';
 import { ALL_TOOLS } from '../src/tools/index.js';
+import { fakeGraphClient } from './fake-graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -20,7 +21,7 @@ describe('Path parameter encoding (issue #245)', () => {
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = fakeGraphClient(graphRequest);
   });
 
   const getMailMessage = ALL_TOOLS.find((t) => t.name === 'mail-message-get') as Tool;

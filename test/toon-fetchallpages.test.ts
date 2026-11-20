@@ -38,7 +38,8 @@ describe('fetchAllPages output-format safety (#19)', () => {
     const toonPage = 'value[1]{id,subject}:\n  1,Hello\n@odata.nextLink: https://x/next';
     const gc = makeGraphClient('toon', [toonPage]);
 
-    const result = await executeTool(findTool('mail-message-list'), gc, { fetchAllPages: true });
+    // An unshaped list tool: these tests pin the generic page merge, not a tool's shape.
+    const result = await executeTool(findTool('mail-folder-list'), gc, { fetchAllPages: true });
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/TOON/);
@@ -56,7 +57,7 @@ describe('fetchAllPages output-format safety (#19)', () => {
     const page2 = JSON.stringify({ value: [{ id: '3' }, { id: '4' }] });
     const gc = makeGraphClient('json', [page1, page2]);
 
-    const result = await executeTool(findTool('mail-message-list'), gc, { fetchAllPages: true });
+    const result = await executeTool(findTool('mail-folder-list'), gc, { fetchAllPages: true });
 
     expect(result.isError).toBeFalsy();
     const body = JSON.parse(result.content[0].text);
@@ -73,7 +74,7 @@ describe('fetchAllPages output-format safety (#19)', () => {
     const badPage2 = 'value[1]{id}:\n  2'; // TOON-ish, not JSON — JSON.parse throws
     const gc = makeGraphClient('json', [page1, badPage2]);
 
-    const result = await executeTool(findTool('mail-message-list'), gc, { fetchAllPages: true });
+    const result = await executeTool(findTool('mail-folder-list'), gc, { fetchAllPages: true });
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/incomplete|merge/i);
@@ -83,7 +84,7 @@ describe('fetchAllPages output-format safety (#19)', () => {
     const toonPage = 'value[1]{id,subject}:\n  1,Hello';
     const gc = makeGraphClient('toon', [toonPage]);
 
-    const result = await executeTool(findTool('mail-message-list'), gc, {});
+    const result = await executeTool(findTool('mail-folder-list'), gc, {});
 
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toBe(toonPage);

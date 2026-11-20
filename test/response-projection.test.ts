@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GraphClient from '../src/graph-client.js';
 import { executeTool } from '../src/tool-runtime.js';
 import { ALL_TOOLS, type Tool } from '../src/tools/index.js';
+import { fakeGraphClient } from './fake-graph-client.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -19,7 +20,7 @@ function makeGraphClient(): { gc: GraphClient; calls: () => string[] } {
     isError: false,
   });
   return {
-    gc: { graphRequest } as unknown as GraphClient,
+    gc: fakeGraphClient(graphRequest),
     calls: () => graphRequest.mock.calls.map((c) => String(c[0])),
   };
 }

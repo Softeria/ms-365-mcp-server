@@ -816,12 +816,28 @@ async function executeTool(
     logger.info(`Making graph request to ${path} with options: ${JSON.stringify(requestOptions)}`);
 
     // `shape` condenses the raw Graph object to what an agent needs for its
-    // next call; makeRequest throws on Graph errors, landing in the catch below.
-    const response = tool.shape
-      ? graphClient.formatJsonResponse(
-          tool.shape(await graphClient.makeRequest(path, requestOptions))
-        )
-      : await graphClient.graphRequest(path, requestOptions);
+    // next call (shapes keep the common $expand results they know about). The
+    // caller opts out by asking for specific fields ($select), the full object
+    // (response_format: 'detailed'), headers, or extended properties.
+    // makeRequest throws on Graph errors, landing in the catch below.
+    const shape =
+      tool.shape &&
+      !requestOptions.rawResponse &&
+      params.response_format !== 'detailed' &&
+      params.includeHeaders !== true &&
+      !params.select &&
+      params.expandExtendedProperties !== true
+        ? tool.shape
+        : undefined;
+    const send = async (p: string) =>
+      shape
+        ? graphClient.formatJsonResponse(
+            shape(await graphClient.makeRequest(p, requestOptions)),
+            false,
+            requestOptions.excludeResponse
+          )
+        : graphClient.graphRequest(p, requestOptions);
+    const response = await send(path);
 
     const fetchAllPages = params.fetchAllPages === true;
     if (fetchAllPages && response?.content?.[0]?.text) {
@@ -851,7 +867,7 @@ async function executeTool(
             logger.info(`Fetching page ${pageCount + 1} from: ${nextLink}`);
             const url = new URL(nextLink);
             const nextPath = url.pathname.replace('/v1.0', '') + url.search;
-            const nextResponse = await graphClient.graphRequest(nextPath, { ...requestOptions });
+            const nextResponse = await send(nextPath);
             if (nextResponse?.content?.[0]?.text) {
               const next = JSON.parse(nextResponse.content[0].text);
               if (Array.isArray(next.value)) allItems = allItems.concat(next.value);
@@ -991,7 +1007,7 @@ function buildMcpParamSchema(tool: Tool): Record<string, z.ZodTypeAny> {
       .optional();
   }
 
-  if (tool.projection) {
+  if (tool.projection || tool.shape) {
     paramSchema['response_format'] = z
       .enum(['minimal', 'detailed'])
       .describe(
