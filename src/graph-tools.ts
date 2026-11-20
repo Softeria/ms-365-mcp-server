@@ -60,6 +60,7 @@ import {
   positiveIntFromEnv,
   SKIPTOKEN_PARAM_DESCRIPTION,
   TIMEZONE_PARAM_DESCRIPTION,
+  IF_MATCH_PARAM_DESCRIPTION,
 } from './lib/param-descriptions.js';
 import { describePathParam } from './lib/path-params.js';
 import { queryParameterSchema } from './lib/query-parameter-schema.js';
@@ -147,6 +148,7 @@ interface EndpointConfig {
   skipEncoding?: string[]; // Parameter names that should NOT be URL-encoded (for function-style API calls)
   contentType?: string;
   acceptType?: string; // Custom Accept header for endpoints returning non-JSON content (e.g., text/vtt)
+  supportsIfMatch?: boolean; // Adds an optional If-Match header when the generated operation omits it
   // Retry once with fallback.accept when Graph refuses acceptType with a 403 carrying
   // fallback.innerErrorCode. Applies whenever acceptType is what goes out (unset, or
   // echoed by the caller); an explicit, different Accept turns it off.
@@ -3322,6 +3324,10 @@ async function executeGraphTool(
           }
           headers['Accept'] = paramValue;
         }
+      } else if (paramName.toLowerCase() === 'if-match' && config?.supportsIfMatch) {
+        // Some generated operations omit this Graph-supported header. Expose it only on
+        // configured endpoints and forward it through the same request header path.
+        headers['If-Match'] = `${paramValue}`;
       } else if (isOdataParam) {
         // Fallback: OData param recognised by name but absent from generated client's parameter
         // list — forward it as a query param rather than silently dropping it.
@@ -4048,6 +4054,13 @@ function registerGraphToolWithMcp(
     paramSchema['Accept'] = acceptValueSchema().describe(
       getAcceptParamDescription(endpointConfig.acceptType)
     );
+  }
+
+  if (
+    endpointConfig?.supportsIfMatch &&
+    !Object.keys(paramSchema).some((name) => name.toLowerCase() === 'if-match')
+  ) {
+    paramSchema['If-Match'] = z.string().optional().describe(IF_MATCH_PARAM_DESCRIPTION);
   }
 
   if (endpointConfig?.blobOutput && paramSchema['fileName'] === undefined) {
