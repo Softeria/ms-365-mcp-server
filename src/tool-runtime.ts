@@ -16,6 +16,7 @@ import {
   type CallToolResult,
 } from './tools/index.js';
 import { toolCallLog, redactArgs, redactResponse } from './admin/tool-call-log.js';
+import { ToolRefusal } from './tools/types.js';
 import { MINIMAL_SELECT } from './tools/projections.js';
 import { resolveEnabledToolsets, isToolEnabled, type ToolsetSelection } from './toolset-config.js';
 import { getCloudEndpoints } from './cloud-config.js';
@@ -600,7 +601,12 @@ async function executeTool(
   const startedAt = Date.now();
   const ctx = getRequestContext();
   const upn = ctx?.userPrincipalName ?? null;
-  logger.info(`Tool ${tool.name} called with params: ${JSON.stringify(params)}`);
+  // Long strings (base64 file content, message bodies) are summarized, not logged.
+  logger.info(
+    `Tool ${tool.name} called with params: ${JSON.stringify(params, (_k, v) =>
+      typeof v === 'string' && v.length > 200 ? `[${v.length} chars]` : v
+    )}`
+  );
 
   if (policy && !policy.check({ userPrincipalName: upn, toolName: tool.name })) {
     logger.warn(
@@ -953,6 +959,23 @@ async function executeTool(
     return result;
   } catch (error) {
     const message = (error as Error).message;
+    // A guard inside `execute` refused before writing: same outcome and audit
+    // status as a Tool.precondition refusal.
+    if (error instanceof ToolRefusal) {
+      logger.warn(`Tool ${tool.name} refused for ${upn ?? 'anonymous'}: ${message}`);
+      toolCallLog.record({
+        id: crypto.randomUUID(),
+        ts: startedAt,
+        upn,
+        toolName: tool.name,
+        status: 'precondition_failed',
+        latencyMs: Date.now() - startedAt,
+        argsExcerpt: redactArgs(params),
+        responseExcerpt: null,
+        errorText: message,
+      });
+      return preconditionFailedResult(tool, message);
+    }
     logger.error(`Error in tool ${tool.name}: ${message}`);
     toolCallLog.record({
       id: crypto.randomUUID(),
@@ -1212,8 +1235,7 @@ export function registerTools(
           // destructive, so a client that gates on the hint would prompt before
           // every search. `readOnly` is the tool's own word for it.
           readOnlyHint: tool.method === 'GET' || tool.readOnly === true,
-          destructiveHint:
-            tool.readOnly !== true && ['POST', 'PATCH', 'DELETE'].includes(tool.method),
+          destructiveHint: tool.readOnly !== true && tool.method !== 'GET',
           openWorldHint: true,
         },
         async (params) => executeTool(tool, graphClient, params, options.policy)

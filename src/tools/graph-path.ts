@@ -1,3 +1,5 @@
+import { ToolRefusal } from './types.js';
+
 /**
  * Encodes a value for use in a Graph REST path segment. Preserves `=`
  * (Graph object ids are base64-ish and Graph 404s when padding is escaped to
@@ -15,7 +17,9 @@ const DOT_SEGMENT = /^\.+$/;
 /**
  * True iff `value` is safe to use as a single opaque Graph path segment:
  * non-empty, not a dot segment ('.'/'..'/...), and without a path separator
- * ('/' or '\') that could inject extra segments.
+ * ('/' or '\') that could inject extra segments, or ':' (Graph's
+ * path-addressing syntax, e.g. `items/{id}:/sub/path:`). Graph ids never
+ * contain any of these.
  *
  * A dot-segment or separator surviving into a resolved path can collapse via
  * URL dot-segment normalization (e.g. `/me/contacts/..` -> `/me/`), reaching
@@ -26,7 +30,11 @@ const DOT_SEGMENT = /^\.+$/;
  */
 export function isSafePathSegment(value: string): boolean {
   return (
-    value.length > 0 && !DOT_SEGMENT.test(value) && !value.includes('/') && !value.includes('\\')
+    value.length > 0 &&
+    !DOT_SEGMENT.test(value) &&
+    !value.includes('/') &&
+    !value.includes('\\') &&
+    !value.includes(':')
   );
 }
 
@@ -38,8 +46,8 @@ export function isSafePathSegment(value: string): boolean {
  */
 export function requireSafePathSegment(value: string, paramName: string): string {
   if (!isSafePathSegment(value)) {
-    throw new Error(
-      `${paramName} must be a single opaque id — not empty, not '.'/'..', and without '/' or '\\'; got ${JSON.stringify(value)}`
+    throw new ToolRefusal(
+      `${paramName} must be a single opaque id — not empty, not '.'/'..', and without '/', '\\', or ':'; got ${JSON.stringify(value)}`
     );
   }
   return encodePathValue(value);
