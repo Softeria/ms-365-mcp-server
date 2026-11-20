@@ -12,8 +12,8 @@ import { OData, type Tool, type ToolPrecondition } from './types.js';
  * describe.
  *
  * Performs a tiny GET with $select=isOrganizer to avoid pulling the whole
- * event. If the GET 404s, the original tool call would have 404'd anyway —
- * re-throw a clear message so the model can correct.
+ * event, via `makeRequest` (raw object; throws on Graph errors) — see
+ * `assertIsDraft` in mail.ts for why `graphRequest` cannot be used here.
  */
 const assertIsOrganizer: ToolPrecondition = async (
   graphClient: GraphClient,
@@ -26,7 +26,7 @@ const assertIsOrganizer: ToolPrecondition = async (
   const path = `/me/events/${encodeURIComponent(id)}?$select=isOrganizer`;
   let evt: { isOrganizer?: boolean } | null;
   try {
-    evt = (await graphClient.graphRequest(path, { method: 'GET' })) as {
+    evt = (await graphClient.makeRequest(path, { method: 'GET' })) as {
       isOrganizer?: boolean;
     } | null;
   } catch (err) {

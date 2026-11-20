@@ -10,8 +10,9 @@ import { DEFAULT_MAIL_SEND_CONFIG, evaluateMailSend } from '../policy/index.js';
  * "draft" but whose underlying endpoint accepts any message id.
  *
  * Performs a tiny GET with $select=isDraft to avoid pulling the message body.
- * If the GET 404s, the original tool call would have 404'd anyway — re-throw
- * a clear message so the model can correct.
+ * Uses `makeRequest` (the raw Graph object; throws on Graph errors) — NOT
+ * `graphRequest`, which wraps the payload in an MCP text envelope and never
+ * throws, so every probe would read `isDraft` as undefined and refuse.
  */
 const assertIsDraft: ToolPrecondition = async (
   graphClient: GraphClient,
@@ -24,7 +25,7 @@ const assertIsDraft: ToolPrecondition = async (
   const path = `/me/messages/${encodeURIComponent(id)}?$select=isDraft`;
   let msg: { isDraft?: boolean } | null;
   try {
-    msg = (await graphClient.graphRequest(path, { method: 'GET' })) as {
+    msg = (await graphClient.makeRequest(path, { method: 'GET' })) as {
       isDraft?: boolean;
     } | null;
   } catch (err) {
@@ -86,7 +87,7 @@ const assertSendWithinDomain: ToolPrecondition = async (graphClient, params, ctx
   const path = `/me/messages/${encodeURIComponent(id)}?$select=isDraft,toRecipients,ccRecipients,bccRecipients`;
   let msg: DraftSendProbe | null;
   try {
-    msg = (await graphClient.graphRequest(path, { method: 'GET' })) as DraftSendProbe | null;
+    msg = (await graphClient.makeRequest(path, { method: 'GET' })) as DraftSendProbe | null;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(

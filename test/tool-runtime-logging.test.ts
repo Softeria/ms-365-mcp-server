@@ -101,9 +101,9 @@ describe('executeTool logging — status: denied_by_policy', () => {
 
 describe('executeTool logging — status: precondition_failed', () => {
   it('records status=precondition_failed when precondition throws', async () => {
-    // mail-message-update has an isDraft precondition.
+    // mail-message-update has an isDraft precondition (probed via makeRequest).
     const gc = {
-      graphRequest: vi.fn().mockResolvedValue({ isDraft: false }),
+      makeRequest: vi.fn().mockResolvedValue({ isDraft: false }),
     } as unknown as GraphClient;
 
     const tool = findTool('mail-message-update');

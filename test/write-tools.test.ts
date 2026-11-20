@@ -98,7 +98,9 @@ describe('write-tool runtime', () => {
       }
       return Promise.resolve({ content: [{ type: 'text', text: '{}' }] });
     });
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    // Precondition probes use makeRequest (raw object); the main call uses
+    // graphRequest. One spy for both keeps the call-order assertions simple.
+    mockGraphClient = { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
   });
 
   // Helper: the main Graph call is whichever one isn't a precondition probe.
@@ -160,7 +162,7 @@ describe('write-tool runtime', () => {
   for (const toolName of ['mail-message-update', 'mail-message-delete', 'mail-attachment-add']) {
     it(`${toolName} REFUSES when isDraft=false (received mail) and never fires the main call`, async () => {
       graphRequest = vi.fn().mockResolvedValue({ isDraft: false });
-      mockGraphClient = { graphRequest } as unknown as GraphClient;
+      mockGraphClient = { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
 
       const params: Record<string, unknown> = { 'message-id': 'received-msg' };
       if (toolName === 'mail-message-update') params.body = { isRead: true };
@@ -182,7 +184,7 @@ describe('write-tool runtime', () => {
 
   it('mail-message-update REFUSES when the message does not exist (precondition GET fails)', async () => {
     graphRequest = vi.fn().mockRejectedValue(new Error('404 Not Found'));
-    mockGraphClient = { graphRequest } as unknown as GraphClient;
+    mockGraphClient = { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
 
     const result = await executeTool(findTool('mail-message-update'), mockGraphClient, {
       'message-id': 'gone',
@@ -250,7 +252,7 @@ describe('write-tool runtime', () => {
   for (const toolName of ['calendar-event-update', 'calendar-event-delete']) {
     it(`${toolName} REFUSES when isOrganizer=false (attendee event) and never fires the main call`, async () => {
       graphRequest = vi.fn().mockResolvedValue({ isOrganizer: false });
-      mockGraphClient = { graphRequest } as unknown as GraphClient;
+      mockGraphClient = { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
 
       const params: Record<string, unknown> = { 'event-id': 'invite-evt' };
       if (toolName === 'calendar-event-update') params.body = { subject: 'nope' };
@@ -268,7 +270,7 @@ describe('write-tool runtime', () => {
 
     it(`${toolName} REFUSES when the event does not exist (precondition GET fails)`, async () => {
       graphRequest = vi.fn().mockRejectedValue(new Error('404 Not Found'));
-      mockGraphClient = { graphRequest } as unknown as GraphClient;
+      mockGraphClient = { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
 
       const params: Record<string, unknown> = { 'event-id': 'gone' };
       if (toolName === 'calendar-event-update') params.body = { subject: 'nope' };
@@ -294,7 +296,10 @@ describe('mail-draft-send same-domain guard', () => {
       if (path.includes('$select=isDraft')) return Promise.resolve(draft);
       return Promise.resolve({ content: [{ type: 'text', text: '' }] });
     });
-    return { graphRequest, client: { graphRequest } as unknown as GraphClient };
+    return {
+      graphRequest,
+      client: { graphRequest, makeRequest: graphRequest } as unknown as GraphClient,
+    };
   }
 
   const sendCall = (graphRequest: ReturnType<typeof vi.fn>) =>
@@ -413,7 +418,10 @@ describe('mail-send direct send same-domain guard', () => {
   // draft to probe — so the mock only needs to answer the /me/sendMail POST.
   function makeMock() {
     const graphRequest = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '' }] });
-    return { graphRequest, client: { graphRequest } as unknown as GraphClient };
+    return {
+      graphRequest,
+      client: { graphRequest, makeRequest: graphRequest } as unknown as GraphClient,
+    };
   }
 
   const sendCall = (graphRequest: ReturnType<typeof vi.fn>) =>
@@ -560,7 +568,7 @@ describe('policy gating on write tools', () => {
     const graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: '{}' }],
     });
-    return { graphRequest } as unknown as GraphClient;
+    return { graphRequest, makeRequest: graphRequest } as unknown as GraphClient;
   }
 
   it('a user not in the policy is denied every write tool', async () => {
