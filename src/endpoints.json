@@ -2575,6 +2575,41 @@
     ]
   },
   {
+    "pathPattern": "/search/query",
+    "method": "post",
+    "toolName": "search-files",
+    "descriptionOverride": "Find files by keyword across the OneDrive and SharePoint files the signed-in user can read, without knowing the site or drive. The search is KQL keyword matching, not semantic: give a few keywords, not a sentence. A hit's resource.parentReference.driveId and resource.id go to get-drive-item.",
+    "presets": ["search", "work"],
+    "readOnly": true,
+    "workScopes": [["Sites.Read.All"], ["Files.Read.All"]],
+    "queryParams": [],
+    "fixedBody": {
+      "requests": [
+        { "entityTypes": ["driveItem"], "query": { "queryString": "" }, "from": 0, "size": 10 }
+      ]
+    },
+    "bodyParams": {
+      "queryString": {
+        "target": ["requests", 0, "query", "queryString"],
+        "type": "string",
+        "required": true,
+        "description": "Keywords to look for in file names, metadata and content, in KQL."
+      },
+      "size": {
+        "target": ["requests", 0, "size"],
+        "type": "integer",
+        "minimum": 1,
+        "description": "How many hits to return. Defaults to 10."
+      },
+      "from": {
+        "target": ["requests", 0, "from"],
+        "type": "integer",
+        "minimum": 0,
+        "description": "Offset of the first hit, 0 by default. While moreResultsAvailable is true, the next page starts at the previous from plus the previous size."
+      }
+    }
+  },
+  {
     "pathPattern": "/copilot/retrieval",
     "method": "post",
     "toolName": "copilot-retrieve",

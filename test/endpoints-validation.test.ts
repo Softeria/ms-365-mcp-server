@@ -15,6 +15,15 @@ const { generatedPathFor, UTILITY_TOOLS } = await import('../src/graph-tools.js'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// A leaf of a fixedBody the caller may fill, under the param name it is keyed by
+interface BodyParam {
+  target: Array<string | number>;
+  type: string;
+  description: string;
+  required?: boolean;
+  minimum?: number;
+}
+
 interface Endpoint {
   toolName: string;
   pathPattern: string;
@@ -30,6 +39,7 @@ interface Endpoint {
   nameFilter?: boolean;
   mentionShorthand?: boolean;
   fixedBody?: Record<string, unknown>;
+  bodyParams?: Record<string, BodyParam>;
   descriptionOverride?: string;
   deltaToken?: boolean;
 }
@@ -37,6 +47,125 @@ interface Endpoint {
 const endpoints: Endpoint[] = JSON.parse(
   readFileSync(path.join(__dirname, '..', 'src', 'endpoints.json'), 'utf8')
 );
+
+// Names executeGraphTool already reads off a call: its control params, the OData options
+// (with or without $) and the generic body. A body param under one of them would be read
+// as that instead.
+const RESERVED_PARAM_NAMES = new Set(
+  [
+    'account',
+    'confirm',
+    'fetchAllPages',
+    'includeHeaders',
+    'excludeResponse',
+    'timezone',
+    'expandExtendedProperties',
+    'fileName',
+    'name',
+    'token',
+    'accept',
+    'body',
+    'filter',
+    'select',
+    'expand',
+    'orderby',
+    'skip',
+    'skiptoken',
+    'top',
+    'count',
+    'search',
+    'format',
+  ].map((name) => name.toLowerCase())
+);
+
+/** The value at `target` in `body`: numbers index arrays, strings name object keys. */
+function resolveTarget(body: unknown, target: unknown): { found: boolean; value?: unknown } {
+  if (!Array.isArray(target) || target.length === 0) return { found: false };
+  let node = body;
+  for (const step of target) {
+    if (typeof step === 'number') {
+      if (!Array.isArray(node) || !Number.isInteger(step) || step < 0 || step >= node.length) {
+        return { found: false };
+      }
+      node = node[step];
+    } else if (typeof step === 'string') {
+      if (
+        node === null ||
+        typeof node !== 'object' ||
+        Array.isArray(node) ||
+        !Object.prototype.hasOwnProperty.call(node, step)
+      ) {
+        return { found: false };
+      }
+      node = (node as Record<string, unknown>)[step];
+    } else {
+      return { found: false };
+    }
+  }
+  return { found: true, value: node };
+}
+
+/** What is wrong with an entry's bodyParams; empty when nothing is. */
+function bodyParamProblems(e: Partial<Endpoint> & { toolName: string }): string[] {
+  if (!e.bodyParams) return [];
+  if (!e.fixedBody) return [`${e.toolName}: bodyParams without a fixedBody`];
+  const problems: string[] = [];
+  const pathParams = [...(e.pathPattern ?? '').matchAll(/\{([^}]+)\}/g)].map((m) =>
+    m[1].replace(/-/g, '').toLowerCase()
+  );
+  const targets = new Set<string>();
+  for (const [name, param] of Object.entries(e.bodyParams)) {
+    const label = `${e.toolName}.bodyParams.${name}`;
+    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name)) problems.push(`${label}: not a plain param name`);
+    if (RESERVED_PARAM_NAMES.has(name.toLowerCase()) || pathParams.includes(name.toLowerCase())) {
+      problems.push(`${label}: the name is already taken`);
+    }
+    if (param.type !== 'string' && param.type !== 'integer') {
+      problems.push(`${label}: type ${JSON.stringify(param.type)} is not string or integer`);
+    }
+    if (typeof param.description !== 'string' || param.description.trim() === '') {
+      problems.push(`${label}: no description`);
+    }
+    if (param.required !== undefined && typeof param.required !== 'boolean') {
+      problems.push(`${label}: required is not a boolean`);
+    }
+    if (
+      param.minimum !== undefined &&
+      (param.type !== 'integer' || !Number.isInteger(param.minimum))
+    ) {
+      problems.push(`${label}: minimum only goes with an integer, and is one`);
+    }
+    const key = JSON.stringify(param.target);
+    if (targets.has(key)) problems.push(`${label}: another param fills ${key}`);
+    targets.add(key);
+
+    const leaf = resolveTarget(e.fixedBody, param.target);
+    if (!leaf.found) {
+      problems.push(`${label}: target ${key} is not in fixedBody`);
+      continue;
+    }
+    if (leaf.value === null || typeof leaf.value === 'object') {
+      problems.push(`${label}: target ${key} is not a leaf`);
+      continue;
+    }
+    if (param.type === 'string' && typeof leaf.value !== 'string') {
+      problems.push(`${label}: string param on a ${typeof leaf.value} leaf`);
+    }
+    if (param.type === 'integer') {
+      if (!Number.isInteger(leaf.value)) {
+        problems.push(`${label}: integer param on a leaf that is not one`);
+      } else if (
+        !param.required &&
+        param.minimum !== undefined &&
+        (leaf.value as number) < param.minimum
+      ) {
+        // An optional param sends the leaf's own value when the caller leaves it out
+        problems.push(`${label}: default ${leaf.value} is under minimum ${param.minimum}`);
+      }
+    }
+  }
+  return problems;
+}
 
 describe('endpoints.json validation', () => {
   it('should not have endpoints with both scopes and workScopes', () => {
@@ -173,6 +302,80 @@ describe('endpoints.json validation', () => {
       .filter((e) => e.fixedBody && !e.descriptionOverride)
       .map((e) => e.toolName);
     expect(undescribed).toEqual([]);
+  });
+
+  describe('bodyParams', () => {
+    // The only body a fixedBody tool sends is its fixedBody, so a body param can only fill
+    // a leaf of it; that leaf holds the value sent when an optional param is left out.
+    it('should put bodyParams only on fixedBody entries, each on an existing leaf of it', () => {
+      // Without a shipped entry to check, the assertion below would pass on nothing
+      expect(endpoints.filter((e) => e.bodyParams).map((e) => e.toolName)).toContain(
+        'search-files'
+      );
+      expect(endpoints.flatMap((e) => bodyParamProblems(e))).toEqual([]);
+    });
+
+    const text = { target: ['q'], type: 'string', required: true, description: 'Query.' };
+    it.each([
+      ['bodyParams with no fixedBody', { bodyParams: { q: text } }],
+      ['a target missing from fixedBody', { fixedBody: { a: '' }, bodyParams: { q: text } }],
+      [
+        'a target that stops at an object',
+        { fixedBody: { q: { r: '' } }, bodyParams: { q: text } },
+      ],
+      [
+        'an index past the end of an array',
+        { fixedBody: { a: [''] }, bodyParams: { q: { ...text, target: ['a', 1] } } },
+      ],
+      [
+        'a string key into an array',
+        { fixedBody: { a: [''] }, bodyParams: { q: { ...text, target: ['a', '0'] } } },
+      ],
+      [
+        'a type the runtime does not handle',
+        { fixedBody: { q: true }, bodyParams: { q: { ...text, type: 'boolean' } } },
+      ],
+      [
+        'an integer param on a string leaf',
+        { fixedBody: { q: '10' }, bodyParams: { q: { ...text, type: 'integer' } } },
+      ],
+      [
+        'an optional integer whose default is under its minimum',
+        {
+          fixedBody: { n: 0 },
+          bodyParams: {
+            n: { target: ['n'], type: 'integer', minimum: 1, description: 'How many.' },
+          },
+        },
+      ],
+      [
+        'a param with no description',
+        { fixedBody: { q: '' }, bodyParams: { q: { ...text, description: '' } } },
+      ],
+      ['a name the runtime already reads', { fixedBody: { q: '' }, bodyParams: { account: text } }],
+      [
+        'two params on one leaf',
+        { fixedBody: { q: '' }, bodyParams: { q: text, other: { ...text, required: false } } },
+      ],
+    ])('should catch %s', (_label, entry) => {
+      expect(bodyParamProblems({ toolName: 'example', pathPattern: '/x', ...entry })).not.toEqual(
+        []
+      );
+    });
+
+    it('should accept a well-formed entry', () => {
+      expect(
+        bodyParamProblems({
+          toolName: 'example',
+          pathPattern: '/x',
+          fixedBody: { a: [{ q: { s: '' }, n: 10 }] },
+          bodyParams: {
+            s: { target: ['a', 0, 'q', 's'], type: 'string', required: true, description: 'S.' },
+            n: { target: ['a', 0, 'n'], type: 'integer', minimum: 1, description: 'N.' },
+          },
+        })
+      ).toEqual([]);
+    });
   });
 
   it('should generate non-void response schemas for Planner task chat read/create tools', () => {

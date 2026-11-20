@@ -3,6 +3,7 @@ import { queryParameterSchema } from './query-parameter-schema.js';
 import { tidyToolJsonSchema, zodToToolJsonSchema } from '../normalize-tool-schema.js';
 import type { api } from '../generated/client.js';
 import { isDestructiveOperation, type DestructiveCheckConfig } from './destructive-ops.js';
+import { bodyParamSchemas, type BodyParamConfig } from './body-params.js';
 import { ACCEPT_VALUE_JSON_SCHEMA } from './media-type.js';
 import {
   isFetchAllPagesApplicable,
@@ -37,6 +38,7 @@ export interface ToolSchemaConfig extends DestructiveCheckConfig, QueryParamConf
   supportsIfMatch?: boolean;
   nameFilter?: boolean;
   deltaToken?: boolean;
+  bodyParams?: Record<string, BodyParamConfig>;
 }
 
 /**
@@ -157,6 +159,20 @@ export function describeToolSchema(
       },
     ];
   });
+
+  // Mirrors registerGraphTools: the leaves of a fixedBody the caller fills are top-level params.
+  if (config?.bodyParams) {
+    for (const [name, schema] of Object.entries(bodyParamSchemas(config.bodyParams))) {
+      const { inner, optional } = unwrapOptional(schema);
+      params.push({
+        name,
+        in: 'Query',
+        required: !optional,
+        description: schema.description ?? inner.description,
+        schema: toParamJsonSchema(inner),
+      });
+    }
+  }
 
   // Surface the destructive-confirm gate so agents in --discovery mode know
   // to pass `confirm: true`. Without this, every destructive tool returns

@@ -10,7 +10,7 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 371<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 372<br>182 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
@@ -20,18 +20,18 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                       |
 | `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
 | `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
-| `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     7<br>7 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
+| `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     8<br>8 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
 | `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                          |
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                             |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 191<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 192<br>112 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
 
 ## `all` full
 
 All available tools
 
-Tools (371):
+Tools (372):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -344,6 +344,7 @@ Tools (371):
 - `reply-to-channel-message`
 - `reply-to-chat-message`
 - `reply-to-group-thread`
+- `search-files`
 - `search-onedrive-files`
 - `search-query`
 - `search-sharepoint-sites`
@@ -477,7 +478,7 @@ Scopes (65):
 
 All available tools
 
-Tools (181):
+Tools (182):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -657,6 +658,7 @@ Tools (181):
 - `list-webinar-sessions`
 - `parse-teams-url`
 - `read-mail-text`
+- `search-files`
 - `search-onedrive-files`
 - `search-query`
 - `search-sharepoint-sites`
@@ -1678,12 +1680,13 @@ Scopes (15):
 
 Microsoft Search capabilities
 
-Tools (7):
+Tools (8):
 
 - `copilot-retrieve`
 - `download-bytes`
 - `download-bytes-to-file`
 - `get-download-url`
+- `search-files`
 - `search-onedrive-files`
 - `search-query`
 - `search-sharepoint-sites`
@@ -1703,12 +1706,13 @@ Scopes (8):
 
 Microsoft Search capabilities
 
-Tools (7):
+Tools (8):
 
 - `copilot-retrieve`
 - `download-bytes`
 - `download-bytes-to-file`
 - `get-download-url`
+- `search-files`
 - `search-onedrive-files`
 - `search-query`
 - `search-sharepoint-sites`
@@ -2097,7 +2101,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (191):
+Tools (192):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2258,6 +2262,7 @@ Tools (191):
 - `reply-to-channel-message`
 - `reply-to-chat-message`
 - `reply-to-group-thread`
+- `search-files`
 - `search-query`
 - `search-sharepoint-sites`
 - `send-channel-message`
@@ -2355,7 +2360,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (111):
+Tools (112):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -2466,6 +2471,7 @@ Tools (111):
 - `list-webinar-sessions`
 - `parse-teams-url`
 - `read-mail-text`
+- `search-files`
 - `search-query`
 - `search-sharepoint-sites`
 
