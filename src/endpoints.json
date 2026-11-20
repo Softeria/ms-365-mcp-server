@@ -60,7 +60,7 @@
     "toolName": "delete-mail-folder",
     "presets": ["mail", "outlook", "personal"],
     "scopes": ["Mail.ReadWrite"],
-    "llmTip": "Deletes a mail folder and all its contents. This action is irreversible. Use list-mail-folders to find the folder ID."
+    "llmTip": "Deletes a mail folder and its contents. Not a permanent delete: the folder goes to Deleted Items and can be restored from there until it is purged. Use list-mail-folders to find the folder ID."
   },
   {
     "pathPattern": "/me/mailFolders/{mailFolder-id}/messages",
@@ -108,7 +108,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "get",
     "toolName": "get-shared-mailbox-message",
-    "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Get a single Outlook message from another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": [["Mail.Read"], ["Mail.ReadBasic.All"]]
@@ -138,7 +138,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/move",
     "method": "post",
     "toolName": "move-shared-mailbox-message",
-    "descriptionOverride": "Move a message in another user's mailbox or a shared mailbox to a different folder. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Move a message in another user's mailbox or a shared mailbox to a different folder. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
@@ -148,7 +148,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}",
     "method": "patch",
     "toolName": "update-shared-mailbox-message",
-    "descriptionOverride": "Update a message in another user's mailbox or a shared mailbox — for example mark it read or unread (isRead), flag it (flag), change its categories or importance, or edit a draft's subject, body, or recipients. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Update a message in another user's mailbox or a shared mailbox — for example mark it read or unread (isRead), flag it (flag), change its categories or importance, or edit a draft's subject, body, or recipients. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"]
@@ -187,7 +187,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox.",
+    "llmTip": "Create a reply draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address (e.g. support@contoso.com). Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400.",
     "mcpApp": {
       "view": "mail-draft",
       "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
@@ -200,7 +200,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400. Requires delegated access to the shared mailbox.",
+    "llmTip": "Create a reply-all draft in a shared mailbox preserving thread metadata (conversationId, In-Reply-To, References). The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Message.body (contentType 'html' for HTML) replaces the whole draft body, dropping the quoted history; 'comment' keeps it. Specifying both 'comment' and Message.body returns 400.",
     "mcpApp": {
       "view": "mail-draft",
       "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
@@ -213,7 +213,7 @@
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
-    "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out. Requires delegated access to the shared mailbox.",
+    "llmTip": "Create a forward draft in a shared mailbox without sending. The 'user-id' is the shared mailbox email address. Does not send — use send-shared-mailbox-draft to send afterwards. Useful when the user wants to review before the forward goes out.",
     "mcpApp": {
       "view": "mail-draft",
       "tools": { "get": "get-shared-mailbox-message", "send": "send-shared-mailbox-draft" }
@@ -232,7 +232,7 @@
     "pathPattern": "/users/{user-id}/mailFolders",
     "method": "get",
     "toolName": "list-shared-mailbox-folders",
-    "descriptionOverride": "List the top-level mail folders in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "List the top-level mail folders in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]]
@@ -241,7 +241,7 @@
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
     "method": "get",
     "toolName": "list-shared-mailbox-child-folders",
-    "descriptionOverride": "List the child folders of a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "List the child folders of a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": [["Mail.ReadBasic.All"], ["Mail.Read"]]
@@ -250,7 +250,7 @@
     "pathPattern": "/users/{user-id}/mailFolders",
     "method": "post",
     "toolName": "create-shared-mailbox-folder",
-    "descriptionOverride": "Create a top-level mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Create a top-level mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"]
@@ -259,7 +259,7 @@
     "pathPattern": "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders",
     "method": "post",
     "toolName": "create-shared-mailbox-child-folder",
-    "descriptionOverride": "Create a subfolder inside a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Create a subfolder inside a mail folder in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"]
@@ -268,7 +268,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
     "method": "get",
     "toolName": "list-shared-mailbox-attachments",
-    "descriptionOverride": "List the attachments on a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "List the attachments on a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": ["Mail.Read"],
@@ -278,7 +278,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments",
     "method": "post",
     "toolName": "add-shared-mailbox-attachment",
-    "descriptionOverride": "Add an attachment under 3MB to a draft message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Add an attachment under 3MB to a draft message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"],
@@ -288,7 +288,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}",
     "method": "delete",
     "toolName": "delete-shared-mailbox-attachment",
-    "descriptionOverride": "Delete an attachment from a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Delete an attachment from a message in another user's mailbox or a shared mailbox. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.ReadWrite.Shared"],
     "appScopes": ["Mail.ReadWrite"]
@@ -661,7 +661,7 @@
     "pathPattern": "/users/{user-id}/calendar/events",
     "method": "get",
     "toolName": "list-shared-calendar-events",
-    "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated access to that calendar is required. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
+    "descriptionOverride": "List events in another user's default calendar. The user-id is the calendar owner's ID or email address. Recurring events are returned as a single series master, not expanded into occurrences - use get-shared-calendar-view for that.",
     "presets": ["work"],
     "workScopes": ["Calendars.Read.Shared"],
     "appScopes": [["Calendars.ReadBasic"], ["Calendars.Read"]],
@@ -681,7 +681,7 @@
     "pathPattern": "/users/{user-id}/calendar/events",
     "method": "post",
     "toolName": "create-shared-calendar-event",
-    "descriptionOverride": "Create an event in another user's default calendar. The user-id is the calendar owner's ID or email address, and delegated write access to that calendar is required. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone. For recurring events use the calendar owner's own time zone name rather than UTC, since Graph resolves DST against the zone in start.timeZone.",
+    "descriptionOverride": "Create an event in another user's default calendar. The user-id is the calendar owner's ID or email address. Times use nested objects, not flat fields: start: {dateTime, timeZone}, end: {dateTime, timeZone}. Do NOT use startDateTime/startTimeZone. For recurring events use the calendar owner's own time zone name rather than UTC, since Graph resolves DST against the zone in start.timeZone.",
     "presets": ["work"],
     "workScopes": ["Calendars.ReadWrite.Shared"],
     "appScopes": ["Calendars.ReadWrite"],
@@ -772,7 +772,7 @@
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
     "deltaToken": true,
-    "llmTip": "Tracks changes to a driveItem and its children over time. Returns a collection of driveItems that have been created, modified, or deleted. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select. For incremental sync, pass the @odata.deltaLink from the last page as token on the next call."
+    "llmTip": "Tracks changes to a driveItem and its children. An item can appear more than once; use its last occurrence. Deleted items have a deleted facet. Use get-drive-root-item first to get the root driveItem-id, then pass it here. Supports $select."
   },
   {
     "pathPattern": "/drives/{drive-id}/root",
@@ -815,7 +815,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "For large file uploads (no size limit, and no minimum unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself. This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "llmTip": "For large file uploads (up to 250 GB; no minimum, unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself, without an Authorization header, in ranges under 60 MiB that are multiples of 320 KiB (except the last). This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -851,7 +851,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write', 'owner'. Set requireSignIn to true to require authentication."
+    "llmTip": "Shares a file or folder with specific users. Body: { recipients: [{ email: 'user@example.com' }], roles: ['read'], sendInvitation: true, message: 'Please review this file.' }. Roles: 'read', 'write'. Set requireSignIn to true to require authentication."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createLink",
@@ -860,7 +860,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.ReadWrite"],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
+    "llmTip": "Create a shareable link for a file or folder WITHOUT sending an email invitation. Body: { type: 'view' | 'edit' | 'embed', scope: 'anonymous' | 'organization' | 'users', password?: string, expirationDateTime?: ISO-8601, retainInheritedPermissions?: boolean }. 'embed' works only in OneDrive personal, 'organization' only in OneDrive for Business and SharePoint. Returns a permission with link.webUrl. Pair with share-drive-item when you want to grant explicit access; use this when you only need a URL to paste into a doc/email/chat without triggering OneDrive notifications."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/copy",
@@ -896,7 +896,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": ["Files.Read"],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists all permissions (sharing links, direct access, inherited) on a file or folder. Each permission has roles, grantedTo (user), link (sharing URL), and inheritedFrom."
+    "llmTip": "Lists sharing permissions (sharing links, direct access, inherited) on a file or folder. A non-owner only sees the permissions that apply to them. Use grantedToV2; grantedTo is deprecated."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/permissions/{permission-id}",
@@ -914,7 +914,7 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.Read"], ["Sites.Selected"]],
     "appScopes": [["Files.Read.All"], ["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Lists version history of a file. Each version has id, lastModifiedDateTime, lastModifiedBy, and size. Use the version id with /versions/{id}/content to download a specific version."
+    "llmTip": "Lists versions of a file, newest first; the first is the current version. $orderby is not supported. Download an older version with /versions/{version-id}/content; for the current one use /content."
   },
   {
     "pathPattern": "/drives/{drive-id}/search(q='{q}')",
@@ -1071,7 +1071,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/$value",
     "method": "get",
     "toolName": "get-shared-mailbox-message-mime",
-    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Download the raw MIME source (RFC 5322 .eml content) of a message in another user's mailbox or a shared mailbox, by message ID. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": ["Mail.Read"],
@@ -1093,7 +1093,7 @@
     "pathPattern": "/users/{user-id}/messages/{message-id}/attachments/{attachment-id}/$value",
     "method": "get",
     "toolName": "get-shared-mailbox-attachment-content",
-    "descriptionOverride": "Download the raw bytes of a file attachment of a message in another user's mailbox or a shared mailbox, by message ID and attachment ID. The user-id is the mailbox owner's ID or email address, and delegated access to that mailbox is required.",
+    "descriptionOverride": "Download the raw bytes of a file attachment of a message in another user's mailbox or a shared mailbox, by message ID and attachment ID. The user-id is the mailbox owner's ID or email address.",
     "presets": ["work"],
     "workScopes": ["Mail.Read.Shared"],
     "appScopes": ["Mail.Read"],
@@ -1503,7 +1503,8 @@
     "toolName": "list-todo-task-lists-delta",
     "presets": ["personal", "tasks"],
     "scopes": ["Tasks.ReadWrite"],
-    "queryParams": ["select", "skiptoken"]
+    "queryParams": ["select", "skiptoken"],
+    "deltaToken": true
   },
   {
     "pathPattern": "/me/todo/lists/{todoTaskList-id}/tasks",
@@ -1757,7 +1758,7 @@
     "toolName": "create-planner-task-message",
     "scopes": ["Tasks.ReadWrite"],
     "apiVersion": "beta",
-    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Microsoft is retiring the classic task comments experience and hiding it from the task (Planner 2026 update), so task chat is the current supported way to post per-task updates teammates will see, with @mentions. Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
+    "llmTip": "Posts a message to a Planner task's chat (the modern 'task chat', not the legacy conversationThreadId comment). Task chat is currently available for basic plans; Premium plans use Teams conversations for task discussions. Only explicitly mentioned users receive notifications. Body: { content: 'plain text or sanitized HTML', mentions?: [{ mentioned: 'user-id', position: 0, mentionType: 'user' }] } (mentions optional). No ETag/If-Match required. BETA Graph API: subject to change; delegated work/school accounts only — no application permissions, no personal Microsoft accounts, global cloud only (not GCC/DoD/21Vianet)."
   },
   {
     "pathPattern": "/planner/tasks/{plannerTask-id}/messages/{plannerTaskChatMessage-id}",
@@ -1773,7 +1774,7 @@
     "toolName": "list-outlook-contacts",
     "presets": ["contacts", "outlook", "personal"],
     "scopes": ["Contacts.Read"],
-    "llmTip": "$filter only supports startswith() — contains() and eq on emailAddresses do not work. Use $search as alternative for broader matching."
+    "llmTip": "To match an exact email address, use $filter=emailAddresses/any(a:a/address eq 'name@example.com'). For emailAddresses, only eq on the address sub-property is supported; contains(), startswith(), and other operators are not."
   },
   {
     "pathPattern": "/me/contacts/{contact-id}",
@@ -2462,7 +2463,8 @@
     "presets": ["work"],
     "workScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first."
+    "supportsIfMatch": true,
+    "llmTip": "Updates fields on an existing list item. Body: { fields: { ColumnName: 'new value' } }. Send only the fields you want to change. Use $expand=fields on get-sharepoint-site-list-item to see current values first. For optimistic concurrency, pass its ETag as If-Match; enable includeHeaders=true when reading to capture the ETag. A stale ETag returns 412 without applying the update."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
@@ -2979,10 +2981,10 @@
     "pathPattern": "/me/events/delta()",
     "method": "get",
     "toolName": "list-calendar-events-delta",
+    "descriptionOverride": "Incremental sync of events in the signed-in user's mailbox, not a calendarView. startDateTime sets the earliest event start to include. Each event has only id, type, start and end; use get-calendar-event for the rest. For a time-bounded view with expanded recurring instances, use list-calendar-view-delta instead.",
     "presets": ["calendar", "outlook", "personal"],
     "scopes": ["Calendars.Read"],
-    "queryParams": ["startDateTime", "skiptoken"],
-    "llmTip": "Incremental sync of events across the default calendar. First call returns all events plus @odata.deltaLink. Subsequent calls with that link return only additions/updates/removals. Deltas expire after ~30 days — start over if the server returns 410 Gone. For a time-bounded view with delta semantics, use list-calendar-view-delta instead."
+    "queryParams": ["startDateTime", "skiptoken"]
   },
   {
     "pathPattern": "/me/calendarView/delta()",
@@ -3019,7 +3021,7 @@
     "presets": ["work"],
     "workScopes": ["Group.ReadWrite.All"],
     "appScopes": ["Group.ReadWrite.All"],
-    "llmTip": "Permanently deletes a group and all its associated resources (conversations, files, calendar, planner). This action is irreversible. Use get-group to verify the group before deleting."
+    "llmTip": "Deletes a group. Microsoft 365 and security groups can be restored from deletedItems within 30 days. Use get-group to verify the group before deleting."
   },
   {
     "pathPattern": "/groups/{group-id}/members/$ref",
@@ -3482,6 +3484,6 @@
     "presets": ["teams", "teams-write", "work"],
     "workScopes": ["TeamsActivity.Send"],
     "contentType": "application/json",
-    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Graph URL or plain text>, webUrl: <required when source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
+    "llmTip": "Sends a Teams activity feed notification to the current user (the badge + entry in their Activity tab). Body: { topic: { source: 'entityUrl' | 'text', value: <Microsoft Graph URL to a teamsAppInstallation or teamsCatalogApp when source='entityUrl'; plain text when source='text'>, webUrl: <required for source='text', click-through URL> }, activityType: <must be declared in the calling Teams app's manifest, OR the reserved 'systemDefault' which provides free-form Actor+Reason text>, previewText: { content: 'short preview' }, templateParameters?: [{ name, value }] (substituted into the manifest's localized notification template), teamsAppId?: <optional disambiguator when multiple installed apps share a Microsoft Entra app ID — fetch via list-my-installed-teams-apps>, chainId?, iconId? }. Use to ping the user with 'action required' notifications from agentic workflows. See https://learn.microsoft.com/graph/teams-send-activityfeednotifications."
   }
 ]

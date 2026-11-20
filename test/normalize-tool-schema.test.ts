@@ -138,6 +138,36 @@ describe('normalizeToolSchemaRefs', () => {
     for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
   });
 
+  it('still inlines scalar defs when the rest would more than double the schema', () => {
+    // create-planner-plan and create-sharepoint-list-item take this path: the fat def
+    // keeps its ref, but confirm must not hide its type behind one (#793)
+    const shared = {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 40 }, (_, i) => [
+          `field${i}`,
+          { type: 'string', description: 'x'.repeat(40) },
+        ])
+      ),
+    };
+    const properties: Record<string, unknown> = {
+      shared,
+      flag: { type: 'boolean' },
+      confirm: { description: 'Approved.', allOf: [{ $ref: '#/properties/flag' }] },
+    };
+    for (let i = 0; i < 10; i++) properties[`use${i}`] = { $ref: '#/properties/shared' };
+
+    const out = normalizeToolSchemaRefs({ type: 'object', properties });
+    tidyToolJsonSchema(out);
+    const served = out.properties as Record<string, unknown>;
+    expect(served.confirm).toEqual({ type: 'boolean', description: 'Approved.' });
+    expect(served.use0).toEqual({ $ref: expect.stringMatching(/^#\/\$defs\//) });
+    expect(Object.keys(out.$defs as object)).toHaveLength(1);
+    const refs = collectRefs(out);
+    expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
+    for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
   it('still inlines a small def reused many times', () => {
     // Same shape, tiny def - 10 copies still fit under the cap
     const properties: Record<string, unknown> = { shared: { type: 'string' } };
@@ -148,12 +178,25 @@ describe('normalizeToolSchemaRefs', () => {
     expect((out.properties as Record<string, unknown>).use7).toEqual({ type: 'string' });
   });
 
-  it('skips inlining entirely once any def is cyclic', () => {
-    // `wrapper` would expand fine on its own, but `body` recurses so a ref survives
-    // regardless. Expanding wrapper would just add bytes.
+  it('inlines scalar defs while retaining complex defs alongside a recursive def', () => {
     const schema = {
       type: 'object',
       properties: {
+        confirm: {
+          description: 'Set only after approval.',
+          allOf: [{ $ref: '#/properties/confirmType' }],
+        },
+        confirmType: { type: 'boolean' },
+        excludeResponse: {
+          description: 'Omit the response body.',
+          allOf: [{ $ref: '#/properties/excludeType' }],
+        },
+        excludeType: { type: 'boolean' },
+        includeHeaders: {
+          description: 'Include response headers.',
+          allOf: [{ $ref: '#/properties/headersType' }],
+        },
+        headersType: { type: 'boolean' },
         body: {
           type: 'object',
           properties: {
@@ -166,7 +209,21 @@ describe('normalizeToolSchemaRefs', () => {
       },
     };
     const out = normalizeToolSchemaRefs(schema);
+    tidyToolJsonSchema(out);
     expect(Object.keys(out.$defs as object)).toHaveLength(2); // body and wrapper both kept
+    const properties = out.properties as Record<string, Record<string, unknown>>;
+    expect(properties.confirm).toEqual({
+      type: 'boolean',
+      description: 'Set only after approval.',
+    });
+    expect(properties.excludeResponse).toEqual({
+      type: 'boolean',
+      description: 'Omit the response body.',
+    });
+    expect(properties.includeHeaders).toEqual({
+      type: 'boolean',
+      description: 'Include response headers.',
+    });
     const refs = collectRefs(out);
     expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
     for (const r of refs) expect(resolvePointer(out, r)).toBeDefined();
@@ -391,6 +448,23 @@ describe('normalizeToolSchemaRefs', () => {
     });
   });
 
+  it('keeps an existing def named __proto__', () => {
+    // A plain assignment would hit the prototype setter and drop the def, leaving its ref
+    // dangling
+    const schema = JSON.parse(`{
+      "type": "object",
+      "properties": {
+        "shared": { "type": "object", "properties": { "email": { "type": "string" } } },
+        "a": { "$ref": "#/properties/shared" },
+        "b": { "$ref": "#/$defs/__proto__" }
+      },
+      "$defs": { "__proto__": { "type": "string" } }
+    }`);
+    const out = normalizeToolSchemaRefs(schema);
+    expect(Object.keys(out.$defs as object)).toEqual(['__proto__']);
+    for (const r of collectRefs(out)) expect(resolvePointer(out, r)).toBeDefined();
+  });
+
   it('terminates on a cycle that runs through a pre-existing def', () => {
     // findCyclicDefs only sees edges between hoisted defs, so this cycle is invisible to
     // it. Termination rests on refusing to expand a name we didn't hoist.
@@ -462,9 +536,19 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
       z.object({ name: z.string().optional(), childFolders: z.array(folder).optional() })
     );
 
+    // Built like the confirm and excludeResponse params graph-tools adds to every tool
     server.registerTool(
       'create-folder',
-      { description: 'create', inputSchema: z.object({ body: folder }).loose() },
+      {
+        description: 'create',
+        inputSchema: z
+          .object({
+            body: folder,
+            confirm: z.boolean().optional().describe('Approved.'),
+            excludeResponse: z.boolean().optional().describe('Exclude the response'),
+          })
+          .loose(),
+      },
       async () => ({ content: [] })
     );
 
@@ -486,6 +570,13 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
     expect(refs.length).toBeGreaterThan(0); // the recursion did produce a ref
     expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
     for (const r of refs) expect(resolvePointer(tool.inputSchema, r)).toBeDefined();
+    // The recursion must not hide the type of a flag next to it (#793)
+    const properties = (tool.inputSchema as { properties: Record<string, unknown> }).properties;
+    expect(properties.confirm).toEqual({ type: 'boolean', description: 'Approved.' });
+    expect(properties.excludeResponse).toEqual({
+      type: 'boolean',
+      description: 'Exclude the response',
+    });
   });
 
   it('no-ops without throwing when no tools/list handler exists', () => {

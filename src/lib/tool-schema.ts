@@ -16,6 +16,7 @@ import {
   TIMEZONE_PARAM_DESCRIPTION,
   EXPAND_EXTENDED_PROPERTIES_PARAM_DESCRIPTION,
   getAcceptParamDescription,
+  IF_MATCH_PARAM_DESCRIPTION,
   MEMBER_NAME_PARAM_DESCRIPTION,
   DELTA_TOKEN_PARAM_DESCRIPTION,
   type QueryParamConfig,
@@ -34,6 +35,7 @@ export interface ToolSchemaConfig extends DestructiveCheckConfig, QueryParamConf
   supportsTimezone?: boolean;
   supportsExpandExtendedProperties?: boolean;
   acceptType?: string;
+  supportsIfMatch?: boolean;
   nameFilter?: boolean;
   deltaToken?: boolean;
   bodyParams?: Record<string, BodyParamConfig>;
@@ -282,6 +284,18 @@ export function describeToolSchema(
       required: false,
       description: getAcceptParamDescription(config.acceptType),
       schema: { ...ACCEPT_VALUE_JSON_SCHEMA },
+    });
+  }
+
+  // Some generated operations omit a Graph-supported If-Match header. Mirror
+  // the registration path so discovery exposes the same conditional-update input.
+  if (config?.supportsIfMatch && !params.some((p) => p.name.toLowerCase() === 'if-match')) {
+    params.push({
+      name: 'If-Match',
+      in: 'Header',
+      required: false,
+      description: IF_MATCH_PARAM_DESCRIPTION,
+      schema: { type: 'string' },
     });
   }
 
