@@ -190,23 +190,72 @@ These are documented for completeness; no new issues filed.
 
 ---
 
+## Connector-parity writes (2026-11 addendum)
+
+Added to match the Anthropic Microsoft 365 connector. Tools with an `execute` handler
+(`Tool.execute` in `src/tools/types.ts`) build their Graph request bodies server-side from
+validated params; the model never supplies the raw body. The precondition probes for the
+existing guards were also found to be refusing every call in production (they read the MCP
+text envelope from `graphRequest` instead of the raw object); fixed by switching them to
+`makeRequest` and covered by `test/precondition-real-graphclient.test.ts`.
+
+### `mail-draft-reply-create`
+
+- **Graph endpoint**: `POST /me/messages/{message-id}/createReply` | `createReplyAll` | `createForward`
+- **Required scope**: `Mail.ReadWrite`
+- **Graph layer accepts**: a new draft referencing any message the caller can read. The original message is not modified.
+- **No gap**: creates a new draft; sending goes through `mail-draft-send` and its same-domain guard. `message-id` is validated as a single path segment.
+
+### `mail-message-categories-modify` / `mail-thread-categories-modify`
+
+- **Graph endpoint**: `GET` then `PATCH /me/messages/{id}`; the thread tool lists `/me/messages?$filter=conversationId eq '…'` first.
+- **Required scope**: `Mail.ReadWrite`
+- **Graph layer accepts**: any property PATCH on any message — read state, flags, body of drafts, etc.
+- **Deliberate exception to draft-only**: these are the only tools that write to received/sent mail. The handler builds `{ categories }` itself from validated names, so no other property is reachable. The thread tool reads the whole thread first, refuses threads over 100 messages and untrusted `@odata.nextLink`s before any write, and reports per-message failures.
+- **Residual risk**: an agent can relabel mail it can read. Categories are metadata only; nothing is deleted, moved, sent, or marked read.
+
+### `mail-category-create` / `mail-category-update` / `mail-category-delete`
+
+- **Graph endpoint**: `POST /me/outlook/masterCategories`, `PATCH`/`DELETE /me/outlook/masterCategories/{id}`
+- **Required scope**: `MailboxSettings.ReadWrite`
+- **Graph layer accepts**: master-category writes, and — at this scope — any other mailbox setting (auto-replies, time zone, working hours) via `/me/mailboxSettings`.
+- **No gap at the tool level**: the tools target the master-category list only, and the body schemas are `.strict()` (`displayName`/`color` on create, `color` on update). The broader scope is not exposed by any tool. Deleting a category leaves the name on tagged messages, uncolored.
+
+### `teams-chat-create`
+
+- **Graph endpoint**: `POST /chats`
+- **Required scope**: `Chat.Create`
+- **Graph layer accepts**: one-on-one and group chats with any member the caller can bind — in-tenant members, B2B tenant guests (in-tenant object ids), and out-of-tenant users bound with a `tenantId`.
+- **Guardrail (in code)**: the handler builds the body. It always adds the caller, GUID-validates member ids, and GETs each member first: `userType=Guest`, a `#EXT#` UPN, or an unreadable profile refuses the call before `POST /chats`. Members bind with role `owner` and no `tenantId`. Count and topic rules are checked before any call.
+
+### `download-bytes` (tightened)
+
+- **Was**: any `/`-relative GET, returning JSON for non-binary targets — so the new `MailboxSettings.*`, `Calendars.Read.Shared`, and `People.Read` scopes would have been readable through a default-allowed tool, bypassing per-tool policy.
+- **Now**: the path must end in `/content` or `/$value` and contain no `.`/`..` segments (raw or percent-encoded).
+
+---
+
 ## Summary
 
-| Tool                         | Status                                          | Tracked in                                                                        |
-| ---------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
-| `create-draft-email`         | No gap (creates new)                            | —                                                                                 |
-| `update-mail-message`        | Closed (`assertIsDraft`)                        | shipped v2.1.0                                                                    |
-| `add-mail-attachment`        | Closed (`assertIsDraft`)                        | shipped v2.1.0                                                                    |
-| `delete-mail-message`        | Closed (`assertIsDraft`)                        | shipped v2.1.0                                                                    |
-| `create-calendar-event`      | No gap (creates new)                            | —                                                                                 |
-| `update-calendar-event`      | Closed (`assertIsOrganizer`)                    | [#10](https://github.com/aretecp/ms-365-mcp-server/issues/10) (shipped `8fa98e8`) |
-| `delete-calendar-event`      | Closed (`assertIsOrganizer`)                    | [#10](https://github.com/aretecp/ms-365-mcp-server/issues/10) (shipped `8fa98e8`) |
-| `send-chat-message`          | **Gap** (cross-tenant / hidden chats)           | [#12](https://github.com/aretecp/ms-365-mcp-server/issues/12)                     |
-| `send-channel-message`       | **Gap** (private/shared channels)               | [#13](https://github.com/aretecp/ms-365-mcp-server/issues/13)                     |
-| `send-channel-message-reply` | **Gap** (inherited from `send-channel-message`) | [#13](https://github.com/aretecp/ms-365-mcp-server/issues/13)                     |
-| `create-online-meeting`      | No gap (creates new)                            | —                                                                                 |
-| `update-online-meeting`      | No gap (Graph natural scoping)                  | —                                                                                 |
-| `delete-online-meeting`      | No gap (Graph natural scoping)                  | —                                                                                 |
+| Tool                         | Status                                           | Tracked in                                                                        |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `create-draft-email`         | No gap (creates new)                             | —                                                                                 |
+| `update-mail-message`        | Closed (`assertIsDraft`)                         | shipped v2.1.0                                                                    |
+| `add-mail-attachment`        | Closed (`assertIsDraft`)                         | shipped v2.1.0                                                                    |
+| `delete-mail-message`        | Closed (`assertIsDraft`)                         | shipped v2.1.0                                                                    |
+| `create-calendar-event`      | No gap (creates new)                             | —                                                                                 |
+| `update-calendar-event`      | Closed (`assertIsOrganizer`)                     | [#10](https://github.com/aretecp/ms-365-mcp-server/issues/10) (shipped `8fa98e8`) |
+| `delete-calendar-event`      | Closed (`assertIsOrganizer`)                     | [#10](https://github.com/aretecp/ms-365-mcp-server/issues/10) (shipped `8fa98e8`) |
+| `send-chat-message`          | **Gap** (cross-tenant / hidden chats)            | [#12](https://github.com/aretecp/ms-365-mcp-server/issues/12)                     |
+| `send-channel-message`       | **Gap** (private/shared channels)                | [#13](https://github.com/aretecp/ms-365-mcp-server/issues/13)                     |
+| `send-channel-message-reply` | **Gap** (inherited from `send-channel-message`)  | [#13](https://github.com/aretecp/ms-365-mcp-server/issues/13)                     |
+| `create-online-meeting`      | No gap (creates new)                             | —                                                                                 |
+| `update-online-meeting`      | No gap (Graph natural scoping)                   | —                                                                                 |
+| `delete-online-meeting`      | No gap (Graph natural scoping)                   | —                                                                                 |
+| `mail-draft-reply-create`    | No gap (creates new draft)                       | —                                                                                 |
+| `mail-*-categories-modify`   | Deliberate exception; body limited to categories | —                                                                                 |
+| `mail-category-*` writes     | No gap (strict bodies; master list only)         | —                                                                                 |
+| `teams-chat-create`          | Closed (server-built body, in-tenant members)    | —                                                                                 |
 
 Two new gap-tracking issues filed: **#12** (chat target scoping) and **#13** (channel target scoping). Mail and calendar gaps are tracked in pre-existing tickets.
 

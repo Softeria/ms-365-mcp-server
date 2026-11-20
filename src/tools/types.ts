@@ -14,6 +14,8 @@ export interface PreconditionContext {
   policy?: PolicyChecker;
   /** Authenticated caller's UPN (the sender), or null when unknown. */
   userPrincipalName: string | null;
+  /** Authenticated caller's Entra object id, when the session carries one. */
+  userOid?: string;
 }
 
 /**
@@ -144,6 +146,29 @@ export interface Tool {
    * any message id.
    */
   precondition?: ToolPrecondition;
+  /**
+   * Custom handler for a tool that needs more than one Graph call (e.g. read
+   * current state, then write a server-computed body). Replaces the single
+   * request the runtime would otherwise build from {@link Tool.params}; policy
+   * and {@link Tool.precondition} still run first and the call is still logged.
+   *
+   * Call Graph through `graphClient.makeRequest` (raw object, throws on Graph
+   * errors). Return the JSON value to hand the model; throw to fail the call.
+   * {@link Tool.method}/{@link Tool.path} stay descriptive: they drive the
+   * registration hints and docs, not the request.
+   */
+  execute?: (
+    graphClient: GraphClient,
+    params: Record<string, unknown>,
+    ctx: PreconditionContext
+  ) => Promise<unknown>;
+  /**
+   * Condense the raw Graph response for a non-list tool to the fields an agent
+   * needs to understand the result and make its follow-up calls (ids, links,
+   * the values it asked about) — never the whole Graph object. Runs on the
+   * single-request path; list tools use {@link Tool.projection} instead.
+   */
+  shape?: (raw: unknown) => unknown;
   /**
    * Optional per-tool path builder. When present, the runtime uses its return
    * value as the Graph path instead of the static {@link Tool.path} template —

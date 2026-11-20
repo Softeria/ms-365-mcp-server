@@ -51,4 +51,36 @@ export const usersTools: readonly Tool[] = [
     ],
     llmTip: USER_SELECT_TIP,
   },
+  {
+    name: 'people-search',
+    description:
+      'Find the people most relevant to the signed-in user — colleagues AND external contacts they ' +
+      'email or meet with — ranked by how much they interact, with fuzzy name matching. Use this to ' +
+      'resolve "Jane from Contoso" to an address; use user-search for an exact in-tenant directory lookup.',
+    method: 'GET',
+    path: '/me/people',
+    scopes: ['People.Read'],
+    projection: 'person',
+    params: [
+      {
+        name: 'search',
+        location: 'query',
+        schema: z
+          .string()
+          .describe(
+            'Fuzzy name or alias, e.g. "jane" or "Jane Doe". Prefix topic: to match people by email ' +
+              'subject matter, e.g. "topic: budget". Cannot combine with skip.'
+          )
+          .optional(),
+      },
+      OData.filter,
+      OData.select,
+      OData.top,
+      OData.skip,
+    ],
+    llmTip:
+      'Default fields: displayName, scoredEmailAddresses[].address, jobTitle, companyName, and ' +
+      'personType.class (Person or Group) / .subclass (OrganizationUser, PersonalContact, ...). ' +
+      'Omit search to get the top-ranked people overall.',
+  },
 ];

@@ -1,5 +1,82 @@
 import { z } from 'zod';
 import { OData, type Tool, type ToolPrecondition } from './types.js';
+import { searchRequestSchema } from './search.js';
+import { getCloudEndpoints } from '../cloud-config.js';
+
+const ENTRA_OBJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `teams-chat-create` handler. Builds the Graph `POST /chats` body server-side
+ * so the model only names the other members: the caller is always added (Graph
+ * requires it) and every member binds by Entra object id with the `owner` role
+ * and no `tenantId`, which keeps out-of-tenant users out. Tenant guests (B2B
+ * clients/lenders) DO have in-tenant ids, so each member is looked up first and
+ * guests are refused. A oneOnOne create returns the existing chat when one
+ * already exists.
+ */
+const createChat: NonNullable<Tool['execute']> = async (graphClient, params, ctx) => {
+  const chatType = params['chatType'];
+  const topic = params['topic'];
+  const memberIds = Array.isArray(params['memberIds']) ? (params['memberIds'] as unknown[]) : [];
+  if (!ctx.userOid) {
+    throw new Error('the session has no Entra object id for the caller; sign in again.');
+  }
+  const callerOid = ctx.userOid.toLowerCase();
+  const others = [...new Set(memberIds.map((id) => String(id).toLowerCase()))].filter(
+    (id) => id !== callerOid
+  );
+  const invalid = others.filter((id) => !ENTRA_OBJECT_ID.test(id));
+  if (invalid.length > 0) {
+    throw new Error(
+      `memberIds must be Entra object ids (GUIDs) from user-search; got ${JSON.stringify(invalid)}.`
+    );
+  }
+  if (chatType !== 'oneOnOne' && chatType !== 'group') {
+    throw new Error('chatType must be oneOnOne or group.');
+  }
+  if (chatType === 'oneOnOne' && others.length !== 1) {
+    throw new Error(`a oneOnOne chat needs exactly one other member; got ${others.length}.`);
+  }
+  if (chatType === 'group' && others.length < 2) {
+    throw new Error(
+      `a group chat needs at least two other members; got ${others.length}. Use oneOnOne.`
+    );
+  }
+  if (topic !== undefined && chatType !== 'group') {
+    throw new Error('topic is only allowed on group chats.');
+  }
+  // userType may be absent under User.ReadBasic.All; an invited B2B guest's UPN
+  // carries #EXT#. Either signal refuses, and so does an unreadable profile.
+  for (const id of others) {
+    const user = (await graphClient.makeRequest(
+      `/users/${id}?$select=id,userPrincipalName,userType`,
+      { method: 'GET' }
+    )) as { userPrincipalName?: string; userType?: string } | null;
+    const upn = user?.userPrincipalName ?? '';
+    if (upn === '' || user?.userType === 'Guest' || upn.includes('#EXT#')) {
+      throw new Error(
+        `member ${id} (${upn || 'unknown'}) is not a member of your organization; this tool only ` +
+          'opens chats with colleagues. Message external people from Teams directly.'
+      );
+    }
+  }
+  const graphApi = getCloudEndpoints().graphApi;
+  const body = {
+    chatType,
+    ...(topic !== undefined ? { topic } : {}),
+    members: [callerOid, ...others].map((id) => ({
+      '@odata.type': '#microsoft.graph.aadUserConversationMember',
+      roles: ['owner'],
+      'user@odata.bind': `${graphApi}/v1.0/users('${id}')`,
+    })),
+  };
+  const chat = (await graphClient.makeRequest('/chats', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })) as { id?: string; chatType?: string; topic?: string | null; webUrl?: string } | null;
+  // id → teams-chat-message-send; webUrl → for the human.
+  return { id: chat?.id, chatType: chat?.chatType, topic: chat?.topic, webUrl: chat?.webUrl };
+};
 
 /**
  * Guard for teams-online-meeting-find: exactly one lookup key (meeting-id OR
@@ -149,36 +226,14 @@ const CREATE_MEETING_TIP =
   'Graph will create the underlying Teams meeting and attach it to the event in one step. ' +
   'Use teams-online-meeting-create only when you need a join URL without a corresponding calendar entry.';
 
-/**
- * Body for `teams-message-search`. Graph wants the full Microsoft Search
- * envelope; everything but the query string is defaulted so a plain search is a
- * one-field call.
- */
-const messageSearchSchema = z
-  .object({
-    requests: z
-      .array(
-        z.object({
-          entityTypes: z.array(z.literal('chatMessage')).default(['chatMessage']),
-          query: z.object({
-            queryString: z
-              .string()
-              .describe(
-                'What to find. Plain words, or KQL scope terms: from:bob, to:alice, ' +
-                  'sent>2026-08-01, mentions:<entra-oid-without-dashes>, hasAttachment:true, IsRead:false.'
-              ),
-          }),
-          from: z.number().int().min(0).default(0).describe('Offset for paging.'),
-          size: z.number().int().min(1).max(25).default(25).describe('Hits per page, max 25.'),
-          enableTopResults: z
-            .boolean()
-            .optional()
-            .describe('Rank by relevance instead of newest-first.'),
-        })
-      )
-      .length(1),
-  })
-  .describe('Microsoft Search request envelope.');
+const messageSearchSchema = searchRequestSchema({
+  entityTypes: z.array(z.literal('chatMessage')).default(['chatMessage']),
+  queryDescription:
+    'What to find. Plain words, or KQL scope terms: from:bob, to:alice, ' +
+    'sent>2026-08-01, mentions:<entra-oid-without-dashes>, hasAttachment:true, IsRead:false.',
+  maxSize: 25,
+  topResults: true,
+});
 
 export const teamsTools: readonly Tool[] = [
   // ---------- Chats (read) ----------
@@ -407,6 +462,41 @@ export const teamsTools: readonly Tool[] = [
 
   // ---------- Writes ----------
 
+  {
+    name: 'teams-chat-create',
+    description:
+      'Start a Teams chat with colleagues in this tenant: oneOnOne (exactly one other member) or ' +
+      'group (two or more). You are added automatically. Returns the chat including its id; send ' +
+      'the first message with teams-chat-message-send. A oneOnOne create returns the existing chat ' +
+      'if there already is one. Guests and external users are refused.',
+    method: 'POST',
+    path: '/chats',
+    scopes: ['Chat.Create'],
+    execute: createChat,
+    params: [
+      {
+        name: 'chatType',
+        location: 'body',
+        schema: z.enum(['oneOnOne', 'group']).describe('oneOnOne or group'),
+      },
+      {
+        name: 'memberIds',
+        location: 'body',
+        schema: z
+          .array(z.string())
+          .min(1)
+          .describe(
+            'Entra object ids (GUIDs) of the OTHER members — resolve with user-search; do not invent. ' +
+              'Do not include yourself.'
+          ),
+      },
+      {
+        name: 'topic',
+        location: 'body',
+        schema: z.string().min(1).optional().describe('Chat title. Group chats only.'),
+      },
+    ],
+  },
   {
     name: 'teams-chat-message-send',
     description:

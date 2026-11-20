@@ -10,14 +10,14 @@ Hosted on VPS
 
 Hand-written tool surface. Currently exposing:
 
-- **Mail**: read + draft + delete + **same-domain send** (Outlook). Send is allowed only when the sender and every recipient share one domain — see [Same-domain Mail.Send](#same-domain-mailsend).
-- **Calendar**: read + create + update + delete events.
+- **Mail**: read + draft (new, reply, reply-all, forward) + delete drafts + **same-domain send** (Outlook). Send is allowed only when the sender and every recipient share one domain — see [Same-domain Mail.Send](#same-domain-mailsend). Categories (Outlook's labels): manage the master list and add/remove categories on any message or whole thread — the one write allowed on received mail, limited to `categories`.
+- **Calendar**: read + keyword search + free/busy (`calendar-schedule-get`) + suggested times (`calendar-meeting-times-find`) + create + update + delete events.
 - **Files (OneDrive)**: read-only.
-- **SharePoint**: sites, document libraries, lists — read-only.
-- **Teams**: chats, channels (read + send), online meetings (find + create + update + delete), transcripts (read).
-- **Directory**: `identity-get-me`, `user-search`, `user-get`.
+- **SharePoint**: sites, document libraries, lists, and file/folder search across OneDrive + SharePoint (`sharepoint-search`) — read-only.
+- **Teams**: chats (create + read + send), channels (read + send), online meetings (find + create + update + delete), transcripts (read).
+- **Directory**: `identity-get-me`, `user-search`, `user-get`, `people-search` (relevance-ranked people incl. external correspondents).
 - **Contacts**: read-only — compact listing, full detail (including `personalNotes`/`categories`), complete nested contact-folder discovery. No writes, no delta/sync.
-- **Utilities**: `download-bytes`, `parse-teams-url`.
+- **Utilities**: `download-bytes`, `parse-teams-url`, `identity-granted-scopes-get` (scopes this session's token carries vs. what the server requests).
 
 Per-user OAuth sessions in SQLite. Per-user, per-tool policy in YAML with admin UI + SIGHUP reload. HTTP transport only.
 
@@ -50,13 +50,13 @@ npm run dev:http   # binds 127.0.0.1:3000
 Delegated permissions needed for the full v1.5 surface. **Bold scopes need admin consent** on the Entra app registration:
 
 - `User.Read`, `offline_access` (silently injected)
-- Mail: `Mail.Read`, `Mail.ReadWrite`, `Mail.Send` (send is gated by a same-domain guard — see [Same-domain Mail.Send](#same-domain-mailsend))
-- Calendar: `Calendars.Read`, `Calendars.ReadWrite`
+- Mail: `Mail.Read`, `Mail.ReadWrite`, `Mail.Send` (send is gated by a same-domain guard — see [Same-domain Mail.Send](#same-domain-mailsend)), `MailboxSettings.Read`, `MailboxSettings.ReadWrite` (category master list only — no tool touches other mailbox settings)
+- Calendar: `Calendars.Read`, `Calendars.Read.Shared` (`calendar-meeting-times-find`), `Calendars.ReadWrite`
 - Files: `Files.Read`
-- Directory: **`User.ReadBasic.All`**
+- Directory: **`User.ReadBasic.All`**, `People.Read`
 - Contacts: `Contacts.Read`
-- SharePoint: **`Sites.Read.All`**
-- Teams chats: `Chat.ReadBasic`, `Chat.Read`, `ChatMessage.Send`
+- SharePoint: **`Sites.Read.All`** (also covers `sharepoint-search`)
+- Teams chats: `Chat.ReadBasic`, `Chat.Read`, `Chat.Create`, `ChatMessage.Send`
 - Teams channels: **`Team.ReadBasic.All`**, **`Channel.ReadBasic.All`**, **`ChannelMessage.Read.All`**, **`ChannelMessage.Send`**
 - Online meetings: `OnlineMeetings.Read`, `OnlineMeetings.ReadWrite`, **`OnlineMeetingTranscript.Read.All`**
 
@@ -128,7 +128,17 @@ Current preconditions:
 | `calendar-event-update` | event must satisfy `isOrganizer=true`                                       | `assertIsOrganizer` — GET `/me/events/{id}?$select=isOrganizer`, refuse if not organizer                                       |
 | `calendar-event-delete` | event must satisfy `isOrganizer=true`                                       | same                                                                                                                           |
 
-`Mail.ReadWrite` at the Graph layer is broader than what we want to expose. Without `assertIsDraft`, the LLM could PATCH any message (mark as read, flag, recategorize), DELETE any message (clear an inbox), or attach files to received mail. The precondition closes that gap.
+Tools with a server-built request body (`Tool.execute`): the model supplies validated parameters, never the Graph payload.
+
+| Tool                             | Invariant                                                               | Implementation                                                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `mail-message-categories-modify` | only `categories` changes, on any message                               | reads current categories, PATCHes `{ categories }` built from add/remove names                                                |
+| `mail-thread-categories-modify`  | only `categories` changes; ≤100 messages; no partial start on bad input | reads the whole thread (trusted `nextLink` only) before any PATCH; refuses oversized threads; reports per-message failures    |
+| `teams-chat-create`              | caller included; colleagues only (no guests, no external users)         | GETs each member first, refuses `userType=Guest`, `#EXT#` UPNs, or unreadable profiles; binds GUIDs as `owner`, no `tenantId` |
+
+`download-bytes` accepts only binary endpoints: a relative path ending in `/content` or `/$value`, with no `.`/`..` segments. Otherwise it would be a free-form GET reaching any JSON resource the token's scopes allow (mailbox settings, inbox rules), outside per-tool policy.
+
+`Mail.ReadWrite` at the Graph layer is broader than what we want to expose. Without `assertIsDraft`, the LLM could PATCH any message (mark as read, flag, move), DELETE any message (clear an inbox), or attach files to received mail. The precondition closes that gap. The single deliberate exception is categorization: the two `*-categories-modify` tools can tag received and sent mail, but their handlers build a `{ categories }`-only body, so nothing else on the message is reachable.
 
 `Calendars.ReadWrite` has the same shape: it covers any event the signed-in user is an attendee of, not just events they organize. Without `assertIsOrganizer`, the LLM could PATCH an attendee-side event (silently mutating the user's local copy) or DELETE one (which Graph interprets as declining the invite). The precondition restricts both write paths to organizer-owned events; accepted/declined invites must be managed by the human in Outlook.
 

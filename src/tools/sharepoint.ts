@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { OData, type Tool } from './types.js';
+import { flattenedSearch, searchRequestSchema } from './search.js';
 
 const SITE_ID_HINT =
   'Site id is either the GUID returned by sharepoint-site-list or the path form ' +
@@ -12,6 +13,61 @@ const DRIVE_LISTING_TIP =
   'SharePoint document libraries and any other drive you have access to.';
 
 export const sharepointTools: readonly Tool[] = [
+  // ---------- Search ----------
+
+  {
+    name: 'sharepoint-search',
+    description:
+      'Search files and folders by name or content across OneDrive and every SharePoint site the ' +
+      'signed-in user can read. This is the way to FIND a document; the *-children-list tools only ' +
+      "browse a known folder. Results honor the user's existing permissions. Returns " +
+      '{ hits, moreResultsAvailable, nextFrom? }; for the next page resend with from = nextFrom.',
+    method: 'POST',
+    path: '/search/query',
+    // driveItem/listItem/list search accepts Sites.Read.All (already
+    // requested by the sharepoint-* reads). No new consent.
+    scopes: ['Sites.Read.All'],
+    readOnly: true,
+    execute: flattenedSearch((item) => {
+      const parent = (item['parentReference'] ?? {}) as Record<string, unknown>;
+      const modifiedBy = (item['lastModifiedBy'] ?? {}) as { user?: { displayName?: string } };
+      return {
+        id: item['id'],
+        driveId: parent['driveId'],
+        name: item['name'] ?? item['displayName'],
+        webUrl: item['webUrl'],
+        lastModifiedDateTime: item['lastModifiedDateTime'],
+        lastModifiedBy: modifiedBy.user?.displayName,
+        type: item['@odata.type'],
+      };
+    }),
+    params: [
+      {
+        name: 'body',
+        location: 'body',
+        schema: searchRequestSchema({
+          entityTypes: z
+            .array(z.enum(['driveItem', 'listItem', 'list']))
+            .min(1)
+            .default(['driveItem'])
+            .describe(
+              'driveItem (files/folders, default), listItem, list. To find sites use sharepoint-site-list.'
+            ),
+          queryDescription:
+            'Words to find, plus optional KQL: filename:budget, filetype:xlsx, author:"Jane Doe", ' +
+            'path:"https://tenant.sharepoint.com/sites/Deals", LastModifiedTime>2026-01-01. ' +
+            'Files only: add ContentTypeId:0x0101*. Folders only: add ContentTypeId:0x0120*.',
+          maxSize: 25,
+        }),
+      },
+    ],
+    llmTip:
+      'A driveItem hit carries id + driveId: pass them to sharepoint-drive-item-get / ' +
+      'sharepoint-drive-children-list (drive-id + driveItem-id), or fetch bytes with download-bytes ' +
+      'at /drives/{driveId}/items/{id}/content. Without a ContentTypeId filter, driveItem hits also ' +
+      'include site pages and news posts.',
+  },
+
   // ---------- Sites ----------
 
   {

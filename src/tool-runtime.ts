@@ -21,6 +21,7 @@ import { resolveEnabledToolsets, isToolEnabled, type ToolsetSelection } from './
 import { getCloudEndpoints } from './cloud-config.js';
 import { encodePathValue } from './tools/graph-path.js';
 import { signCursor, verifyCursor, resolveTrustedNextLink } from './tools/contacts-cursor.js';
+import { resolveAuthScopes } from './oauth/scopes.js';
 
 /** Hard cap on Graph `$top` for list requests, configurable via env. */
 function maxTopFromEnv(): number | undefined {
@@ -652,6 +653,27 @@ async function executeTool(
       });
     }
 
+    if (tool.execute) {
+      const raw = await tool.execute(graphClient, params, {
+        policy,
+        userPrincipalName: upn,
+        userOid: ctx?.userOid,
+      });
+      const result = asCallToolResult(graphClient.formatJsonResponse(raw));
+      toolCallLog.record({
+        id: crypto.randomUUID(),
+        ts: startedAt,
+        upn,
+        toolName: tool.name,
+        status: 'allowed',
+        latencyMs: Date.now() - startedAt,
+        argsExcerpt: redactArgs(params),
+        responseExcerpt: redactResponse(result.content[0]?.text ?? null),
+        errorText: null,
+      });
+      return result;
+    }
+
     const paramByName = new Map<string, ToolParam>();
     for (const p of tool.params) paramByName.set(p.name, p);
 
@@ -793,7 +815,13 @@ async function executeTool(
 
     logger.info(`Making graph request to ${path} with options: ${JSON.stringify(requestOptions)}`);
 
-    const response = await graphClient.graphRequest(path, requestOptions);
+    // `shape` condenses the raw Graph object to what an agent needs for its
+    // next call; makeRequest throws on Graph errors, landing in the catch below.
+    const response = tool.shape
+      ? graphClient.formatJsonResponse(
+          tool.shape(await graphClient.makeRequest(path, requestOptions))
+        )
+      : await graphClient.graphRequest(path, requestOptions);
 
     const fetchAllPages = params.fetchAllPages === true;
     if (fetchAllPages && response?.content?.[0]?.text) {
@@ -1183,7 +1211,7 @@ export function registerTools(
   }
 
   // Utility tools always register (core utilities, no toolset gating).
-  const utilityCtx: UtilityToolContext = { graphClient };
+  const utilityCtx: UtilityToolContext = { graphClient, requestedScopes: resolveAuthScopes() };
   for (const utility of utilityTools) {
     try {
       registerUtilityToolWithMcp(server, utility, utilityCtx, options.policy);

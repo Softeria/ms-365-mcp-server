@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type GraphClient from '../graph-client.js';
 import { parseTeamsUrl } from '../lib/teams-url-parser.js';
+import { getRequestContext } from '../request-context.js';
 
 type ContentItem = { type: 'text'; text: string; [key: string]: unknown };
 
@@ -13,6 +14,8 @@ export interface CallToolResult {
 
 export interface UtilityToolContext {
   graphClient: GraphClient;
+  /** Every delegated scope the server requests at /authorize (`resolveAuthScopes`). */
+  requestedScopes: readonly string[];
 }
 
 /**
@@ -35,6 +38,32 @@ export interface UtilityTool {
 }
 
 export const utilityTools: readonly UtilityTool[] = [
+  {
+    name: 'identity-granted-scopes-get',
+    method: 'GET',
+    path: 'tool:identity-granted-scopes-get',
+    description:
+      "List the Microsoft Graph permissions this session's token actually carries, and which " +
+      'permissions the server requests that it lacks. Use when a tool fails with a scope/permission ' +
+      'error: a missing scope means the user must reconnect (and an admin may need to consent).',
+    readOnlyHint: true,
+    openWorldHint: false,
+    buildSchema: () => ({}),
+    execute: async (_params, { requestedScopes }) => {
+      // Microsoft may return Graph scopes bare (Mail.Read) or resource-qualified
+      // (https://graph.microsoft.com/Mail.Read); compare on the bare name.
+      const granted = (getRequestContext()?.grantedScopes ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((s) => s.slice(s.lastIndexOf('/') + 1))
+        .sort();
+      const grantedLower = new Set(granted.map((s) => s.toLowerCase()));
+      const missing = requestedScopes.filter((s) => !grantedLower.has(s.toLowerCase())).sort();
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ granted, missing }) }],
+      };
+    },
+  },
   {
     name: 'parse-teams-url',
     method: 'POST',
@@ -106,6 +135,34 @@ export const utilityTools: readonly UtilityTool[] = [
               text: JSON.stringify({
                 error:
                   'target must be a relative Microsoft Graph path starting with "/", e.g. /me/photo/$value or /me/drive/items/{driveItem-id}/content. Absolute URLs are not accepted; if you have an @microsoft.graph.downloadUrl, use the equivalent /content or /$value path instead (Graph 302-redirects to the same bytes).',
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      // Binary endpoints only. Without this, download-bytes is a free-form GET
+      // that reaches any JSON resource the token's scopes allow (mailbox
+      // settings, inbox rules, other users' calendars), bypassing per-tool
+      // policy. Dot segments are refused because URL normalization would let
+      // `/x/../y/$value` reach a different resource than the suffix suggests.
+      const pathPart = target.split('?')[0];
+      const hasDotSegment = pathPart.split('/').some((seg) => {
+        try {
+          return /^\.+$/.test(decodeURIComponent(seg));
+        } catch {
+          return true;
+        }
+      });
+      if (hasDotSegment || pathPart.includes('\\') || !/\/(content|\$value)$/.test(pathPart)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error:
+                  'target must be a binary Graph endpoint: a path ending in /content or /$value with no "." or ".." segments. ' +
+                  'Use the domain tools (mail-*, calendar-*, sharepoint-*, ...) for JSON resources.',
               }),
             },
           ],
