@@ -49,13 +49,20 @@ interface SearchResponse {
   value?: { hitsContainers?: { hits?: SearchHit[]; moreResultsAvailable?: boolean }[] }[];
 }
 
+/** Per-hit snippet cap; Graph summaries are highlight excerpts, normally a few hundred chars. */
+const MAX_SUMMARY_CHARS = 1_000;
+/** Char budget for the flattened hit list. Hits past it are left for the next page, not dropped. */
+const HITS_CHAR_BUDGET = 50_000;
+
 /**
  * `Tool.execute` handler for a Microsoft Search tool: POSTs the validated
  * envelope, then flattens Graph's `value[0].hitsContainers[0].hits[]` into
- * `{ hits, moreResultsAvailable, nextFrom? }`, keeping only the fields `pick`
- * returns per hit. The raw search resource carries full identity sets and
- * SharePoint ids per hit, which the response-size ceiling (it only trims a
- * top-level `value`) would not bound.
+ * `{ hits, moreResultsAvailable, nextFrom?, truncated? }`, keeping only the
+ * fields `pick` returns per hit. `execute` results bypass the runtime's
+ * response-size ceiling (which only trims a top-level `value`), so this
+ * handler bounds its own output: summaries are capped, and once the hit list
+ * reaches the budget the remaining hits are omitted with `nextFrom` pointing
+ * at the first omitted one, so a follow-up call resumes without losing any.
  */
 export function flattenedSearch(
   pick: (resource: Record<string, unknown>) => Record<string, unknown>
@@ -67,17 +74,33 @@ export function flattenedSearch(
       body: JSON.stringify(body),
     })) as SearchResponse | null;
     const container = raw?.value?.[0]?.hitsContainers?.[0];
-    const hits = (container?.hits ?? []).map((hit) => ({
-      ...pick(hit.resource ?? {}),
-      hitId: hit.hitId,
-      summary: hit.summary,
-    }));
-    const moreResultsAvailable = container?.moreResultsAvailable === true;
+    const allHits = container?.hits ?? [];
+    const hits: Record<string, unknown>[] = [];
+    let used = 0;
+    for (const hit of allHits) {
+      const summary =
+        hit.summary && hit.summary.length > MAX_SUMMARY_CHARS
+          ? `${hit.summary.slice(0, MAX_SUMMARY_CHARS)}…`
+          : hit.summary;
+      const flat = { ...pick(hit.resource ?? {}), hitId: hit.hitId, summary };
+      const size = JSON.stringify(flat).length;
+      if (hits.length > 0 && used + size > HITS_CHAR_BUDGET) break;
+      hits.push(flat);
+      used += size;
+    }
+    const truncated = hits.length < allHits.length;
+    const moreResultsAvailable = truncated || container?.moreResultsAvailable === true;
     const from = body?.requests?.[0]?.from ?? 0;
     return {
       hits,
       moreResultsAvailable,
       ...(moreResultsAvailable ? { nextFrom: from + hits.length } : {}),
+      ...(truncated
+        ? {
+            truncated: true,
+            hint: `Response size budget reached after ${hits.length} of ${allHits.length} hits; resend with from = nextFrom for the rest.`,
+          }
+        : {}),
     };
   };
 }

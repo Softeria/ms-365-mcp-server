@@ -344,6 +344,41 @@ describe('sharepoint-search response', () => {
       nextFrom: 26,
     });
   });
+
+  const searchPage = (hits: unknown[], moreResultsAvailable = false) => ({
+    value: [{ hitsContainers: [{ moreResultsAvailable, hits }] }],
+  });
+  const searchBody = (from: number) => ({
+    requests: [{ entityTypes: ['driveItem'], query: { queryString: 'x' }, from, size: 25 }],
+  });
+
+  it('caps an oversized summary', async () => {
+    stubGraph(() => searchPage([{ hitId: 'h1', summary: 'x'.repeat(200_000), resource: {} }]));
+    const { text } = await run('sharepoint-search', { body: searchBody(0) });
+    expect(text.length).toBeLessThan(2_000);
+    const out = JSON.parse(text);
+    expect(out.hits).toHaveLength(1);
+    expect(out.moreResultsAvailable).toBe(false);
+  });
+
+  it('stops at the size budget and points nextFrom at the first omitted hit', async () => {
+    const hits = Array.from({ length: 25 }, (_, i) => ({
+      hitId: `h${i}`,
+      summary: 's'.repeat(900),
+      resource: { id: `item-${i}`, name: `${i}-${'n'.repeat(5_000)}` },
+    }));
+    stubGraph(() => searchPage(hits));
+    const { text } = await run('sharepoint-search', { body: searchBody(50) });
+    expect(text.length).toBeLessThan(60_000);
+    const out = JSON.parse(text);
+    const kept = out.hits.length;
+    expect(kept).toBeGreaterThan(0);
+    expect(kept).toBeLessThan(25);
+    expect(out.hits.map((h: { hitId: string }) => h.hitId)).toEqual(
+      hits.slice(0, kept).map((h) => h.hitId)
+    );
+    expect(out).toMatchObject({ truncated: true, moreResultsAvailable: true, nextFrom: 50 + kept });
+  });
 });
 
 describe('execute tools respect policy', () => {
