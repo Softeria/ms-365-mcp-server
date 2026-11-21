@@ -3183,6 +3183,18 @@ function rawValueAddsSegments(template: string, names: string[], value: string):
   return isTail ? value.includes(':') : value.includes('/');
 }
 
+// Fills the placeholder of one path param, written {message-id} (endpoints.json) or
+// :messageId (generated client). A :name placeholder ends where the name does, so
+// :chatMessageId does not fill the start of :chatMessageId1. A function replacement,
+// so "$`" and "$'" in a raw value are not replacement patterns.
+function fillPathParam(path: string, names: string[], value: string): string {
+  for (const name of new Set(names)) {
+    const colonForm = new RegExp(`:${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`);
+    path = path.replace(`{${name}}`, () => value).replace(colonForm, () => value);
+  }
+  return path;
+}
+
 function invalidPathParameter(message: string) {
   return {
     content: [
@@ -3417,11 +3429,7 @@ async function executeGraphTool(
             // Replace both the original param name and the camelCase variant
             // to handle {message-id} (endpoints.json) and :messageId (generated client) formats
             // A function, so "$`" and "$'" in a raw value are not replacement patterns
-            path = path
-              .replace(`{${paramName}}`, () => encodedValue)
-              .replace(`:${paramName}`, () => encodedValue)
-              .replace(`{${camelCaseParamName}}`, () => encodedValue)
-              .replace(`:${camelCaseParamName}`, () => encodedValue);
+            path = fillPathParam(path, names, encodedValue);
             break;
           }
 
@@ -3472,11 +3480,7 @@ async function executeGraphTool(
         const encodedValue = encodeURIComponent(
           escapeIfStringLiteral(tool.path, [paramName, camelCaseParamName], paramValue)
         ).replace(/%3D/g, '=');
-        path = path
-          .replace(`{${paramName}}`, () => encodedValue)
-          .replace(`:${paramName}`, () => encodedValue)
-          .replace(`{${camelCaseParamName}}`, () => encodedValue)
-          .replace(`:${camelCaseParamName}`, () => encodedValue);
+        path = fillPathParam(path, [paramName, camelCaseParamName], encodedValue);
         logger.info(`Path param fallback: replaced :${camelCaseParamName} with encoded value`);
       } else if (paramName.toLowerCase() === 'accept' && config?.acceptType) {
         // The synthetic Accept param added for acceptType endpoints. It has no entry in
