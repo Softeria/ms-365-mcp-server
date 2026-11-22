@@ -434,6 +434,15 @@ describe('endpoints.json validation', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('should not expose chat message replies', () => {
+    // Replies are channel-only; Graph 404s GET and POST on /chats/.../replies
+    const offenders = endpoints
+      .filter((e) => /(^|\/)chats\/[^/]+\/messages\/[^/]+\/replies(\/|$)/.test(e.pathPattern))
+      .map((e) => `${e.method} ${e.toolName}`);
+
+    expect(offenders).toEqual([]);
+  });
+
   it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
     const checklistTools = [
       'list-todo-checklist-items',
@@ -459,12 +468,7 @@ describe('endpoints.json validation', () => {
   });
 
   it('should document the @mention shape on the Teams send/reply tools', () => {
-    const mentionTools = [
-      'send-chat-message',
-      'send-channel-message',
-      'reply-to-channel-message',
-      'reply-to-chat-message',
-    ];
+    const mentionTools = ['send-chat-message', 'send-channel-message', 'reply-to-channel-message'];
 
     for (const toolName of mentionTools) {
       const endpoint = endpoints.find((e) => e.toolName === toolName);

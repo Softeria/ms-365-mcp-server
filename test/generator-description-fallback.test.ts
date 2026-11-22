@@ -28,7 +28,7 @@ describe('synthesizeDescriptionFromToolName', () => {
     ['move-rename-onedrive-item', 'Move or rename a OneDrive item.'],
     ['tentatively-accept-event', 'Tentatively accept an event.'],
     // The verb phrase already carries the preposition.
-    ['reply-to-chat-message', 'Reply to a chat message.'],
+    ['reply-to-channel-message', 'Reply to a channel message.'],
     // No article for lists, plurals, or possessives.
     ['list-chats', 'List chats.'],
     ['add-excel-table-rows', 'Add Excel table rows.'],

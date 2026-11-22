@@ -2288,15 +2288,6 @@
     "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
   },
   {
-    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
-    "method": "post",
-    "toolName": "reply-to-chat-message",
-    "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Send"],
-    "mentionShorthand": true,
-    "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType 'html' in the body — plain text contentType gets mangled by Graph API. Alternatively, hand-build the raw form: put an <at id=\"0\">Name</at> tag in the html content and add a mentions array to the request body, as a sibling of the body property (not a separate top-level tool parameter): { body: { contentType: 'html', content: 'Hi <at id=\"0\">Name</at>' }, mentions: [{ id: 0, mentionText: 'Name', mentioned: { user: { id: '<aad-user-id>', displayName: 'Name', userIdentityType: 'aadUser' } } }] }. Each mention id must match its <at id> value; include userIdentityType: 'aadUser' or Graph returns 400 'value without a type name'."
-  },
-  {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/setReaction",
     "method": "post",
     "toolName": "set-chat-message-reaction",

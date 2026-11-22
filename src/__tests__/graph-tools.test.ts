@@ -5378,7 +5378,6 @@ describe('graph-tools', () => {
       ['update-channel-message', 'patch'],
       ['update-channel-message-reply', 'patch'],
       ['send-chat-message', 'post'],
-      ['reply-to-chat-message', 'post'],
       ['update-chat-message', 'patch'],
     ] as const;
 

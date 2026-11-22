@@ -129,7 +129,6 @@ describe('per-tool behavior on the real tool surface', () => {
       { teamId: 't1', channelId: 'c1', chatMessageId: 'm0', chatMessageId1: 'r0' },
     ],
     ['send-chat-message', { chatId: 'c1' }],
-    ['reply-to-chat-message', { chatId: 'c1', chatMessageId: 'm0' }],
     ['update-chat-message', { chatId: 'c1', chatMessageId: 'm0' }],
   ])('rewrites the <at user-id> mention shorthand on %s', async (name, pathParams) => {
     const result = await registered(name).handler({
