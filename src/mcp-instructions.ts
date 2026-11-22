@@ -25,7 +25,7 @@ function buildGeneralMcpInstructions(opts: McpInstructionsContext): string {
     parts.push(
       'App mode: there is no signed-in user, so /me paths do not work. Name the user in /users/{user-id} paths with a UPN or object id.'
     );
-  if (opts.readOnly) parts.push('This server is read-only; write operations are disabled.');
+  if (opts.readOnly) parts.push('This server is read-only; writes to Microsoft 365 are disabled.');
   else
     parts.push(
       'Mail reply, reply-all and forward tools (including their drafts and shared mailboxes): Graph puts comment into an HTML body, so plain-text line breaks are usually lost; use <br> for line breaks or <p> for paragraphs.'
