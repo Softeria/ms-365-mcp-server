@@ -8,30 +8,30 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 ## Summary
 
-| Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                       |
-| ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 372<br>182 | 65<br>38 | -<br>-               | All available tools                                                                                                               |
-| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                     |
-| `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                       |
-| `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                      |
-| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   26<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                               |
-| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                        |
-| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   24<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                     |
-| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                       |
-| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                     |
-| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                               |
-| `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     8<br>8 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                     |
-| `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                          |
-| `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   73<br>43 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                            |
-| `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading |
-| `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                             |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 192<br>112 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                             |
+| Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                            |
+| ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                                    |
+| `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                          |
+| `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                            |
+| `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                           |
+| `files`       | [full](#files-full)<br>[read only](#files-read-only)             |   26<br>14 |   3<br>2 | -<br>-               | OneDrive file and folder operations                                                                                                    |
+| `mail`        | [full](#mail-full)<br>[read only](#mail-read-only)               |   50<br>19 |   5<br>3 | -<br>-               | Email operations (read, send, manage folders, attachments)                                                                             |
+| `onedrive`    | [full](#onedrive-full)<br>[read only](#onedrive-read-only)       |   24<br>12 |   2<br>1 | -<br>-               | OneDrive app only: drive and file operations, excluding Excel                                                                          |
+| `onenote`     | [full](#onenote-full)<br>[read only](#onenote-read-only)         |   29<br>17 |   5<br>2 | -<br>-               | OneNote notebook operations                                                                                                            |
+| `outlook`     | [full](#outlook-full)<br>[read only](#outlook-read-only)         |   97<br>37 |   8<br>6 | -<br>-               | Outlook app only: mail, calendar and contacts                                                                                          |
+| `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                                    |
+| `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     8<br>8 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                          |
+| `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                               |
+| `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   71<br>42 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                                 |
+| `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading |
+| `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                                  |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                                  |
 
 ## `all` full
 
 All available tools
 
-Tools (372):
+Tools (370):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -235,7 +235,6 @@ Tools (372):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-contact-folder-child-folders`
@@ -342,7 +341,6 @@ Tools (372):
 - `reply-mail-message`
 - `reply-shared-mailbox-mail`
 - `reply-to-channel-message`
-- `reply-to-chat-message`
 - `reply-to-group-thread`
 - `search-files`
 - `search-onedrive-files`
@@ -478,7 +476,7 @@ Scopes (65):
 
 All available tools
 
-Tools (182):
+Tools (181):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -565,7 +563,6 @@ Tools (182):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-contact-folder-child-folders`
@@ -1807,7 +1804,7 @@ Teams app only: chats, channels, meetings and presence
 
 Requires `--org-mode`.
 
-Tools (73):
+Tools (71):
 
 - `add-team-member`
 - `clear-my-presence`
@@ -1845,7 +1842,6 @@ Tools (73):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`
@@ -1865,7 +1861,6 @@ Tools (73):
 - `pin-chat-message`
 - `remove-team-member`
 - `reply-to-channel-message`
-- `reply-to-chat-message`
 - `send-channel-message`
 - `send-chat-message`
 - `send-my-activity-notification`
@@ -1923,7 +1918,7 @@ Teams app only: chats, channels, meetings and presence
 
 Requires `--org-mode`.
 
-Tools (43):
+Tools (42):
 
 - `download-bytes`
 - `download-bytes-to-file`
@@ -1951,7 +1946,6 @@ Tools (43):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`
@@ -1992,7 +1986,7 @@ Scopes (18):
 
 ## `teams-write` full
 
-Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading
+Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading
 
 Requires `--org-mode`.
 
@@ -2021,7 +2015,7 @@ Scopes (6):
 
 ## `teams-write` read only
 
-Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading
+Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading
 
 Requires `--org-mode`.
 
@@ -2101,7 +2095,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (192):
+Tools (190):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2198,7 +2192,6 @@ Tools (192):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`
@@ -2260,7 +2253,6 @@ Tools (192):
 - `reply-all-shared-mailbox-mail`
 - `reply-shared-mailbox-mail`
 - `reply-to-channel-message`
-- `reply-to-chat-message`
 - `reply-to-group-thread`
 - `search-files`
 - `search-query`
@@ -2360,7 +2352,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (112):
+Tools (111):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -2417,7 +2409,6 @@ Tools (112):
 - `list-channel-tabs`
 - `list-chat-members`
 - `list-chat-message-hosted-contents`
-- `list-chat-message-replies`
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`

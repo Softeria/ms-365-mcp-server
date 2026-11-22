@@ -71,7 +71,7 @@ const PRESET_META: Record<
   },
   'teams-write': {
     description:
-      'Teams send-only: send/reply in chats and channels, list chats/teams/channels by name, activity notifications - no message reading',
+      'Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading',
     requiresOrgMode: true,
     // A write-only preset must not include the generic byte readers.
     omitUniversalUtilities: true,

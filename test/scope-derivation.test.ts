@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildAllowedScopeDiagnostics,
   buildScopesFromEndpoints,
   collapseScopeHierarchy,
   parseAllowedScopes,
@@ -182,5 +183,30 @@ describe('allowed scope helpers', () => {
         ])
       );
     });
+  });
+});
+
+// Graph rejects ChatMessage.Read on /chats/{id}/messages* with 403 and asks for
+// Chat.Read or Chat.ReadWrite (issue #849).
+describe('chat message read tools', () => {
+  const tools = ['list-chat-messages', 'get-chat-message', 'list-chat-message-hosted-contents'];
+  const disabledWith = (allowedScopes: string) =>
+    buildAllowedScopeDiagnostics({ orgMode: true, allowedScopes })
+      .disabledTools.map((t) => t.toolName)
+      .filter((name) => tools.includes(name));
+
+  it('are disabled when only ChatMessage.Read is allowed', () => {
+    expect(disabledWith('Chat.ReadBasic ChatMessage.Read').sort()).toEqual([...tools].sort());
+  });
+
+  it('are enabled by Chat.Read or Chat.ReadWrite', () => {
+    expect(disabledWith('Chat.Read')).toEqual([]);
+    expect(disabledWith('Chat.ReadWrite')).toEqual([]);
+  });
+
+  it('request Chat.Read at login', () => {
+    expect(resolveAuthScopes({ orgMode: true, enabledTools: `^(${tools.join('|')})$` })).toEqual([
+      'Chat.Read',
+    ]);
   });
 });

@@ -330,7 +330,7 @@ export function synthesizeDescriptionFromToolName(toolName) {
   }
   if (!verb) return null;
 
-  // reply-to-chat-message: the verb phrase already ends in that preposition.
+  // reply-to-channel-message: the verb phrase already ends in that preposition.
   if (parts[0] === 'to' && verb.endsWith(' to')) parts.shift();
   if (parts.length === 0) return null;
 

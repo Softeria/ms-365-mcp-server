@@ -423,6 +423,26 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not declare delegated ChatMessage.Read', () => {
+    // Graph 403s every chat message read with only ChatMessage.Read and asks for Chat.Read (#849)
+    const offenders = endpoints
+      .filter((e) =>
+        [...(e.scopes ?? []), ...(e.workScopes ?? [])].flat().includes('ChatMessage.Read')
+      )
+      .map((e) => e.toolName);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('should not expose chat message replies', () => {
+    // Replies are channel-only; Graph 404s GET and POST on /chats/.../replies
+    const offenders = endpoints
+      .filter((e) => /(^|\/)chats\/[^/]+\/messages\/[^/]+\/replies(\/|$)/.test(e.pathPattern))
+      .map((e) => `${e.method} ${e.toolName}`);
+
+    expect(offenders).toEqual([]);
+  });
+
   it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
     const checklistTools = [
       'list-todo-checklist-items',
@@ -448,12 +468,7 @@ describe('endpoints.json validation', () => {
   });
 
   it('should document the @mention shape on the Teams send/reply tools', () => {
-    const mentionTools = [
-      'send-chat-message',
-      'send-channel-message',
-      'reply-to-channel-message',
-      'reply-to-chat-message',
-    ];
+    const mentionTools = ['send-chat-message', 'send-channel-message', 'reply-to-channel-message'];
 
     for (const toolName of mentionTools) {
       const endpoint = endpoints.find((e) => e.toolName === toolName);
