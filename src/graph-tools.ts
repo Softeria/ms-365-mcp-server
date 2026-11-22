@@ -1153,7 +1153,11 @@ interface UtilityTool {
   buildSchema: (ctx: UtilityToolContext) => Record<string, z.ZodTypeAny>;
   execute: (params: Record<string, unknown>, ctx: UtilityToolContext) => Promise<CallToolResult>;
   readOnlyHint?: boolean;
+  destructiveHint?: boolean;
   openWorldHint?: boolean;
+  // Kept under --read-only even though readOnlyHint is false. Only for a tool that
+  // never writes to Microsoft 365.
+  allowedInReadOnly?: boolean;
   // When true, this tool reads or writes the server's local filesystem and is only
   // registered in stdio mode, or over HTTP with --http-local-file-tools.
   stdioOnly?: boolean;
@@ -1167,7 +1171,7 @@ export function isUtilityToolAvailable(
   utility: UtilityTool,
   options: { readOnly: boolean; httpMode: boolean; scopeMode: ScopeMode }
 ): boolean {
-  if (options.readOnly && !utility.readOnlyHint) return false;
+  if (options.readOnly && !utility.readOnlyHint && !utility.allowedInReadOnly) return false;
   if (options.httpMode && utility.stdioOnly) return false;
   if (options.scopeMode === 'app' && utility.meOnly) return false;
   if (utility.enabled && !utility.enabled()) return false;
@@ -2446,7 +2450,11 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
     // get-download-url own the high-signal "drive"/"sharepoint" search terms.
     description:
       'Write authenticated Microsoft Graph byte content to a local file on the server, returning { path, contentType, bytesWritten } instead of base64. An out-of-band way to save mail attachments and meeting recordings. With --enable-attachment-urls in HTTP mode, prefer get-download-url to hand their bytes to an external downloader or converter. Also handles profile photos and Teams hosted content. Writes to an absolute outputPath and never overwrites an existing file. stdio mode, or HTTP with --http-local-file-tools. For OneDrive or SharePoint file content, get-download-url is preferred — it returns a pre-authenticated URL for fully out-of-band download without the server fetching the bytes.',
-    readOnlyHint: true,
+    // Writes to the local disk, so clients must not see it as read-only. It only
+    // creates new files, and it only reads from Microsoft 365, so --read-only keeps it.
+    readOnlyHint: false,
+    destructiveHint: false,
+    allowedInReadOnly: true,
     openWorldHint: true,
     stdioOnly: true,
     buildSchema: (ctx) => {
@@ -2963,6 +2971,9 @@ function registerUtilityToolWithMcp(
     {
       title: utility.name,
       readOnlyHint: utility.readOnlyHint ?? true,
+      ...(utility.destructiveHint !== undefined
+        ? { destructiveHint: utility.destructiveHint }
+        : {}),
       openWorldHint: utility.openWorldHint ?? true,
     },
     async (params) => executeUtilityTool(utility, ctx, params)

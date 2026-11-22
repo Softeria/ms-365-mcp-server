@@ -4284,9 +4284,9 @@ describe('graph-tools', () => {
     });
   });
 
-  // ---- 12. Read-only mode filters utility tools without readOnlyHint ----
+  // ---- 12. Read-only mode filters write utility tools ----
   describe('utility tools in read-only mode', () => {
-    it('skips utility tools whose readOnlyHint is not true', async () => {
+    it('keeps read-only utility tools and skips write ones', async () => {
       mockEndpoints.length = 0;
       mockEndpointsJson = [];
 
@@ -4294,10 +4294,42 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, {} as any, { readOnly: true });
 
-      // Both built-in utility tools (download-bytes, parse-teams-url) have
-      // readOnlyHint: true so they should be present.
       expect(server.tools.has('download-bytes')).toBe(true);
       expect(server.tools.has('parse-teams-url')).toBe(true);
+      expect(server.tools.has('get-upload-url')).toBe(false);
+    });
+
+    it('keeps download-bytes-to-file, but tells clients it writes files', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any, { readOnly: true });
+
+      const call = server.tool.mock.calls.find((c) => c[0] === 'download-bytes-to-file');
+      expect(call?.[3]).toEqual({
+        title: 'download-bytes-to-file',
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+      });
+    });
+  });
+
+  describe('utility tool annotations', () => {
+    it('sends destructiveHint only for download-bytes-to-file', async () => {
+      mockEndpoints.length = 0;
+      mockEndpointsJson = [];
+
+      const server = createMockServer();
+      const { registerGraphTools } = await loadModule();
+      registerGraphTools(server as any, {} as any, {});
+
+      const withHint = server.tool.mock.calls
+        .filter((c) => 'destructiveHint' in c[3])
+        .map((c) => c[0]);
+      expect(withHint).toEqual(['download-bytes-to-file']);
     });
   });
 
