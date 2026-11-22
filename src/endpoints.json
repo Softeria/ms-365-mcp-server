@@ -1987,7 +1987,7 @@
     "method": "get",
     "toolName": "list-chat-messages",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"],
+    "workScopes": ["Chat.Read"],
     "appScopes": ["Chat.Read.All"],
     "llmTip": "Lists messages in a chat. $top is capped at 50 (higher values return 400) and $orderby accepts only descending order on createdDateTime or lastModifiedDateTime - ascending is rejected. Meeting chats mostly hold system events; transcripts are not available here, use list-meeting-transcripts instead."
   },
@@ -1996,7 +1996,7 @@
     "method": "get",
     "toolName": "get-chat-message",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"],
+    "workScopes": ["Chat.Read"],
     "appScopes": ["Chat.Read.All"]
   },
   {
@@ -2013,7 +2013,7 @@
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
     "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"],
+    "workScopes": ["Chat.Read"],
     "appScopes": ["Chat.Read.All"],
     "llmTip": "Lists hosted-content references (inline images, code snippets) attached to a Teams chat message. Returns { id, contentType } per item. To download bytes, call download-bytes with target=/chats/{chat-id}/messages/{chatMessage-id}/hostedContents/{id}/$value. IDs can also be extracted from the <img src> URL in the message body between /hostedContents/ and /$value."
   },
@@ -2286,13 +2286,6 @@
     "workScopes": ["ChannelSettings.Read.All"],
     "appScopes": [["Files.Read.All"], ["Group.Read.All"], ["Sites.Read.All"]],
     "llmTip": "Gets the SharePoint driveItem (folder) that contains the files for a Teams channel. Returns id, name, webUrl, and parentReference with driveId. Use the driveId and id with OneDrive/SharePoint endpoints (list-folder-files) to browse and download channel files."
-  },
-  {
-    "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",
-    "method": "get",
-    "toolName": "list-chat-message-replies",
-    "presets": ["teams", "work"],
-    "workScopes": ["ChatMessage.Read"]
   },
   {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/replies",

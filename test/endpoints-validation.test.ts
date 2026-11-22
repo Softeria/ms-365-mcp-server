@@ -423,6 +423,17 @@ describe('endpoints.json validation', () => {
     }
   });
 
+  it('should not declare delegated ChatMessage.Read', () => {
+    // Graph 403s every chat message read with only ChatMessage.Read and asks for Chat.Read (#849)
+    const offenders = endpoints
+      .filter((e) =>
+        [...(e.scopes ?? []), ...(e.workScopes ?? [])].flat().includes('ChatMessage.Read')
+      )
+      .map((e) => e.toolName);
+
+    expect(offenders).toEqual([]);
+  });
+
   it('should route To Do step edits to the checklist-item tools, not update-todo-task', () => {
     const checklistTools = [
       'list-todo-checklist-items',
