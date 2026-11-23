@@ -127,7 +127,7 @@ program
   )
   .option(
     '--public-url <url>',
-    'Public base URL (e.g. https://mcp.example.com) used in browser-facing OAuth redirects when running behind a reverse proxy. Server-to-server endpoints (token, register) stay on the request host.'
+    'Public base URL (e.g. https://mcp.example.com) used for every advertised OAuth endpoint when running behind a reverse proxy, path included.'
   )
   .option(
     '--obo',

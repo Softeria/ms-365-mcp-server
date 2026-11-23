@@ -9,7 +9,7 @@ import type { AddressInfo } from 'node:net';
 import MicrosoftGraphServer from '../src/server.js';
 import type AuthManager from '../src/auth.js';
 import type { CommandOptions } from '../src/cli.js';
-import { ClientMetadataResolver } from '../src/lib/client-metadata.js';
+import { ClientMetadataError, ClientMetadataResolver } from '../src/lib/client-metadata.js';
 
 vi.mock('../src/logger.js', () => ({
   default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), verbose: vi.fn() },
@@ -143,6 +143,34 @@ describe('OAuth routes with CIMD', () => {
     });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe('invalid_request');
+  });
+
+  it('answers 503 with Retry-After when the document cannot be fetched right now', async () => {
+    await start();
+    vi.mocked(ClientMetadataResolver.prototype.resolve).mockRejectedValueOnce(
+      new ClientMetadataError('client metadata fetch timed out', true)
+    );
+    const res = await authorize({
+      client_id: CLAUDE_CODE,
+      redirect_uri: 'http://localhost:4567/callback',
+    });
+    expect(res.status).toBe(503);
+    expect(res.headers.get('retry-after')).toBe('30');
+    expect((await res.json()).error).toBe('temporarily_unavailable');
+  });
+
+  it('answers 400 without Retry-After when the document is refused for good', async () => {
+    await start();
+    vi.mocked(ClientMetadataResolver.prototype.resolve).mockRejectedValueOnce(
+      new ClientMetadataError('client metadata document is not valid JSON')
+    );
+    const res = await authorize({
+      client_id: CLAUDE_CODE,
+      redirect_uri: 'http://localhost:4567/callback',
+    });
+    expect(res.status).toBe(400);
+    expect(res.headers.get('retry-after')).toBeNull();
+    expect((await res.json()).error).toBe('invalid_client');
   });
 
   it('neither advertises nor checks CIMD when turned off', async () => {
