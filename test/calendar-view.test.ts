@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { GraphClient } from '../src/graph-client.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { registerGraphTools, UTILITY_TOOLS } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
   default: {
@@ -65,12 +65,12 @@ vi.mock('../src/generated/client.js', () => ({
 }));
 
 describe('Calendar View Tools', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+  let mockServer: { registerTool: ReturnType<typeof vi.fn> };
   let mockGraphClient: GraphClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockServer = { tool: vi.fn(), registerTool: vi.fn() };
+    mockServer = { registerTool: vi.fn() };
     mockGraphClient = {
       graphRequest: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
@@ -138,16 +138,13 @@ describe('Calendar View Tools', () => {
     it('should include fetchAllPages parameter for GET tools', () => {
       registerGraphTools(mockServer, mockGraphClient);
 
-      for (const call of mockServer.registerTool.mock.calls) {
-        const toolName = call[0] as string;
-        // Skip utilities and read-only POST query tools that are not GET Graph endpoints.
-        if (
-          toolName === 'parse-teams-url' ||
-          toolName === 'download-bytes' ||
-          toolName === 'copilot-retrieve' ||
-          toolName === 'get-download-url'
-        )
-          continue;
+      // Utilities and read-only POST query tools are not GET Graph endpoints
+      const skip = new Set([...UTILITY_TOOLS.map((t) => t.name), 'copilot-retrieve']);
+      const calls = mockServer.registerTool.mock.calls.filter(
+        (call: unknown[]) => !skip.has(call[0] as string)
+      );
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) {
         const paramSchema = (call[1] as { inputSchema: z.AnyZodObject }).inputSchema
           .shape as Record<string, z.ZodTypeAny>;
         expect(paramSchema).toHaveProperty('fetchAllPages');

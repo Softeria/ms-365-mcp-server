@@ -3,6 +3,15 @@ import globals from 'globals';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 
+const SDK_V1 = {
+  group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/*'],
+  message: 'SDK v1 is gone, use the v2 packages.',
+};
+const CLIENT = {
+  group: ['@modelcontextprotocol/client', '@modelcontextprotocol/client/*'],
+  message: 'The client package is a devDependency, for tests only.',
+};
+
 export default [
   js.configs.recommended,
   {
@@ -28,6 +37,14 @@ export default [
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'off',
+      'no-restricted-imports': ['error', { patterns: [SDK_V1] }],
+    },
+  },
+  {
+    // The client package is a devDependency, for tests only
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [SDK_V1, CLIENT] }],
     },
   },
   {

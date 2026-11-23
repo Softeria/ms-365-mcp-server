@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/**/*.ts', 'src/endpoints.json', 'src/apps/*.html', 'src/apps/*.js'],
   format: ['esm'],
-  target: 'es2020',
+  target: 'es2022',
   outDir: 'dist',
   clean: true,
   bundle: false,
@@ -21,7 +21,8 @@ export default defineConfig({
   noExternal: [],
   external: [
     '@azure/msal-node',
-    '@modelcontextprotocol/sdk',
+    '@modelcontextprotocol/node',
+    '@modelcontextprotocol/server',
     'commander',
     'dotenv',
     'express',

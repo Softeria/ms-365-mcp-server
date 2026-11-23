@@ -52,15 +52,7 @@ vi.mock('express', () => ({
   default: expressMocks.express,
 }));
 
-vi.mock('@modelcontextprotocol/sdk/server/auth/router.js', () => ({
-  mcpAuthRouter: vi.fn(() => (_req: unknown, _res: unknown, next?: () => void) => next?.()),
-}));
-
 vi.mock('../src/graph-tools.js', () => graphToolMocks);
-
-vi.mock('../src/oauth-provider.js', () => ({
-  MicrosoftOAuthProvider: vi.fn(),
-}));
 
 vi.mock('../src/logger.js', () => ({
   default: {

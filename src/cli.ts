@@ -147,7 +147,7 @@ program
   )
   .option(
     '--allow-unauthenticated-discovery',
-    'In HTTP mode, allow MCP discovery requests (initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
+    'In HTTP mode, allow MCP discovery requests (server/discover, initialize, tools/list, prompts/list, resources/list, ping) without a bearer token, so a gateway can enumerate the tool catalog before any user has authenticated. Non-discovery requests (e.g. tools/call) still require a token. Off by default.'
   )
   .option(
     '--enable-mcp-apps',

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GraphClient } from '../src/graph-client.js';
-import { buildToolsRegistry, registerGraphTools } from '../src/graph-tools.js';
+import { buildToolsRegistry, registerGraphTools, UTILITY_TOOLS } from '../src/graph-tools.js';
 import { describeToolSchema } from '../src/lib/tool-schema.js';
 
 vi.mock('../src/logger.js', () => ({
@@ -21,7 +21,6 @@ const shorthandBody = {
 
 describe('per-tool behavior on the real tool surface', () => {
   let server: {
-    tool: ReturnType<typeof vi.fn>;
     registerTool: ReturnType<typeof vi.fn>;
     server: object;
   };
@@ -29,7 +28,7 @@ describe('per-tool behavior on the real tool surface', () => {
 
   beforeEach(() => {
     vi.stubEnv('MS365_MCP_REQUIRE_CONFIRM', 'false');
-    server = { tool: vi.fn(), registerTool: vi.fn(), server: {} };
+    server = { registerTool: vi.fn(), server: {} };
     graphClient = {
       graphRequest: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: JSON.stringify({ id: 'm1' }) }],
@@ -56,7 +55,10 @@ describe('per-tool behavior on the real tool surface', () => {
   }
 
   it('offers the member name filter on exactly the team and chat member tools', () => {
+    // Utility tools register through registerTool too; get-upload-url has its own name param.
+    const utilityNames = new Set(UTILITY_TOOLS.map((t) => t.name));
     const withName = server.registerTool.mock.calls
+      .filter((c: unknown[]) => !utilityNames.has(c[0] as string))
       .filter(
         (c: unknown[]) => 'name' in (c[1] as { inputSchema: { shape: object } }).inputSchema.shape
       )

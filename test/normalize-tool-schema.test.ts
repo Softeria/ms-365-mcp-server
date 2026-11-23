@@ -1,12 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
+import { withServedInputSchema } from '../src/lib/body-schema-budget.js';
 import {
   normalizeToolSchemaRefs,
-  installToolSchemaRefNormalization,
   tidyToolJsonSchema,
   toolInputJsonSchema,
 } from '../src/normalize-tool-schema.js';
+
+async function listTools(server: McpServer) {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: 'test-client', version: '0.0.0' });
+  await client.connect(clientTransport);
+  const { tools } = await client.listTools();
+  await client.close();
+  await server.close();
+  return tools;
+}
 
 // Collect every $ref value in a schema.
 function collectRefs(node: unknown, out: string[] = []): string[] {
@@ -525,7 +537,7 @@ describe('normalizeToolSchemaRefs', () => {
   });
 });
 
-describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', () => {
+describe('withServedInputSchema (end-to-end against the real SDK)', () => {
   it('normalizes recursive tool schemas in the tools/list response', async () => {
     const server = new McpServer({ name: 'test', version: '0.0.0' });
 
@@ -541,31 +553,23 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
       'create-folder',
       {
         description: 'create',
-        inputSchema: z
-          .object({
-            body: folder,
-            confirm: z.boolean().optional().describe('Approved.'),
-            excludeResponse: z.boolean().optional().describe('Exclude the response'),
-          })
-          .loose(),
+        inputSchema: withServedInputSchema(
+          z
+            .object({
+              body: folder,
+              confirm: z.boolean().optional().describe('Approved.'),
+              excludeResponse: z.boolean().optional().describe('Exclude the response'),
+            })
+            .loose(),
+          'create-folder'
+        ),
       },
       async () => ({ content: [] })
     );
 
-    installToolSchemaRefNormalization(server);
+    const tools = await listTools(server);
 
-    const handler = (
-      server.server as unknown as {
-        _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>>;
-      }
-    )._requestHandlers.get('tools/list')!;
-
-    const result = (await handler(
-      { method: 'tools/list' },
-      { signal: new AbortController().signal }
-    )) as { tools: Array<{ name: string; inputSchema: unknown }> };
-
-    const tool = result.tools.find((t) => t.name === 'create-folder')!;
+    const tool = tools.find((t) => t.name === 'create-folder')!;
     const refs = collectRefs(tool.inputSchema);
     expect(refs.length).toBeGreaterThan(0); // the recursion did produce a ref
     expect(refs.every((r) => r.startsWith('#/$defs/'))).toBe(true);
@@ -577,13 +581,6 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
       type: 'boolean',
       description: 'Exclude the response',
     });
-  });
-
-  it('no-ops without throwing when no tools/list handler exists', () => {
-    // A fresh server with no tools registered has no tools/list handler yet, so the
-    // installer must fall back gracefully rather than crash startup.
-    const server = new McpServer({ name: 'test', version: '0.0.0' });
-    expect(() => installToolSchemaRefNormalization(server)).not.toThrow();
   });
 
   // zod 4's own conversion inlines every shared sub-schema and writes them in its own
@@ -613,24 +610,18 @@ describe('installToolSchemaRefNormalization (end-to-end against the real SDK)', 
       'create-event',
       {
         description: 'create',
-        inputSchema: z
-          .object({ body, excludeResponse: flag.optional().describe('Exclude the response') })
-          .loose(),
+        inputSchema: withServedInputSchema(
+          z
+            .object({ body, excludeResponse: flag.optional().describe('Exclude the response') })
+            .loose(),
+          'create-event'
+        ),
       },
       async () => ({ content: [] })
     );
-    installToolSchemaRefNormalization(server);
-    const handler = (
-      server.server as unknown as {
-        _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>>;
-      }
-    )._requestHandlers.get('tools/list')!;
-    const result = (await handler(
-      { method: 'tools/list' },
-      { signal: new AbortController().signal }
-    )) as { tools: Array<{ name: string; inputSchema: Record<string, unknown> }> };
+    const tools = await listTools(server);
 
-    const schema = result.tools[0].inputSchema;
+    const schema = tools[0].inputSchema as Record<string, unknown>;
     const text = JSON.stringify(schema);
     expect(collectRefs(schema)).toEqual([]);
     expect(text).not.toContain('allOf');

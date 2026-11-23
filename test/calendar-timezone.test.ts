@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { z } from 'zod';
 import type { GraphClient } from '../src/graph-client.js';
@@ -26,8 +26,8 @@ describe('timezone on schedule, shared calendar and delta tools', () => {
 
   beforeEach(() => {
     const server = new McpServer({ name: 'test', version: '1.0.0' });
-    registerTool = vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as never);
-    vi.spyOn(server, 'tool').mockImplementation((() => {}) as never);
+    // Call through: the allowlist denies the rest, and the audit hook needs the real tools/call
+    registerTool = vi.spyOn(server, 'registerTool');
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });

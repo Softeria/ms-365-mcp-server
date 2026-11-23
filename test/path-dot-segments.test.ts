@@ -60,13 +60,13 @@ vi.mock('../src/generated/client.js', () => ({
 }));
 
 describe('Path parameters cannot leave the endpoint (GHSA-42wc-j69p-jppq)', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+  let mockServer: { registerTool: ReturnType<typeof vi.fn> };
   let mockGraphClient: GraphClient;
   let graphRequest: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockServer = { tool: vi.fn(), registerTool: vi.fn() };
+    mockServer = { registerTool: vi.fn() };
     graphRequest = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
     });
@@ -74,11 +74,9 @@ describe('Path parameters cannot leave the endpoint (GHSA-42wc-j69p-jppq)', () =
   });
 
   function getToolHandler(toolName: string) {
-    // orgMode for get-sharepoint-site-by-path; utility tools register through server.tool
+    // orgMode for get-sharepoint-site-by-path
     registerGraphTools(mockServer, mockGraphClient, { orgMode: true });
-    const call = [...mockServer.registerTool.mock.calls, ...mockServer.tool.mock.calls].find(
-      (c: unknown[]) => c[0] === toolName
-    );
+    const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (
       params: Record<string, unknown>

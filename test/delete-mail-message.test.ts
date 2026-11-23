@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { readFileSync } from 'fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GraphClient } from '../src/graph-client.js';
@@ -33,8 +33,6 @@ function registerAll(graphClient: GraphClient): Map<string, { handler: Handler; 
     tools.set(name, { handler, schema: def.inputSchema });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
   }) as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
   registerGraphTools(server, graphClient, { orgMode: true });
   return tools;
 }

@@ -19,7 +19,7 @@ vi.mock('zod', () => {
 });
 
 describe('Auth Tools', () => {
-  let server: { tool: ReturnType<typeof vi.fn> };
+  let server: { registerTool: ReturnType<typeof vi.fn> };
   let authManager: {
     logout: ReturnType<typeof vi.fn>;
     testLogin: ReturnType<typeof vi.fn>;
@@ -36,9 +36,7 @@ describe('Auth Tools', () => {
     verifyLoginTool = vi.fn();
 
     server = {
-      // The handler is always the last argument; the annotations sit before it.
-      tool: vi.fn((name, ...args) => {
-        const handler = args.at(-1);
+      registerTool: vi.fn((name, _config, handler) => {
         if (name === 'login') {
           loginTool = handler;
         }

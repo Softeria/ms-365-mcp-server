@@ -1,8 +1,17 @@
-import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { hostHeaderValidation } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  hostHeaderValidation,
+  NodeStreamableHTTPServerTransport,
+  toNodeHandler,
+  toWebRequest,
+  type NodeMcpRequestHandler,
+} from '@modelcontextprotocol/node';
+import {
+  createMcpHandler,
+  isLegacyRequest,
+  McpServer,
+  type McpHttpHandler,
+} from '@modelcontextprotocol/server';
+import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio';
 import express, { Handler, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -53,8 +62,6 @@ import {
 import logger, { enableConsoleLogging } from './logger.js';
 import { version } from './version.js';
 import { buildMcpServerInstructions } from './mcp-instructions.js';
-import { installToolSchemaRefNormalization } from './normalize-tool-schema.js';
-import { MicrosoftOAuthProvider } from './oauth-provider.js';
 import OboClient from './obo-client.js';
 import { isRejectedAssertion, oboAllowlistRefusal, readOboAllowlist } from './lib/obo-access.js';
 import { requestContext } from './request-context.js';
@@ -343,6 +350,10 @@ class MicrosoftGraphServer {
    */
   private httpServers: HttpServer[] = [];
 
+  // The 2026-07-28 leg of /mcp, built once in start() so stop() can close it
+  private mcpHandler: McpHttpHandler | null = null;
+  private stdioHandle: StdioServerHandle | null = null;
+
   // Two-leg PKCE: stores client's code_challenge and server's code_verifier, keyed by OAuth state
   private pkceStore: Map<string, PkceEntry> = new Map();
   // Set in start() for HTTP mode; replaces pkceStore when present.
@@ -380,6 +391,8 @@ class MicrosoftGraphServer {
   }
 
   private createMcpServer(): McpServer {
+    // The views parse the tool results as JSON
+    const mcpApps = Boolean(this.options.enableMcpApps && !this.options.toon);
     const server = new McpServer(
       {
         name: 'Microsoft365MCP',
@@ -396,6 +409,11 @@ class MicrosoftGraphServer {
           attachmentUrlsEnabled: Boolean(this.options.http && this.options.enableAttachmentUrls),
         }),
         maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
+        // The tool set is fixed for the life of a server, so no list ever changes
+        capabilities: {
+          tools: { listChanged: false },
+          ...(mcpApps && { resources: { listChanged: false } }),
+        },
       }
     );
 
@@ -425,8 +443,7 @@ class MicrosoftGraphServer {
       allowedScopes: this.options.allowedScopes,
       httpMode: this.hidesStdioOnlyTools(),
       userFields: this.options.userFields,
-      // The views parse the tool results as JSON
-      mcpApps: Boolean(this.options.enableMcpApps && !this.options.toon),
+      mcpApps,
     };
 
     if (this.options.discovery) {
@@ -434,12 +451,6 @@ class MicrosoftGraphServer {
     } else {
       registerGraphTools(server, this.graphClient!, registrationOptions);
     }
-
-    // Strict JSON-Schema backends (e.g. Kimi/Moonshot) reject a tools/list whose
-    // inputSchema $refs aren't anchored under #/$defs/. The SDK emits root-relative
-    // refs for recursive/shared Microsoft Graph schemas and hard-codes its conversion
-    // options, so normalize the emitted schemas here. See issue #571.
-    installToolSchemaRefNormalization(server);
 
     return server;
   }
@@ -633,7 +644,11 @@ class MicrosoftGraphServer {
       const app = express();
 
       if (this.isLoopbackOnlyHttp()) {
-        app.use(hostHeaderValidation(LOOPBACK_HOSTNAMES));
+        const hostGuard = hostHeaderValidation(LOOPBACK_HOSTNAMES);
+        // The guard writes the 403 itself when it refuses
+        app.use((req, res, next) => {
+          if (hostGuard(req, res)) next();
+        });
         app.use(loopbackOriginValidation());
       }
 
@@ -681,7 +696,7 @@ class MicrosoftGraphServer {
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.header(
           'Access-Control-Allow-Headers',
-          'Origin, X-Requested-With, Content-Type, Accept, Authorization, mcp-protocol-version'
+          'Origin, X-Requested-With, Content-Type, Accept, Authorization, mcp-protocol-version, mcp-method, mcp-name'
         );
 
         // Handle preflight requests
@@ -719,8 +734,6 @@ class MicrosoftGraphServer {
         app.use('/mcp', mcpLimiter);
       }
 
-      const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
-
       // Public URL resolution for the advertised OAuth endpoints.
       //
       // When running behind a reverse proxy, the request's Host header only
@@ -736,11 +749,9 @@ class MicrosoftGraphServer {
       // DEPRECATED: --base-url / MS365_MCP_BASE_URL. Use --public-url /
       // MS365_MCP_PUBLIC_URL instead. The deprecated names are still read
       // here so existing configurations don't crash at startup, but they
-      // will be removed in a future release. Note that the original
-      // --base-url was effectively a no-op in practice: it was plumbed
-      // through the SDK's mcpAuthRouter, whose metadata endpoint is
-      // shadowed by the custom handler below, so no deployment relied
-      // on its actual semantics.
+      // will be removed in a future release. The original --base-url only
+      // ever set the issuer of an SDK auth router whose metadata the
+      // handler below shadowed, so no deployment relied on its semantics.
       const publicUrlRaw =
         this.options.publicUrl ||
         process.env.MS365_MCP_PUBLIC_URL ||
@@ -748,6 +759,22 @@ class MicrosoftGraphServer {
         process.env.MS365_MCP_BASE_URL ||
         null;
       const publicBase = publicUrlRaw ? new URL(publicUrlRaw).href.replace(/\/$/, '') : null;
+      if (publicUrlRaw) {
+        const parsed = new URL(publicUrlRaw);
+        // Endpoint paths are appended to it, so these would publish broken URLs
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.search || parsed.hash) {
+          throw new Error(
+            `Public URL ${publicUrlRaw} must be an http(s) URL without a query or fragment`
+          );
+        }
+        // A warning, not a throw: older clients still accept http on a LAN host
+        if (parsed.protocol === 'http:' && !isLoopbackHost(parsed.hostname)) {
+          logger.warn(
+            `Public URL ${parsed.origin} is http:// on a non-loopback host. Newer MCP clients ` +
+              'refuse an http token endpoint and cannot sign in; serve it over https.'
+          );
+        }
+      }
       const cimdEnabled = this.options.clientMetadataDocuments !== false;
 
       // OAuth Authorization Server Discovery
@@ -1221,13 +1248,6 @@ class MicrosoftGraphServer {
         }
       });
 
-      app.use(
-        mcpAuthRouter({
-          provider: oauthProvider,
-          issuerUrl: new URL(publicBase ?? `http://localhost:${port}`),
-        })
-      );
-
       // Microsoft Graph MCP endpoints with bearer token auth (or pass-through
       // when --trust-proxy-auth is set; see microsoftBearerTokenAuthMiddleware
       // for the AuthManager fallback that makes that mode work).
@@ -1243,6 +1263,27 @@ class MicrosoftGraphServer {
         allowUnauthenticatedDiscovery: this.options.allowUnauthenticatedDiscovery,
         publicUrl: publicBase,
       });
+      // Logs the error type and stack only, never message bodies (#775)
+      const onMcpError = (error: Error) => {
+        // The SDK also reports requests it refused (a missing Mcp-Method header and
+        // the like). Those are the client's mistake, so keep them out of the error log.
+        if (error.message.startsWith('Rejected inbound request')) {
+          logger.debug(`MCP request refused: ${error.message}`);
+          return;
+        }
+        logger.error('MCP request error', { error: dumpError(error) });
+      };
+      const mcpHandler = createMcpHandler(() => this.createMcpServer(), {
+        legacy: 'reject',
+        maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+        onerror: onMcpError,
+      });
+      this.mcpHandler = mcpHandler;
+      const serveModernMcp: NodeMcpRequestHandler = toNodeHandler(mcpHandler, {
+        maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+        onerror: onMcpError,
+      });
+
       app.get('/mcp', (req: Request, res: Response) => {
         res.status(405).json({
           jsonrpc: '2.0',
@@ -1259,20 +1300,39 @@ class MicrosoftGraphServer {
         mcpAuth,
         async (req: Request & { microsoftAuth?: { accessToken: string } }, res: Response) => {
           const handler = async () => {
+            const body: unknown = req.body;
+            // express.json() parses every JSON body, and modern clients only send
+            // JSON. Anything it left unread goes to the legacy transport, which
+            // reads it and answers 415, 413 or a parse error as v1 did.
+            if (body !== undefined) {
+              const probe = await toWebRequest(req, body, {
+                maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+              });
+              if (
+                !(await isLegacyRequest(probe, body, {
+                  maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+                }))
+              ) {
+                await serveModernMcp(req, res, body);
+                return;
+              }
+            }
+
+            // 2025-era clients keep the v1 path: plain JSON replies (#619)
             const server = this.createMcpServer();
-            const transport = new StreamableHTTPServerTransport({
+            const transport = new NodeStreamableHTTPServerTransport({
               sessionIdGenerator: undefined, // Stateless mode
               enableJsonResponse: true, // Reply to POSTs with plain JSON, not one-shot SSE
               maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
             });
 
             res.on('close', () => {
-              transport.close();
-              server.close();
+              void transport.close().catch(() => {});
+              void server.close().catch(() => {});
             });
 
             await server.connect(transport);
-            await transport.handleRequest(req as any, res as any, req.body);
+            await transport.handleRequest(req, res, body);
           };
 
           try {
@@ -1529,12 +1589,21 @@ class MicrosoftGraphServer {
         }
       }
     } else {
-      const transport = new StdioServerTransport();
-      transport.onerror = (error) => {
-        logger.error('Stdio transport error', { error: dumpError(error) });
-      };
-      await this.server!.connect(transport);
-      logger.info('Server connected to stdio transport');
+      // The first instance is the one initialize() built, so a bad registration
+      // still fails startup. Later calls (an era fallback) need fresh ones.
+      this.stdioHandle = serveStdio(
+        () => {
+          const server = this.server ?? this.createMcpServer();
+          this.server = null;
+          return server;
+        },
+        {
+          onerror: (error) => {
+            logger.error('Stdio transport error', { error: dumpError(error) });
+          },
+        }
+      );
+      logger.info('Serving MCP over stdio');
     }
   }
 
@@ -1633,12 +1702,20 @@ class MicrosoftGraphServer {
   async stop(): Promise<void> {
     const servers = this.httpServers.splice(0);
     configureAttachmentMinting(null);
+    const stdioHandle = this.stdioHandle;
+    this.stdioHandle = null;
+    await stdioHandle?.close();
+    const mcpHandler = this.mcpHandler;
+    this.mcpHandler = null;
+    await mcpHandler?.close();
+    // A request still running (a 2025-era call waiting on Graph, or a socket the
+    // client keeps alive) would hold server.close() open, so drop them all
     await Promise.all(
       servers.map(
         (server) =>
           new Promise<void>((resolve) => {
             server.close(() => resolve());
-            server.closeIdleConnections();
+            server.closeAllConnections();
           })
       )
     );

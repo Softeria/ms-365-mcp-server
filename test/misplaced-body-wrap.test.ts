@@ -10,7 +10,7 @@ vi.mock('../src/logger.js', () => ({
 // body-field-fallback.test.ts can't show that spec-derived shapes are trimmed subsets,
 // which is exactly what decides whether a body gets nested (#620)
 describe('Misplaced request body wrapping (issue #620)', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+  let mockServer: { registerTool: ReturnType<typeof vi.fn> };
   let mockGraphClient: GraphClient;
 
   beforeEach(() => {
@@ -19,7 +19,7 @@ describe('Misplaced request body wrapping (issue #620)', () => {
     // (message-signoff.test.ts) out of the picture.
     vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_PREFIX', '');
     vi.stubEnv('MS365_MCP_MESSAGE_SIGNOFF_SUFFIX', '');
-    mockServer = { tool: vi.fn(), registerTool: vi.fn() };
+    mockServer = { registerTool: vi.fn() };
     mockGraphClient = {
       graphRequest: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{}' }] }),
     } as unknown as GraphClient;

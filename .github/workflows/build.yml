@@ -11,7 +11,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [ 18.x, 20.x, 22.x ]
+        node-version: [ 20.x, 22.x, 24.x ]
 
     steps:
       - uses: actions/checkout@v4
@@ -38,20 +38,12 @@ jobs:
         run: npm run format:check
 
       # tsup strips types without checking them, so build alone cannot catch type errors
-      # Node 18 skips the @azure/* optional deps (engines >=20), so tsc can't find them
       - name: Type check
-        if: matrix.node-version != '18.x'
         run: npm run typecheck
 
       - name: Build TypeScript
         run: npm run build
 
-      # vitest 4 requires Node >= 20, so tests run on 20+ only
       - name: Run tests
-        if: matrix.node-version != '18.x'
         run: npm test
 
-      # On Node 18 we still verify the built artifact starts and loads its modules
-      - name: Smoke test (Node 18 runtime check)
-        if: matrix.node-version == '18.x'
-        run: node dist/index.js --list-presets

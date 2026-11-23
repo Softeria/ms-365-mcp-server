@@ -23,8 +23,7 @@ To route Graph traffic through a proxy of your own (one that terminates the clie
 
 ## Prerequisites
 
-- Node.js >= 20 (recommended)
-- Node.js 14+ may work with dependency warnings
+- Node.js >= 20
 
 ## Features
 
@@ -850,7 +849,8 @@ When running as an MCP server, the following options can be used:
                   Starts Express.js server with MCP endpoint at /mcp. Bound to a loopback host
                   (e.g. --http 127.0.0.1:3000 or --http [::1]:3000) with no --public-url, it
                   rejects requests whose Host or Origin is not localhost (not applied to the
-                  --attachment-port listener)
+                  --attachment-port listener). Serves both MCP 2026-07-28 clients and 2025-era
+                  clients on the same /mcp endpoint
 --http-local-file-tools Register download-bytes-to-file over HTTP. Anyone who can reach the port
                   can write files as the server's user (without a valid token, only an empty
                   file that is removed again), so enable it only on a single-user machine.

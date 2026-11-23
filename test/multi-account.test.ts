@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerAuthTools } from '../src/auth-tools.js';
 import AuthManager from '../src/auth.js';
@@ -30,15 +30,12 @@ vi.mock('../src/generated/client.js', () => ({
 describe('Multi-account support', () => {
   let server: McpServer;
   let graphClient: GraphClient;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.tool() has ~6 overloads; spying it requires any
-  let toolSpy: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let registerToolSpy: any;
 
   beforeEach(() => {
     server = new McpServer({ name: 'test', version: '1.0.0' });
     graphClient = {} as GraphClient;
-    toolSpy = vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
     registerToolSpy = vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as any);
   });
 
@@ -94,7 +91,9 @@ describe('Multi-account support', () => {
         accountNames: ['user@outlook.com'],
       });
 
-      const listAccountsCalls = toolSpy.mock.calls.filter(([name]) => name === 'list-accounts');
+      const listAccountsCalls = registerToolSpy.mock.calls.filter(
+        ([name]) => name === 'list-accounts'
+      );
       expect(listAccountsCalls).toHaveLength(0);
     });
 
@@ -120,7 +119,9 @@ describe('Multi-account support', () => {
         accountNames: ['user@outlook.com'],
       });
 
-      const listAccountsCalls = toolSpy.mock.calls.filter(([name]) => name === 'list-accounts');
+      const listAccountsCalls = registerToolSpy.mock.calls.filter(
+        ([name]) => name === 'list-accounts'
+      );
       expect(listAccountsCalls).toHaveLength(1);
     });
   });
@@ -142,13 +143,12 @@ describe('Multi-account support', () => {
         isOAuthModeEnabled: vi.fn().mockReturnValue(false),
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let listAccountsHandler: ((...args: any[]) => any) | undefined;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- McpServer.tool() has ~6 overloads; capturing requires any
-      const captureSpy = vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
-        // Capture the handler — it's the last argument regardless of overload
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const captureSpy = registerToolSpy.mockImplementation(((...args: any[]) => {
         const name = args[0];
-        const handler = args[args.length - 1];
+        const handler = args[2];
         if (name === 'list-accounts' && typeof handler === 'function') {
           listAccountsHandler = handler;
         }
@@ -193,11 +193,11 @@ describe('Multi-account support', () => {
         isOAuthModeEnabled: vi.fn().mockReturnValue(false),
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handler type varies across McpServer.tool() overloads
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let listAccountsHandler: ((...args: any[]) => any) | undefined;
-      vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
+      registerToolSpy.mockImplementation(((...args: any[]) => {
         const name = args[0];
-        const handler = args[args.length - 1];
+        const handler = args[2];
         if (name === 'list-accounts' && typeof handler === 'function') {
           listAccountsHandler = handler;
         }

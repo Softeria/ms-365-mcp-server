@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { decode } from '@toon-format/toon';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
+import { McpServer } from '@modelcontextprotocol/server';
 import { registerGraphTools } from '../src/graph-tools.js';
 
 vi.mock('../src/logger.js', () => ({
@@ -44,7 +44,6 @@ function handlerFor(alias: string, format: 'json' | 'toon' = 'json'): Handler {
   ) => {
     handlers.set(name, handler);
   }) as never);
-  vi.spyOn(server, 'tool').mockImplementation((() => {}) as never);
   registerGraphTools(server, new GraphClient(mockAuthManager as never, mockSecrets, format), {});
   const handler = handlers.get(alias);
   if (!handler) throw new Error(`Tool ${alias} was not registered`);

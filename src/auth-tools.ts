@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer, ToolAnnotations, ToolCallback } from '@modelcontextprotocol/server';
 import AuthManager from './auth.js';
+import { withServedInputSchema } from './lib/body-schema-budget.js';
 import logger from './logger.js';
 import { getRequestTokens } from './request-context.js';
 
@@ -9,14 +10,6 @@ export interface AuthToolsOptions {
   enabledTools?: string;
   /** --read-only: skip the account tools whose readOnlyHint is not true. */
   readOnly?: boolean;
-}
-
-function readOnlyHintOf(args: unknown[]): boolean {
-  const annotations = args.find(
-    (arg): arg is { readOnlyHint?: boolean } =>
-      typeof arg === 'object' && arg !== null && 'readOnlyHint' in arg
-  );
-  return annotations?.readOnlyHint === true;
 }
 
 export function registerAuthTools(
@@ -33,20 +26,28 @@ export function registerAuthTools(
     }
   }
   // Same gate as the utility tools (#440): --read-only keeps only readOnlyHint: true.
-  const server = {
-    tool: ((name: string, ...args: unknown[]) => {
-      if (options.readOnly && !readOnlyHintOf(args)) return undefined;
-      if (enabledToolsRegex && !enabledToolsRegex.test(name)) return undefined;
-      return (mcpServer.tool as (...a: unknown[]) => unknown).call(mcpServer, name, ...args);
-    }) as McpServer['tool'],
+  const register = <Shape extends z.ZodRawShape>(
+    name: string,
+    config: { description: string; inputSchema: z.ZodObject<Shape>; annotations: ToolAnnotations },
+    cb: ToolCallback<z.ZodObject<Shape>>
+  ): void => {
+    if (options.readOnly && config.annotations.readOnlyHint !== true) return;
+    if (enabledToolsRegex && !enabledToolsRegex.test(name)) return;
+    mcpServer.registerTool(
+      name,
+      { ...config, inputSchema: withServedInputSchema(config.inputSchema, name) },
+      cb
+    );
   };
-  server.tool(
+  register(
     'login',
-    'Authenticate with Microsoft account',
     {
-      force: z.boolean().default(false).describe('Force a new login even if already logged in'),
+      description: 'Authenticate with Microsoft account',
+      inputSchema: z.object({
+        force: z.boolean().default(false).describe('Force a new login even if already logged in'),
+      }),
+      annotations: { title: 'login', readOnlyHint: false, openWorldHint: false },
     },
-    { title: 'login', readOnlyHint: false, openWorldHint: false },
     async ({ force }) => {
       try {
         if (!force) {
@@ -117,11 +118,13 @@ export function registerAuthTools(
     }
   );
 
-  server.tool(
+  register(
     'logout',
-    'Log out from Microsoft account',
-    {},
-    { title: 'logout', readOnlyHint: false, openWorldHint: false },
+    {
+      description: 'Log out from Microsoft account',
+      inputSchema: z.object({}),
+      annotations: { title: 'logout', readOnlyHint: false, openWorldHint: false },
+    },
     async () => {
       try {
         await authManager.logout();
@@ -146,11 +149,13 @@ export function registerAuthTools(
     }
   );
 
-  server.tool(
+  register(
     'verify-login',
-    'Check current Microsoft authentication status',
-    {},
-    { title: 'verify-login', readOnlyHint: true, openWorldHint: false },
+    {
+      description: 'Check current Microsoft authentication status',
+      inputSchema: z.object({}),
+      annotations: { title: 'verify-login', readOnlyHint: true, openWorldHint: false },
+    },
     async () => {
       let testResult: Awaited<ReturnType<AuthManager['testLogin']>>;
       try {
@@ -173,14 +178,17 @@ export function registerAuthTools(
     }
   );
 
-  server.tool(
+  register(
     'list-accounts',
-    'List all Microsoft accounts configured in this server. Use this to discover available account emails before making tool calls. Reflects accounts added mid-session via --login.',
-    {},
     {
-      title: 'list-accounts',
-      readOnlyHint: true,
-      openWorldHint: false,
+      description:
+        'List all Microsoft accounts configured in this server. Use this to discover available account emails before making tool calls. Reflects accounts added mid-session via --login.',
+      inputSchema: z.object({}),
+      annotations: {
+        title: 'list-accounts',
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
     },
     async () => {
       try {
@@ -228,13 +236,16 @@ export function registerAuthTools(
     }
   );
 
-  server.tool(
+  register(
     'select-account',
-    'Select a Microsoft account as the default. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
     {
-      account: z.string().describe('Email address or account ID of the account to select'),
+      description:
+        'Select a Microsoft account as the default. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
+      inputSchema: z.object({
+        account: z.string().describe('Email address or account ID of the account to select'),
+      }),
+      annotations: { title: 'select-account', readOnlyHint: false, openWorldHint: false },
     },
-    { title: 'select-account', readOnlyHint: false, openWorldHint: false },
     async ({ account }) => {
       try {
         await authManager.selectAccount(account);
@@ -262,13 +273,16 @@ export function registerAuthTools(
     }
   );
 
-  server.tool(
+  register(
     'remove-account',
-    'Remove a Microsoft account from the cache. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
     {
-      account: z.string().describe('Email address or account ID of the account to remove'),
+      description:
+        'Remove a Microsoft account from the cache. Accepts email address (e.g. user@outlook.com) or account ID. Use list-accounts to discover available accounts.',
+      inputSchema: z.object({
+        account: z.string().describe('Email address or account ID of the account to remove'),
+      }),
+      annotations: { title: 'remove-account', readOnlyHint: false, openWorldHint: false },
     },
-    { title: 'remove-account', readOnlyHint: false, openWorldHint: false },
     async ({ account }) => {
       try {
         const success = await authManager.removeAccount(account);

@@ -1,7 +1,7 @@
-// The MCP SDK converts each tool's zod inputSchema to JSON Schema itself, with options we
-// can't reach. Under zod 4 that conversion inlines every shared sub-schema, which blows
-// the Graph bodies up (create-sharepoint-list ~12x). So tools/list re-converts each
-// schema here with shared sub-schemas as refs, then rewrites those refs.
+// The MCP SDK converts each tool's zod inputSchema through zod's own `~standard.jsonSchema`,
+// which inlines every shared sub-schema and blows the Graph bodies up (create-sharepoint-list
+// ~12x). So each tool schema is converted here with shared sub-schemas as refs, those refs
+// are rewritten, and withServedInputSchema hands the result to the SDK.
 //
 // Why serve the zod 3 shape on zod 4 at all: MCP clients keep tripping over schema details
 // (Pydantic #28, Claude via Azure #181, Kimi #458/#571, Open Cowork #638, Gemini #757), and
@@ -20,10 +20,7 @@
 // expansion would more than double the schema - not worth the bytes. Scalar and enum
 // defs get inlined either way, so a flag like `confirm` still shows its type (#793).
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import logger from './logger.js';
 
 type JsonSchema = Record<string, unknown>;
 
@@ -66,8 +63,8 @@ function closesUnknownKeys(schema: unknown): boolean {
 }
 
 /**
- * JSON Schema for a zod schema, converted the way the SDK does it (draft-07, input side)
- * but with `reused` under our control. 'ref' lets normalizeToolSchemaRefs decide what to
+ * JSON Schema for a zod schema (draft-07, input side), with `reused` under our control.
+ * The SDK would say draft 2020-12; draft-07 is what clients have been served all along. 'ref' lets normalizeToolSchemaRefs decide what to
  * inline; 'inline' gives one self-contained schema with refs only where a schema recurses.
  */
 export function zodToToolJsonSchema(
@@ -124,7 +121,6 @@ function anchorRefs(node: unknown, base: string): void {
  * The tool's JSON Schema, put together from per-parameter conversions instead of one
  * zod pass over the whole object. Same result, but the parameters come from the cache.
  */
-// Takes the core type: the SDK turns a raw-shape tool into a zod mini object
 export function toolInputJsonSchema(schema: z.core.$ZodObject): JsonSchema {
   const { shape, catchall } = schema._zod.def;
   const properties: Record<string, JsonSchema> = {};
@@ -537,58 +533,4 @@ export function normalizeToolSchemaRefs<T extends JsonSchema>(schema: T): T {
   }
   const inlined = inlineExcept(leavesOnly);
   return (JSON.stringify(inlined).length <= limit ? inlined : hoisted) as T;
-}
-
-// Decorate the SDK's tools/list handler so every emitted inputSchema is passed through
-// normalizeToolSchemaRefs. The SDK hard-codes its Zod->JSON-Schema options, so we hand it
-// our own conversion through zod's per-schema `_zod.toJSONSchema` override, which the
-// converter checks before doing any work of its own. 'tools/list' is the stable MCP
-// protocol method the low-level Server keys its handler by; we grab the existing handler
-// and delegate to it so all of McpServer's listing behavior is preserved. Falls back to a
-// no-op (with a warning) if the SDK internals move.
-export function installToolSchemaRefNormalization(server: McpServer): void {
-  const lowLevel = server.server;
-  const handlers = (
-    lowLevel as unknown as {
-      _requestHandlers?: Map<
-        string,
-        (request: unknown, extra: unknown) => Promise<{ tools?: Array<{ inputSchema?: unknown }> }>
-      >;
-    }
-  )._requestHandlers;
-  const original = handlers?.get('tools/list');
-  if (!original) {
-    logger.warn('Skipping tool-schema $ref normalization: tools/list handler not found');
-    return;
-  }
-  const registered = (
-    server as unknown as { _registeredTools?: Record<string, { inputSchema?: unknown }> }
-  )._registeredTools;
-  lowLevel.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
-    for (const [name, tool] of Object.entries(registered ?? {})) {
-      if (tool.inputSchema instanceof z.core.$ZodObject) useOwnConversion(name, tool.inputSchema);
-    }
-    const result = await original(request, extra);
-    for (const tool of result.tools ?? []) {
-      if (tool.inputSchema && typeof tool.inputSchema === 'object') {
-        tool.inputSchema = normalizeToolSchemaRefs(tool.inputSchema as JsonSchema);
-        tidyToolJsonSchema(tool.inputSchema);
-      }
-    }
-    return result;
-  });
-}
-
-function useOwnConversion(name: string, schema: z.core.$ZodObject): void {
-  const internals = schema._zod as { toJSONSchema?: () => JsonSchema | undefined };
-  if (internals.toJSONSchema) return;
-  internals.toJSONSchema = () => {
-    try {
-      return toolInputJsonSchema(schema);
-    } catch (error) {
-      // Undefined lets zod convert it the slow way rather than lose the tool
-      logger.warn(`Could not convert the input schema of ${name}: ${error}`);
-      return undefined;
-    }
-  };
 }

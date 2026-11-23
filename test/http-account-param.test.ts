@@ -11,7 +11,7 @@
  *  - stdio / --trust-proxy-auth account routing is unchanged
  */
 import type { AccountInfo, Configuration } from '@azure/msal-node';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AuthManager from '../src/auth.js';
 import GraphClient from '../src/graph-client.js';
@@ -187,7 +187,7 @@ describe('Discussion #467: list-accounts tip in OAuth bearer mode', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let listAccountsHandler: ((...args: any[]) => any) | undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(server, 'tool').mockImplementation(((...args: any[]) => {
+    vi.spyOn(server, 'registerTool').mockImplementation(((...args: any[]) => {
       const name = args[0];
       const handler = args[args.length - 1];
       if (name === 'list-accounts' && typeof handler === 'function') {

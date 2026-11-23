@@ -40,7 +40,6 @@ function resultJson<T>(result: ToolResult): T {
 
 describe('Teams custom emojis (real generated clients)', () => {
   let mockServer: {
-    tool: ReturnType<typeof vi.fn>;
     registerTool: ReturnType<typeof vi.fn>;
     server: Record<string, unknown>;
   };
@@ -50,7 +49,14 @@ describe('Teams custom emojis (real generated clients)', () => {
     vi.clearAllMocks();
     vi.stubEnv('MS365_MCP_REQUIRE_CONFIRM', 'false');
     vi.stubEnv('MS365_MCP_MAX_TOP', '');
-    mockServer = { tool: vi.fn(), registerTool: vi.fn(), server: {} };
+    // The denied-tool audit hook wraps an existing tools/call handler
+    mockServer = {
+      registerTool: vi.fn(),
+      server: {
+        _requestHandlers: new Map([['tools/call', vi.fn()]]),
+        setRequestHandler: vi.fn(),
+      },
+    };
     mockGraphClient = {
       graphRequest: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: JSON.stringify({ value: [] }) }],
@@ -70,11 +76,10 @@ describe('Teams custom emojis (real generated clients)', () => {
     return mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
   }
 
-  function handler(name: string, discovery = false): ToolHandler {
-    const calls = discovery ? mockServer.tool.mock.calls : mockServer.registerTool.mock.calls;
-    const call = calls.find((entry: unknown[]) => entry[0] === name);
+  function handler(name: string): ToolHandler {
+    const call = mockServer.registerTool.mock.calls.find((entry: unknown[]) => entry[0] === name);
     expect(call, `tool ${name} should be registered`).toBeDefined();
-    return call![call!.length - 1] as ToolHandler;
+    return call![2] as ToolHandler;
   }
 
   function registerDiscovery(readOnly = false, orgMode = true, allowedScopes?: string) {
@@ -130,10 +135,7 @@ describe('Teams custom emojis (real generated clients)', () => {
     const response =
       mode === 'direct'
         ? await handler('list-custom-emojis')({ top: 1, select })
-        : await handler(
-            'execute-tool',
-            true
-          )({
+        : await handler('execute-tool')({
             tool_name: 'list-custom-emojis',
             parameters: { top: 1, $select: select },
           });
@@ -200,7 +202,7 @@ describe('Teams custom emojis (real generated clients)', () => {
       (call: unknown[]) => call[0] === 'list-custom-emojis'
     )?.[1].inputSchema.shape;
     const discovery = resultJson<{ parameters: Array<{ name: string }> }>(
-      await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' })
+      await handler('get-tool-schema')({ tool_name: 'list-custom-emojis' })
     );
     const discoveredNames = discovery.parameters.map((parameter) => parameter.name);
     for (const name of ['top', 'filter', 'select', 'skiptoken']) {
@@ -227,7 +229,7 @@ describe('Teams custom emojis (real generated clients)', () => {
     const discovery = resultJson<{
       llmTip?: string;
       parameters: Array<{ name: string; description?: string }>;
-    }>(await handler('get-tool-schema', true)({ tool_name: 'list-custom-emojis' }));
+    }>(await handler('get-tool-schema')({ tool_name: 'list-custom-emojis' }));
     for (const name of ['top', 'filter', 'select', 'fetchAllPages']) {
       const descriptions = [
         normal[name].description,
@@ -249,10 +251,7 @@ describe('Teams custom emojis (real generated clients)', () => {
       register();
       registerDiscovery();
       const direct = await handler('list-custom-emojis')({ [parameter]: 'displayName' });
-      const discovery = await handler(
-        'execute-tool',
-        true
-      )({
+      const discovery = await handler('execute-tool')({
         tool_name: 'list-custom-emojis',
         parameters: { [`$${parameter}`]: 'displayName' },
       });
@@ -317,13 +316,13 @@ describe('Teams custom emojis (real generated clients)', () => {
   it('discovers both operations and executes create through the same beta route', async () => {
     registerDiscovery();
     const result = resultJson<{ tools: Array<{ name: string; description: string }> }>(
-      await handler('search-tools', true)({ query: 'custom emoji' })
+      await handler('search-tools')({ query: 'custom emoji' })
     );
     expect(result.tools.map((tool) => tool.name).sort()).toEqual([...toolNames].sort());
     expect(result.tools.every((tool) => tool.description.startsWith('[beta]'))).toBe(true);
 
     const body = { displayName: 'example-emoji', contentBytes: imageFixtures[1].contentBytes };
-    await handler('execute-tool', true)({ tool_name: 'create-custom-emoji', parameters: { body } });
+    await handler('execute-tool')({ tool_name: 'create-custom-emoji', parameters: { body } });
     expect(mockGraphClient.graphRequest).toHaveBeenCalledExactlyOnceWith(
       emojiPath,
       expect.objectContaining({ method: 'POST', apiVersion: 'beta', body: JSON.stringify(body) })
@@ -335,13 +334,10 @@ describe('Teams custom emojis (real generated clients)', () => {
     expect(register(true, true, allowedScopes)).toEqual(['list-custom-emojis']);
     registerDiscovery(true, true, allowedScopes);
     const result = resultJson<{ tools: Array<{ name: string }> }>(
-      await handler('search-tools', true)({ query: 'custom emoji' })
+      await handler('search-tools')({ query: 'custom emoji' })
     );
     expect(result.tools.map((tool) => tool.name)).toEqual(['list-custom-emojis']);
-    const denied = await handler(
-      'execute-tool',
-      true
-    )({
+    const denied = await handler('execute-tool')({
       tool_name: 'create-custom-emoji',
       parameters: {
         body: { displayName: 'example-emoji', contentBytes: imageFixtures[0].contentBytes },

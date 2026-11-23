@@ -10,7 +10,7 @@
  *
  * The fix: skip MSAL account resolution when a request-context token exists.
  */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GraphClient from '../src/graph-client.js';
 import { registerGraphTools } from '../src/graph-tools.js';
