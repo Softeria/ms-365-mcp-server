@@ -165,22 +165,10 @@ function createMockServer() {
   };
   return {
     server: lowLevelServer,
-    tool: vi.fn(
-      (
-        name: string,
-        description: string,
-        schema: any,
-        annotations: any,
-        handler: (...args: any[]) => any
-      ) => {
-        tools.set(name, { description, schema, handler });
-        installDefaultToolCallHandler();
-      }
-    ),
     registerTool: vi.fn(
       (
         name: string,
-        config: { description: string; inputSchema: any },
+        config: { description: string; inputSchema: any; annotations?: Record<string, unknown> },
         handler: (...args: any[]) => any
       ) => {
         // Expose the zod object's shape so tests can keep asserting on params
@@ -3918,7 +3906,17 @@ describe('graph-tools', () => {
           },
           {}
         )
-      ).rejects.toThrow(/not found/);
+      ).resolves.toMatchObject({
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: expect.stringMatching(
+              /^Tool get-drive-item is not available in this server configuration: .*Files\.Read/
+            ),
+          },
+        ],
+      });
 
       expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -4059,7 +4057,17 @@ describe('graph-tools', () => {
           },
           {}
         )
-      ).rejects.toThrow(/not found/);
+      ).resolves.toMatchObject({
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: expect.stringMatching(
+              /^Tool get-drive-item is not available in this server configuration: .*Files\.Read/
+            ),
+          },
+        ],
+      });
 
       expect(auditLogMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -4307,8 +4315,8 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, {} as any, { readOnly: true });
 
-      const call = server.tool.mock.calls.find((c) => c[0] === 'download-bytes-to-file');
-      expect(call?.[3]).toEqual({
+      const call = server.registerTool.mock.calls.find((c) => c[0] === 'download-bytes-to-file');
+      expect(call?.[1].annotations).toEqual({
         title: 'download-bytes-to-file',
         readOnlyHint: false,
         destructiveHint: false,
@@ -4326,8 +4334,8 @@ describe('graph-tools', () => {
       const { registerGraphTools } = await loadModule();
       registerGraphTools(server as any, {} as any, {});
 
-      const withHint = server.tool.mock.calls
-        .filter((c) => 'destructiveHint' in c[3])
+      const withHint = server.registerTool.mock.calls
+        .filter((c) => 'destructiveHint' in (c[1].annotations ?? {}))
         .map((c) => c[0]);
       expect(withHint).toEqual(['download-bytes-to-file']);
     });

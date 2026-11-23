@@ -58,13 +58,8 @@ vi.mock('../src/logger.js', () => ({
 // stdio mode connects a transport to the real process streams, which would
 // outlive the test. The stdio cases here are about a startup warning that fires
 // well before the transport, so a transport that does nothing is enough.
-vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
-  StdioServerTransport: class {
-    onerror?: (error: Error) => void;
-    async start(): Promise<void> {}
-    async close(): Promise<void> {}
-    async send(): Promise<void> {}
-  },
+vi.mock('@modelcontextprotocol/server/stdio', () => ({
+  serveStdio: () => ({ close: async () => {} }),
 }));
 
 import logger from '../src/logger.js';

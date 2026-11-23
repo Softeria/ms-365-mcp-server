@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { readFileSync } from 'fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -99,8 +99,6 @@ function registerAll(
     tools.set(name, { handler, inputSchema: def.inputSchema, annotations: def.annotations });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
   }) as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
   registerGraphTools(server, graphClient, options);
   return tools;
 }
@@ -116,10 +114,12 @@ function registered(graphClient: GraphClient): Registered {
 function throughExecuteTool(graphClient: GraphClient): Handler {
   const server = new McpServer({ name: 'test', version: '1.0.0' });
   const handlers = new Map<string, Handler>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as any);
-  vi.spyOn(server, 'tool').mockImplementation(((name: string, ...rest: unknown[]) => {
-    handlers.set(name, rest[rest.length - 1] as Handler);
+  vi.spyOn(server, 'registerTool').mockImplementation(((
+    name: string,
+    _def: unknown,
+    handler: Handler
+  ) => {
+    handlers.set(name, handler);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any);
   registerDiscoveryTools(server, graphClient, { orgMode: true });
@@ -453,14 +453,17 @@ describe('search-files: where it is offered', () => {
   const filesPodWithSearchFiles = `^(?:${[...FILES_POD, TOOL].join('|')})$`;
 
   function registeredNames(options: GraphToolRegistrationOptions): string[] {
-    const server = new McpServer({ name: 'test', version: '1.0.0' });
+    // Declared like src/server.ts does, so tools/call exists for the denied-tool audit hook
+    const server = new McpServer(
+      { name: 'test', version: '1.0.0' },
+      { capabilities: { tools: { listChanged: false } } }
+    );
     const names: string[] = [];
     const record = ((name: string) => {
       names.push(name);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     vi.spyOn(server, 'registerTool').mockImplementation(record);
-    vi.spyOn(server, 'tool').mockImplementation(record);
     registerGraphTools(server, {} as GraphClient, options);
     return names.sort();
   }

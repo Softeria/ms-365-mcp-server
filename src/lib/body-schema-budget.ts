@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import logger from '../logger.js';
 import {
   normalizeToolSchemaRefs,
   tidyToolJsonSchema,
@@ -278,11 +279,11 @@ function collapseScalarDescription(schema: z.ZodTypeAny): z.ZodTypeAny {
 }
 
 /**
- * Serialize a tool's input schema exactly as `tools/list` will emit it: the conversion
- * `installToolSchemaRefNormalization` hands the SDK (`toolInputJsonSchema`), then the
- * `normalizeToolSchemaRefs` and `tidyToolJsonSchema` passes it applies on the way out
- * (hoist to `#/$defs/`, inline back where a client can't resolve `$defs` — #571, #643 —
- * keep the ref for recursive or oversized expansions).
+ * Serialize a tool's input schema exactly as `tools/list` will emit it (see
+ * `withServedInputSchema`): `toolInputJsonSchema`, then the `normalizeToolSchemaRefs`
+ * and `tidyToolJsonSchema` passes (hoist to `#/$defs/`, inline back where a client
+ * can't resolve `$defs` — #571, #643 — keep the ref for recursive or oversized
+ * expansions).
  *
  * Kept in one place so the measurement cannot drift from the transport: whatever the
  * normalization decides to inline is what the connector is charged for. An earlier
@@ -300,6 +301,42 @@ export function serveInputSchema(schema: z.core.$ZodObject): Record<string, unkn
   const served = normalizeToolSchemaRefs(toolInputJsonSchema(schema));
   tidyToolJsonSchema(served);
   return served;
+}
+
+/**
+ * Make `tools/list` serve `serveInputSchema(schema)` for this tool. The SDK converts tool
+ * schemas only through `~standard.jsonSchema`, and zod's own conversion there inlines
+ * every shared sub-schema in draft 2020-12. Call it on the exact object passed to
+ * registerTool: .loose()/.extend() clones don't carry the own property over.
+ */
+export function withServedInputSchema<
+  T extends z.ZodObject<z.ZodRawShape, z.core.$ZodObjectConfig>,
+>(schema: T, toolName: string): T {
+  const standard = schema['~standard'];
+  let served: Record<string, unknown> | undefined;
+  const json: typeof standard.jsonSchema.input = (options) => {
+    if (served) return served;
+    try {
+      // Frozen because the SDK only spreads the top level, so every response shares it
+      served = deepFreeze(serveInputSchema(schema));
+      return served;
+    } catch (error) {
+      // Rather zod's bloated schema than lose the tool. Kept, so it warns once.
+      logger.warn(`Could not convert the input schema of ${toolName}: ${error}`);
+      served = standard.jsonSchema.input(options);
+      return served;
+    }
+  };
+  schema['~standard'] = { ...standard, jsonSchema: { input: json, output: json } };
+  return schema;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
 }
 
 /**

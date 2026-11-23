@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { GraphClient } from '../src/graph-client.js';
@@ -30,8 +30,6 @@ function registeredParamSchemas(
   const graphClient = {} as GraphClient;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
   const registerToolSpy = vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
 
   // orgMode: true matches `registry` above (buildToolsRegistry(false, true)) so both
   // sides see the same set of tools (work-scoped tools included).

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import GraphClient, { graphInnerErrorCodes } from '../src/graph-client.js';
 import { registerGraphTools, UTILITY_TOOLS } from '../src/graph-tools.js';
 import {
@@ -178,8 +178,6 @@ describe('transcript content wiring', () => {
       handlers.set(name, h);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
     }) as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
     registerGraphTools(server, graphClient, { orgMode: true });
     return { handlers, calls };
   }

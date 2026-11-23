@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { GraphClient } from '../src/graph-client.js';
 import { registerGraphTools } from '../src/graph-tools.js';
@@ -24,8 +24,6 @@ describe('Accept override, real generated client', () => {
       handlers.set(name, h);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
     }) as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
     registerGraphTools(server, graphClient, { orgMode: true });
     return { handlers, calls };
   }

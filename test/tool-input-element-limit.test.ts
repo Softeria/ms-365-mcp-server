@@ -9,9 +9,8 @@ import express from 'express';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport, type McpServer } from '@modelcontextprotocol/server';
 import MicrosoftGraphServer, { MAX_TOOL_INPUT_ELEMENTS } from '../src/server.js';
 import type AuthManager from '../src/auth.js';
 import { clearSecretsCache } from '../src/secrets.js';
@@ -19,15 +18,21 @@ import { clearSecretsCache } from '../src/secrets.js';
 vi.mock('../src/graph-tools.js', () => ({
   registerDiscoveryTools: vi.fn(),
   registerGraphTools: vi.fn((server: McpServer) => {
-    server.tool('echo-values', 'Counts values', { values: z.array(z.string()) }, async (args) => ({
-      content: [{ type: 'text', text: String(args.values.length) }],
-    }));
+    server.registerTool(
+      'echo-values',
+      { description: 'Counts values', inputSchema: z.object({ values: z.array(z.string()) }) },
+      async (args) => ({
+        content: [{ type: 'text', text: String(args.values.length) }],
+      })
+    );
     // Same body shape as update-excel-range.
     const grid = z.array(z.array(z.union([z.string(), z.number()])));
-    server.tool(
+    server.registerTool(
       'echo-range',
-      'Counts cells',
-      { body: z.object({ values: grid, numberFormat: grid.optional() }) },
+      {
+        description: 'Counts cells',
+        inputSchema: z.object({ body: z.object({ values: grid, numberFormat: grid.optional() }) }),
+      },
       async (args) => ({
         content: [{ type: 'text', text: String(args.body.values.flat().length) }],
       })

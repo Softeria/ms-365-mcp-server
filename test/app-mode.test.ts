@@ -2,7 +2,7 @@ import { execFileSync } from 'child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/logger.js', () => ({
@@ -466,10 +466,6 @@ describe('app-mode tool surface', () => {
       names.push(name);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
     }) as any);
-    vi.spyOn(server, 'tool').mockImplementation(((name: string) => {
-      names.push(name);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool() has many overloads
-    }) as any);
     registerGraphTools(server, { graphRequest: vi.fn() } as never, {
       orgMode: true,
       appMode: true,
@@ -488,10 +484,9 @@ describe('app-mode tool surface', () => {
     const names: string[] = [];
     const record = ((name: string) => {
       names.push(name);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tool() has many overloads
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
     }) as any;
     vi.spyOn(server, 'registerTool').mockImplementation(record);
-    vi.spyOn(server, 'tool').mockImplementation(record);
     const unavailable: string[] = [];
     registerDiscoveryTools(server, { graphRequest: vi.fn() } as never, {
       orgMode: true,

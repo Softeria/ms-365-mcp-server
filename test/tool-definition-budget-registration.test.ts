@@ -50,7 +50,7 @@ vi.mock('../src/lib/body-schema-budget.js', async (importOriginal) => {
 });
 
 describe('tool definition budget during registration', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+  let mockServer: { registerTool: ReturnType<typeof vi.fn> };
 
   // The budget summary is logged once per surface per process, so each test gets a fresh
   // copy of the module (and of the mocked logger it writes to).
@@ -63,7 +63,7 @@ describe('tool definition budget during registration', () => {
   }
 
   beforeEach(() => {
-    mockServer = { tool: vi.fn(), registerTool: vi.fn() };
+    mockServer = { registerTool: vi.fn() };
   });
 
   it('fails only the tool whose schema cannot be fitted, not the whole registration', async () => {

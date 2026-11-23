@@ -65,12 +65,12 @@ describe('get-sharepoint-site-by-path', () => {
   });
 
   describe('URL construction', () => {
-    let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+    let mockServer: { registerTool: ReturnType<typeof vi.fn> };
     let mockGraphClient: GraphClient;
 
     beforeEach(() => {
       vi.clearAllMocks();
-      mockServer = { tool: vi.fn(), registerTool: vi.fn() };
+      mockServer = { registerTool: vi.fn() };
       mockGraphClient = {
         graphRequest: vi.fn().mockResolvedValue({
           content: [{ type: 'text', text: JSON.stringify({ id: 'site-id' }) }],

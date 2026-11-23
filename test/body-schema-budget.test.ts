@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import {
   DEFAULT_TOOL_DEFINITION_BUDGET,
   clearToolDefinitionBudgetCache,
@@ -9,11 +10,20 @@ import {
   measureToolDefinitionBytes,
   pruneSchemaDepth,
   serveToolInputSchema,
+  withServedInputSchema,
 } from '../src/lib/body-schema-budget.js';
-import {
-  installToolSchemaRefNormalization,
-  zodToToolJsonSchema,
-} from '../src/normalize-tool-schema.js';
+import { zodToToolJsonSchema } from '../src/normalize-tool-schema.js';
+
+async function listTools(server: McpServer) {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: 'test-client', version: '0.0.0' });
+  await client.connect(clientTransport);
+  const { tools } = await client.listTools();
+  await client.close();
+  await server.close();
+  return tools;
+}
 
 /**
  * A body shape deep and wide enough to blow past the budget, like the Graph list/channel
@@ -213,21 +223,15 @@ describe('measureToolDefinitionBytes', () => {
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     server.registerTool(
       'probe',
-      { description: 'probe', inputSchema: z.object(paramSchema).loose() },
+      {
+        description: 'probe',
+        inputSchema: withServedInputSchema(z.object(paramSchema).loose(), 'probe'),
+      },
       async () => ({ content: [] })
     );
-    installToolSchemaRefNormalization(server);
-    const handler = (
-      server.server as unknown as {
-        _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>>;
-      }
-    )._requestHandlers.get('tools/list')!;
-    const result = (await handler(
-      { method: 'tools/list' },
-      { signal: new AbortController().signal }
-    )) as { tools: Array<{ inputSchema: unknown }> };
+    const tools = await listTools(server);
 
-    const served = Buffer.byteLength(JSON.stringify(result.tools[0].inputSchema), 'utf8');
+    const served = Buffer.byteLength(JSON.stringify(tools[0].inputSchema), 'utf8');
     expect(measureToolDefinitionBytes(paramSchema)).toBe(served);
   });
 });

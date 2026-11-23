@@ -1,5 +1,9 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { CallToolRequestSchema, type ServerResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  McpServer,
+  Result,
+  ServerContext,
+  CallToolResult as SdkCallToolResult,
+} from '@modelcontextprotocol/server';
 import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { access } from 'fs/promises';
@@ -41,6 +45,7 @@ import {
   fitToolDefinitionToBudget,
   getToolDefinitionBudget,
   measureInputSchemaBytes,
+  withServedInputSchema,
   type BudgetFitResult,
 } from './lib/body-schema-budget.js';
 import { isDestructiveOperation } from './lib/destructive-ops.js';
@@ -1289,6 +1294,23 @@ function auditToolDenied(policy: DeniedToolPolicy, params: Record<string, unknow
   });
 }
 
+function deniedToolResult(policy: DeniedToolPolicy): SdkCallToolResult {
+  const why =
+    policy.reason === 'allowed_scopes'
+      ? `it needs scopes this server does not allow (${(policy.missingScopes ?? []).join(', ')})`
+      : 'it is not in the enabled tool list';
+  return {
+    content: [
+      {
+        type: 'text',
+        text: `Tool ${policy.toolName} is not available in this server configuration: ${why}.`,
+      },
+    ],
+    isError: true,
+  };
+}
+
+// The SDK has no public hook in front of McpServer's tools/call, so wrap the stored handler
 function installDeniedToolAuditHandler(
   server: McpServer,
   deniedTools: ReadonlyMap<string, DeniedToolPolicy>
@@ -1298,19 +1320,16 @@ function installDeniedToolAuditHandler(
   const lowLevel = server.server;
   const handlers = (
     lowLevel as unknown as {
-      _requestHandlers?: Map<
-        string,
-        (request: unknown, extra: unknown) => Promise<ServerResult> | ServerResult
-      >;
+      _requestHandlers?: Map<string, (request: unknown, ctx: ServerContext) => Promise<Result>>;
     }
   )._requestHandlers;
   const original = handlers?.get('tools/call');
   if (!original) {
-    logger.warn('Skipping denied-tool audit hook: tools/call handler not found');
-    return;
+    // Throw rather than serve without the audit trail
+    throw new Error('Cannot install the denied-tool audit hook: tools/call handler not found');
   }
 
-  lowLevel.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  lowLevel.setRequestHandler('tools/call', async (request, ctx) => {
     const policy = deniedTools.get(request.params.name);
     if (policy) {
       const params =
@@ -1318,9 +1337,11 @@ function installDeniedToolAuditHandler(
           ? (request.params.arguments as Record<string, unknown>)
           : {};
       auditToolDenied(policy, params);
+      // The SDK would answer -32602 "not found", and many hosts show that as a bare failure
+      return deniedToolResult(policy);
     }
 
-    return original(request, extra);
+    return (await original(request, ctx)) as SdkCallToolResult;
   });
 }
 
@@ -1642,8 +1663,7 @@ async function mintDownloadUrl(
   // ask under one identity, fetch under another.
   //
   // **Both halves of this predicate are load-bearing.** `isOAuthModeEnabled()`
-  // is true only for MS365_MCP_OAUTH_TOKEN and the oauth-provider path; it is
-  // *false* in plain `--http` bearer mode and in `--obo`, both of which still
+  // is true only for MS365_MCP_OAUTH_TOKEN; it is *false* in plain `--http` bearer mode and in `--obo`, both of which still
   // run the tool inside a request context holding the caller's token (already
   // exchanged, under OBO). Every other token site in this file pairs these two
   // checks (see the `getRequestTokens()` guards below); this one must too.
@@ -2959,22 +2979,26 @@ export const UTILITY_TOOLS: readonly UtilityTool[] = [
   },
 ];
 
+// A plain z.object strips unknown keys, as v1's raw-shape tool() did
 function registerUtilityToolWithMcp(
   server: McpServer,
   utility: UtilityTool,
-  ctx: UtilityToolContext
+  ctx: UtilityToolContext,
+  inputSchema = z.object(utility.buildSchema(ctx))
 ): void {
-  server.tool(
+  server.registerTool(
     utility.name,
-    utility.description,
-    utility.buildSchema(ctx),
     {
-      title: utility.name,
-      readOnlyHint: utility.readOnlyHint ?? true,
-      ...(utility.destructiveHint !== undefined
-        ? { destructiveHint: utility.destructiveHint }
-        : {}),
-      openWorldHint: utility.openWorldHint ?? true,
+      description: utility.description,
+      inputSchema: withServedInputSchema(inputSchema, utility.name),
+      annotations: {
+        title: utility.name,
+        readOnlyHint: utility.readOnlyHint ?? true,
+        ...(utility.destructiveHint !== undefined
+          ? { destructiveHint: utility.destructiveHint }
+          : {}),
+        openWorldHint: utility.openWorldHint ?? true,
+      },
     },
     async (params) => executeUtilityTool(utility, ctx, params)
   );
@@ -4340,7 +4364,10 @@ function registerGraphToolWithMcp(
     {
       title: tool.alias,
       description: toolDescription,
-      inputSchema: z.object(fit?.paramSchema ?? paramSchema).loose(),
+      inputSchema: withServedInputSchema(
+        z.object(fit?.paramSchema ?? paramSchema).loose(),
+        tool.alias
+      ),
       annotations: {
         title: tool.alias,
         readOnlyHint: isReadOnlyTool,
@@ -4520,10 +4547,11 @@ export function registerGraphTools(
     if (enabledToolsRegex && !enabledToolsRegex.test(utility.name)) continue;
     try {
       // Utility schemas are small and never pruned, but the connector charges for them
-      // like any other tool, so they belong in the total. server.tool() wraps the raw
-      // shape in a strict z.object(), so measure that form rather than a loose one.
-      servedSchemaBytes += measureInputSchemaBytes(z.object(utility.buildSchema(utilityCtx)));
-      registerUtilityToolWithMcp(server, utility, utilityCtx);
+      // like any other tool, so they belong in the total. Measure the strict object that
+      // gets registered, not a loose one.
+      const inputSchema = z.object(utility.buildSchema(utilityCtx));
+      servedSchemaBytes += measureInputSchemaBytes(inputSchema);
+      registerUtilityToolWithMcp(server, utility, utilityCtx, inputSchema);
       registeredCount++;
     } catch (error) {
       logger.error(`Failed to register tool ${utility.name}: ${(error as Error).message}`);
@@ -4919,23 +4947,31 @@ export function registerDiscoveryTools(
     return null;
   };
 
-  server.tool(
+  server.registerTool(
     'search-tools',
-    `Search through ${totalCount} tools (${toolsRegistry.size} Microsoft Graph API operations + ${utilityTools.length} server utilities like download-bytes). Ranks results by BM25 over tool name, llmTip, description, and path. After picking a tool, call get-tool-schema for parameters, then execute-tool.`,
     {
-      query: z
-        .string()
-        .optional()
-        .describe(
-          'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
-        ),
-      category: z.string().optional().describe(`Optional pre-filter by category: ${categoryNames}`),
-      limit: z.number().optional().describe('Maximum results (default: 10, max: 50)'),
-    },
-    {
-      title: 'search-tools',
-      readOnlyHint: true,
-      openWorldHint: true,
+      description: `Search through ${totalCount} tools (${toolsRegistry.size} Microsoft Graph API operations + ${utilityTools.length} server utilities like download-bytes). Ranks results by BM25 over tool name, llmTip, description, and path. After picking a tool, call get-tool-schema for parameters, then execute-tool.`,
+      inputSchema: withServedInputSchema(
+        z.object({
+          query: z
+            .string()
+            .optional()
+            .describe(
+              'Natural-language query. Tokenized and BM25-ranked. E.g. "send email", "download photo", "list unread messages".'
+            ),
+          category: z
+            .string()
+            .optional()
+            .describe(`Optional pre-filter by category: ${categoryNames}`),
+          limit: z.number().optional().describe('Maximum results (default: 10, max: 50)'),
+        }),
+        'search-tools'
+      ),
+      annotations: {
+        title: 'search-tools',
+        readOnlyHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ query, category, limit = 10 }) => {
       const maxLimit = Math.min(Math.max(limit, 1), 50);
@@ -4974,16 +5010,22 @@ export function registerDiscoveryTools(
     }
   );
 
-  server.tool(
+  server.registerTool(
     'get-tool-schema',
-    'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
     {
-      tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
-    },
-    {
-      title: 'get-tool-schema',
-      readOnlyHint: true,
-      openWorldHint: false,
+      description:
+        'Returns the full parameter schema (name, placement, required, JSON Schema) for a tool discovered via search-tools. Call this before execute-tool so you know what parameters to pass and what enum values are valid.',
+      inputSchema: withServedInputSchema(
+        z.object({
+          tool_name: z.string().describe('Exact tool name from search-tools (e.g. "send-mail")'),
+        }),
+        'get-tool-schema'
+      ),
+      annotations: {
+        title: 'get-tool-schema',
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ tool_name }) => {
       const entry = toolsRegistry.get(tool_name);
@@ -5015,23 +5057,31 @@ export function registerDiscoveryTools(
     }
   );
 
-  server.tool(
+  server.registerTool(
     'execute-tool',
-    'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
     {
-      tool_name: z.string().describe('Name of the tool to execute (e.g., "list-mail-messages")'),
-      parameters: z
-        .record(z.string(), z.any())
-        .optional()
-        .describe(
-          'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
-        ),
-    },
-    {
-      title: 'execute-tool',
-      readOnlyHint: false,
-      destructiveHint: true,
-      openWorldHint: true,
+      description:
+        'Execute a Microsoft Graph API tool by name. Workflow: search-tools → get-tool-schema → execute-tool. Call get-tool-schema first for any tool you have not seen before — passing the wrong shape to parameters will fail validation or return a Graph 400. For list endpoints, prefer modest $top plus $select.',
+      inputSchema: withServedInputSchema(
+        z.object({
+          tool_name: z
+            .string()
+            .describe('Name of the tool to execute (e.g., "list-mail-messages")'),
+          parameters: z
+            .record(z.string(), z.any())
+            .optional()
+            .describe(
+              'Parameters shaped per get-tool-schema. Path/query/header params go at the top level; request bodies go under "body".'
+            ),
+        }),
+        'execute-tool'
+      ),
+      annotations: {
+        title: 'execute-tool',
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ tool_name, parameters = {} }) => {
       const toolData = toolsRegistry.get(tool_name);

@@ -27,7 +27,7 @@ const ALL = [
 
 function registeredNames(options?: { enabledTools?: string; readOnly?: boolean }): string[] {
   const names: string[] = [];
-  const server = { tool: vi.fn((name: string) => names.push(name)) };
+  const server = { registerTool: vi.fn((name: string) => names.push(name)) };
   registerAuthTools(server as never, {} as AuthManager, options);
   return names;
 }
@@ -52,11 +52,8 @@ describe('registerAuthTools filtering', () => {
   it('gives every account tool a readOnlyHint, true only where --read-only keeps it', () => {
     const hints: Record<string, unknown> = {};
     const server = {
-      tool: vi.fn((name: string, ...args: unknown[]) => {
-        const annotations = args.find(
-          (arg) => typeof arg === 'object' && arg !== null && 'readOnlyHint' in arg
-        ) as { readOnlyHint: boolean } | undefined;
-        hints[name] = annotations?.readOnlyHint;
+      registerTool: vi.fn((name: string, config: { annotations?: { readOnlyHint?: boolean } }) => {
+        hints[name] = config.annotations?.readOnlyHint;
       }),
     };
     registerAuthTools(server as never, {} as AuthManager);

@@ -18,6 +18,10 @@ MCP Clients (Claude Desktop, Claude Code, Open WebUI, ...)
          Microsoft Graph API
 ```
 
+Requires Node.js 20 or newer.
+
+`/mcp` serves both protocol eras on the same URL: MCP 2026-07-28 clients (which open with `server/discover`) and 2025-era clients (which open with `initialize`). Nothing needs configuring for either.
+
 ## Headless stdio auth-cache storage
 
 Production HTTP deployments are stateless: normal Graph requests carry a per-user bearer token, including On-Behalf-Of (`--obo`) deployments, and the server does not store MSAL token state for those requests.
@@ -197,6 +201,10 @@ MS365_MCP_PUBLIC_URL=https://mcp.example.com
 ```
 
 Every advertised URL (`issuer`, `authorization_endpoint`, `token_endpoint`, `registration_endpoint`, `resource`, `authorization_servers`) uses this URL, path included, so a server hosted under a sub-path works. A client that reaches the server over an internal network (e.g. another container on the same Docker network) must still be able to reach the public URL, since it calls `/token` there.
+
+The proxy must pass the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` request headers through to `/mcp`. MCP 2026-07-28 clients send them on every request, and the server answers `400` when they are missing; 2025-era clients do not need them.
+
+Use an `https://` public URL. Newer MCP clients refuse an `http://` token endpoint, so the server logs a warning at startup when the public URL is `http://` on a host other than localhost.
 
 ## Client Configuration
 

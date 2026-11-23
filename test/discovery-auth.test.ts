@@ -20,11 +20,31 @@ function makeRes() {
   return res;
 }
 
-function makeReq(method: string, headers: Record<string, string> = {}) {
+// A 2026-07-28 request: no initialize, and a per-request _meta envelope in params
+function modernBody(method: string) {
+  return {
+    jsonrpc: '2.0',
+    id: 1,
+    method,
+    params: {
+      _meta: {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        'io.modelcontextprotocol/clientInfo': { name: 'gateway', version: '1.0.0' },
+        'io.modelcontextprotocol/clientCapabilities': {},
+      },
+    },
+  };
+}
+
+function makeReq(
+  method: string,
+  headers: Record<string, string> = {},
+  body: unknown = { jsonrpc: '2.0', method }
+) {
   return {
     method: 'POST',
     headers,
-    body: { jsonrpc: '2.0', method },
+    body,
     secure: false,
     get: (h: string) => (h.toLowerCase() === 'host' ? 'localhost:3000' : undefined),
   } as any;
@@ -33,7 +53,14 @@ function makeReq(method: string, headers: Record<string, string> = {}) {
 describe('discovery requests bypass bearer auth when --allow-unauthenticated-discovery is set', () => {
   const mw = microsoftBearerTokenAuthMiddleware({ allowUnauthenticatedDiscovery: true });
 
-  for (const method of ['initialize', 'tools/list', 'prompts/list', 'resources/list', 'ping']) {
+  for (const method of [
+    'server/discover',
+    'initialize',
+    'tools/list',
+    'prompts/list',
+    'resources/list',
+    'ping',
+  ]) {
     it(`allows ${method} with no token`, () => {
       const req = makeReq(method);
       const res = makeRes();
@@ -44,6 +71,36 @@ describe('discovery requests bypass bearer auth when --allow-unauthenticated-dis
       expect(req.microsoftAuth).toBeUndefined();
     });
   }
+
+  for (const method of ['server/discover', 'tools/list']) {
+    it(`allows a 2026-shaped ${method} with no token`, () => {
+      const req = makeReq(method, {}, modernBody(method));
+      const res = makeRes();
+      const next = vi.fn();
+      mw(req, res, next);
+      expect(next).toHaveBeenCalledOnce();
+      expect(res.status).not.toHaveBeenCalled();
+      expect(req.microsoftAuth).toBeUndefined();
+    });
+  }
+
+  it('rejects a 2026-shaped tools/call with no token (401)', () => {
+    const req = makeReq('tools/call', {}, modernBody('tools/call'));
+    const res = makeRes();
+    const next = vi.fn();
+    mw(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('rejects subscriptions/listen with no token (401)', () => {
+    const req = makeReq('subscriptions/listen', {}, modernBody('subscriptions/listen'));
+    const res = makeRes();
+    const next = vi.fn();
+    mw(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
 
   it('rejects tools/call with no token (401)', () => {
     const req = makeReq('tools/call');
@@ -67,7 +124,14 @@ describe('discovery requests bypass bearer auth when --allow-unauthenticated-dis
 describe('discovery requests require a token by default (flag off)', () => {
   const mw = microsoftBearerTokenAuthMiddleware();
 
-  for (const method of ['initialize', 'tools/list', 'prompts/list', 'resources/list', 'ping']) {
+  for (const method of [
+    'server/discover',
+    'initialize',
+    'tools/list',
+    'prompts/list',
+    'resources/list',
+    'ping',
+  ]) {
     it(`rejects ${method} with no token (401)`, () => {
       const req = makeReq(method);
       const res = makeRes();

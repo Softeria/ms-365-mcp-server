@@ -56,7 +56,9 @@ function isJwtExpired(token: string): boolean {
   }
 }
 
+// subscriptions/listen is left out on purpose: it opens a long-lived stream
 const DISCOVERY_METHODS = new Set([
+  'server/discover',
   'initialize',
   'notifications/initialized',
   'tools/list',

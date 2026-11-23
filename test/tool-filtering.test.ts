@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GraphClient from '../src/graph-client.js';
 import { registerGraphTools } from '../src/graph-tools.js';
@@ -42,13 +42,25 @@ vi.mock('../src/generated/client.js', () => ({
 describe('Tool Filtering', () => {
   let server: McpServer;
   let graphClient: GraphClient;
-  let toolSpy: ReturnType<typeof vi.spyOn>;
   let registerToolSpy: ReturnType<typeof vi.spyOn>;
 
+  const utilityNames = [
+    'parse-teams-url',
+    'download-bytes',
+    'download-bytes-to-file',
+    'get-download-url',
+    'get-upload-url',
+    'read-mail-text',
+  ];
+  const registeredNames = () => registerToolSpy.mock.calls.map(([name]) => name);
+
   beforeEach(() => {
-    server = new McpServer({ name: 'test', version: '1.0.0' });
+    // Declared like src/server.ts does, so tools/call exists for the denied-tool audit hook
+    server = new McpServer(
+      { name: 'test', version: '1.0.0' },
+      { capabilities: { tools: { listChanged: false } } }
+    );
     graphClient = {} as GraphClient;
-    toolSpy = vi.spyOn(server, 'tool').mockImplementation(() => {});
     registerToolSpy = vi
       .spyOn(server, 'registerTool')
       .mockImplementation(() => ({}) as ReturnType<McpServer['registerTool']>);
@@ -57,11 +69,9 @@ describe('Tool Filtering', () => {
   it('should register all tools when no filter is provided', () => {
     registerGraphTools(server, graphClient);
 
-    // 5 mocked graph endpoints via registerTool; utilities via tool
-    // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url,
-    // get-upload-url, read-mail-text)
-    expect(registerToolSpy).toHaveBeenCalledTimes(5);
-    expect(toolSpy).toHaveBeenCalledTimes(6);
+    // 5 mocked graph endpoints + 6 utilities, all via registerTool
+    expect(registerToolSpy).toHaveBeenCalledTimes(11);
+    expect(registeredNames()).toEqual(expect.arrayContaining(utilityNames));
     expect(registerToolSpy).toHaveBeenCalledWith(
       'list-mail-messages',
       expect.any(Object),
@@ -92,7 +102,13 @@ describe('Tool Filtering', () => {
   it('should filter tools by regex pattern - mail only', () => {
     registerGraphTools(server, graphClient, { enabledTools: 'mail' });
 
-    expect(registerToolSpy).toHaveBeenCalledTimes(2);
+    // The read-mail-text utility matches 'mail' too
+    expect(registerToolSpy).toHaveBeenCalledTimes(3);
+    expect(registerToolSpy).toHaveBeenCalledWith(
+      'read-mail-text',
+      expect.any(Object),
+      expect.any(Function)
+    );
     expect(registerToolSpy).toHaveBeenCalledWith(
       'list-mail-messages',
       expect.any(Object),
@@ -125,14 +141,20 @@ describe('Tool Filtering', () => {
     registerGraphTools(server, graphClient, { enabledTools: '[invalid regex' });
 
     // 5 mocked endpoints + utilities (no filter applied on invalid regex)
-    expect(registerToolSpy).toHaveBeenCalledTimes(5);
-    expect(toolSpy).toHaveBeenCalledTimes(6);
+    expect(registerToolSpy).toHaveBeenCalledTimes(11);
+    expect(registeredNames()).toEqual(expect.arrayContaining(utilityNames));
   });
 
   it('should combine read-only and filtering correctly', () => {
     registerGraphTools(server, graphClient, { readOnly: true, enabledTools: 'mail' });
 
-    expect(registerToolSpy).toHaveBeenCalledTimes(1);
+    // list-mail-messages plus the read-only read-mail-text utility
+    expect(registerToolSpy).toHaveBeenCalledTimes(2);
+    expect(registerToolSpy).not.toHaveBeenCalledWith(
+      'send-mail',
+      expect.any(Object),
+      expect.any(Function)
+    );
     expect(registerToolSpy).toHaveBeenCalledWith(
       'list-mail-messages',
       expect.any(Object),
@@ -144,6 +166,5 @@ describe('Tool Filtering', () => {
     registerGraphTools(server, graphClient, { enabledTools: 'nonexistent' });
 
     expect(registerToolSpy).toHaveBeenCalledTimes(0);
-    expect(toolSpy).toHaveBeenCalledTimes(0);
   });
 });

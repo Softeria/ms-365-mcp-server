@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { ZodTypeAny } from 'zod';
 import type { GraphClient } from '../src/graph-client.js';
@@ -21,8 +21,6 @@ function servedInputSchema(): Record<string, unknown> {
   const server = new McpServer({ name: 'test', version: '1.0.0' });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registerTool() has many overloads
   const spy = vi.spyOn(server, 'registerTool').mockImplementation((() => {}) as any);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  vi.spyOn(server, 'tool').mockImplementation((() => {}) as any);
   registerGraphTools(server, {} as GraphClient, { orgMode: true });
   const call = spy.mock.calls.find((c) => c[0] === 'create-chat');
   if (!call) throw new Error('create-chat was not registered');

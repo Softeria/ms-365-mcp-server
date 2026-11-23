@@ -69,9 +69,6 @@ describe('no user content reaches any log sink', () => {
       registerTool(name: string, _config: unknown, handler: Handler) {
         calls.set(name, handler);
       },
-      tool(name: string, ...args: unknown[]) {
-        calls.set(name, args.at(-1) as Handler);
-      },
     };
     const client = {
       graphRequest: async () =>

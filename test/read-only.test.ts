@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../src/cli.js';
 import type { GraphClient } from '../src/graph-client.js';
-import { registerGraphTools } from '../src/graph-tools.js';
+import { registerGraphTools, UTILITY_TOOLS } from '../src/graph-tools.js';
 
 vi.mock('../src/cli.js', () => {
   const parseArgsMock = vi.fn();
@@ -60,7 +60,13 @@ vi.mock('../src/logger.js', () => {
 });
 
 describe('Read-Only Mode', () => {
-  let mockServer: { tool: ReturnType<typeof vi.fn>; registerTool: ReturnType<typeof vi.fn> };
+  let mockServer: { registerTool: ReturnType<typeof vi.fn> };
+
+  const utilityNames = new Set(UTILITY_TOOLS.map((t) => t.name));
+  const registeredNames = () =>
+    mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0] as string);
+  const graphToolNames = () => registeredNames().filter((name) => !utilityNames.has(name));
+  const utilityToolNames = () => registeredNames().filter((name) => utilityNames.has(name));
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,7 +74,6 @@ describe('Read-Only Mode', () => {
     delete process.env.READ_ONLY;
 
     mockServer = {
-      tool: vi.fn(),
       registerTool: vi.fn(),
     };
   });
@@ -85,10 +90,10 @@ describe('Read-Only Mode', () => {
 
     registerGraphTools(mockServer, {} as GraphClient, { readOnly: options.readOnly });
 
-    // 1 GET graph endpoint via registerTool; parse-teams-url + download-bytes +
-    // download-bytes-to-file + get-download-url + read-mail-text utilities via tool
-    expect(mockServer.registerTool).toHaveBeenCalledTimes(1);
-    expect(mockServer.tool).toHaveBeenCalledTimes(5);
+    // 1 GET graph endpoint; parse-teams-url + download-bytes +
+    // download-bytes-to-file + get-download-url + read-mail-text utilities
+    expect(graphToolNames()).toHaveLength(1);
+    expect(utilityToolNames()).toHaveLength(5);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -107,8 +112,8 @@ describe('Read-Only Mode', () => {
     // 4 mocked endpoints (get-schedule skipped: workScopes only, no orgMode) + utilities
     // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url,
     // get-upload-url, read-mail-text)
-    expect(mockServer.registerTool).toHaveBeenCalledTimes(4);
-    expect(mockServer.tool).toHaveBeenCalledTimes(6);
+    expect(graphToolNames()).toHaveLength(4);
+    expect(utilityToolNames()).toHaveLength(6);
 
     const toolCalls = mockServer.registerTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolCalls).toContain('list-mail-messages');
@@ -146,8 +151,8 @@ describe('Read-Only Mode', () => {
     // 2 graph tools (list-mail-messages + get-schedule) + utilities
     // (parse-teams-url, download-bytes, download-bytes-to-file, get-download-url,
     // read-mail-text)
-    expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
-    expect(mockServer.tool).toHaveBeenCalledTimes(5);
+    expect(graphToolNames()).toHaveLength(2);
+    expect(utilityToolNames()).toHaveLength(5);
   });
 
   it('reports a readOnly POST endpoint as read-only, not destructive, in its hints', () => {
