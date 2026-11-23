@@ -25,6 +25,7 @@ export const CIMD_MIN_TTL_MS = 60_000;
 export const CIMD_MAX_TTL_MS = 24 * 60 * 60_000;
 export const CIMD_MAX_CACHE_ENTRIES = 500;
 export const CIMD_MAX_IN_FLIGHT = 20;
+export const CIMD_RETRY_AFTER_SECONDS = 30;
 
 export interface ClientMetadata {
   client_id: string;
@@ -32,7 +33,10 @@ export interface ClientMetadata {
   redirect_uris: string[];
 }
 
-/** `transient` marks a failure worth retrying later (timeout, network, 5xx, 429), not a final answer. */
+/**
+ * `transient` marks a failure worth retrying later (timeout, network, 5xx,
+ * 429, every lookup slot busy), not a final answer.
+ */
 export class ClientMetadataError extends Error {
   constructor(
     message: string,
@@ -387,7 +391,10 @@ export class ClientMetadataResolver {
     if (!pending) {
       if (this.inFlight.size >= CIMD_MAX_IN_FLIGHT) {
         if (stale) return stale;
-        throw new ClientMetadataError('too many client metadata lookups in progress, try again');
+        throw new ClientMetadataError(
+          'too many client metadata lookups in progress, try again',
+          true
+        );
       }
       pending = this.load(url, clientId).finally(() => this.inFlight.delete(clientId));
       this.inFlight.set(clientId, pending);
@@ -451,7 +458,11 @@ export const DCR_DISABLED_HINT =
 
 export type AuthorizeClientCheck =
   | { ok: true; clientName?: string }
-  | { ok: false; error: 'invalid_client' | 'invalid_request'; description: string };
+  | {
+      ok: false;
+      error: 'invalid_client' | 'invalid_request' | 'temporarily_unavailable';
+      description: string;
+    };
 
 /**
  * Decides whether /authorize may go on for this client_id and redirect_uri.
@@ -477,8 +488,14 @@ export async function checkAuthorizeClient(params: {
   try {
     metadata = await resolver.resolve(clientId);
   } catch (err) {
-    const reason = err instanceof ClientMetadataError ? err.message : 'client metadata error';
-    return { ok: false, error: 'invalid_client', description: reason };
+    if (!(err instanceof ClientMetadataError)) {
+      return { ok: false, error: 'invalid_client', description: 'client metadata error' };
+    }
+    return {
+      ok: false,
+      error: err.transient ? 'temporarily_unavailable' : 'invalid_client',
+      description: err.message,
+    };
   }
   if (!redirectUriMatches(redirectUri, metadata.redirect_uris)) {
     return {

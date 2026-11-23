@@ -45,6 +45,7 @@ import { isAllowedRedirectUri, parseAllowlist } from './lib/redirect-uri-validat
 import {
   type AuthorizeClientCheck,
   checkAuthorizeClient,
+  CIMD_RETRY_AFTER_SECONDS,
   clientIdHost,
   ClientMetadataResolver,
   DCR_DISABLED_HINT,
@@ -720,7 +721,7 @@ class MicrosoftGraphServer {
 
       const oauthProvider = new MicrosoftOAuthProvider(this.authManager, this.secrets!);
 
-      // Public URL resolution for browser-facing OAuth endpoints.
+      // Public URL resolution for the advertised OAuth endpoints.
       //
       // When running behind a reverse proxy, the request's Host header only
       // reflects the public origin if the client reached the server through
@@ -728,9 +729,9 @@ class MicrosoftGraphServer {
       // an internal Docker hostname, Host is that internal name, so the
       // authorize URL we hand back to the user's browser would be
       // unresolvable from outside. Setting MS365_MCP_PUBLIC_URL pins the
-      // browser-facing origin while the server-to-server endpoints
-      // (token, register, resource) stay on the request origin so clients
-      // that reach us internally don't need NAT loopback through the proxy.
+      // origin of every advertised endpoint (authorize, token, register,
+      // resource), so a server under a sub-path is found there too (#544).
+      // Clients that reach us internally must be able to reach that URL.
       //
       // DEPRECATED: --base-url / MS365_MCP_BASE_URL. Use --public-url /
       // MS365_MCP_PUBLIC_URL instead. The deprecated names are still read
@@ -893,7 +894,11 @@ class MicrosoftGraphServer {
             error: clientCheck.error,
             reason: clientCheck.description,
           });
-          res.status(400).json({
+          // Not a redirect back to the client: the redirect_uri is unchecked
+          // until the document loads (RFC 6749 4.1.2.1).
+          const unavailable = clientCheck.error === 'temporarily_unavailable';
+          if (unavailable) res.set('Retry-After', String(CIMD_RETRY_AFTER_SECONDS));
+          res.status(unavailable ? 503 : 400).json({
             error: clientCheck.error,
             error_description: clientCheck.description,
           });

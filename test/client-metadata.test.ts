@@ -451,7 +451,9 @@ describe('ClientMetadataResolver', () => {
     });
     const ids = Array.from({ length: 20 }, (_, i) => `https://example.com/c${i}.json`);
     const loads = ids.map((id) => resolver.resolve(id).catch(() => undefined));
-    await expect(resolver.resolve('https://example.com/one-more.json')).rejects.toThrow(/too many/);
+    const err = await resolver.resolve('https://example.com/one-more.json').catch((e) => e);
+    expect(err.message).toMatch(/too many/);
+    expect(err.transient).toBe(true);
     pending.forEach((resolve) => resolve({ status: 500, body: '' }));
     await Promise.all(loads);
   });
@@ -518,5 +520,34 @@ describe('checkAuthorizeClient', () => {
       resolver: failing,
     });
     expect(result).toMatchObject({ ok: false, error: 'invalid_client' });
+  });
+
+  it.each([
+    ['a 503', async () => ({ status: 503, body: '' })],
+    ['a 429', async () => ({ status: 429, body: '' })],
+    [
+      'a network error',
+      async () => {
+        throw new Error('connect ETIMEDOUT');
+      },
+    ],
+  ])('asks to try again later when the document fetch hits %s', async (_name, fetcher) => {
+    const result = await checkAuthorizeClient({
+      clientId: CLAUDE_CODE,
+      redirectUri: 'http://localhost:4000/callback',
+      resolver: new ClientMetadataResolver({ fetcher: fetcher as () => Promise<FetchedDocument> }),
+    });
+    expect(result).toMatchObject({ ok: false, error: 'temporarily_unavailable' });
+  });
+
+  it('asks to try again later while every lookup slot is busy', async () => {
+    const resolver = new ClientMetadataResolver({ fetcher: () => new Promise(() => {}) });
+    for (let i = 0; i < CIMD_MAX_IN_FLIGHT; i++) void resolver.resolve(`https://h${i}.example/c`);
+    const result = await checkAuthorizeClient({
+      clientId: CLAUDE_CODE,
+      redirectUri: 'http://localhost:4000/callback',
+      resolver,
+    });
+    expect(result).toMatchObject({ ok: false, error: 'temporarily_unavailable' });
   });
 });
