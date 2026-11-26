@@ -2009,6 +2009,22 @@
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
   },
   {
+    "pathPattern": "/users/{user-id}/chats/{chat-id}/messages/{chatMessage-id}/softDelete",
+    "method": "post",
+    "toolName": "delete-chat-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["Chat.ReadWrite"],
+    "llmTip": "Soft-deletes a Teams chat message: Teams shows it as deleted and undo-delete-chat-message restores it. Only the signed-in user's own messages can be deleted; Graph rejects other people's messages. user-id must be the signed-in user's own id (the id field from get-current-user). No request body; returns 204. Work/school accounts only."
+  },
+  {
+    "pathPattern": "/users/{user-id}/chats/{chat-id}/messages/{chatMessage-id}/undoSoftDelete",
+    "method": "post",
+    "toolName": "undo-delete-chat-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["Chat.ReadWrite"],
+    "llmTip": "Restores a Teams chat message that was soft-deleted with delete-chat-message. Only the signed-in user's own messages can be restored. user-id must be the signed-in user's own id (the id field from get-current-user). No request body; returns 204. Work/school accounts only."
+  },
+  {
     "pathPattern": "/chats/{chat-id}/messages/{chatMessage-id}/hostedContents",
     "method": "get",
     "toolName": "list-chat-message-hosted-contents",
@@ -2207,6 +2223,38 @@
     "workScopes": ["ChannelMessage.ReadWrite"],
     "mentionShorthand": true,
     "llmTip": "To @mention someone, put <at user-id=\"<aad-user-id>\">Display Name</at> in the html content; the server numbers the tag and builds the mentions array. Use the userId field (not id) from list-team-members or list-chat-members. Use contentType html in the body."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/softDelete",
+    "method": "post",
+    "toolName": "delete-channel-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"],
+    "llmTip": "Soft-deletes a Teams channel message: Teams shows it as deleted and undo-delete-channel-message restores it. Only the signed-in user's own messages can be deleted; Graph rejects other people's messages. No request body; returns 204. Work/school accounts only."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/undoSoftDelete",
+    "method": "post",
+    "toolName": "undo-delete-channel-message",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"],
+    "llmTip": "Restores a Teams channel message that was soft-deleted with delete-channel-message. Only the signed-in user's own messages can be restored. No request body; returns 204. Work/school accounts only."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies/{chatMessage-id1}/softDelete",
+    "method": "post",
+    "toolName": "delete-channel-message-reply",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"],
+    "llmTip": "Soft-deletes a reply to a Teams channel message: Teams shows it as deleted and undo-delete-channel-message-reply restores it. Only the signed-in user's own messages can be deleted; Graph rejects other people's messages. chatMessage-id is the parent message, chatMessage-id1 the reply. No request body; returns 204. Work/school accounts only."
+  },
+  {
+    "pathPattern": "/teams/{team-id}/channels/{channel-id}/messages/{chatMessage-id}/replies/{chatMessage-id1}/undoSoftDelete",
+    "method": "post",
+    "toolName": "undo-delete-channel-message-reply",
+    "presets": ["teams", "work"],
+    "workScopes": ["ChannelMessage.ReadWrite"],
+    "llmTip": "Restores a reply to a Teams channel message that was soft-deleted with delete-channel-message-reply. Only the signed-in user's own messages can be restored. chatMessage-id is the parent message, chatMessage-id1 the reply. No request body; returns 204. Work/school accounts only."
   },
   {
     "pathPattern": "/teams/{team-id}/members",

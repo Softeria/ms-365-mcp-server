@@ -10,7 +10,7 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                            |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                                    |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 376<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                                    |
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                          |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                            |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                           |
@@ -22,16 +22,16 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `personal`    | [full](#personal-full)<br>[read only](#personal-read-only)       |  178<br>74 | 20<br>15 | -<br>-               | Personal productivity tools (mail, calendar, files, contacts, tasks, notes, search)                                                    |
 | `search`      | [full](#search-full)<br>[read only](#search-read-only)           |     8<br>8 |   8<br>8 | -<br>-               | Microsoft Search capabilities                                                                                                          |
 | `tasks`       | [full](#tasks-full)<br>[read only](#tasks-read-only)             |   35<br>16 |   1<br>1 | -<br>-               | Task and planning tools (To Do, Planner)                                                                                               |
-| `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   71<br>42 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                                 |
+| `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   77<br>42 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                                 |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                                  |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                                  |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 196<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                                  |
 
 ## `all` full
 
 All available tools
 
-Tools (370):
+Tools (376):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -109,6 +109,9 @@ Tools (370):
 - `decline-calendar-event`
 - `delete-calendar`
 - `delete-calendar-event`
+- `delete-channel-message`
+- `delete-channel-message-reply`
+- `delete-chat-message`
 - `delete-contact-folder`
 - `delete-drive-item-permission`
 - `delete-excel-range`
@@ -362,6 +365,9 @@ Tools (370):
 - `snooze-calendar-event-reminder`
 - `sort-excel-range`
 - `tentatively-accept-calendar-event`
+- `undo-delete-channel-message`
+- `undo-delete-channel-message-reply`
+- `undo-delete-chat-message`
 - `unmerge-excel-range`
 - `unpin-chat-message`
 - `unset-channel-message-reaction`
@@ -1804,7 +1810,7 @@ Teams app only: chats, channels, meetings and presence
 
 Requires `--org-mode`.
 
-Tools (71):
+Tools (77):
 
 - `add-team-member`
 - `clear-my-presence`
@@ -1814,6 +1820,9 @@ Tools (71):
 - `create-custom-emoji`
 - `create-online-meeting`
 - `create-team-channel`
+- `delete-channel-message`
+- `delete-channel-message-reply`
+- `delete-chat-message`
 - `delete-online-meeting`
 - `delete-team-channel`
 - `download-bytes`
@@ -1869,6 +1878,9 @@ Tools (71):
 - `set-my-presence`
 - `set-my-status-message`
 - `set-my-user-preferred-presence`
+- `undo-delete-channel-message`
+- `undo-delete-channel-message-reply`
+- `undo-delete-chat-message`
 - `unpin-chat-message`
 - `unset-channel-message-reaction`
 - `unset-chat-message-reaction`
@@ -2095,7 +2107,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (190):
+Tools (196):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2127,6 +2139,9 @@ Tools (190):
 - `create-sharepoint-site-onenote-section-group-section`
 - `create-sharepoint-site-onenote-section-page`
 - `create-team-channel`
+- `delete-channel-message`
+- `delete-channel-message-reply`
+- `delete-chat-message`
 - `delete-group`
 - `delete-online-meeting`
 - `delete-planner-bucket`
@@ -2267,6 +2282,9 @@ Tools (190):
 - `set-my-presence`
 - `set-my-status-message`
 - `set-my-user-preferred-presence`
+- `undo-delete-channel-message`
+- `undo-delete-channel-message-reply`
+- `undo-delete-chat-message`
 - `unpin-chat-message`
 - `unset-channel-message-reaction`
 - `unset-chat-message-reaction`
