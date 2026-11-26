@@ -32,6 +32,26 @@ vi.mock('../src/generated/client.js', () => ({
           { name: 'eventId', type: 'Path', schema: z.string() },
         ],
       },
+      {
+        alias: 'update-channel-message-reply',
+        method: 'patch',
+        path: '/teams/:teamId/channels/:channelId/messages/:chatMessageId/replies/:chatMessageId1',
+        description: 'Update a channel message reply.',
+        parameters: [
+          { name: 'teamId', type: 'Path', schema: z.string() },
+          { name: 'channelId', type: 'Path', schema: z.string() },
+          { name: 'chatMessageId', type: 'Path', schema: z.string() },
+          { name: 'chatMessageId1', type: 'Path', schema: z.string() },
+        ],
+      },
+      {
+        // No declared path params: the generated client omits them for most operations
+        alias: 'list-channel-message-replies',
+        method: 'get',
+        path: '/teams/:teamId/channels/:channelId/messages/:chatMessageId/replies/:chatMessageId1',
+        description: 'Get a channel message reply.',
+        parameters: [],
+      },
     ],
   },
 }));
@@ -50,8 +70,8 @@ describe('Path parameter encoding (issue #245)', () => {
     } as unknown as GraphClient;
   });
 
-  function getToolHandler(toolName: string) {
-    registerGraphTools(mockServer, mockGraphClient);
+  function getToolHandler(toolName: string, options?: { orgMode?: boolean }) {
+    registerGraphTools(mockServer, mockGraphClient, options);
     const call = mockServer.registerTool.mock.calls.find((c: unknown[]) => c[0] === toolName);
     expect(call).toBeDefined();
     return call![call!.length - 1] as (params: Record<string, unknown>) => Promise<unknown>;
@@ -104,5 +124,41 @@ describe('Path parameter encoding (issue #245)', () => {
     const calledPath = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock
       .calls[0][0] as string;
     expect(calledPath).toContain('some%20id%20with%20spaces');
+  });
+
+  // :chatMessageId is also the start of :chatMessageId1, the reply id of the same path
+  describe('a path param whose name starts another one', () => {
+    const expected = '/teams/t1/channels/c1/messages/parent/replies/reply';
+
+    it.each([
+      ['update-channel-message-reply', 'declared'],
+      ['list-channel-message-replies', 'undeclared'],
+    ])('fills each placeholder with its own value on %s (%s path params)', async (toolName) => {
+      vi.stubEnv('MS365_MCP_REQUIRE_CONFIRM', 'false');
+      const handler = getToolHandler(toolName, { orgMode: true });
+      const calls = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock.calls;
+
+      await handler({
+        teamId: 't1',
+        channelId: 'c1',
+        chatMessageId: 'parent',
+        chatMessageId1: 'reply',
+      });
+      await handler({
+        chatMessageId1: 'reply',
+        chatMessageId: 'parent',
+        channelId: 'c1',
+        teamId: 't1',
+      });
+      await handler({
+        'team-id': 't1',
+        'channel-id': 'c1',
+        'chatMessage-id': 'parent',
+        'chatMessage-id1': 'reply',
+      });
+
+      expect(calls.map((c) => c[0])).toEqual([expected, expected, expected]);
+      vi.unstubAllEnvs();
+    });
   });
 });
