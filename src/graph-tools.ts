@@ -182,6 +182,9 @@ interface EndpointConfig {
   deltaToken?: boolean;
   // Sends $search as search= (no $), the form Graph documents here. Only that form takes *
   plainSearch?: boolean;
+  // Sends Prefer: HonorNonIndexedQueriesWarningMayFailRandomly with a $filter or $orderby.
+  // Without it Graph 400s a SharePoint list query on a column that has no index (#852)
+  honorNonIndexedQueries?: boolean;
   mentionShorthand?: boolean; // Rewrites <at user-id="..."> in the message body into Graph mentions
   // MCP Apps view (src/apps/<view>.html and .js) that hosts render for this tool's results
   // under --enable-mcp-apps. tools names the tools the view may call, by role; a role
@@ -3660,6 +3663,14 @@ async function executeGraphTool(
     const bodyFormat = process.env.MS365_MCP_BODY_FORMAT || 'text';
     if (bodyFormat !== 'html' && tool.method.toUpperCase() === 'GET') {
       preferValues.push(`outlook.body-content-type="${bodyFormat}"`);
+    }
+
+    // Trimmed, as an empty orderby array arrives here as ''
+    if (
+      config?.honorNonIndexedQueries &&
+      (queryParams['$filter']?.trim() || queryParams['$orderby']?.trim())
+    ) {
+      preferValues.push('HonorNonIndexedQueriesWarningMayFailRandomly');
     }
 
     if (preferValues.length > 0) {

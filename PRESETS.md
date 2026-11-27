@@ -10,7 +10,7 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 
 | Preset        | Mode                                                             |      Tools |   Scopes | Org mode             | Description                                                                                                                            |
 | ------------- | ---------------------------------------------------------------- | ---------: | -------: | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 370<br>181 | 65<br>38 | -<br>-               | All available tools                                                                                                                    |
+| `all`         | [full](#all-full)<br>[read only](#all-read-only)                 | 377<br>188 | 65<br>38 | -<br>-               | All available tools                                                                                                                    |
 | `calendar`    | [full](#calendar-full)<br>[read only](#calendar-read-only)       |   48<br>23 |   7<br>5 | -<br>-               | Calendar and event management                                                                                                          |
 | `contacts`    | [full](#contacts-full)<br>[read only](#contacts-read-only)       |    15<br>7 |   1<br>1 | -<br>-               | Outlook contacts management                                                                                                            |
 | `excel`       | [full](#excel-full)<br>[read only](#excel-read-only)             |    25<br>9 |   1<br>1 | -<br>-               | Excel spreadsheet operations                                                                                                           |
@@ -25,13 +25,13 @@ Every preset also includes the account tools (`login`, `logout`, `verify-login`,
 | `teams`       | [full](#teams-full)<br>[read only](#teams-read-only)             |   71<br>42 | 31<br>18 | required<br>required | Teams app only: chats, channels, meetings and presence                                                                                 |
 | `teams-write` | [full](#teams-write-full)<br>[read only](#teams-write-read-only) |    11<br>7 |   6<br>3 | required<br>required | Teams send-only: send in chats, send/reply in channels, list chats/teams/channels by name, activity notifications - no message reading |
 | `users`       | [full](#users-full)<br>[read only](#users-read-only)             |   11<br>11 |   4<br>4 | required<br>required | User directory access                                                                                                                  |
-| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 190<br>111 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                                  |
+| `work`        | [full](#work-full)<br>[read only](#work-read-only)               | 197<br>118 | 55<br>33 | required<br>required | Organization/work tools (Teams, SharePoint, shared mailboxes, search)                                                                  |
 
 ## `all` full
 
 All available tools
 
-Tools (370):
+Tools (377):
 
 - `accept-calendar-event`
 - `add-calendar-event-attachment`
@@ -162,6 +162,8 @@ Tools (370):
 - `get-download-url`
 - `get-drive-delta`
 - `get-drive-item`
+- `get-drive-item-list-item`
+- `get-drive-list`
 - `get-drive-root-item`
 - `get-excel-range`
 - `get-excel-range-format`
@@ -244,6 +246,8 @@ Tools (370):
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`
+- `list-drive-list-columns`
+- `list-drive-list-items`
 - `list-drives`
 - `list-excel-table-rows`
 - `list-excel-tables`
@@ -298,6 +302,9 @@ Tools (370):
 - `list-shared-mailbox-folders`
 - `list-shared-mailbox-messages`
 - `list-sharepoint-list-columns`
+- `list-sharepoint-list-content-types`
+- `list-sharepoint-site-columns`
+- `list-sharepoint-site-content-types`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
 - `list-sharepoint-site-list-item-versions`
@@ -476,7 +483,7 @@ Scopes (65):
 
 All available tools
 
-Tools (181):
+Tools (188):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -493,6 +500,8 @@ Tools (181):
 - `get-download-url`
 - `get-drive-delta`
 - `get-drive-item`
+- `get-drive-item-list-item`
+- `get-drive-list`
 - `get-drive-root-item`
 - `get-excel-range`
 - `get-excel-range-format`
@@ -572,6 +581,8 @@ Tools (181):
 - `list-drive-item-permissions`
 - `list-drive-item-thumbnails`
 - `list-drive-item-versions`
+- `list-drive-list-columns`
+- `list-drive-list-items`
 - `list-drives`
 - `list-excel-table-rows`
 - `list-excel-tables`
@@ -626,6 +637,9 @@ Tools (181):
 - `list-shared-mailbox-folders`
 - `list-shared-mailbox-messages`
 - `list-sharepoint-list-columns`
+- `list-sharepoint-list-content-types`
+- `list-sharepoint-site-columns`
+- `list-sharepoint-site-content-types`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
 - `list-sharepoint-site-list-item-versions`
@@ -2095,7 +2109,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (190):
+Tools (197):
 
 - `add-group-member`
 - `add-group-owner`
@@ -2146,6 +2160,8 @@ Tools (190):
 - `get-chat-message`
 - `get-current-user`
 - `get-download-url`
+- `get-drive-item-list-item`
+- `get-drive-list`
 - `get-group`
 - `get-group-calendar-view`
 - `get-meeting-attendance-report`
@@ -2195,6 +2211,8 @@ Tools (190):
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`
+- `list-drive-list-columns`
+- `list-drive-list-items`
 - `list-group-conversations`
 - `list-group-events`
 - `list-group-members`
@@ -2226,6 +2244,9 @@ Tools (190):
 - `list-shared-mailbox-folders`
 - `list-shared-mailbox-messages`
 - `list-sharepoint-list-columns`
+- `list-sharepoint-list-content-types`
+- `list-sharepoint-site-columns`
+- `list-sharepoint-site-content-types`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
 - `list-sharepoint-site-list-item-versions`
@@ -2352,7 +2373,7 @@ Organization/work tools (Teams, SharePoint, shared mailboxes, search)
 
 Requires `--org-mode`.
 
-Tools (111):
+Tools (118):
 
 - `copilot-retrieve`
 - `download-bytes`
@@ -2364,6 +2385,8 @@ Tools (111):
 - `get-chat-message`
 - `get-current-user`
 - `get-download-url`
+- `get-drive-item-list-item`
+- `get-drive-list`
 - `get-group`
 - `get-group-calendar-view`
 - `get-meeting-attendance-report`
@@ -2412,6 +2435,8 @@ Tools (111):
 - `list-chat-messages`
 - `list-chats`
 - `list-custom-emojis`
+- `list-drive-list-columns`
+- `list-drive-list-items`
 - `list-group-conversations`
 - `list-group-events`
 - `list-group-members`
@@ -2443,6 +2468,9 @@ Tools (111):
 - `list-shared-mailbox-folders`
 - `list-shared-mailbox-messages`
 - `list-sharepoint-list-columns`
+- `list-sharepoint-list-content-types`
+- `list-sharepoint-site-columns`
+- `list-sharepoint-site-content-types`
 - `list-sharepoint-site-drives`
 - `list-sharepoint-site-items`
 - `list-sharepoint-site-list-item-versions`

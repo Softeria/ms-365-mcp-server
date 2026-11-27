@@ -355,4 +355,153 @@ describe('per-tool behavior on the real tool surface', () => {
       '$search='
     );
   });
+
+  const NON_INDEXED = 'HonorNonIndexedQueriesWarningMayFailRandomly';
+
+  function preferSent(call = -1): string[] {
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls.at(call)!;
+    return (options?.headers?.Prefer ?? '').split(', ');
+  }
+
+  // A value for every path param of a generated path such as /sites/:siteId/lists/:listId
+  function placeholders(path: string): Record<string, string> {
+    return Object.fromEntries(
+      [...path.matchAll(/:([a-zA-Z][a-zA-Z0-9]*)/g)].map((m) => [m[1], 'x'])
+    );
+  }
+
+  it('lets exactly the SharePoint list item tools filter on a column with no index', async () => {
+    const registry = buildToolsRegistry(false, true);
+    const sending: string[] = [];
+    const unreached: string[] = [];
+    for (const call of server.registerTool.mock.calls) {
+      const name = call[0] as string;
+      const tool = registry.get(name)?.tool;
+      const { shape } = (call[1] as { inputSchema: { shape: object } }).inputSchema;
+      if (!tool || !('filter' in shape)) continue;
+      vi.mocked(graphClient.graphRequest).mockClear();
+      await registered(name).handler({ ...placeholders(tool.path), filter: "id eq 'x'" });
+      if (vi.mocked(graphClient.graphRequest).mock.calls.length === 0) unreached.push(name);
+      else if (preferSent().includes(NON_INDEXED)) sending.push(name);
+    }
+    // A tool that never reached Graph was not checked
+    expect(unreached).toEqual([]);
+    expect(sending.sort()).toEqual(['list-drive-list-items', 'list-sharepoint-site-list-items']);
+  });
+
+  it.each([
+    ['list-sharepoint-site-list-items', { siteId: 's1', listId: 'l1' }],
+    ['list-drive-list-items', { driveId: 'd1' }],
+  ])(
+    'asks Graph to run a non-indexed query on %s only with $filter or $orderby',
+    async (name, ids) => {
+      vi.stubEnv('MS365_MCP_BODY_FORMAT', 'text');
+      const { handler } = registered(name);
+      const prefer = async (params: Record<string, unknown>) => {
+        vi.mocked(graphClient.graphRequest).mockClear();
+        await handler({ ...ids, ...params });
+        expect(graphClient.graphRequest).toHaveBeenCalledOnce();
+        return preferSent();
+      };
+
+      expect(await prefer({ expand: 'fields' })).not.toContain(NON_INDEXED);
+      // Graph reads Prefer as a list, so the body format it already carries stays
+      expect(await prefer({ filter: "fields/Status eq 'Approved'" })).toEqual([
+        'outlook.body-content-type="text"',
+        NON_INDEXED,
+      ]);
+      expect(await prefer({ $orderby: 'fields/Status' })).toContain(NON_INDEXED);
+      // Neither of these filters or sorts
+      expect(await prefer({ filter: ' ', orderby: [] })).not.toContain(NON_INDEXED);
+
+      vi.stubEnv('MS365_MCP_BODY_FORMAT', 'html');
+      expect(await prefer({ filter: "fields/Status eq 'Approved'" })).toEqual([NON_INDEXED]);
+    }
+  );
+
+  it('keeps asking for the non-indexed query on each page of fetchAllPages', async () => {
+    const page = (body: object) => ({ content: [{ type: 'text', text: JSON.stringify(body) }] });
+    vi.mocked(graphClient.graphRequest)
+      .mockResolvedValueOnce(
+        page({
+          value: [{ id: '1' }],
+          '@odata.nextLink':
+            'https://graph.microsoft.com/v1.0/drives/d1/list/items?$filter=fields%2fStatus+eq+%27Approved%27&$skiptoken=abc',
+        })
+      )
+      .mockResolvedValueOnce(page({ value: [{ id: '2' }] }));
+
+    const result = await registered('list-drive-list-items').handler({
+      driveId: 'd1',
+      filter: "fields/Status eq 'Approved'",
+      fetchAllPages: true,
+    });
+
+    const calls = vi.mocked(graphClient.graphRequest).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[1][0]).toContain('$skiptoken=abc');
+    expect(preferSent(0)).toContain(NON_INDEXED);
+    expect(preferSent(1)).toContain(NON_INDEXED);
+    expect(JSON.parse(result.content[0].text).value).toHaveLength(2);
+  });
+
+  it('asks for the non-indexed query on a skiptoken page that repeats the filter', async () => {
+    await registered('list-drive-list-items').handler({
+      driveId: 'd1',
+      filter: "fields/Status eq 'Approved'",
+      skiptoken: 'https://graph.microsoft.com/v1.0/drives/d1/list/items?$top=2&$skiptoken=abc',
+    });
+    expect(vi.mocked(graphClient.graphRequest).mock.calls[0][0]).toContain('$skiptoken=abc');
+    expect(preferSent()).toContain(NON_INDEXED);
+  });
+
+  // Checked against Graph on a document library. The column tools ignore $top, $filter,
+  // $orderby and $search and return every column. List items ignore $search. Everything
+  // else left out here is a 400, bar $count on content types, whose shared description
+  // is about mail (as on list-rooms).
+  it.each([
+    ['get-drive-list', ['select', 'expand']],
+    ['get-drive-item-list-item', ['select', 'expand']],
+    ['list-drive-list-columns', ['select', 'expand']],
+    ['list-sharepoint-site-columns', ['select', 'expand']],
+    ['list-drive-list-items', ['select', 'expand', 'filter', 'orderby', 'top', 'skiptoken']],
+    [
+      'list-sharepoint-site-list-items',
+      ['select', 'expand', 'filter', 'orderby', 'top', 'skiptoken'],
+    ],
+    [
+      'list-sharepoint-site-content-types',
+      ['select', 'expand', 'filter', 'orderby', 'top', 'skiptoken'],
+    ],
+    [
+      'list-sharepoint-list-content-types',
+      ['select', 'expand', 'filter', 'orderby', 'top', 'skiptoken'],
+    ],
+  ])('offers only the query options Graph honours on %s', async (name, honoured) => {
+    const all = [
+      'select',
+      'expand',
+      'filter',
+      'orderby',
+      'top',
+      'skip',
+      'count',
+      'search',
+      'skiptoken',
+    ];
+    const { shape, handler } = registered(name);
+    expect(all.filter((option) => option in shape)).toEqual(honoured);
+
+    const entry = buildToolsRegistry(false, true).get(name)!;
+    const discovered = describeToolSchema(entry.tool, entry.config).parameters.map((p) => p.name);
+    expect(all.filter((option) => discovered.includes(option))).toEqual(honoured);
+
+    // One that is left out is refused here, not sent
+    const result = await handler({ ...placeholders(entry.tool.path), skip: 1 });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      error: 'invalid_query_parameter',
+      parameter: '$skip',
+    });
+    expect(graphClient.graphRequest).not.toHaveBeenCalled();
+  });
 });
