@@ -54,6 +54,24 @@ vi.mock('../src/generated/client.js', async () => {
             { name: 'body', type: 'Body', schema: messageSchema },
           ],
         },
+        {
+          alias: 'reply-mail-message',
+          method: 'post',
+          path: '/me/messages/:messageId/reply',
+          description: 'Reply to a message.',
+          parameters: [
+            { name: 'messageId', type: 'Path', schema: z.string() },
+            {
+              name: 'body',
+              type: 'Body',
+              // PascalCase, as in the generated client
+              schema: z.object({
+                Message: messageSchema.nullish(),
+                Comment: z.string().nullish(),
+              }),
+            },
+          ],
+        },
       ],
     },
   };
@@ -101,6 +119,24 @@ describe('Flattened body field fallback (issue #569)', () => {
       body: { contentType: 'text', content: 'Hi there' },
       toRecipients: [{ emailAddress: { address: 'user@example.com' } }],
     });
+  });
+
+  // `message` is the start of :messageId. It comes first, so the placeholder is still
+  // unfilled when it is looked at: it must not be taken for a path param
+  it('does not take a param that only starts a path placeholder for a path param', async () => {
+    const logger = (await import('../src/logger.js')).default;
+    const handler = getToolHandler('reply-mail-message');
+    const message = { toRecipients: [{ emailAddress: { address: 'user@example.com' } }] };
+
+    await handler({ message, Comment: 'Thanks', messageId: 'm1' });
+
+    const call = (mockGraphClient.graphRequest as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toBe('/me/messages/m1/reply');
+    expect(sentBody()).toEqual({ Comment: 'Thanks' });
+    const info = (logger.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    const warn = (logger.warn as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(info.filter((m) => m.startsWith('Path param fallback'))).toEqual([]);
+    expect(warn.filter((m) => m.includes('Dropping unrecognized parameter'))).toHaveLength(1);
   });
 
   it('builds the body entirely from flattened fields when no body param is passed', async () => {

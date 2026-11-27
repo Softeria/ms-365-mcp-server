@@ -3183,16 +3183,26 @@ function rawValueAddsSegments(template: string, names: string[], value: string):
   return isTail ? value.includes(':') : value.includes('/');
 }
 
+// A :name placeholder ends where the name does, so :chatMessageId is not the start of
+// :chatMessageId1
+function colonPlaceholder(name: string): RegExp {
+  return new RegExp(`:${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`);
+}
+
 // Fills the placeholder of one path param, written {message-id} (endpoints.json) or
-// :messageId (generated client). A :name placeholder ends where the name does, so
-// :chatMessageId does not fill the start of :chatMessageId1. A function replacement,
-// so "$`" and "$'" in a raw value are not replacement patterns.
+// :messageId (generated client). A function replacement, so "$`" and "$'" in a raw
+// value are not replacement patterns.
 function fillPathParam(path: string, names: string[], value: string): string {
   for (const name of new Set(names)) {
-    const colonForm = new RegExp(`:${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`);
-    path = path.replace(`{${name}}`, () => value).replace(colonForm, () => value);
+    path = path.replace(`{${name}}`, () => value).replace(colonPlaceholder(name), () => value);
   }
   return path;
+}
+
+// Same boundary as fillPathParam, so a name that only starts a placeholder (`message`
+// on a :messageId path) goes on to the body rescue or the drop warning
+function hasPathPlaceholder(path: string, names: string[]): boolean {
+  return names.some((name) => path.includes(`{${name}}`) || colonPlaceholder(name).test(path));
 }
 
 function invalidPathParameter(message: string) {
@@ -3469,12 +3479,7 @@ async function executeGraphTool(
       } else if (paramName === 'body') {
         body = paramValue;
         logger.info(`Set body param: ${describeShape(body)} (${serializedSize(body)} bytes)`);
-      } else if (
-        path.includes(`:${paramName}`) ||
-        path.includes(`{${paramName}}`) ||
-        path.includes(`:${camelCaseParamName}`) ||
-        path.includes(`{${camelCaseParamName}}`)
-      ) {
+      } else if (hasPathPlaceholder(path, [paramName, camelCaseParamName])) {
         // Fallback: path param not declared in tool.parameters (generated client omits them).
         // Replace placeholder directly so the URL is valid.
         const encodedValue = encodeURIComponent(
