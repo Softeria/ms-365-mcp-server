@@ -2399,7 +2399,9 @@
     "presets": ["work"],
     "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
     "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
-    "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned."
+    "queryParams": ["select", "expand", "filter", "orderby", "top", "skiptoken"],
+    "honorNonIndexedQueries": true,
+    "llmTip": "Add $expand=fields to include actual column values. Without it, only metadata is returned. Filter on a column as fields/Status eq 'Approved'."
   },
   {
     "pathPattern": "/sites/{site-id}/lists/{list-id}/items/{listItem-id}",
@@ -2527,6 +2529,95 @@
     "workScopes": [["Sites.Manage.All"], ["Sites.Selected"]],
     "appScopes": [["Sites.Manage.All"], ["Sites.FullControl.All"], ["Sites.Selected"]],
     "llmTip": "Deletes a column from a SharePoint list. This is irreversible — all data stored in this column across every list item is lost. Confirm with the user before calling. Cannot delete built-in columns (Title, Created, Modified, etc.)."
+  },
+  {
+    "pathPattern": "/sites/{site-id}/lists/{list-id}/contentTypes",
+    "method": "get",
+    "toolName": "list-sharepoint-list-content-types",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
+    "queryParams": ["select", "expand", "filter", "orderby", "top", "skiptoken"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/contentTypes",
+    "method": "get",
+    "toolName": "list-sharepoint-site-content-types",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
+    "queryParams": ["select", "expand", "filter", "orderby", "top", "skiptoken"]
+  },
+  {
+    "pathPattern": "/sites/{site-id}/columns",
+    "method": "get",
+    "toolName": "list-sharepoint-site-columns",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
+    "queryParams": ["select", "expand"],
+    "llmTip": "Returns every site column in one response, hundreds with the built-in ones: pass $select, e.g. name,displayName,columnGroup."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/list",
+    "method": "get",
+    "toolName": "get-drive-list",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "queryParams": ["select", "expand"],
+    "descriptionOverride": "Get the SharePoint list behind a document library drive. Its id and parentReference.siteId are the listId and siteId the SharePoint list tools take."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/list/columns",
+    "method": "get",
+    "toolName": "list-drive-list-columns",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [
+      ["Sites.Read.All"],
+      ["Sites.Manage.All"],
+      ["Sites.FullControl.All"],
+      ["Sites.Selected"]
+    ],
+    "queryParams": ["select", "expand"],
+    "descriptionOverride": "List the column definitions of the SharePoint document library behind a drive."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/list/items",
+    "method": "get",
+    "toolName": "list-drive-list-items",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "queryParams": ["select", "expand", "filter", "orderby", "top", "skiptoken"],
+    "honorNonIndexedQueries": true,
+    "descriptionOverride": "List the files and folders of a document library as SharePoint list items. Add $expand=fields for the column values; filter on a column as fields/Status eq 'Approved'."
+  },
+  {
+    "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/listItem",
+    "method": "get",
+    "toolName": "get-drive-item-list-item",
+    "presets": ["work"],
+    "workScopes": [["Sites.Read.All"], ["Sites.Selected"]],
+    "appScopes": [["Sites.Read.All"], ["Sites.Manage.All"], ["Sites.Selected"]],
+    "queryParams": ["select", "expand"],
+    "descriptionOverride": "Get the SharePoint list item behind a file or folder in a document library, with its column values in fields."
   },
   {
     "pathPattern": "/sites/{site-id}:/{path}",

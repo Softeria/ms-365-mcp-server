@@ -43,6 +43,7 @@ interface Endpoint {
   descriptionOverride?: string;
   deltaToken?: boolean;
   plainSearch?: boolean;
+  honorNonIndexedQueries?: boolean;
 }
 
 const endpoints: Endpoint[] = JSON.parse(
@@ -550,6 +551,17 @@ describe('endpoints.json validation', () => {
       for (const e of endpoints.filter((x) => x.plainSearch)) {
         expect(e.method, `${e.toolName} plainSearch`).toBe('get');
         expect(queryNames(e.toolName), `${e.toolName} has no $search`).toContain('search');
+      }
+    });
+
+    it('puts honorNonIndexedQueries only on GET tools that take $filter', () => {
+      const flagged = endpoints.filter((x) => x.honorNonIndexedQueries);
+      // Without a shipped entry to check, the loop below would pass on nothing
+      expect(flagged.map((e) => e.toolName)).toContain('list-sharepoint-site-list-items');
+      for (const e of flagged) {
+        expect(e.method, `${e.toolName} honorNonIndexedQueries`).toBe('get');
+        expect(queryNames(e.toolName), `${e.toolName} has no $filter`).toContain('filter');
+        if (e.queryParams) expect(e.queryParams.map((p) => p.toLowerCase())).toContain('filter');
       }
     });
 
