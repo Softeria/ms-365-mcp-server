@@ -159,7 +159,7 @@ export const CONFIRM_PARAM_DESCRIPTION =
   'When the gate is on, calls without confirm: true return { error: "confirmation_required" } without touching user data.';
 
 export const IF_MATCH_PARAM_DESCRIPTION =
-  'Optional ETag for a conditional update. Use the ETag from the list item read (with includeHeaders=true); if it is stale, Graph returns 412 and does not apply the update.';
+  'Optional ETag for a conditional write. Use the ETag from your last read of the same item (the eTag field, or the ETag response header when includeHeaders=true); if it is stale, Graph returns 412 and does not apply the change.';
 
 export const TIMEZONE_PARAM_DESCRIPTION =
   'IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo") for calendar event times. If not specified, times are returned in UTC.';

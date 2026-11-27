@@ -806,7 +806,8 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Graph accepts up to 250MB here, but the whole string travels as a tool argument and a truncated one decodes to a truncated file with no error, so use create-upload-session rather than emitting a large base64 string. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning."
+    "supportsIfMatch": true,
+    "llmTip": "Body is a base64-encoded string of the file bytes; the server decodes it before PUT. Graph accepts up to 250MB here, but the whole string travels as a tool argument and a truncated one decodes to a truncated file with no error, so use create-upload-session rather than emitting a large base64 string. For new files use path format: /items/root:/path/to/file.txt:/content. Overwrites existing files without warning. To avoid overwriting someone else's newer changes, read the file's eTag with get-drive-item before you download or edit it, then pass that value as If-Match when you upload; a stale ETag returns 412 and the file is left unchanged."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/createUploadSession",
@@ -815,7 +816,8 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "For large file uploads (up to 250 GB; no minimum, unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself, without an Authorization header, in ranges under 60 MiB that are multiples of 320 KiB (except the last). This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }."
+    "supportsIfMatch": true,
+    "llmTip": "For large file uploads (up to 250 GB; no minimum, unlike the Outlook attachment session). Returns a pre-authenticated uploadUrl; the caller PUTs the bytes there itself, without an Authorization header, in ranges under 60 MiB that are multiples of 320 KiB (except the last). This server does not perform the PUT. For new files use path: /items/{parentId}:/{fileName}:/createUploadSession. Body (optional): { item: { '@microsoft.graph.conflictBehavior': 'rename' } }. To avoid overwriting someone else's newer changes when replacing an existing file, pass the file's eTag (from get-drive-item) as If-Match when creating the session; a stale ETag returns 412 and no upload session is created."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}",
@@ -833,7 +835,8 @@
     "presets": ["files", "onedrive", "personal"],
     "scopes": [["Files.ReadWrite"], ["Sites.Selected"]],
     "appScopes": [["Files.ReadWrite.All"], ["Sites.ReadWrite.All"], ["Sites.Selected"]],
-    "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request."
+    "supportsIfMatch": true,
+    "llmTip": "Move and/or rename a file or folder. To move, provide parentReference with the target folder's id. To rename, provide a new name. Both can be done in a single request. To avoid acting on an item someone else changed since you read it, pass its eTag (from get-drive-item) as If-Match; a stale ETag returns 412 and the item is left unchanged."
   },
   {
     "pathPattern": "/drives/{drive-id}/items/{driveItem-id}/children",

@@ -255,6 +255,81 @@ describe('per-tool behavior on the real tool surface', () => {
     expect(options?.headers).toMatchObject({ 'If-Match': '"item-etag,1"' });
   });
 
+  it.each(['upload-file-content', 'create-upload-session', 'move-rename-onedrive-item'])(
+    'surfaces If-Match for %s in registration and discovery',
+    (toolName) => {
+      expect(
+        Object.keys(registered(toolName).shape).find((name) => name.toLowerCase() === 'if-match')
+      ).toBeDefined();
+
+      const entry = buildToolsRegistry(false, true).get(toolName);
+      expect(entry).toBeDefined();
+      const discovered = describeToolSchema(entry!.tool, entry!.config).parameters.find(
+        (param) => param.name.toLowerCase() === 'if-match'
+      );
+      expect(discovered).toMatchObject({
+        in: 'Header',
+        required: false,
+        schema: { type: 'string' },
+      });
+    }
+  );
+
+  it('forwards the file ETag as an If-Match header on a base64 file upload', async () => {
+    await registered('upload-file-content').handler({
+      driveId: 'drive-1',
+      driveItemId: 'root:/docs/a.txt:',
+      body: Buffer.from('hello').toString('base64'),
+      'If-Match': '"file-etag,3"',
+      confirm: true,
+    });
+
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(options?.headers).toMatchObject({
+      'If-Match': '"file-etag,3"',
+      'Content-Type': 'application/octet-stream',
+    });
+    expect(Buffer.isBuffer(options?.body)).toBe(true);
+  });
+
+  it('forwards the file ETag as an If-Match header when creating an upload session', async () => {
+    await registered('create-upload-session').handler({
+      driveId: 'drive-1',
+      driveItemId: 'root:/docs/a.txt:',
+      body: { item: { '@microsoft.graph.conflictBehavior': 'replace' } },
+      'If-Match': '"file-etag,3"',
+      confirm: true,
+    });
+
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(options?.headers).toMatchObject({ 'If-Match': '"file-etag,3"' });
+  });
+
+  it('forwards the file ETag as an If-Match header when renaming or moving a drive item', async () => {
+    await registered('move-rename-onedrive-item').handler({
+      driveId: 'drive-1',
+      driveItemId: 'item-1',
+      body: { name: 'renamed.txt' },
+      'If-Match': '"file-etag,3"',
+      confirm: true,
+    });
+
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(options?.headers).toMatchObject({ 'If-Match': '"file-etag,3"' });
+  });
+
+  it('sends no If-Match header on a file upload when none is given', async () => {
+    await registered('upload-file-content').handler({
+      driveId: 'drive-1',
+      driveItemId: 'root:/docs/a.txt:',
+      body: Buffer.from('hello').toString('base64'),
+      confirm: true,
+    });
+
+    const [, options] = vi.mocked(graphClient.graphRequest).mock.calls[0];
+    expect(options?.headers).not.toHaveProperty('If-Match');
+  });
+
   it.each([
     [{ search: '*' }, 'search=*'],
     [{ search: ' " * " ' }, 'search=*'],
